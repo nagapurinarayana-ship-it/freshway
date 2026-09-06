@@ -1,22 +1,26 @@
 # FreshWay API Worker
 
-This Worker provides the shared notification layer for FreshWay.
+This Worker is the shared backend for the FreshWay customer app and owner dashboard. It stores the catalogue, customers, addresses, orders and order items in Cloudflare D1, and also provides Web Push / WhatsApp broadcast APIs.
 
-## D1
+## 1. Create D1
 
-Create the database:
+From the `worker` directory:
 
 ```bash
 npx wrangler d1 create freshway
 ```
 
-Copy the returned database ID into `wrangler.jsonc`, then apply the schema:
+Copy the returned database ID into `wrangler.jsonc`, replacing `REPLACE_WITH_D1_DATABASE_ID`.
+
+Apply the schema and seed the initial 10 products:
 
 ```bash
 npx wrangler d1 execute freshway --file=./schema.sql --remote
 ```
 
-## Web Push
+Cloudflare D1 supports prepared statements and `batch()` for grouped writes; the Worker uses bound parameters and a batch for each new order. citeturn0search0turn0search2
+
+## 2. Web Push
 
 Generate VAPID credentials locally:
 
@@ -35,22 +39,55 @@ npx wrangler secret put ADMIN_TOKEN
 
 The customer app never receives the private VAPID key or admin token.
 
-## WhatsApp
+## 3. WhatsApp
 
-Configure Meta WhatsApp Business Platform / Cloud API credentials as Worker secrets/vars:
+Configure Meta WhatsApp Business Platform / Cloud API credentials:
 
 ```bash
 npx wrangler secret put WHATSAPP_ACCESS_TOKEN
 ```
 
-Set `WHATSAPP_PHONE_NUMBER_ID` and `WHATSAPP_GRAPH_VERSION` in the Worker environment. Use only customers with recorded WhatsApp opt-in. Broadcasts must use an approved WhatsApp template when required by Meta's messaging rules.
+Set `WHATSAPP_PHONE_NUMBER_ID` and `WHATSAPP_GRAPH_VERSION` in the Worker environment. Only customers who explicitly opted in are selected for WhatsApp broadcasts. Use approved templates where Meta requires them.
 
-## Routes
+## 4. API
+
+Public customer endpoints:
 
 - `GET /api/health`
+- `GET /api/products`
+- `POST /api/customers/register`
+- `POST /api/orders`
+- `GET /api/orders?customerId=<customer-id>`
 - `GET /api/push/public-key`
 - `POST /api/push/subscribe`
-- `POST /api/customers/register`
-- `POST /api/notifications/broadcast` — requires `Authorization: Bearer <ADMIN_TOKEN>`
 
-For production, route `/api/*` from the same FreshWay domain to this Worker so the static customer/admin pages can use relative API URLs.
+Admin endpoints require `Authorization: Bearer <ADMIN_TOKEN>`:
+
+- `GET /api/admin/orders`
+- `PATCH /api/admin/orders/:id`
+- `GET /api/admin/products`
+- `POST /api/admin/products`
+- `PATCH /api/admin/products/:id`
+- `POST /api/notifications/broadcast`
+
+## 5. Deploy
+
+```bash
+npm install
+npx wrangler deploy
+```
+
+The static customer/admin pages use relative `/api/*` URLs. In production, route `/api/*` from the same FreshWay domain to this Worker. Cloudflare Workers bindings provide the Worker access to the D1 database through `env.DB`. citeturn0search1turn0search4
+
+## V1 business rules
+
+- Offline cash payment only.
+- Delivery status and payment status are separate.
+- No ETA, live tracking or rider app.
+- Owner can mark Processing / Delivered / Cancelled and Cash Collected.
+- Product prices are read from D1; the server recalculates every order total instead of trusting browser prices.
+- Admin dashboard is shared across devices once D1 + Worker routing are deployed.
+
+## Important
+
+The old browser-local order data is not automatically migrated into D1. New orders created after the D1 backend is deployed are stored centrally. This avoids silently inventing or modifying historical order data.
