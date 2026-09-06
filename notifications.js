@@ -5,12 +5,13 @@ const FreshWayNotifications = (() => {
     if (!value) { value = crypto.randomUUID ? crypto.randomUUID() : `c-${Date.now()}-${Math.random().toString(16).slice(2)}`; localStorage.setItem(CUSTOMER_KEY, value); }
     return value;
   };
+  const setCustomerId = value => { const clean = String(value || '').trim(); if (clean) localStorage.setItem(CUSTOMER_KEY, clean); };
   const api = async (path, options = {}) => {
     const response = await fetch(path, { headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options });
     const text = await response.text();
     let data = {};
     try { data = text ? JSON.parse(text) : {}; } catch (_) { data = {}; }
-    if (!response.ok) throw new Error(data.error || text || `HTTP ${response.status}`);
+    if (!response.ok) { const error = new Error(data.error || text || `HTTP ${response.status}`); error.status = response.status; throw error; }
     return data;
   };
   const keyBytes = key => {
@@ -32,9 +33,9 @@ const FreshWayNotifications = (() => {
     return true;
   }
   async function registerCustomer(name, phone, whatsappOptIn = false) {
-    try { await api('/api/customers/register', { method: 'POST', body: JSON.stringify({ id: id(), name, phone, whatsappOptIn }) }); } catch (_) { /* Customer registration must not block an order. */ }
+    await api('/api/customers/register', { method: 'POST', body: JSON.stringify({ id: id(), name, phone, whatsappOptIn }) });
   }
   async function init() { if ('serviceWorker' in navigator) await navigator.serviceWorker.register('/sw.js').catch(() => {}); }
-  return { init, enable, registerCustomer, customerId: id };
+  return { init, enable, registerCustomer, customerId: id, setCustomerId };
 })();
 FreshWayNotifications.init();
