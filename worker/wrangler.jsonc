@@ -1,6 +1,6 @@
 {
   "name": "freshway-api",
-  "main": "src/secure-index.js",
+  "main": "src/index.js",
   "compatibility_date": "2026-09-06",
   "compatibility_flags": ["nodejs_compat"],
   "d1_databases": [
