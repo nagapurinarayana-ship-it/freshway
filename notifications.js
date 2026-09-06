@@ -10,11 +10,7 @@ const FreshWayNotifications = (() => {
     if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
     return response.json();
   };
-  const keyBytes = key => {
-    const padding = '='.repeat((4 - key.length % 4) % 4);
-    const raw = atob((key + padding).replace(/-/g, '+').replace(/_/g, '/'));
-    return Uint8Array.from(raw, c => c.charCodeAt(0));
-  };
+  const keyBytes = key => { const padding = '='.repeat((4 - key.length % 4) % 4); const raw = atob((key + padding).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(raw, c => c.charCodeAt(0)); };
   async function enable() {
     if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) throw new Error('Push notifications are not supported by this browser.');
     const registration = await navigator.serviceWorker.register('/sw.js');
@@ -27,9 +23,10 @@ const FreshWayNotifications = (() => {
     localStorage.setItem('freshway-push-enabled', '1');
     return true;
   }
-  async function init() {
-    if ('serviceWorker' in navigator) await navigator.serviceWorker.register('/sw.js').catch(() => {});
+  async function registerCustomer(name, phone, whatsappOptIn = false) {
+    try { await api('/api/customers/register', { method: 'POST', body: JSON.stringify({ id: id(), name, phone, whatsappOptIn }) }); } catch (_) { /* Orders must still work if the API is not deployed yet. */ }
   }
-  return { init, enable, customerId: id };
+  async function init() { if ('serviceWorker' in navigator) await navigator.serviceWorker.register('/sw.js').catch(() => {}); }
+  return { init, enable, registerCustomer, customerId: id };
 })();
 FreshWayNotifications.init();
