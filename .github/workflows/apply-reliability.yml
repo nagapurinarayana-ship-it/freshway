@@ -2,6 +2,7 @@ name: Apply reliability hardening
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 permissions:
   contents: write
 jobs:
@@ -74,7 +75,7 @@ async function createOrder(env, payload) {
 """
           new="""function latestOrder(){return state.orders[0]||null}
 function checkoutFingerprint(data,address){return JSON.stringify({customer:data,address,items:cartItems().map(x=>({id:x.product.id,qty:x.qty}))})}
-function checkoutClientId(data,address){const fingerprint=checkoutFingerprint(data,address);const saved=state.profile?.pendingCheckout;if(saved?.key&&saved.fingerprint===fingerprint)return saved.key;const key=(crypto?.randomUUID?crypto.randomUUID():`fw-${Date.now()}-${Math.random().toString(36).slice(2,10)}`).replace(/[^A-Za-z0-9_-]/g,'').slice(0,100);state.profile.pendingCheckout={key,fingerprint};save();return key}
+function checkoutClientId(data,address){const fingerprint=checkoutFingerprint(data,address);const saved=state.profile?.pendingCheckout;if(saved?.key&&saved.fingerprint===fingerprint)return saved.key;const key=(globalThis.crypto?.randomUUID?globalThis.crypto.randomUUID():`fw-${Date.now()}-${Math.random().toString(36).slice(2,10)}`).replace(/[^A-Za-z0-9_-]/g,'').slice(0,100);state.profile.pendingCheckout={key,fingerprint};save();return key}
 function clearCheckoutClientId(){if(state.profile?.pendingCheckout){delete state.profile.pendingCheckout;save()}}
 """
           if old not in s: raise SystemExit('latestOrder anchor not found')
