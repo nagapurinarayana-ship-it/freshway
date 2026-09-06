@@ -48,7 +48,16 @@
     const city=field('city');
     if(city&&city.value==='Hyderabad')city.value='';
   }
+  function loadOrdersUI(){
+    if(document.querySelector('script[data-orders-ui]'))return;
+    const s=document.createElement('script');
+    s.src='orders-ui.js';
+    s.async=false;
+    s.dataset.ordersUi='1';
+    document.head.appendChild(s);
+  }
   const observer=new MutationObserver(install);
   observer.observe(document.body,{childList:true,subtree:true});
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{install();loadOrdersUI()},{once:true});
+  else {install();loadOrdersUI()}
 })();
