@@ -27,7 +27,9 @@ jobs:
           node --check sw.js
       - name: Check Worker JavaScript
         working-directory: worker
-        run: node --check src/index.js
+        run: |
+          node --check src/index.js
+          node --check src/secure-index.js
       - name: Check D1 schema and migration
         working-directory: worker
         run: |
@@ -38,7 +40,7 @@ jobs:
           grep -q "ALTER TABLE orders ADD COLUMN delivery_plan" migrations/0001_delivery_plan.sql
       - name: Check Worker configuration
         working-directory: worker
-        run: node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); if(!x.name||!x.main||!x.d1_databases?.[0]?.binding) process.exit(1); console.log('wrangler configuration structure OK')"
+        run: node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); if(!x.name||!x.main||!x.d1_databases?.[0]?.binding||x.main!=='src/secure-index.js') process.exit(1); console.log('wrangler configuration structure and security entrypoint OK')"
       - name: Check for committed secrets
         run: |
           ! grep -RInE '(WHATSAPP_ACCESS_TOKEN|VAPID_PRIVATE_KEY|ADMIN_TOKEN)[[:space:]]*[:=][[:space:]]*[^$\"\047[:space:]]{12,}' --exclude-dir=.git . || (echo 'Possible committed secret found' && exit 1)
