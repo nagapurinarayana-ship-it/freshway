@@ -6,11 +6,18 @@ const json = (data, status = 200, origin = '*') => new Response(JSON.stringify(d
     'content-type': 'application/json; charset=utf-8',
     'access-control-allow-origin': origin,
     'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS',
-    'access-control-allow-headers': 'Content-Type,Authorization'
+    'access-control-allow-headers': 'Content-Type,Authorization,X-Freshway-Admin-Token'
   }
 });
 const origin = env => env.APP_ORIGIN && env.APP_ORIGIN !== 'https://YOUR-FRESHWAY-DOMAIN' ? env.APP_ORIGIN : '*';
-const auth = (request, env) => { const header = request.headers.get('Authorization') || ''; return !!env.ADMIN_TOKEN && header === `Bearer ${env.ADMIN_TOKEN}`; };
+const auth = (request, env) => {
+  const expected = String(env.ADMIN_TOKEN || '').trim();
+  const forwarded = String(request.headers.get('X-Freshway-Admin-Token') || '').trim();
+  const authorization = String(request.headers.get('Authorization') || '').trim();
+  const bearer = authorization.toLowerCase().startsWith('bearer ') ? authorization.slice(7).trim() : authorization;
+  const supplied = forwarded || bearer;
+  return !!expected && supplied === expected;
+};
 const body = async request => { try { return await request.json(); } catch (_) { return {}; } };
 const now = () => new Date().toISOString();
 const cleanPhone = value => { const digits = String(value || '').replace(/\D/g, ''); return digits.length === 10 ? `91${digits}` : digits; };
@@ -132,7 +139,7 @@ async function broadcastPush(env,payload){if(!env.VAPID_PUBLIC_KEY||!env.VAPID_P
 async function broadcastWhatsApp(env,payload){if(!env.WHATSAPP_ACCESS_TOKEN||!env.WHATSAPP_PHONE_NUMBER_ID||!env.WHATSAPP_GRAPH_VERSION)throw new Error('WhatsApp API secrets are not configured.');if(!payload.templateName)throw new Error('WhatsApp requires an approved template name for broadcast messaging.');const{results}=await env.DB.prepare('SELECT phone FROM customers WHERE phone IS NOT NULL AND whatsapp_opt_in=1').all();const url=`https://graph.facebook.com/${env.WHATSAPP_GRAPH_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`;let success=0,failure=0;await Promise.all((results||[]).map(async row=>{try{const response=await fetch(url,{method:'POST',headers:{'Authorization':`Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,'Content-Type':'application/json'},body:JSON.stringify({messaging_product:'whatsapp',to:String(row.phone).replace(/\D/g,''),type:'template',template:{name:payload.templateName,language:{code:payload.languageCode||'en_US'},...(payload.parameters?.length?{components:[{type:'body',parameters:payload.parameters.map(text=>({type:'text',text:String(text)}))}]}:{})}})});if(response.ok)success++;else failure++}catch(_){failure++}}));await env.DB.prepare('INSERT INTO notification_log (channel,title,body,recipient_count,success_count,failure_count) VALUES (?,?,?,?,?,?)').bind('whatsapp',payload.templateName,payload.body||'',results?.length||0,success,failure).run();return{channel:'whatsapp',recipients:results?.length||0,success,failure}}
 async function notificationHistory(env){const{results}=await env.DB.prepare('SELECT id,channel,title,body,recipient_count,success_count,failure_count,created_at FROM notification_log ORDER BY created_at DESC,id DESC LIMIT 50').all();return results||[]}
 
-export default{async fetch(request,env){const cors=origin(env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{'access-control-allow-origin':cors,'access-control-allow-methods':'GET,POST,PATCH,OPTIONS','access-control-allow-headers':'Content-Type,Authorization'}});const url=new URL(request.url);try{
+export default{async fetch(request,env){const cors=origin(env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{'access-control-allow-origin':cors,'access-control-allow-methods':'GET,POST,PATCH,OPTIONS','access-control-allow-headers':'Content-Type,Authorization,X-Freshway-Admin-Token'}});const url=new URL(request.url);try{
 if(url.pathname==='/api/health'&&request.method==='GET')return json({ok:true,service:'freshway-api'},200,cors);
 if(url.pathname==='/api/products'&&request.method==='GET')return json({products:await products(env,false)},200,cors);
 if(url.pathname==='/api/push/public-key'&&request.method==='GET')return json({publicKey:env.VAPID_PUBLIC_KEY||null},200,cors);
