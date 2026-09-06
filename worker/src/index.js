@@ -69,14 +69,26 @@ async function sendCustomerPush(env, customerId, title, message, url = '/') {
   return { sent, failed };
 }
 
+async function existingOrderByClientId(env, customerId, clientOrderId) {
+  if (!clientOrderId) return null;
+  const { results } = await env.DB.prepare('SELECT id FROM orders WHERE client_order_id=? AND customer_id=? LIMIT 1').bind(clientOrderId, customerId).all();
+  if (!results?.[0]?.id) return null;
+  const orders = await customerOrders(env, customerId);
+  return orders.find(order => order.id === results[0].id) || null;
+}
+
 async function createOrder(env, payload) {
   const customerId = String(payload.customerId || '').slice(0, 100), customer = payload.customer || {}, address = payload.address || {};
   const rawItems = Array.isArray(payload.items) ? payload.items : [];
+  const clientOrderId = String(payload.clientOrderId || '').trim().slice(0, 100);
+  if (clientOrderId && !/^[A-Za-z0-9_-]{8,100}$/.test(clientOrderId)) throw new Error('Invalid checkout order id.');
   if (!customerId || !customer.name || !customer.phone) throw new Error('Customer details are required.');
   if (!address.house || !address.area || !address.city || !address.pincode) throw new Error('Complete delivery address is required.');
   if (!rawItems.length) throw new Error('Your cart is empty.');
   if (!/^\d{10}$/.test(String(customer.phone))) throw new Error('Enter a valid 10-digit mobile number.');
   if (!/^\d{6}$/.test(String(address.pincode))) throw new Error('Enter a valid 6-digit PIN code.');
+  const existing = await existingOrderByClientId(env, customerId, clientOrderId);
+  if (existing) return existing;
   const { items, total } = await validateOrderItems(env, rawItems);
   const phone = cleanPhone(customer.phone), customerName = String(customer.name).trim().slice(0, 100);
   await env.DB.prepare(`INSERT INTO customers (id,name,phone,whatsapp_opt_in,updated_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)
@@ -86,8 +98,15 @@ async function createOrder(env, payload) {
     .bind(customerId, String(address.house).trim().slice(0, 200), String(address.area).trim().slice(0, 200), String(address.city).trim().slice(0, 100), String(address.pincode), String(address.landmark || '').trim().slice(0, 200), String(address.note || '').trim().slice(0, 500)).run();
   const addressId = addressResult?.meta?.last_row_id; if (!addressId) throw new Error('Could not save delivery address.');
   const id = orderId(), createdAt = now();
-  const statements = [env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,created_at,updated_at) VALUES (?,?,?,?,?,?, 'Pending','Ordered','Tomorrow',?,?)`).bind(id, customerId, addressId, customerName, phone, total, createdAt, createdAt), ...items.map(item => env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total) VALUES (?,?,?,?,?,?,?)`).bind(id, item.id, item.name, item.unit, item.qty, item.price, item.lineTotal))];
-  try { await env.DB.batch(statements); } catch (error) { await env.DB.prepare('DELETE FROM addresses WHERE id=?').bind(addressId).run(); throw error; }
+  const statements = [env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at) VALUES (?,?,?,?,?,?, 'Pending','Ordered','Tomorrow',?,?,?)`).bind(id, customerId, addressId, customerName, phone, total, clientOrderId || null, createdAt, createdAt), ...items.map(item => env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total) VALUES (?,?,?,?,?,?,?)`).bind(id, item.id, item.name, item.unit, item.qty, item.price, item.lineTotal))];
+  try { await env.DB.batch(statements); } catch (error) {
+    await env.DB.prepare('DELETE FROM addresses WHERE id=?').bind(addressId).run();
+    if (clientOrderId && /unique|constraint/i.test(error?.message || '')) {
+      const duplicate = await existingOrderByClientId(env, customerId, clientOrderId);
+      if (duplicate) return duplicate;
+    }
+    throw error;
+  }
   try { await sendCustomerPush(env, customerId, 'FreshWay order placed', `Order ${id} is confirmed. Delivery is planned for tomorrow or when your route is available.`); } catch (_) {}
   return { id, customerId, total, payment: 'Pending', status: 'Ordered', deliveryPlan: 'Tomorrow', createdAt, updatedAt: createdAt, address: { ...address, pincode: String(address.pincode) }, items };
 }
@@ -125,8 +144,11 @@ async function updateOrder(env, id, payload) {
   if(deliveryPlan){sets.push('delivery_plan=?');params.push(deliveryPlan)}
   if(!sets.length) throw new Error('No order change supplied.'); sets.push('updated_at=CURRENT_TIMESTAMP'); params.push(id);
   const result=await env.DB.prepare(`UPDATE orders SET ${sets.join(',')} WHERE id=?`).bind(...params).run(); if(!result.meta?.changes)throw new Error('Order not found.');
-  if (status && status!==current.delivery_status) {
-    const text = status==='Processing' ? `Order ${id} is now being prepared.` : status==='Delivered' ? `Order ${id} has been delivered.` : status==='Cancelled' ? `Order ${id} has been cancelled.` : `Order ${id} status is ${status}.`;
+  if ((status && status!==current.delivery_status) || (payment && payment!==current.payment_status) || (deliveryPlan && deliveryPlan!==current.delivery_plan)) {
+    let text;
+    if (status && status!==current.delivery_status) text = status==='Processing' ? `Order ${id} is now being prepared.` : status==='Delivered' ? `Order ${id} has been delivered.` : status==='Cancelled' ? `Order ${id} has been cancelled.` : `Order ${id} status is ${status}.`;
+    else if (payment && payment!==current.payment_status) text = payment==='Collected' ? `Payment for order ${id} has been collected.` : `Payment for order ${id} is pending.`;
+    else text = `Delivery plan for order ${id} is now ${deliveryPlan}.`;
     try { await sendCustomerPush(env,current.customer_id,'FreshWay order update',text); } catch (_) {}
   }
   return {ok:true,status:status||current.delivery_status,payment:payment||current.payment_status,deliveryPlan:deliveryPlan||current.delivery_plan};
