@@ -39,6 +39,23 @@ async function registerCustomer(env, payload) {
   return { ok: true };
 }
 
+async function validateOrderItems(env, rawItems) {
+  const requested = rawItems.map(item => ({ id: String(item.id || ''), qty: Number(item.qty) }));
+  const unique = new Map();
+  for (const item of requested) {
+    if (!item.id || !Number.isInteger(item.qty) || item.qty < 1 || item.qty > 99) throw new Error('Invalid cart item.');
+    const nextQty = (unique.get(item.id) || 0) + item.qty;
+    if (nextQty > 99) throw new Error('Maximum quantity for a product is 99.');
+    unique.set(item.id, nextQty);
+  }
+  const ids = [...unique.keys()];
+  const placeholders = ids.map(() => '?').join(',');
+  const { results: dbProducts } = await env.DB.prepare(`SELECT id,name,unit,price,emoji FROM products WHERE active=1 AND id IN (${placeholders})`).bind(...ids).all();
+  if (!dbProducts || dbProducts.length !== ids.length) throw new Error('One or more products are no longer available. Please refresh and try again.');
+  const items = dbProducts.map(p => ({ ...p, qty: unique.get(p.id), lineTotal: p.price * unique.get(p.id) }));
+  return { items, total: items.reduce((sum, item) => sum + item.lineTotal, 0) };
+}
+
 async function createOrder(env, payload) {
   const customerId = String(payload.customerId || '').slice(0, 100);
   const customer = payload.customer || {};
@@ -50,36 +67,36 @@ async function createOrder(env, payload) {
   if (!/^\d{10}$/.test(String(customer.phone))) throw new Error('Enter a valid 10-digit mobile number.');
   if (!/^\d{6}$/.test(String(address.pincode))) throw new Error('Enter a valid 6-digit PIN code.');
 
+  // Validate the cart against the live catalogue before creating any customer/address records.
+  // This prevents bad carts from leaving orphan customer/address rows behind.
+  const { items, total } = await validateOrderItems(env, rawItems);
   const phone = cleanPhone(customer.phone);
+  const customerName = String(customer.name).trim().slice(0, 100);
+  const addressValues = [
+    customerId,
+    String(address.house).trim().slice(0, 200),
+    String(address.area).trim().slice(0, 200),
+    String(address.city).trim().slice(0, 100),
+    String(address.pincode),
+    String(address.landmark || '').trim().slice(0, 200),
+    String(address.note || '').trim().slice(0, 500)
+  ];
+
   await env.DB.prepare(`INSERT INTO customers (id,name,phone,whatsapp_opt_in,updated_at)
     VALUES (?,?,?,?,CURRENT_TIMESTAMP)
     ON CONFLICT(id) DO UPDATE SET name=excluded.name, phone=excluded.phone, whatsapp_opt_in=excluded.whatsapp_opt_in, updated_at=CURRENT_TIMESTAMP`)
-    .bind(customerId, String(customer.name).slice(0, 100), phone, payload.whatsappOptIn ? 1 : 0).run();
+    .bind(customerId, customerName, phone, payload.whatsappOptIn ? 1 : 0).run();
 
   const addressResult = await env.DB.prepare(`INSERT INTO addresses (customer_id,house,area,city,pincode,landmark,note)
-    VALUES (?,?,?,?,?,?,?)`)
-    .bind(customerId, String(address.house).slice(0, 200), String(address.area).slice(0, 200), String(address.city).slice(0, 100), String(address.pincode), String(address.landmark || '').slice(0, 200), String(address.note || '').slice(0, 500)).run();
+    VALUES (?,?,?,?,?,?,?)`).bind(...addressValues).run();
   const addressId = addressResult?.meta?.last_row_id;
   if (!addressId) throw new Error('Could not save delivery address.');
 
-  const requested = rawItems.map(item => ({ id: String(item.id || ''), qty: Number(item.qty) }));
-  const unique = new Map();
-  for (const item of requested) {
-    if (!item.id || !Number.isInteger(item.qty) || item.qty < 1 || item.qty > 99) throw new Error('Invalid cart item.');
-    unique.set(item.id, (unique.get(item.id) || 0) + item.qty);
-  }
-  const ids = [...unique.keys()];
-  const placeholders = ids.map(() => '?').join(',');
-  const { results: dbProducts } = await env.DB.prepare(`SELECT id,name,unit,price,emoji FROM products WHERE active=1 AND id IN (${placeholders})`).bind(...ids).all();
-  if (!dbProducts || dbProducts.length !== ids.length) throw new Error('One or more products are no longer available. Please refresh and try again.');
-
-  const items = dbProducts.map(p => ({ ...p, qty: unique.get(p.id), lineTotal: p.price * unique.get(p.id) }));
-  const total = items.reduce((sum, item) => sum + item.lineTotal, 0);
   const id = orderId();
   const createdAt = now();
   const statements = [
     env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,created_at,updated_at)
-      VALUES (?,?,?,?,?,?, 'Pending','Ordered',?,?)`).bind(id, customerId, addressId, String(customer.name).slice(0, 100), phone, total, createdAt, createdAt),
+      VALUES (?,?,?,?,?,?, 'Pending','Ordered',?,?)`).bind(id, customerId, addressId, customerName, phone, total, createdAt, createdAt),
     ...items.map(item => env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total) VALUES (?,?,?,?,?,?,?)`)
       .bind(id, item.id, item.name, item.unit, item.qty, item.price, item.lineTotal))
   ];
@@ -140,16 +157,33 @@ async function updateOrder(env, id, payload) {
   const payment = payload.payment;
   if (status && !allowedStatus.includes(status)) throw new Error('Invalid delivery status.');
   if (payment && !allowedPayment.includes(payment)) throw new Error('Invalid payment status.');
+
+  const { results } = await env.DB.prepare('SELECT delivery_status,payment_status FROM orders WHERE id=?').bind(id).all();
+  const current = results?.[0];
+  if (!current) throw new Error('Order not found.');
+
+  if (status) {
+    const currentStatus = current.delivery_status;
+    if (currentStatus === 'Delivered' && status !== 'Delivered') throw new Error('Delivered orders cannot be reopened or cancelled.');
+    if (currentStatus === 'Cancelled' && status !== 'Cancelled') throw new Error('Cancelled orders cannot be reopened.');
+    if (status === 'Delivered' && currentStatus === 'Cancelled') throw new Error('Cancelled orders cannot be delivered.');
+  }
+
   const sets = [];
   const params = [];
   if (status) { sets.push('delivery_status=?'); params.push(status); }
-  if (payment) { sets.push('payment_status=?'); params.push(payment); if (payment === 'Collected') { sets.push('payment_collected_at=CURRENT_TIMESTAMP'); } else { sets.push('payment_collected_at=NULL'); } }
+  if (payment) {
+    sets.push('payment_status=?');
+    params.push(payment);
+    if (payment === 'Collected') sets.push('payment_collected_at=CURRENT_TIMESTAMP');
+    else sets.push('payment_collected_at=NULL');
+  }
   if (!sets.length) throw new Error('No order change supplied.');
   sets.push('updated_at=CURRENT_TIMESTAMP');
   params.push(id);
   const result = await env.DB.prepare(`UPDATE orders SET ${sets.join(',')} WHERE id=?`).bind(...params).run();
   if (!result.meta?.changes) throw new Error('Order not found.');
-  return { ok: true };
+  return { ok: true, status: status || current.delivery_status, payment: payment || current.payment_status };
 }
 
 async function addProduct(env, payload) {
@@ -166,9 +200,9 @@ async function addProduct(env, payload) {
 async function updateProduct(env, id, payload) {
   const sets = [];
   const params = [];
-  if (payload.name !== undefined) { sets.push('name=?'); params.push(String(payload.name).trim().slice(0,100)); }
-  if (payload.unit !== undefined) { sets.push('unit=?'); params.push(String(payload.unit).trim().slice(0,30)); }
-  if (payload.price !== undefined) { const price=Number(payload.price); if (!Number.isFinite(price)||price<0) throw new Error('Invalid price.'); sets.push('price=?'); params.push(Math.round(price)); }
+  if (payload.name !== undefined) { const name=String(payload.name).trim().slice(0,100); if(!name) throw new Error('Product name cannot be empty.'); sets.push('name=?'); params.push(name); }
+  if (payload.unit !== undefined) { const unit=String(payload.unit).trim().slice(0,30); if(!unit) throw new Error('Product unit cannot be empty.'); sets.push('unit=?'); params.push(unit); }
+  if (payload.price !== undefined) { const price=Number(payload.price); if(!Number.isFinite(price)||price<0) throw new Error('Invalid price.'); sets.push('price=?'); params.push(Math.round(price)); }
   if (payload.emoji !== undefined) { sets.push('emoji=?'); params.push(String(payload.emoji).slice(0,8)); }
   if (payload.active !== undefined) { sets.push('active=?'); params.push(payload.active ? 1 : 0); }
   if (!sets.length) throw new Error('No product change supplied.');
@@ -185,6 +219,7 @@ async function saveSubscription(env, payload) {
     VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)
     ON CONFLICT(endpoint) DO UPDATE SET customer_id=excluded.customer_id,p256dh=excluded.p256dh,auth=excluded.auth,expiration_time=excluded.expiration_time,updated_at=CURRENT_TIMESTAMP`)
     .bind(payload.customerId,s.endpoint,s.keys.p256dh,s.keys.auth,s.expirationTime || null).run();
+  return { ok: true };
 }
 
 async function broadcastPush(env, payload) {
@@ -217,6 +252,12 @@ async function broadcastWhatsApp(env, payload) {
   return {channel:'whatsapp',recipients:results?.length||0,success,failure};
 }
 
+async function notificationHistory(env) {
+  const { results } = await env.DB.prepare(`SELECT id,channel,title,body,recipient_count,success_count,failure_count,created_at
+    FROM notification_log ORDER BY created_at DESC, id DESC LIMIT 50`).all();
+  return results || [];
+}
+
 export default {
   async fetch(request, env) {
     const cors=origin(env);
@@ -225,19 +266,53 @@ export default {
     try {
       if(url.pathname==='/api/health'&&request.method==='GET') return json({ok:true,service:'freshway-api'},200,cors);
       if(url.pathname==='/api/products'&&request.method==='GET') return json({products:await products(env,false)},200,cors);
+      if(url.pathname==='/api/push/public-key'&&request.method==='GET') return json({publicKey:env.VAPID_PUBLIC_KEY||null},200,cors);
+      if(url.pathname==='/api/push/subscribe'&&request.method==='POST') return json(await saveSubscription(env,await body(request)),200,cors);
       if(url.pathname==='/api/customers/register'&&request.method==='POST') return json(await registerCustomer(env,await body(request)),200,cors);
-      if(url.pathname==='/api/push/public-key'&&request.method==='GET') { if(!env.VAPID_PUBLIC_KEY) return json({error:'Push is not configured yet.'},503,cors); return json({publicKey:env.VAPID_PUBLIC_KEY},200,cors); }
-      if(url.pathname==='/api/push/subscribe'&&request.method==='POST') { await saveSubscription(env,await body(request)); return json({ok:true},200,cors); }
       if(url.pathname==='/api/orders'&&request.method==='POST') return json(await createOrder(env,await body(request)),201,cors);
       if(url.pathname==='/api/orders'&&request.method==='GET') return json({orders:await customerOrders(env,url.searchParams.get('customerId'))},200,cors);
 
-      if(url.pathname==='/api/admin/products'&&request.method==='GET') { if(!auth(request,env)) return json({error:'Unauthorized'},401,cors); return json({products:await products(env,true)},200,cors); }
-      if(url.pathname==='/api/admin/products'&&request.method==='POST') { if(!auth(request,env)) return json({error:'Unauthorized'},401,cors); return json(await addProduct(env,await body(request)),201,cors); }
-      if(url.pathname.startsWith('/api/admin/products/')&&request.method==='PATCH') { if(!auth(request,env)) return json({error:'Unauthorized'},401,cors); return json(await updateProduct(env,decodeURIComponent(url.pathname.split('/').pop()),await body(request)),200,cors); }
-      if(url.pathname==='/api/admin/orders'&&request.method==='GET') { if(!auth(request,env)) return json({error:'Unauthorized'},401,cors); return json({orders:await adminOrders(env)},200,cors); }
-      if(url.pathname.startsWith('/api/admin/orders/')&&request.method==='PATCH') { if(!auth(request,env)) return json({error:'Unauthorized'},401,cors); return json(await updateOrder(env,decodeURIComponent(url.pathname.split('/').pop()),await body(request)),200,cors); }
-      if(url.pathname==='/api/notifications/broadcast'&&request.method==='POST') { if(!auth(request,env)) return json({error:'Unauthorized'},401,cors); const payload=await body(request); const channels=payload.channels||['app']; const results=[]; if(channels.includes('app')) results.push(await broadcastPush(env,payload)); if(channels.includes('whatsapp')) results.push(await broadcastWhatsApp(env,payload)); return json({ok:true,results},200,cors); }
+      if(url.pathname==='/api/admin/orders'&&request.method==='GET') {
+        if(!auth(request,env)) return json({error:'Unauthorized'},401,cors);
+        return json({orders:await adminOrders(env)},200,cors);
+      }
+      if(url.pathname.startsWith('/api/admin/orders/')&&request.method==='PATCH') {
+        if(!auth(request,env)) return json({error:'Unauthorized'},401,cors);
+        const id=decodeURIComponent(url.pathname.split('/').pop());
+        return json(await updateOrder(env,id,await body(request)),200,cors);
+      }
+      if(url.pathname==='/api/admin/products'&&request.method==='GET') {
+        if(!auth(request,env)) return json({error:'Unauthorized'},401,cors);
+        return json({products:await products(env,true)},200,cors);
+      }
+      if(url.pathname==='/api/admin/products'&&request.method==='POST') {
+        if(!auth(request,env)) return json({error:'Unauthorized'},401,cors);
+        return json(await addProduct(env,await body(request)),201,cors);
+      }
+      if(url.pathname.startsWith('/api/admin/products/')&&request.method==='PATCH') {
+        if(!auth(request,env)) return json({error:'Unauthorized'},401,cors);
+        const id=decodeURIComponent(url.pathname.split('/').pop());
+        return json(await updateProduct(env,id,await body(request)),200,cors);
+      }
+      if(url.pathname==='/api/admin/notifications/history'&&request.method==='GET') {
+        if(!auth(request,env)) return json({error:'Unauthorized'},401,cors);
+        return json({notifications:await notificationHistory(env)},200,cors);
+      }
+      if(url.pathname==='/api/notifications/broadcast'&&request.method==='POST') {
+        if(!auth(request,env)) return json({error:'Unauthorized'},401,cors);
+        const payload=await body(request);
+        const channels=Array.isArray(payload.channels)?payload.channels:[];
+        if(!channels.length) return json({error:'Select at least one notification channel.'},400,cors);
+        const results=[];
+        if(channels.includes('app')) results.push(await broadcastPush(env,payload));
+        if(channels.includes('whatsapp')) results.push(await broadcastWhatsApp(env,payload));
+        return json({results},200,cors);
+      }
       return json({error:'Not found'},404,cors);
-    } catch(error) { return json({error:error?.message||'Server error'},500,cors); }
+    } catch(error) {
+      const message=error?.message||'Unexpected server error.';
+      const status=/Unauthorized/i.test(message)?401:/required|invalid|empty|available|maximum|cannot|not found|no order|no product/i.test(message)?400:500;
+      return json({error:message},status,cors);
+    }
   }
 };
