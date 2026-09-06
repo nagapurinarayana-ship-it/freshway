@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS orders (
   total INTEGER NOT NULL CHECK(total >= 0),
   payment_status TEXT NOT NULL DEFAULT 'Pending' CHECK(payment_status IN ('Pending','Collected')),
   delivery_status TEXT NOT NULL DEFAULT 'Ordered' CHECK(delivery_status IN ('Ordered','Processing','Delivered','Cancelled')),
+  delivery_plan TEXT NOT NULL DEFAULT 'Tomorrow' CHECK(delivery_plan IN ('Today','Tomorrow','Later','Unscheduled')),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   payment_collected_at TEXT,
@@ -62,7 +63,8 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   auth TEXT NOT NULL,
   expiration_time INTEGER,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS notification_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,6 +79,7 @@ CREATE TABLE IF NOT EXISTS notification_log (
 CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
 CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(delivery_status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_plan ON orders(delivery_plan, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_addresses_customer ON addresses(customer_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 INSERT OR IGNORE INTO products (id,name,unit,price,emoji,active) VALUES
