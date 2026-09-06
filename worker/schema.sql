@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE TABLE IF NOT EXISTS customers (
   id TEXT PRIMARY KEY,
   name TEXT,
-  phone TEXT UNIQUE,
+  phone TEXT,
   whatsapp_opt_in INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS notification_log (
   failure_count INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
 CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(delivery_status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_addresses_customer ON addresses(customer_id, id DESC);
