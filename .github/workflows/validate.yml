@@ -24,6 +24,8 @@ jobs:
           node --check app.js
           node --check admin.js
           node --check notifications.js
+          node --check location.js
+          node --check orders-ui.js
           node --check sw.js
       - name: Check Worker JavaScript
         working-directory: worker
