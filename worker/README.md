@@ -18,7 +18,7 @@ Apply the schema and seed the initial 10 products:
 npx wrangler d1 execute freshway --file=./schema.sql --remote
 ```
 
-Cloudflare D1 supports prepared statements and `batch()` for grouped writes; the Worker uses bound parameters and a batch for each new order. citeturn0search0turn0search2
+The Worker uses prepared statements with bound parameters and D1 batch writes for an order and its line items.
 
 ## 2. Web Push
 
@@ -77,7 +77,7 @@ npm install
 npx wrangler deploy
 ```
 
-The static customer/admin pages use relative `/api/*` URLs. In production, route `/api/*` from the same FreshWay domain to this Worker. Cloudflare Workers bindings provide the Worker access to the D1 database through `env.DB`. citeturn0search1turn0search4
+The static customer/admin pages use relative `/api/*` URLs. In production, route `/api/*` from the same FreshWay domain to this Worker.
 
 ## V1 business rules
 
