@@ -8,5 +8,8 @@
   ],
   "vars": {
     "APP_ORIGIN": "https://freshway-f32.pages.dev"
+  },
+  "secrets": {
+    "required": ["ADMIN_TOKEN"]
   }
 }
