@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f7a4b" />
+  <meta name="description" content="FreshWay - simple local ordering for fresh fruits and everyday essentials." />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>FreshWay — Fresh. Local. Simple.</title>
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <header class="topbar">
+      <div class="brand" id="brandHome" role="button" tabindex="0" aria-label="FreshWay home">
+        <span class="brand-mark">FW</span>
+        <span><strong>FreshWay</strong><small>Fresh. Local. Simple.</small></span>
+      </div>
+      <button class="icon-btn" id="profileBtn" aria-label="Open profile">👤</button>
+    </header>
+
+    <main>
+      <section id="homeView" class="view active-view">
+        <div class="location-card">
+          <div><span class="eyebrow">DELIVER TO</span><strong id="homeAddress">Add your delivery address</strong></div>
+          <button class="text-btn" id="addressBtn">Change</button>
+        </div>
+
+        <div class="search-wrap">
+          <span>⌕</span>
+          <input id="searchInput" type="search" placeholder="Search fruits & products" autocomplete="off" />
+        </div>
+
+        <div class="hero-banner">
+          <div>
+            <span class="eyebrow light">FRESHWAY</span>
+            <h1>Fresh products,<br><em>delivered locally.</em></h1>
+            <p>Choose what you need. Place your order. We take care of the rest.</p>
+          </div>
+          <div class="hero-fruit" aria-hidden="true">🍎🥭</div>
+        </div>
+
+        <div class="section-heading">
+          <div><span class="eyebrow">TODAY'S PICKS</span><h2>Fresh products</h2></div>
+          <span class="count-pill">10 items</span>
+        </div>
+        <div id="productGrid" class="product-grid"></div>
+      </section>
+
+      <section id="cartView" class="view">
+        <div class="page-heading"><button class="back-btn" data-back="home">‹</button><div><span class="eyebrow">YOUR ORDER</span><h1>Cart</h1></div></div>
+        <div id="cartItems"></div>
+        <div id="cartSummary" class="summary-card"></div>
+      </section>
+
+      <section id="checkoutView" class="view">
+        <div class="page-heading"><button class="back-btn" data-back="cart">‹</button><div><span class="eyebrow">ALMOST DONE</span><h1>Delivery details</h1></div></div>
+        <form id="checkoutForm" class="form-card">
+          <label>Full name<input id="customerName" required autocomplete="name" placeholder="Your name" /></label>
+          <label>Mobile number<input id="customerPhone" required inputmode="tel" autocomplete="tel" placeholder="10-digit mobile number" pattern="[0-9]{10}" /></label>
+          <label>House / Flat number<input id="house" required autocomplete="street-address" placeholder="Flat 302, House 12-4" /></label>
+          <label>Area / Street<input id="area" required placeholder="Kukatpally, Miyapur..." /></label>
+          <div class="form-row"><label>City<input id="city" required value="Hyderabad" /></label><label>PIN code<input id="pincode" required inputmode="numeric" pattern="[0-9]{6}" placeholder="500072" /></label></div>
+          <label>Landmark <span class="optional">Optional</span><input id="landmark" placeholder="Near school / temple / shop" /></label>
+          <label>Delivery note <span class="optional">Optional</span><textarea id="note" rows="2" placeholder="Please call before delivery"></textarea></label>
+          <div class="payment-note"><span>💵</span><div><strong>Payment: Cash</strong><small>Payment will be collected during offline delivery.</small></div></div>
+          <button class="primary-btn full" type="submit">Place order · <span id="checkoutTotal">₹0</span></button>
+        </form>
+      </section>
+
+      <section id="ordersView" class="view">
+        <div class="page-heading"><div><span class="eyebrow">YOUR ACTIVITY</span><h1>My orders</h1></div></div>
+        <div id="customerOrders"></div>
+      </section>
+
+      <section id="profileView" class="view">
+        <div class="page-heading"><div><span class="eyebrow">ACCOUNT</span><h1>Profile</h1></div></div>
+        <div class="profile-card"><div class="avatar">👤</div><div><strong id="profileName">Guest customer</strong><small id="profilePhone">No order yet</small></div></div>
+        <div class="menu-card">
+          <button id="profileAddress"><span>📍</span><div><strong>Delivery address</strong><small id="profileAddressText">Not saved yet</small></div><b>›</b></button>
+          <button data-nav="orders"><span>📦</span><div><strong>My orders</strong><small>View previous orders</small></div><b>›</b></button>
+          <a href="admin.html" class="admin-link"><span>⚙️</span><div><strong>Business dashboard</strong><small>Owner / staff access</small></div><b>›</b></a>
+        </div>
+      </section>
+    </main>
+
+    <div id="cartBar" class="cart-bar hidden"><div><strong id="cartCount">0 items</strong><small id="cartTotal">₹0</small></div><button id="viewCartBtn">View cart →</button></div>
+
+    <nav class="bottom-nav" aria-label="Primary navigation">
+      <button class="nav-item active" data-nav="home"><span>⌂</span>Home</button>
+      <button class="nav-item" data-nav="orders"><span>▣</span>Orders</button>
+      <button class="nav-item" data-nav="cart"><span>🛒<i id="cartBadge" class="badge">0</i></span>Cart</button>
+      <button class="nav-item" data-nav="profile"><span>○</span>Profile</button>
+    </nav>
+  </div>
+
+  <div id="addressModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="addressModalTitle">
+    <div class="modal-sheet"><div class="modal-head"><div><span class="eyebrow">DELIVERY</span><h2 id="addressModalTitle">Your address</h2></div><button class="icon-btn" data-close-modal>×</button></div>
+      <p class="muted">Save your address once so every order is faster.</p>
+      <label>Address<input id="savedAddress" placeholder="Flat / House, Area, City, PIN" /></label>
+      <button id="saveAddressBtn" class="primary-btn full">Save address</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
