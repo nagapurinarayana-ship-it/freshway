@@ -4,9 +4,9 @@
   "compatibility_date": "2026-09-06",
   "compatibility_flags": ["nodejs_compat"],
   "d1_databases": [
-    {"binding": "DB", "database_name": "freshway", "database_id": "REPLACE_WITH_D1_DATABASE_ID"}
+    {"binding": "DB", "database_name": "freshway", "database_id": "4b645f26-12ad-4805-bf22-12186122ad3a"}
   ],
   "vars": {
-    "APP_ORIGIN": "https://YOUR-FRESHWAY-DOMAIN"
+    "APP_ORIGIN": "https://freshway-f32.pages.dev"
   }
 }
