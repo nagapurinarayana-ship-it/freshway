@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS orders (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   payment_collected_at TEXT,
+  client_order_id TEXT UNIQUE,
   FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE RESTRICT,
   FOREIGN KEY(address_id) REFERENCES addresses(id) ON DELETE RESTRICT
 );
@@ -80,6 +81,7 @@ CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
 CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(delivery_status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_plan ON orders(delivery_plan, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_client_order_id ON orders(client_order_id);
 CREATE INDEX IF NOT EXISTS idx_addresses_customer ON addresses(customer_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 INSERT OR IGNORE INTO products (id,name,unit,price,emoji,active) VALUES
