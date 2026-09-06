@@ -1,0 +1,33 @@
+name: FreshWay validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install Worker dependencies
+        working-directory: worker
+        run: npm install
+      - name: Check browser JavaScript
+        run: |
+          node --check app.js
+          node --check admin.js
+          node --check notifications.js
+          node --check sw.js
+      - name: Check Worker JavaScript
+        working-directory: worker
+        run: node --check src/index.js
+      - name: Validate Worker configuration
+        working-directory: worker
+        run: npx wrangler deploy --dry-run
