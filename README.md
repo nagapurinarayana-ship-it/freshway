@@ -22,31 +22,40 @@ FreshWay is a hyperlocal customer ordering PWA plus an owner operations dashboar
 - Optional WhatsApp marketing/updates opt-in
 
 ## Owner dashboard
-- Order cards
+- Shared D1 order board
 - New / processing / delivered / cancelled filters
 - Cash pending / collected filters
 - Pending cash total
 - Delivery and payment tracked independently
 - Mark delivered / mark cash collected
 - Call customer / open address in Maps
-- Basic product catalogue management
-- **Broadcast customer notification center** for app push and WhatsApp
+- D1-backed product catalogue management
+- Broadcast customer notification center for app push and WhatsApp
+- Browser-session admin token authentication
+
+## Shared data architecture
+
+New customer orders are stored centrally in Cloudflare D1 instead of the browser's localStorage. The Worker server recalculates order totals from the active D1 catalogue, then stores the customer, address, order and order items together. The customer app reads products and My Orders from the API, while the owner dashboard reads and updates the same order records.
+
+Files:
+- `worker/schema.sql` — D1 tables and initial 10-product seed
+- `worker/src/index.js` — customer, order, product, admin and notification API
+- `worker/wrangler.jsonc` — D1 binding and Worker configuration
+- `worker/README.md` — deployment instructions
 
 ## Notification architecture
 
 ### App push — primary, low-cost channel
-The customer can opt in to browser/PWA notifications. The app registers a service worker and stores each Web Push subscription in Cloudflare D1. The owner can then send one broadcast from the dashboard to all opted-in devices. Cloudflare's current Web Push guidance uses VAPID keys, a service worker, and the Web Push API; the subscription can receive notifications even when the customer has closed the site. citeturn0search0
+The customer can opt in to browser/PWA notifications. The app registers a service worker and stores each Web Push subscription in Cloudflare D1. The owner can send a broadcast from the dashboard to opted-in devices.
 
 Files:
 - `sw.js` — notification service worker
 - `notifications.js` — customer subscription client
-- `worker/schema.sql` — D1 tables
-- `worker/src/index.js` — push subscription and broadcast API
 
 ### WhatsApp — optional secondary channel
-WhatsApp is provisioned through Meta's WhatsApp Business Platform/Cloud API. The customer must explicitly opt in, and outbound broadcast messages should use an approved WhatsApp template when outside the customer-service window. Meta explicitly requires user opt-in for WhatsApp messaging. citeturn1search1turn1search0
+WhatsApp is provisioned through Meta's WhatsApp Business Platform/Cloud API. The customer must explicitly opt in, and the Worker sends template messages using server-side credentials. Meta credentials are never placed in browser code.
 
-The checkout therefore includes an optional **"Send me FreshWay updates on WhatsApp"** consent. The Worker stores the consent flag and the admin dashboard exposes WhatsApp broadcast controls without putting Meta credentials in browser code.
+The checkout includes an optional **"Send me FreshWay updates on WhatsApp"** consent.
 
 ## Worker setup
 
@@ -55,40 +64,25 @@ From `worker/`:
 1. Install dependencies: `npm install`
 2. Create a Cloudflare D1 database and replace `REPLACE_WITH_D1_DATABASE_ID` in `wrangler.jsonc`.
 3. Apply `schema.sql` to the D1 database.
-4. Set the public Web Push VAPID key and secrets:
-   - `wrangler secret put VAPID_PUBLIC_KEY`
-   - `wrangler secret put VAPID_PRIVATE_KEY`
-   - `wrangler secret put VAPID_SUBJECT`
-5. Set the admin broadcast secret:
-   - `wrangler secret put ADMIN_TOKEN`
-6. Deploy the Worker with `npm run deploy`.
-7. Set `APP_ORIGIN` in `wrangler.jsonc` to the actual FreshWay customer/admin origin.
+4. Set Web Push VAPID secrets and `ADMIN_TOKEN`.
+5. Set WhatsApp credentials only if WhatsApp broadcasting is enabled.
+6. Deploy with `npm run deploy`.
+7. Route `/api/*` from the same FreshWay domain to this Worker because the frontend uses relative API paths.
 
-For WhatsApp, also configure these Worker secrets/vars:
-- `WHATSAPP_ACCESS_TOKEN` — secret
-- `WHATSAPP_PHONE_NUMBER_ID` — secret/var as appropriate
-- `WHATSAPP_GRAPH_VERSION` — the Meta Graph API version selected for the account
+Do **not** commit secrets to GitHub.
 
-Do **not** commit any of these secrets to GitHub.
+## Important data note
 
-## Important prototype limitation
+Orders created before the D1 backend was deployed remain only in the browser that created them. They are not silently migrated. All new orders after deployment are centrally visible to the owner dashboard.
 
-The customer/admin UI currently still uses browser `localStorage` for the order board. The new notification registration API is independent and is ready for the shared Cloudflare data phase. Orders themselves must be moved to D1 before the product is a true multi-device production system.
+## Explicit V1 exclusions
 
-## Production phase
-
-Move shared data to Cloudflare:
-- Cloudflare Pages for customer/admin web apps
-- Cloudflare Workers for APIs
-- Cloudflare D1 for customers, products, addresses, orders, delivery status and payment status
-- Optional R2 for product images
-- No online payment integration in V1
+- No online payment integration
 - No rider application
 - No live tracking
 - No ETA engine
+- No complex quick-commerce delivery logic
 
-The production order model should keep these fields independent:
+The production order model keeps these fields independent:
 - `delivery_status`: ORDERED | PROCESSING | DELIVERED | CANCELLED
 - `payment_status`: PENDING | COLLECTED
-
-This allows cases such as an order being delivered while cash is still pending.
