@@ -3,7 +3,7 @@ let token=sessionStorage.getItem(TOKEN_KEY)||'';let orders=[];let products=[];le
 const $=s=>document.querySelector(s);const $$=s=>[...document.querySelectorAll(s)];
 const money=n=>`₹${Number(n||0).toLocaleString('en-IN')}`;
 const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-const api=async(path,options={})=>{const response=await fetch(path,{...options,headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`,...(options.headers||{})}});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||`Request failed (${response.status})`);return data};
+const api=async(path,options={})=>{const response=await fetch(path,{...options,headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`,'X-Freshway-Admin-Token':token,...(options.headers||{})}});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||`Request failed (${response.status})`);return data};
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(window.__toast);setTimeout(()=>t.classList.remove('show'),2400)}
 function setAuthState(connected){$('#authState').textContent=connected?'Connected':'Not connected';$('#authState').classList.toggle('connected',connected)}
 function saveToken(){token=$('#adminToken').value.trim();if(!token){toast('Enter the Worker ADMIN_TOKEN');setAuthState(false);return}sessionStorage.setItem(TOKEN_KEY,token);loadData()}
