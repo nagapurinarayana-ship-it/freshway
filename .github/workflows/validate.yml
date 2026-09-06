@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -44,3 +47,102 @@ jobs:
       - name: Check for committed secrets
         run: |
           ! grep -RInE '(WHATSAPP_ACCESS_TOKEN|VAPID_PRIVATE_KEY|ADMIN_TOKEN)[[:space:]]*[:=][[:space:]]*[^$\"\047[:space:]]{12,}' --exclude-dir=.git . || (echo 'Possible committed secret found' && exit 1)
+
+  apply-reliability:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Apply retry-safe checkout and notifications
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('worker/src/index.js')
+          s=p.read_text()
+          old="""async function createOrder(env, payload) {
+  const customerId = String(payload.customerId || '').slice(0, 100), customer = payload.customer || {}, address = payload.address || {};
+"""
+          new="""async function existingOrderByClientId(env, customerId, clientOrderId) {
+  if (!clientOrderId) return null;
+  const { results } = await env.DB.prepare('SELECT id FROM orders WHERE client_order_id=? AND customer_id=? LIMIT 1').bind(clientOrderId, customerId).all();
+  if (!results?.[0]?.id) return null;
+  const orders = await customerOrders(env, customerId);
+  return orders.find(order => order.id === results[0].id) || null;
+}
+
+async function createOrder(env, payload) {
+  const customerId = String(payload.customerId || '').slice(0, 100), customer = payload.customer || {}, address = payload.address || {};
+  const clientOrderId = String(payload.clientOrderId || '').trim().slice(0, 100);
+  if (clientOrderId && !/^[A-Za-z0-9_-]{8,100}$/.test(clientOrderId)) throw new Error('Invalid checkout order id.');
+  const existing = await existingOrderByClientId(env, customerId, clientOrderId);
+  if (existing) return existing;
+"""
+          if old not in s: raise SystemExit('createOrder anchor not found')
+          s=s.replace(old,new,1)
+          old="""  const statements = [env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,created_at,updated_at) VALUES (?,?,?,?,?,?, 'Pending','Ordered','Tomorrow',?,?)`).bind(id, customerId, addressId, customerName, phone, total, createdAt, createdAt), ...items.map(item => env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total) VALUES (?,?,?,?,?,?,?)`).bind(id, item.id, item.name, item.unit, item.qty, item.price, item.lineTotal))];
+  try { await env.DB.batch(statements); } catch (error) { await env.DB.prepare('DELETE FROM addresses WHERE id=?').bind(addressId).run(); throw error; }
+"""
+          new="""  const statements = [env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at) VALUES (?,?,?,?,?,?, 'Pending','Ordered','Tomorrow',?,?,?)`).bind(id, customerId, addressId, customerName, phone, total, clientOrderId || null, createdAt, createdAt), ...items.map(item => env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total) VALUES (?,?,?,?,?,?,?)`).bind(id, item.id, item.name, item.unit, item.qty, item.price, item.lineTotal))];
+  try { await env.DB.batch(statements); } catch (error) {
+    await env.DB.prepare('DELETE FROM addresses WHERE id=?').bind(addressId).run();
+    if (clientOrderId && /unique|constraint/i.test(error?.message || '')) {
+      const duplicate = await existingOrderByClientId(env, customerId, clientOrderId);
+      if (duplicate) return duplicate;
+    }
+    throw error;
+  }
+"""
+          if old not in s: raise SystemExit('order insert anchor not found')
+          s=s.replace(old,new,1)
+          old="""  if (status && status!==current.delivery_status) {
+    const text = status==='Processing' ? `Order ${id} is now being prepared.` : status==='Delivered' ? `Order ${id} has been delivered.` : status==='Cancelled' ? `Order ${id} has been cancelled.` : `Order ${id} status is ${status}.`;
+    try { await sendCustomerPush(env,current.customer_id,'FreshWay order update',text); } catch (_) {}
+  }
+"""
+          new="""  if ((status && status!==current.delivery_status) || (payment && payment!==current.payment_status) || (deliveryPlan && deliveryPlan!==current.delivery_plan)) {
+    let text;
+    if (status && status!==current.delivery_status) text = status==='Processing' ? `Order ${id} is now being prepared.` : status==='Delivered' ? `Order ${id} has been delivered.` : status==='Cancelled' ? `Order ${id} has been cancelled.` : `Order ${id} status is ${status}.`;
+    else if (payment && payment!==current.payment_status) text = payment==='Collected' ? `Payment for order ${id} has been collected.` : `Payment for order ${id} is pending.`;
+    else text = `Delivery plan for order ${id} is now ${deliveryPlan}.`;
+    try { await sendCustomerPush(env,current.customer_id,'FreshWay order update',text); } catch (_) {}
+  }
+"""
+          if old not in s: raise SystemExit('notification anchor not found')
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('app.js')
+          s=p.read_text()
+          old="""function latestOrder(){return state.orders[0]||null}
+"""
+          new="""function latestOrder(){return state.orders[0]||null}
+function checkoutFingerprint(data,address){return JSON.stringify({customer:data,address,items:cartItems().map(x=>({id:x.product.id,qty:x.qty}))})}
+function checkoutClientId(data,address){const fingerprint=checkoutFingerprint(data,address);const saved=state.profile?.pendingCheckout;if(saved?.key&&saved.fingerprint===fingerprint)return saved.key;const key=(globalThis.crypto?.randomUUID?globalThis.crypto.randomUUID():`fw-${Date.now()}-${Math.random().toString(36).slice(2,10)}`).replace(/[^A-Za-z0-9_-]/g,'').slice(0,100);state.profile.pendingCheckout={key,fingerprint};save();return key}
+function clearCheckoutClientId(){if(state.profile?.pendingCheckout){delete state.profile.pendingCheckout;save()}}
+"""
+          if old not in s: raise SystemExit('latestOrder anchor not found')
+          s=s.replace(old,new,1)
+          old="""const whatsappOptIn=$('#whatsappOptIn')?.checked||false;const button=form.querySelector('button[type=\"submit\"]');"""
+          new="""const whatsappOptIn=$('#whatsappOptIn')?.checked||false;const clientOrderId=checkoutClientId(data,address);const button=form.querySelector('button[type=\"submit\"]');"""
+          if old not in s: raise SystemExit('checkout button anchor not found')
+          s=s.replace(old,new,1)
+          old="""JSON.stringify({customerId:customerId(),customer:data,address,items:cartItems().map(x=>({id:x.product.id,qty:x.qty})),whatsappOptIn})"""
+          new="""JSON.stringify({customerId:customerId(),clientOrderId,customer:data,address,items:cartItems().map(x=>({id:x.product.id,qty:x.qty})),whatsappOptIn})"""
+          if old not in s: raise SystemExit('order body anchor not found')
+          s=s.replace(old,new,1)
+          old="""state.profile.checkout={name:data.name,phone:data.phone,address};save();await FreshWayNotifications.registerCustomer"""
+          new="""state.profile.checkout={name:data.name,phone:data.phone,address};clearCheckoutClientId();save();await FreshWayNotifications.registerCustomer"""
+          if old not in s: raise SystemExit('checkout clear anchor not found')
+          s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          git diff --check
+          node --check app.js
+          node --check worker/src/index.js
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git diff --quiet -- worker/src/index.js app.js; then exit 0; fi
+          git add worker/src/index.js app.js
+          git commit -m 'reliability: wire checkout idempotency and order notifications'
+          git push
