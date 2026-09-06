@@ -1,1 +1,1 @@
-{"name":"FreshWay","short_name":"FreshWay","start_url":"./","display":"standalone","background_color":"#f7faf8","theme_color":"#0f7a4b","description":"FreshWay local ordering app","icons":[]}
+{"name":"FreshWay","short_name":"FreshWay","start_url":"./","scope":"./","display":"standalone","orientation":"portrait-primary","background_color":"#f7faf8","theme_color":"#0f7a4b","description":"FreshWay local ordering app","icons":[{"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
