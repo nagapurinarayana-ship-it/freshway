@@ -1,16 +1,30 @@
-const CACHE = 'freshway-v1';
-self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
+const CACHE = 'freshway-v2';
+const APP_SHELL = ['/', '/index.html', '/styles.css', '/app.js', '/notifications.js', '/manifest.webmanifest', '/icon.svg'];
+self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(APP_SHELL)).catch(() => {})); self.skipWaiting(); });
+self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())); });
+self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
+  event.respondWith((async () => {
+    try {
+      const response = await fetch(event.request);
+      if (response.ok && ['document','script','style','image','manifest'].includes(event.request.destination)) {
+        const cache = await caches.open(CACHE); cache.put(event.request, response.clone());
+      }
+      return response;
+    } catch (_) {
+      const cached = await caches.match(event.request);
+      return cached || (event.request.mode === 'navigate' ? caches.match('/index.html') : Response.error());
+    }
+  })());
+});
 self.addEventListener('push', event => {
   if (!event.data) return;
   let data = {};
   try { data = event.data.json(); } catch (_) { data = { body: event.data.text() }; }
   event.waitUntil(self.registration.showNotification(data.title || 'FreshWay', {
     body: data.body || 'You have a new FreshWay update.',
-    icon: data.icon || '/icon-192.png',
-    badge: data.badge || '/icon-192.png',
-    tag: data.tag || 'freshway-notification',
-    data: { url: data.url || '/', ...(data.data || {}) }
+    icon: data.icon || '/icon.svg', badge: data.badge || '/icon.svg',
+    tag: data.tag || 'freshway-notification', data: { url: data.url || '/', ...(data.data || {}) }
   }));
 });
 self.addEventListener('notificationclick', event => {
