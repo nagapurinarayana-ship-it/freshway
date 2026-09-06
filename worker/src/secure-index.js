@@ -4,6 +4,8 @@ const COOKIE = 'freshway-customer-session';
 const MAX_AGE = 60 * 60 * 24 * 30;
 const text = value => new TextEncoder().encode(value);
 const hex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
+const cleanPhone = value => { const digits = String(value || '').replace(/\D/g, ''); return digits.length === 10 ? `91${digits}` : digits; };
+const e164 = value => { const phone = cleanPhone(value); return /^91\d{10}$/.test(phone) ? `+${phone}` : ''; };
 
 async function key(env) {
   const secret = String(env.ADMIN_TOKEN || '').trim();
@@ -60,6 +62,7 @@ function unauthorized(env) {
       'access-control-allow-origin': env.APP_ORIGIN || '*',
       'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS',
       'access-control-allow-headers': 'Content-Type,Authorization,X-Freshway-Admin-Token',
+      'access-control-allow-credentials': 'true',
       'cache-control': 'private, no-store'
     }
   });
@@ -69,12 +72,59 @@ function withCookie(response, token) {
   const headers = new Headers(response.headers);
   headers.append('Set-Cookie', `${COOKIE}=${token}; Max-Age=${MAX_AGE}; Path=/; HttpOnly; Secure; SameSite=Lax`);
   headers.set('Cache-Control', 'private, no-store');
+  headers.set('Access-Control-Allow-Credentials', 'true');
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
 async function customerExists(env, customerId) {
   const row = await env.DB.prepare('SELECT id FROM customers WHERE id=? LIMIT 1').bind(customerId).first();
   return !!row;
+}
+
+async function customerIdForPhone(env, phone) {
+  const row = await env.DB.prepare('SELECT id FROM customers WHERE phone=? ORDER BY updated_at DESC LIMIT 1').bind(cleanPhone(phone)).first();
+  return row?.id || null;
+}
+
+function twilioConfigured(env) {
+  return !!(String(env.TWILIO_ACCOUNT_SID || '').trim() && String(env.TWILIO_AUTH_TOKEN || '').trim() && String(env.TWILIO_VERIFY_SERVICE_SID || '').trim());
+}
+
+async function twilio(env, path, params) {
+  if (!twilioConfigured(env)) throw new Error('SMS OTP is not configured. Add the Twilio Verify secrets in the Worker.');
+  const auth = btoa(`${String(env.TWILIO_ACCOUNT_SID).trim()}:${String(env.TWILIO_AUTH_TOKEN).trim()}`);
+  const response = await fetch(`https://verify.twilio.com/v2/Services/${encodeURIComponent(String(env.TWILIO_VERIFY_SERVICE_SID).trim())}/${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(params)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = String(data.message || '').trim();
+    throw new Error(message || 'Could not send or verify the SMS code. Please try again.');
+  }
+  return data;
+}
+
+async function otpStart(request, env) {
+  let payload = {};
+  try { payload = await request.json(); } catch (_) {}
+  const phone = e164(payload.phone);
+  if (!phone) return new Response(JSON.stringify({ error: 'Enter a valid 10-digit Indian mobile number.' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*' } });
+  await twilio(env, 'Verifications', { To: phone, Channel: 'sms' });
+  return new Response(JSON.stringify({ ok: true, phone: `******${phone.slice(-4)}`, expiresIn: 600 }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*', 'cache-control': 'no-store' } });
+}
+
+async function otpVerify(request, env) {
+  let payload = {};
+  try { payload = await request.json(); } catch (_) {}
+  const phone = e164(payload.phone);
+  const code = String(payload.code || '').replace(/\s/g, '');
+  if (!phone || !/^\d{4,10}$/.test(code)) return new Response(JSON.stringify({ error: 'Enter the mobile number and OTP.' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*' } });
+  const result = await twilio(env, 'VerificationCheck', { To: phone, Code: code });
+  if (result.status !== 'approved' || result.valid === false) return new Response(JSON.stringify({ error: 'Incorrect or expired OTP.' }), { status: 401, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*' } });
+  const customerId = (await customerIdForPhone(env, phone)) || crypto.randomUUID();
+  return withCookie(new Response(JSON.stringify({ ok: true, customerId, phone: `******${phone.slice(-4)}` }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*' } }), await signSession(env, customerId));
 }
 
 export default {
@@ -90,20 +140,29 @@ export default {
       }});
     }
 
-    // Admin authentication stays exclusively inside the existing Worker.
-    if (url.pathname.startsWith('/api/admin/') || url.pathname === '/api/notifications/broadcast') {
-      return original.fetch(request, env, ctx);
+    if (url.pathname.startsWith('/api/admin/') || url.pathname === '/api/notifications/broadcast') return original.fetch(request, env, ctx);
+
+    if (url.pathname === '/api/auth/session' && request.method === 'GET') {
+      const customerId = await sessionCustomerId(request, env);
+      if (!customerId) return unauthorized(env);
+      return new Response(JSON.stringify({ ok: true, customerId }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*', 'access-control-allow-credentials': 'true', 'cache-control': 'private, no-store' } });
     }
 
-    // Registration is allowed for a new customer. An existing customer can only
-    // refresh/update their registration while already holding their signed session.
+    if (url.pathname === '/api/auth/otp/start' && request.method === 'POST') {
+      try { return await otpStart(request, env); } catch (error) { return new Response(JSON.stringify({ error: error.message || 'Could not send SMS OTP.' }), { status: 502, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*', 'cache-control': 'no-store' } }); }
+    }
+
+    if (url.pathname === '/api/auth/otp/verify' && request.method === 'POST') {
+      try { return await otpVerify(request, env); } catch (error) { return new Response(JSON.stringify({ error: error.message || 'Could not verify SMS OTP.' }), { status: 502, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*', 'cache-control': 'no-store' } }); }
+    }
+
     if (url.pathname === '/api/customers/register' && request.method === 'POST') {
       let payload;
       try { payload = await request.clone().json(); } catch (_) { payload = {}; }
       const customerId = String(payload?.id || '').trim().slice(0, 100);
       if (!customerId) return unauthorized(env);
       const sessionId = await sessionCustomerId(request, env);
-      if (await customerExists(env, customerId) && sessionId !== customerId) return unauthorized(env);
+      if (sessionId !== customerId) return unauthorized(env);
       const response = await original.fetch(request, env, ctx);
       return response.ok ? withCookie(response, await signSession(env, customerId)) : response;
     }
@@ -119,16 +178,9 @@ export default {
       let payload;
       try { payload = await request.clone().json(); } catch (_) { payload = {}; }
       const requestedId = String(payload?.customerId || '').trim();
-      if (!requestedId) return unauthorized(env);
       const sessionId = await sessionCustomerId(request, env);
-
-      // First order establishes ownership for a new random customer ID. Once the
-      // ID exists in D1, a signed session is mandatory, preventing ID swapping.
-      if (sessionId !== requestedId && await customerExists(env, requestedId)) return unauthorized(env);
-      if (sessionId && sessionId !== requestedId) return unauthorized(env);
-
-      const response = await original.fetch(request, env, ctx);
-      return response.ok ? withCookie(response, await signSession(env, requestedId)) : response;
+      if (!sessionId || !requestedId || requestedId !== sessionId) return unauthorized(env);
+      return original.fetch(request, env, ctx);
     }
 
     if (url.pathname === '/api/push/subscribe' && request.method === 'POST') {
@@ -140,7 +192,6 @@ export default {
       return original.fetch(request, env, ctx);
     }
 
-    // Public catalogue, health and public-key endpoints remain public.
     return original.fetch(request, env, ctx);
   }
 };
