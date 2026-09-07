@@ -39,6 +39,7 @@ jobs:
           node --check frontend/customer/orders.js
           node --check frontend/customer/checkout.js
           node --check frontend/customer/profile.js
+          node --check frontend/customer/confirmation.js
           node --check sw.js
       - name: Check Worker JavaScript
         working-directory: worker
@@ -91,6 +92,10 @@ jobs:
           grep -q "customerProfile.displayAddress(state.profile)" app.js
           grep -q "customerProfile.homeAddress(state.profile)" app.js
           grep -q "frontend/customer/profile.js" index.html
+          grep -q "window.FreshWayCustomerConfirmation" frontend/customer/confirmation.js
+          grep -q "frontend/customer/confirmation.js" index.html
+          grep -q "const customerConfirmation=window.FreshWayCustomerConfirmation" app.js
+          grep -q "customerConfirmation.show(order" app.js
       - name: Enforce backend feature boundaries
         run: |
           ! grep -q "from 'web-push'" worker/src/admin-auth.js
