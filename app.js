@@ -14,6 +14,7 @@ const customerStorage=window.FreshWayCustomerStorage;
 const customerAPI=window.FreshWayCustomerAPI;
 const catalogueCart=window.FreshWayCatalogueCart;
 const customerOrders=window.FreshWayCustomerOrders;
+const customerProfile=window.FreshWayCustomerProfile;
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const money=n=>`₹${Number(n||0).toLocaleString('en-IN')}`;
@@ -38,9 +39,9 @@ async function loadOrders(){const id=customerId();if(!id){renderOrders(state.ord
 function startOrdersRefresh(){clearInterval(ordersRefreshTimer);ordersRefreshTimer=setInterval(()=>{if($('#ordersView')?.classList.contains('active-view'))loadOrders()},30000)}
 function stopOrdersRefresh(){clearInterval(ordersRefreshTimer);ordersRefreshTimer=null}
 function latestOrder(){return customerOrders.latest(state.orders)}
-function prefillCheckout(){const last=latestOrder(),saved=state.profile?.checkout||{},a=saved.address||last?.address||{};const fields=[['#customerName',saved.name||last?.customer?.name||''],['#customerPhone',saved.phone||last?.customer?.phone||''],['#house',a.house||''],['#area',a.area||''],['#city',a.city||''],['#pincode',a.pincode||''],['#landmark',a.landmark||''],['#note',a.note||'']];fields.forEach(([sel,val])=>{const el=$(sel);if(el&&!el.value)el.value=val})}
+function prefillCheckout(){const last=latestOrder(),saved=state.profile?.checkout||{},a=customerProfile.savedAddress(state.profile,last);const fields=[['#customerName',saved.name||last?.customer?.name||''],['#customerPhone',saved.phone||last?.customer?.phone||''],['#house',a.house||''],['#area',a.area||''],['#city',a.city||''],['#pincode',a.pincode||''],['#landmark',a.landmark||''],['#note',a.note||'']];fields.forEach(([sel,val])=>{const el=$(sel);if(el&&!el.value)el.value=val})}
 function setView(name){$('#confirmationView')?.remove();$$('.view').forEach(v=>v.classList.remove('active-view'));const view=$(`#${name}View`);if(!view)return;view.classList.add('active-view');$$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.nav===name));if(name==='orders'){renderOrders();loadOrders();startOrdersRefresh()}else stopOrdersRefresh();if(name==='cart')renderCart();if(name==='checkout'){prefillCheckout();updateCartBar()}if(name==='profile')renderProfile();window.scrollTo({top:0,behavior:'smooth'})}
-function renderProfile(){const last=latestOrder(),name=$('#profileName'),phone=$('#profilePhone'),addr=$('#profileAddressText'),home=$('#homeAddress');if(name)name.textContent=state.profile?.checkout?.name||last?.customer?.name||'Guest customer';if(phone)phone.textContent=state.profile?.checkout?.phone||last?.customer?.phone||'Not signed in';if(addr)addr.textContent=state.profile.address||'Not saved yet';if(home)home.textContent=state.profile.address||'Add your delivery address'}
+function renderProfile(){const last=latestOrder(),name=$('#profileName'),phone=$('#profilePhone'),addr=$('#profileAddressText'),home=$('#homeAddress');if(name)name.textContent=customerProfile.name(state.profile,last);if(phone)phone.textContent=customerProfile.phone(state.profile,last);if(addr)addr.textContent=customerProfile.displayAddress(state.profile);if(home)home.textContent=customerProfile.homeAddress(state.profile)}
 function changeQty(id,delta){const current=Number(state.cart[id]||0);const next=catalogueCart.nextQuantity(current,delta);if(delta>0&&current>=99){toast('Maximum quantity is 99');return}if(next<=0)delete state.cart[id];else state.cart[id]=next;save();renderProducts($('#searchInput')?.value||'');if($('#cartView')?.classList.contains('active-view'))renderCart()}
 function openAddressModal(){const m=$('#addressModal');if(m)m.classList.remove('hidden')}
 function closeModal(){const m=$('#addressModal');if(m)m.classList.add('hidden')}
