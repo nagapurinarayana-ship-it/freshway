@@ -101,6 +101,12 @@ test('customer auth rejects an unexpected Origin', async () => {
   assert.match((await jsonResponse(response)).error, /origin not allowed/i);
 });
 
+test('customer registration requires a name and 6-digit passcode', async () => {
+  const response = await request('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '9876543210', passcode: '123456' }) }, passcodeHandler, authEnv);
+  assert.equal(response.status, 400);
+  assert.match((await jsonResponse(response)).error, /name/i);
+});
+
 test('customer session endpoint rejects missing sessions', async () => {
   const response = await request('/api/auth/session', {}, passcodeHandler, authEnv);
   assert.equal(response.status, 401);
@@ -165,11 +171,12 @@ test('admin session cookie rejects extra token segments', async () => {
   assert.equal(response.status, 401);
 });
 
-test('customer auth UI uses mobile plus 6-digit passcode and contains no OTP flow', () => {
+test('customer auth UI uses mobile, name for registration, plus 6-digit passcode and contains no OTP flow', () => {
   const root = fileURLToPath(new URL('../../notifications.js', import.meta.url));
   const html = readFileSync(fileURLToPath(new URL('../../index.html', import.meta.url)), 'utf8');
   const notifications = readFileSync(root, 'utf8');
   assert.doesNotMatch(notifications, /otp\/start|otp\/verify|Twilio|one-time password/i);
+  assert.match(notifications, /passcodeName/);
   assert.match(notifications, /passcodePhone/);
   assert.match(notifications, /passcodeValue/);
   assert.match(notifications, /6-digit passcode/);
