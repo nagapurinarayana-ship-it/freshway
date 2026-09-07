@@ -78,17 +78,17 @@ function validPasscode(value) { return /^\d{6}$/.test(String(value || '')); }
 
 async function register(request, env) {
   let payload = {}; try { payload = await request.json(); } catch (_) {}
-  const phone = normalizedPhone(payload.phone); const passcode = String(payload.passcode || '');
-  if (!phone || !validPasscode(passcode)) return response({ error: 'Enter a valid 10-digit mobile number and a 6-digit passcode.' }, 400, env);
+  const phone = normalizedPhone(payload.phone); const passcode = String(payload.passcode || ''); const name = String(payload.name || '').trim().slice(0, 120);
+  if (!phone || !validPasscode(passcode) || !name) return response({ error: 'Enter your name, a valid 10-digit mobile number and a 6-digit passcode.' }, 400, env);
   if (!(await rateLimit(env, `auth:register:phone:${phone}`, 5)) || !(await rateLimit(env, `auth:register:ip:${clientIp(request)}`, 20))) return limited(env);
   const existing = await customerByPhone(env, phone);
   const customerId = existing?.id || crypto.randomUUID();
   if (existing?.passcode_hash) return response({ error: 'This mobile number is already registered. Please log in with your 6-digit passcode.' }, 409, env);
   const { saltHex, hashHex } = await makePasscodeHash(passcode);
   await env.DB.prepare(`INSERT INTO customers (id,name,phone,passcode_salt,passcode_hash,whatsapp_opt_in,updated_at) VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP)
-    ON CONFLICT(id) DO UPDATE SET phone=excluded.phone,passcode_salt=excluded.passcode_salt,passcode_hash=excluded.passcode_hash,updated_at=CURRENT_TIMESTAMP`)
-    .bind(customerId, String(payload.name || '').trim().slice(0, 120), phone, saltHex, hashHex, payload.whatsappOptIn ? 1 : 0).run();
-  return withSession({ ok: true, customerId, phone: `******${phone.slice(-4)}`, registered: true }, env, await signSession(env, customerId));
+    ON CONFLICT(id) DO UPDATE SET name=excluded.name,phone=excluded.phone,passcode_salt=excluded.passcode_salt,passcode_hash=excluded.passcode_hash,updated_at=CURRENT_TIMESTAMP`)
+    .bind(customerId, name, phone, saltHex, hashHex, payload.whatsappOptIn ? 1 : 0).run();
+  return withSession({ ok: true, customerId, phone: `******${phone.slice(-4)}`, name, registered: true }, env, await signSession(env, customerId));
 }
 
 async function login(request, env) {
