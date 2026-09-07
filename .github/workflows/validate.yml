@@ -87,6 +87,7 @@ jobs:
           grep -q "const customerCheckout=window.FreshWayCustomerCheckout" app.js
           grep -q "customerCheckout.validate(name,phone,address)" app.js
           grep -q "customerCheckout.payload(data,address" app.js
+          grep -q "customerCheckout.clientOrderId(data,address" app.js
           grep -q "window.FreshWayCustomerProfile" frontend/customer/profile.js
           grep -q "const customerProfile=window.FreshWayCustomerProfile" app.js
           grep -q "customerProfile.savedAddress" app.js
