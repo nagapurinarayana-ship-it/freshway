@@ -130,7 +130,7 @@ async function twilio(env, path, params) {
 }
 
 const RATE_WINDOW = 10 * 60;
-const RATE_RULES = { otpStartPhone: 5, otpStartIp: 20, otpVerifyPhone: 10 };
+const RATE_RULES = { otpStartPhone: 5, otpStartIp: 20, otpVerifyPhone: 10, otpVerifyIp: 30 };
 async function rateLimit(env, keyValue, limit) {
   const keyName = String(keyValue).slice(0, 180);
   const windowStart = Math.floor(Date.now() / 1000 / RATE_WINDOW) * RATE_WINDOW;
@@ -168,7 +168,7 @@ async function otpVerify(request, env) {
   const phone = e164(payload.phone);
   const code = String(payload.code || '').replace(/\s/g, '');
   if (!phone || !/^\d{4,10}$/.test(code)) return new Response(JSON.stringify({ error: 'Enter the mobile number and OTP.' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env) } });
-  if (!(await rateLimit(env, `otp:verify:phone:${phone}`, RATE_RULES.otpVerifyPhone))) return limited(env);
+  if (!(await rateLimit(env, `otp:verify:phone:${phone}`, RATE_RULES.otpVerifyPhone)) || !(await rateLimit(env, `otp:verify:ip:${clientIp(request)}`, RATE_RULES.otpVerifyIp))) return limited(env);
   const result = await twilio(env, 'VerificationCheck', { To: phone, Code: code });
   if (result.status !== 'approved' || result.valid === false) return new Response(JSON.stringify({ error: 'Incorrect or expired OTP.' }), { status: 401, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env) } });
   const customerId = (await customerIdForPhone(env, phone)) || crypto.randomUUID();
@@ -214,9 +214,12 @@ export default {
       let payload;
       try { payload = await request.clone().json(); } catch (_) { payload = {}; }
       const customerId = String(payload?.id || '').trim().slice(0, 100);
-      if (!customerId) return unauthorized(env);
+      const submittedPhone = cleanPhone(payload?.phone);
+      if (!customerId || !/^\d{12}$/.test(submittedPhone)) return unauthorized(env);
       const sessionId = await sessionCustomerId(request, env);
       if (sessionId !== customerId) return unauthorized(env);
+      const verifiedPhone = await customerPhone(env, sessionId);
+      if (!verifiedPhone || submittedPhone !== verifiedPhone) return new Response(JSON.stringify({ error: 'The mobile number must match the verified customer session.' }), { status: 409, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': allowedOrigin, 'access-control-allow-credentials': 'true', 'cache-control': 'no-store' } });
       return original.fetch(request, env, ctx);
     }
 
