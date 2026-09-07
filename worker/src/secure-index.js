@@ -7,6 +7,7 @@ const hex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('
 const cleanPhone = value => { const digits = String(value || '').replace(/\D/g, ''); return digits.length === 10 ? `91${digits}` : digits; };
 const e164 = value => { const phone = cleanPhone(value); return /^91\d{10}$/.test(phone) ? `+${phone}` : ''; };
 const clientIp = request => String(request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown').split(',')[0].trim().slice(0, 80) || 'unknown';
+const corsOrigin = env => { const value = String(env.APP_ORIGIN || '').trim(); return value && value !== 'https://YOUR-FRESHWAY-DOMAIN' ? value : 'null'; };
 
 async function key(env) {
   const secret = String(env.CUSTOMER_SESSION_SECRET || '').trim();
@@ -61,7 +62,7 @@ function unauthorized(env) {
     status: 401,
     headers: {
       'content-type': 'application/json; charset=utf-8',
-      'access-control-allow-origin': env.APP_ORIGIN || '*',
+      'access-control-allow-origin': corsOrigin(env),
       'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS',
       'access-control-allow-headers': 'Content-Type,Authorization,X-Freshway-Admin-Token',
       'access-control-allow-credentials': 'true',
@@ -123,7 +124,7 @@ async function rateLimit(env, keyValue, limit) {
 function limited(env, retryAfter = 600) {
   return new Response(JSON.stringify({ error: 'Too many attempts. Please try again later.' }), { status: 429, headers: {
     'content-type': 'application/json; charset=utf-8',
-    'access-control-allow-origin': env.APP_ORIGIN || '*',
+    'access-control-allow-origin': corsOrigin(env),
     'cache-control': 'no-store',
     'retry-after': String(retryAfter)
   }});
@@ -133,12 +134,12 @@ async function otpStart(request, env) {
   let payload = {};
   try { payload = await request.json(); } catch (_) {}
   const phone = e164(payload.phone);
-  if (!phone) return new Response(JSON.stringify({ error: 'Enter a valid 10-digit Indian mobile number.' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*' } });
+  if (!phone) return new Response(JSON.stringify({ error: 'Enter a valid 10-digit Indian mobile number.' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env) } });
   const phoneKey = `otp:start:phone:${phone}`;
   const ipKey = `otp:start:ip:${clientIp(request)}`;
   if (!(await rateLimit(env, phoneKey, RATE_RULES.otpStartPhone)) || !(await rateLimit(env, ipKey, RATE_RULES.otpStartIp))) return limited(env);
   await twilio(env, 'Verifications', { To: phone, Channel: 'sms' });
-  return new Response(JSON.stringify({ ok: true, phone: `******${phone.slice(-4)}`, expiresIn: 600 }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*', 'cache-control': 'no-store' } });
+  return new Response(JSON.stringify({ ok: true, phone: `******${phone.slice(-4)}`, expiresIn: 600 }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env), 'cache-control': 'no-store' } });
 }
 
 async function otpVerify(request, env) {
@@ -146,21 +147,24 @@ async function otpVerify(request, env) {
   try { payload = await request.json(); } catch (_) {}
   const phone = e164(payload.phone);
   const code = String(payload.code || '').replace(/\s/g, '');
-  if (!phone || !/^\d{4,10}$/.test(code)) return new Response(JSON.stringify({ error: 'Enter the mobile number and OTP.' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*' } });
+  if (!phone || !/^\d{4,10}$/.test(code)) return new Response(JSON.stringify({ error: 'Enter the mobile number and OTP.' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env) } });
   if (!(await rateLimit(env, `otp:verify:phone:${phone}`, RATE_RULES.otpVerifyPhone))) return limited(env);
   const result = await twilio(env, 'VerificationCheck', { To: phone, Code: code });
-  if (result.status !== 'approved' || result.valid === false) return new Response(JSON.stringify({ error: 'Incorrect or expired OTP.' }), { status: 401, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*' } });
+  if (result.status !== 'approved' || result.valid === false) return new Response(JSON.stringify({ error: 'Incorrect or expired OTP.' }), { status: 401, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env) } });
   const customerId = (await customerIdForPhone(env, phone)) || crypto.randomUUID();
-  return withCookie(new Response(JSON.stringify({ ok: true, customerId, phone: `******${phone.slice(-4)}` }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*' } }), await signSession(env, customerId));
+  return withCookie(new Response(JSON.stringify({ ok: true, customerId, phone: `******${phone.slice(-4)}` }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env), 'cache-control': 'no-store' } }), await signSession(env, customerId));
 }
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    const allowedOrigin = corsOrigin(env);
+    const requestOrigin = String(request.headers.get('Origin') || '').trim();
+    if (requestOrigin && requestOrigin !== allowedOrigin) return new Response(JSON.stringify({ error: 'Origin not allowed.' }), { status: 403, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'access-control-allow-origin': allowedOrigin } });
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: {
-        'access-control-allow-origin': env.APP_ORIGIN || '*',
+        'access-control-allow-origin': allowedOrigin,
         'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS',
         'access-control-allow-headers': 'Content-Type,Authorization,X-Freshway-Admin-Token',
         'access-control-allow-credentials': 'true'
@@ -172,15 +176,15 @@ export default {
     if (url.pathname === '/api/auth/session' && request.method === 'GET') {
       const customerId = await sessionCustomerId(request, env);
       if (!customerId || !(await customerExists(env, customerId))) return unauthorized(env);
-      return new Response(JSON.stringify({ ok: true, customerId }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*', 'access-control-allow-credentials': 'true', 'cache-control': 'private, no-store' } });
+      return new Response(JSON.stringify({ ok: true, customerId }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': allowedOrigin, 'access-control-allow-credentials': 'true', 'cache-control': 'private, no-store' } });
     }
 
     if (url.pathname === '/api/auth/otp/start' && request.method === 'POST') {
-      try { return await otpStart(request, env); } catch (error) { return new Response(JSON.stringify({ error: error.message || 'Could not send SMS OTP.' }), { status: 502, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*', 'cache-control': 'no-store' } }); }
+      try { return await otpStart(request, env); } catch (error) { return new Response(JSON.stringify({ error: error.message || 'Could not send SMS OTP.' }), { status: 502, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': allowedOrigin, 'cache-control': 'no-store' } }); }
     }
 
     if (url.pathname === '/api/auth/otp/verify' && request.method === 'POST') {
-      try { return await otpVerify(request, env); } catch (error) { return new Response(JSON.stringify({ error: error.message || 'Could not verify SMS OTP.' }), { status: 502, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*', 'cache-control': 'no-store' } }); }
+      try { return await otpVerify(request, env); } catch (error) { return new Response(JSON.stringify({ error: error.message || 'Could not verify SMS OTP.' }), { status: 502, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': allowedOrigin, 'cache-control': 'no-store' } }); }
     }
 
     if (url.pathname === '/api/customers/register' && request.method === 'POST') {
