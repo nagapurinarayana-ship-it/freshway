@@ -5,6 +5,7 @@ const MAX_AGE = 60 * 60 * 8;
 const WINDOW = 10 * 60;
 const LIMIT = 10;
 const RATE_KEY_PREFIX = 'admin:login:v2:';
+// Production redeploy marker: publish the current admin-auth fix through the connected Cloudflare deployment.
 const enc = value => new TextEncoder().encode(value);
 const hex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
 const corsOrigin = env => { const value = String(env.APP_ORIGIN || '').trim(); return value && value !== 'https://YOUR-FRESHWAY-DOMAIN' ? value : 'null'; };
