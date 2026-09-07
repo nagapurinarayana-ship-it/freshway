@@ -62,6 +62,12 @@ jobs:
           grep -q "Out for Delivery" migrations/0007_owner_order_lifecycle.sql
           grep -q "Confirmed" migrations/0007_owner_order_lifecycle.sql
           grep -q "Ready" migrations/0007_owner_order_lifecycle.sql
+          test -s migrations/0008_address_system_final.sql
+          test -s migrations/0009_seed_default_catalogue.sql
+          if find migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sed -E 's/^([0-9]+)_.*/\1/' | sort | uniq -d | grep -q .; then
+            echo 'Duplicate D1 migration version prefix found' >&2
+            exit 1
+          fi
       - name: Check Worker configuration
         working-directory: worker
         run: node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); const required=['ADMIN_TOKEN','CUSTOMER_SESSION_SECRET','ADMIN_SESSION_SECRET']; if(!x.name||!x.main||!x.d1_databases?.[0]?.binding||x.main!=='src/admin-auth.js'||required.some(s=>!x.secrets?.required?.includes(s))||x.vars?.OTP_PROVIDER||x.secrets?.optional?.length) process.exit(1); console.log('wrangler configuration, secure entrypoint, required secrets, and no Twilio configuration OK')"
