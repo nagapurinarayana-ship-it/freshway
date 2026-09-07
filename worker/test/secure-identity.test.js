@@ -14,6 +14,9 @@ const env = {
             async first() {
               if (sql.includes('SELECT phone FROM customers')) return { phone: '919876543210' };
               if (sql.includes('SELECT id FROM customers')) return { id: args[0] || 'customer-1' };
+              if (sql.includes('SELECT count,window_start FROM auth_rate_limits')) {
+                return { count: 1, window_start: Math.floor(Date.now() / 1000 / (10 * 60)) * (10 * 60) };
+              }
               return null;
             },
             async run() { return { meta: { changes: 1 } }; },
