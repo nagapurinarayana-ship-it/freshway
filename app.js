@@ -10,19 +10,18 @@ const FALLBACK_PRODUCTS=[
   {id:'papaya',name:'Papaya',unit:'piece',price:80,emoji:'🧡'},
   {id:'pomegranate',name:'Pomegranate',unit:'kg',price:160,emoji:'❤️'}
 ];
-const KEY='freshway-state-v2';
+const customerStorage=window.FreshWayCustomerStorage;
+const customerAPI=window.FreshWayCustomerAPI;
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const money=n=>`₹${Number(n||0).toLocaleString('en-IN')}`;
-const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-function initialState(){return{cart:{},orders:[],profile:{address:'',checkout:{}}}}
-function readState(){try{const p=JSON.parse(localStorage.getItem(KEY)||'null');if(!p||typeof p!=='object')return initialState();return{cart:p.cart&&typeof p.cart==='object'?p.cart:{},orders:Array.isArray(p.orders)?p.orders:[],profile:{address:String(p.profile?.address||''),checkout:p.profile?.checkout&&typeof p.profile.checkout==='object'?p.profile.checkout:{}}}}catch(_){return initialState()}}
-const state=readState();
+const esc=v=>String(v??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c]));
+const state=customerStorage.read();
 let PRODUCTS=FALLBACK_PRODUCTS.slice();
 let ordersRefreshTimer=null;
-const save=()=>localStorage.setItem(KEY,JSON.stringify(state));
-const api=async(path,options={})=>{const r=await fetch(path,{...options,credentials:'include',headers:{'Content-Type':'application/json',...(options.headers||{})}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'FreshWay server is unavailable.');return d};
-const customerId=()=>window.FreshWayNotifications?.customerId?.()||null;
+const save=()=>customerStorage.save(state);
+const api=customerAPI.request;
+const customerId=customerAPI.customerId;
 const cartItems=()=>Object.entries(state.cart).map(([id,q])=>({product:PRODUCTS.find(p=>p.id===id),qty:Number(q)})).filter(x=>x.product&&Number.isInteger(x.qty)&&x.qty>0);
 const cartTotal=()=>cartItems().reduce((s,x)=>s+x.product.price*x.qty,0);
 const cartCount=()=>cartItems().reduce((s,x)=>s+x.qty,0);
