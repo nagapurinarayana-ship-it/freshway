@@ -1,5 +1,6 @@
 const FreshWayNotifications = (() => {
   const CUSTOMER_KEY = 'freshway-customer-id';
+  const STATE_KEY = 'freshway-state-v2';
   let otpBusy = false;
   let otpTimer = null;
   const id = () => {
@@ -9,6 +10,14 @@ const FreshWayNotifications = (() => {
   };
   const setCustomerId = value => { const clean = String(value || '').trim(); if (clean) localStorage.setItem(CUSTOMER_KEY, clean); };
   const clearCustomerId = () => localStorage.removeItem(CUSTOMER_KEY);
+  const clearLocalCustomerState = () => {
+    try {
+      const state = JSON.parse(localStorage.getItem(STATE_KEY) || '{}');
+      state.orders = [];
+      state.profile = { address: '', checkout: {} };
+      localStorage.setItem(STATE_KEY, JSON.stringify(state));
+    } catch (_) { localStorage.removeItem(STATE_KEY); }
+  };
   const api = async (path, options = {}) => {
     const response = await fetch(path, { credentials: 'include', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options });
     const text = await response.text();
@@ -25,7 +34,7 @@ const FreshWayNotifications = (() => {
   }
   function startCountdown(seconds) {
     clearInterval(otpTimer);
-    let remaining = Number(seconds) || 45;
+    let remaining = Math.max(0, Number(seconds) || 45);
     const button = document.querySelector('#otpResend');
     const timer = document.querySelector('#otpTimer');
     const tick = () => {
@@ -89,7 +98,10 @@ const FreshWayNotifications = (() => {
       const onKey = event => { if (event.key === 'Enter') { event.preventDefault(); onVerify(); } if (event.key === 'Escape') onCancel(); };
       verify?.addEventListener('click', onVerify); resend?.addEventListener('click', onResend); cancel?.addEventListener('click', onCancel); input?.addEventListener('keydown', onKey);
       el.classList.remove('hidden'); otpError(''); input.value = ''; input.focus(); startCountdown(45);
-      requestOtp(normalized, true).catch(error => { otpError(error.message || 'Could not send the OTP.'); startCountdown(error.status === 429 ? 60 : 0); });
+      requestOtp(normalized, true).catch(error => {
+        otpError(error.message || 'Could not send the OTP.');
+        startCountdown(error.status === 429 ? 60 : 0);
+      });
     });
   }
   async function ensureAuthenticated(phone) {
@@ -97,7 +109,11 @@ const FreshWayNotifications = (() => {
     if (!/^\d{10}$/.test(normalized)) throw new Error('Enter a valid 10-digit mobile number.');
     try {
       const current = await session();
-      if (current?.customerId) { setCustomerId(current.customerId); return current.customerId; }
+      if (current?.customerId) {
+        const verifiedPhone = current.phone || '';
+        setCustomerId(current.customerId);
+        return current.customerId;
+      }
     } catch (_) {}
     return openOtp(normalized);
   }
@@ -130,12 +146,17 @@ const FreshWayNotifications = (() => {
     await api('/api/auth/logout', { method: 'POST' });
     clearCustomerId();
     localStorage.removeItem('freshway-push-enabled');
+    clearLocalCustomerState();
+    document.dispatchEvent(new CustomEvent('freshway:logout'));
   }
   async function init() {
     if ('serviceWorker' in navigator) await navigator.serviceWorker.register('/sw.js').catch(() => {});
-    try { const current = await session(); if (current?.customerId) setCustomerId(current.customerId); else clearCustomerId(); }
-    catch (_) { clearCustomerId(); }
-    document.dispatchEvent(new CustomEvent('freshway:session')); 
+    try {
+      const current = await session();
+      if (current?.customerId) setCustomerId(current.customerId);
+      else { clearCustomerId(); clearLocalCustomerState(); }
+    } catch (_) { clearCustomerId(); clearLocalCustomerState(); }
+    document.dispatchEvent(new CustomEvent('freshway:session'));
   }
   return { init, enable, registerCustomer, ensureAuthenticated, session, logout, customerId: id, setCustomerId, clearCustomerId, closeOtp };
 })();
