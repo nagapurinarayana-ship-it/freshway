@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v8';
+const CACHE = 'freshway-v9';
 const APP_SHELL = [
   '/',
   '/index.html?v=20260907-v8',
@@ -15,7 +15,7 @@ const APP_SHELL = [
   '/admin.js?v=20260907-owner-v4',
   '/owner-lifecycle.js?v=20260907-owner-v2',
   '/owner-address-final.js?v=20260907-address-final-v3',
-  '/freshway-logo-clean.svg?v=20260907-logo-v3'
+  '/freshway-logo-clean.svg?v=20260908-logo-v4'
 ];
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(APP_SHELL)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())); });
@@ -23,7 +23,9 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
   event.respondWith((async () => {
     try {
-      const response = await fetch(event.request);
+      const isLogo = new URL(event.request.url).pathname === '/freshway-logo-clean.svg';
+      const request = isLogo ? new Request(event.request, { cache: 'reload' }) : event.request;
+      const response = await fetch(request);
       if (response.ok && ['document','script','style','image','manifest'].includes(event.request.destination)) {
         const cache = await caches.open(CACHE); cache.put(event.request, response.clone());
       }
