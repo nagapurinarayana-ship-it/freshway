@@ -1,11 +1,6 @@
 name: FreshWay Worker release
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'worker/**'
-      - '.github/workflows/deploy-worker.yml'
   workflow_dispatch:
 
 permissions:
@@ -17,7 +12,7 @@ concurrency:
 
 jobs:
   release:
-    name: Validate and optionally deploy production API
+    name: Validate and manually deploy production API
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -69,4 +64,4 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy --config wrangler.jsonc
 
-# Triggered intentionally to apply the pending D1 migration and deploy the verified Worker.
+# Production deployment is manual only. Validation remains automatic in validate.yml.
