@@ -48,10 +48,11 @@ test('customer logout clears the HttpOnly session cookie', async () => {
 });
 
 test('customer can create a 6-digit passcode account', async () => {
-  const response = await request('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '9876543210', passcode: '246810' }) });
+  const response = await request('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Test Customer', phone: '9876543210', passcode: '246810' }) });
   assert.equal(response.status, 200);
   assert.match(response.headers.get('set-cookie') || '', /freshway-customer-session=/);
   assert.equal(customer.phone, '919876543210');
+  assert.equal(customer.name, 'Test Customer');
   assert.notEqual(customer.passcode_hash, '246810');
   assert.match(customer.passcode_hash || '', /^[0-9a-f]{64}$/);
 });
@@ -68,7 +69,7 @@ test('wrong passcode is rejected', async () => {
 });
 
 test('passcode must be exactly six digits', async () => {
-  const response = await request('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '9123456789', passcode: '12345' }) });
+  const response = await request('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Test Customer', phone: '9123456789', passcode: '12345' }) });
   assert.equal(response.status, 400);
 });
 
