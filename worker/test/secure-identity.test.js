@@ -33,8 +33,8 @@ function sessionCookie(customerId = 'customer-1') {
   return `freshway-customer-session=${encoded}.${signature}`;
 }
 
-async function request(path, options = {}) {
-  return secureHandler.fetch(new Request(`https://api.example.test${path}`, options), env, {});
+async function request(path, options = {}, requestEnv = env) {
+  return secureHandler.fetch(new Request(`https://api.example.test${path}`, options), requestEnv, {});
 }
 
 test('customer logout clears the HttpOnly session cookie', async () => {
@@ -91,4 +91,56 @@ test('customer registration accepts the verified mobile number', async () => {
     body: JSON.stringify({ id: 'customer-1', name: 'Test Customer', phone: '9876543210' })
   });
   assert.notEqual(response.status, 409);
+});
+
+test('local mock OTP is accepted only on localhost', async () => {
+  const localEnv = { ...env, APP_ORIGIN: 'http://localhost:8787', OTP_PROVIDER: 'mock' };
+  const start = await request('/api/auth/otp/start', {
+    method: 'POST',
+    headers: { Origin: 'http://localhost:8787', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: '9876543210' })
+  }, localEnv);
+  assert.equal(start.status, 200);
+  assert.equal((await start.json()).testCode, '123456');
+
+  const verify = await request('/api/auth/otp/verify', {
+    method: 'POST',
+    headers: { Origin: 'http://localhost:8787', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: '9876543210', code: '123456' })
+  }, localEnv);
+  assert.equal(verify.status, 200);
+  assert.match(verify.headers.get('set-cookie') || '', /freshway-customer-session=/);
+});
+
+test('mock OTP is blocked on the production origin', async () => {
+  const mockProductionEnv = { ...env, APP_ORIGIN: 'https://freshway-f32.pages.dev', OTP_PROVIDER: 'mock' };
+  const response = await request('/api/auth/otp/start', {
+    method: 'POST',
+    headers: { Origin: 'https://freshway-f32.pages.dev', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: '9876543210' })
+  }, mockProductionEnv);
+  assert.equal(response.status, 503);
+  assert.match((await response.json()).error, /local development origins/i);
+});
+
+test('wrong local mock OTP is rejected', async () => {
+  const localEnv = { ...env, APP_ORIGIN: 'http://localhost:8787', OTP_PROVIDER: 'mock' };
+  const response = await request('/api/auth/otp/verify', {
+    method: 'POST',
+    headers: { Origin: 'http://localhost:8787', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: '9876543210', code: '000000' })
+  }, localEnv);
+  assert.equal(response.status, 401);
+  assert.match((await response.json()).error, /incorrect or expired otp/i);
+});
+
+test('unknown OTP providers fail closed', async () => {
+  const unknownEnv = { ...env, APP_ORIGIN: 'http://localhost:8787', OTP_PROVIDER: 'unknown' };
+  const response = await request('/api/auth/otp/start', {
+    method: 'POST',
+    headers: { Origin: 'http://localhost:8787', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: '9876543210' })
+  }, unknownEnv);
+  assert.equal(response.status, 502);
+  assert.match((await response.json()).error, /unsupported otp provider/i);
 });
