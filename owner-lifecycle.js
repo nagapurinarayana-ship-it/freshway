@@ -35,10 +35,17 @@
     }catch(e){root.dataset.cashEnhanced='';toast(e.message)}
   }
   function orderCardForCash(o){return `<article class="card order-card" data-order="${esc2(o.id)}"><div class="card-top"><div><b>${esc2(o.id)}</b><small>${esc2(new Date(o.createdAt).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}))}</small></div><span class="badge Delivered">Delivered</span></div><div class="person"><div><b>${esc2(o.customer?.name||'Customer')}</b><small>📞 ${esc2(o.customer?.phone||'')}</small></div><strong>${money2(o.total)}</strong></div><div class="meta">${(o.items||[]).slice(0,3).map(i=>`${esc2(i.name)} ×${i.qty}`).join(' · ')}${(o.items||[]).length>3?' · +more':''}</div><div class="card-foot"><span>🚚 ${esc2(o.deliveryPlan||'Unscheduled')}</span><span class="pay good">💵 Collected</span></div></article>`}
+  // admin.js also has loadCash(); make this wrapper authoritative so its older
+  // pending-only render can never overwrite the collected-total view.
+  const baseLoadCash=window.loadCash;
+  if(typeof baseLoadCash==='function'){
+    window.loadCash=async function(){await baseLoadCash();await enhanceCash(true)};
+  }
   document.addEventListener('click',e=>{const card=e.target.closest('[data-order]');if(!card)return;e.preventDefault();e.stopImmediatePropagation();openLifecycle(card.dataset.order)},true);
   document.addEventListener('DOMContentLoaded',()=>{
     const sel=document.getElementById('orderStatus');if(sel){sel.innerHTML='<option value="all">All status</option><option value="New">New</option><option value="Confirmed">Confirmed</option><option value="Processing">Processing</option><option value="Ready">Ready</option><option value="Out for Delivery">Out for delivery</option><option value="Delivered">Delivered</option><option value="Cancelled">Cancelled</option>'}
     const cash=document.getElementById('cash');
     if(cash){const observer=new MutationObserver(()=>{if(cash.classList.contains('active')){const root=document.getElementById('cashSummary');if(root)root.dataset.cashEnhanced='';enhanceCash()}});observer.observe(cash,{attributes:true,subtree:true,attributeFilter:['class']});}
+    if(location.hash==='#cash')enhanceCash(true);
   });
 })();
