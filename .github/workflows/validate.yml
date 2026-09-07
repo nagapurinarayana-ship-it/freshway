@@ -27,9 +27,12 @@ jobs:
           node --check app.js
           node --check admin.js
           node --check owner-lifecycle.js
+          node --check owner-address-final.js
           node --check notifications.js
           node --check location.js
           node --check orders-ui.js
+          node --check address-system-final.js
+          node --check address-fix.js
           node --check sw.js
       - name: Check Worker JavaScript
         working-directory: worker
@@ -38,6 +41,7 @@ jobs:
           node --check src/secure-index.js
           node --check src/passcode-auth.js
           node --check src/admin-auth.js
+          node --check src/address-api.js
       - name: Check D1 schema and migration
         working-directory: worker
         run: |
