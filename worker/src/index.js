@@ -142,8 +142,10 @@ async function updateOrder(env, id, payload) {
   if(status){sets.push('delivery_status=?');params.push(status)}
   if(payment){sets.push('payment_status=?');params.push(payment);if(payment==='Collected')sets.push('payment_collected_at=CURRENT_TIMESTAMP');else sets.push('payment_collected_at=NULL')}
   if(deliveryPlan){sets.push('delivery_plan=?');params.push(deliveryPlan)}
-  if(!sets.length) throw new Error('No order change supplied.'); sets.push('updated_at=CURRENT_TIMESTAMP'); params.push(id);
-  const result=await env.DB.prepare(`UPDATE orders SET ${sets.join(',')} WHERE id=?`).bind(...params).run(); if(!result.meta?.changes)throw new Error('Order not found.');
+  if(!sets.length) throw new Error('No order change supplied.'); sets.push('updated_at=CURRENT_TIMESTAMP');
+  const whereParams=[id,current.delivery_status,current.payment_status,current.delivery_plan];
+  const result=await env.DB.prepare(`UPDATE orders SET ${sets.join(',')} WHERE id=? AND delivery_status=? AND payment_status=? AND delivery_plan=?`).bind(...params,...whereParams).run();
+  if(!result.meta?.changes) throw new Error('Order changed by another admin. Refresh and try again.');
   if ((status && status!==current.delivery_status) || (payment && payment!==current.payment_status) || (deliveryPlan && deliveryPlan!==current.delivery_plan)) {
     let text;
     if (status && status!==current.delivery_status) text = status==='Processing' ? `Order ${id} is now being prepared.` : status==='Delivered' ? `Order ${id} has been delivered.` : status==='Cancelled' ? `Order ${id} has been cancelled.` : `Order ${id} status is ${status}.`;
