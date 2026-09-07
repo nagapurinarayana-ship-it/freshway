@@ -101,6 +101,7 @@ const FreshWayNotifications = (() => {
       requestOtp(normalized, true).catch(error => {
         otpError(error.message || 'Could not send the OTP.');
         startCountdown(error.status === 429 ? 60 : 0);
+        finish(false, error);
       });
     });
   }
@@ -109,11 +110,7 @@ const FreshWayNotifications = (() => {
     if (!/^\d{10}$/.test(normalized)) throw new Error('Enter a valid 10-digit mobile number.');
     try {
       const current = await session();
-      if (current?.customerId) {
-        const verifiedPhone = current.phone || '';
-        setCustomerId(current.customerId);
-        return current.customerId;
-      }
+      if (current?.customerId) { setCustomerId(current.customerId); return current.customerId; }
     } catch (_) {}
     return openOtp(normalized);
   }
