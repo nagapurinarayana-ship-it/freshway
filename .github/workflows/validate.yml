@@ -33,6 +33,8 @@ jobs:
           node --check orders-ui.js
           node --check address-system-final.js
           node --check address-fix.js
+          node --check frontend/customer/api.js
+          node --check frontend/customer/storage.js
           node --check sw.js
       - name: Check Worker JavaScript
         working-directory: worker
@@ -50,6 +52,12 @@ jobs:
           node --check src/admin-notifications.js
           node --check src/admin-response.js
           node --check src/address-api.js
+      - name: Enforce frontend feature boundaries
+        run: |
+          grep -q "window.FreshWayCustomerAPI" frontend/customer/api.js
+          grep -q "credentials:'include'" frontend/customer/api.js
+          grep -q "window.FreshWayCustomerStorage" frontend/customer/storage.js
+          grep -q "freshway-state-v2" frontend/customer/storage.js
       - name: Enforce backend feature boundaries
         run: |
           ! grep -q "from 'web-push'" worker/src/admin-auth.js
