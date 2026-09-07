@@ -108,7 +108,7 @@ jobs:
             [auth, "from './admin-notifications.js'", 'admin-auth notification boundary'],
             [auth, "from './admin-response.js'", 'admin-auth response boundary'],
             [notifications, 'export async function notifyOrderChange', 'notification module export'],
-            [response, 'export function normalizeOwnerResponse', 'response module export'],
+            [response, 'export async function normalizeOwnerResponse', 'response module export'],
             [data, "from './admin-orders.js'", 'admin orders boundary'],
             [data, "from './admin-reports.js'", 'admin reports boundary'],
             [data, "from './admin-customers.js'", 'admin customers boundary'],
