@@ -4,15 +4,25 @@ FreshWay is a hyperlocal customer ordering PWA plus an owner operations dashboar
 
 ## V1 business model
 - Customer selects products and quantity.
-- Customer enters delivery address and mobile number.
-- Customer places the order.
+- Customer creates an account with a mobile number and self-created **6-digit passcode**.
+- Customer enters delivery address and places the order.
 - Payment is **cash/offline**; there is no payment gateway.
 - The business delivers offline at its available time.
 - Owner dashboard tracks delivery and cash collection independently.
 
+## Customer authentication
+- Mobile number is the permanent customer identity.
+- Registration uses mobile number + customer information + a self-created 6-digit passcode.
+- The passcode is stored as a salted PBKDF2-SHA-256 hash; it is never stored in plain text.
+- Login uses the registered mobile number and the same 6-digit passcode.
+- A signed, HttpOnly, Secure customer session cookie protects customer API actions.
+- No SMS OTP and no Twilio dependency.
+- Customer phone number cannot be changed after registration.
+- Login/registration attempts are rate limited by mobile number and client IP.
+
 ## Customer app
 - FreshWay branded home screen
-- Search and 10 initial products
+- Search and initial product catalogue
 - Quantity controls and cart
 - Delivery address form
 - Cash payment acknowledgement
@@ -25,21 +35,26 @@ FreshWay is a hyperlocal customer ordering PWA plus an owner operations dashboar
 - Shared D1 order board
 - New / processing / delivered / cancelled filters
 - Cash pending / collected filters
+- Delivery planning: today / tomorrow / later / unscheduled
+- Order search and sorting
+- Customer details panel with name, phone, latest address, order count and order value
 - Pending cash total
 - Delivery and payment tracked independently
 - Mark delivered / mark cash collected
 - Call customer / open address in Maps
 - D1-backed product catalogue management
 - Broadcast customer notification center for app push and WhatsApp
-- Browser-session admin token authentication
+- Browser-session admin authentication
 
 ## Shared data architecture
 
 New customer orders are stored centrally in Cloudflare D1 instead of the browser's localStorage. The Worker server recalculates order totals from the active D1 catalogue, then stores the customer, address, order and order items together. The customer app reads products and My Orders from the API, while the owner dashboard reads and updates the same order records.
 
 Files:
-- `worker/schema.sql` — D1 tables and initial 10-product seed
+- `worker/schema.sql` — D1 tables and initial product seed
 - `worker/src/index.js` — customer, order, product, admin and notification API
+- `worker/src/passcode-auth.js` — customer passcode authentication and signed sessions
+- `worker/src/admin-auth.js` — owner session authentication
 - `worker/wrangler.jsonc` — D1 binding and Worker configuration
 - `worker/README.md` — deployment instructions
 
@@ -50,7 +65,7 @@ The customer can opt in to browser/PWA notifications. The app registers a servic
 
 Files:
 - `sw.js` — notification service worker
-- `notifications.js` — customer subscription client
+- `notifications.js` — customer subscription client and authentication UI
 
 ### WhatsApp — optional secondary channel
 WhatsApp is provisioned through Meta's WhatsApp Business Platform/Cloud API. The customer must explicitly opt in, and the Worker sends template messages using server-side credentials. Meta credentials are never placed in browser code.
@@ -62,20 +77,20 @@ The checkout includes an optional **"Send me FreshWay updates on WhatsApp"** con
 From `worker/`:
 
 1. Install dependencies: `npm install`
-2. Create a Cloudflare D1 database and replace `REPLACE_WITH_D1_DATABASE_ID` in `wrangler.jsonc`.
-3. Apply `schema.sql` to the D1 database.
-4. Set Web Push VAPID secrets and `ADMIN_TOKEN`.
-5. Set WhatsApp credentials only if WhatsApp broadcasting is enabled.
-6. Deploy with `npm run deploy`.
-7. Route `/api/*` from the same FreshWay domain to this Worker because the frontend uses relative API paths.
+2. Create the Cloudflare D1 database and configure its ID in `wrangler.jsonc`.
+3. Apply the D1 migrations with the normal production deployment path.
+4. Configure the required Worker secrets: `ADMIN_TOKEN`, `CUSTOMER_SESSION_SECRET`, and `ADMIN_SESSION_SECRET`.
+5. Configure Web Push VAPID secrets only when push notifications are enabled.
+6. Configure WhatsApp credentials only when WhatsApp broadcasting is enabled.
+7. Deploy with the project's Cloudflare deployment process.
 
 Do **not** commit secrets to GitHub.
 
-## Important data note
+## Production data note
 
 Orders created before the D1 backend was deployed remain only in the browser that created them. They are not silently migrated. All new orders after deployment are centrally visible to the owner dashboard.
 
-## Explicit V1 exclusions
+## V1 exclusions
 
 - No online payment integration
 - No rider application
