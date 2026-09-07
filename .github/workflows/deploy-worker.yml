@@ -37,7 +37,6 @@ jobs:
         working-directory: worker
         run: |
           node --check src/index.js
-          node --check src/secure-index.js
           node --check src/passcode-auth.js
           node --check src/admin-auth.js
       - name: Validate Wrangler configuration
