@@ -6,7 +6,7 @@ const WINDOW = 10 * 60;
 const LIMIT = 10;
 const enc = value => new TextEncoder().encode(value);
 const hex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
-const origin = env => env.APP_ORIGIN && env.APP_ORIGIN !== 'https://YOUR-FRESHWAY-DOMAIN' ? env.APP_ORIGIN : '*';
+const corsOrigin = env => { const value = String(env.APP_ORIGIN || '').trim(); return value && value !== 'https://YOUR-FRESHWAY-DOMAIN' ? value : 'null'; };
 const ip = request => String(request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown').split(',')[0].trim().slice(0, 80) || 'unknown';
 
 async function key(env) {
@@ -48,12 +48,15 @@ async function sameSecret(a, b) {
   for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
   return diff === 0;
 }
-function response(data, status, env, extra = {}) { return new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': origin(env), 'access-control-allow-credentials': 'true', 'cache-control': 'private, no-store', ...extra } }); }
+function response(data, status, env, extra = {}) { return new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env), 'access-control-allow-credentials': 'true', 'cache-control': 'private, no-store', ...extra } }); }
 function withCookie(res, token) { const headers = new Headers(res.headers); headers.append('Set-Cookie', `${COOKIE}=${token}; Max-Age=${MAX_AGE}; Path=/; HttpOnly; Secure; SameSite=Lax`); headers.set('Cache-Control', 'private, no-store'); headers.set('Access-Control-Allow-Credentials', 'true'); return new Response(res.body, { status: res.status, statusText: res.statusText, headers }); }
 
 export default { async fetch(request, env, ctx) {
   const url = new URL(request.url);
-  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'access-control-allow-origin': origin(env), 'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS', 'access-control-allow-headers': 'Content-Type,Authorization,X-Freshway-Admin-Token', 'access-control-allow-credentials': 'true' } });
+  const allowedOrigin = corsOrigin(env);
+  const requestOrigin = String(request.headers.get('Origin') || '').trim();
+  if (requestOrigin && requestOrigin !== allowedOrigin) return response({ error: 'Origin not allowed.' }, 403, env);
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'access-control-allow-origin': allowedOrigin, 'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS', 'access-control-allow-headers': 'Content-Type,Authorization,X-Freshway-Admin-Token', 'access-control-allow-credentials': 'true' } });
   if (url.pathname === '/api/admin/login' && request.method === 'POST') {
     if (!(await rateLimit(env, request))) return response({ error: 'Too many login attempts. Please try again later.' }, 429, env, { 'retry-after': '600' });
     let payload = {}; try { payload = await request.json(); } catch (_) {}
