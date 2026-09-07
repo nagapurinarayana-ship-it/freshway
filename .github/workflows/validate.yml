@@ -58,6 +58,10 @@ jobs:
           grep -q "credentials:'include'" frontend/customer/api.js
           grep -q "window.FreshWayCustomerStorage" frontend/customer/storage.js
           grep -q "freshway-state-v2" frontend/customer/storage.js
+          grep -q "const customerAPI=window.FreshWayCustomerAPI" app.js
+          grep -q "const customerStorage=window.FreshWayCustomerStorage" app.js
+          grep -q "const api=customerAPI.request" app.js
+          grep -q "const save=()=>customerStorage.save(state)" app.js
       - name: Enforce backend feature boundaries
         run: |
           ! grep -q "from 'web-push'" worker/src/admin-auth.js
