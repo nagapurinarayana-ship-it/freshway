@@ -73,3 +73,22 @@ test('customer checkout accepts the verified mobile number', async () => {
   });
   assert.notEqual(response.status, 409);
 });
+
+test('customer registration cannot replace the verified mobile number', async () => {
+  const response = await request('/api/customers/register', {
+    method: 'POST',
+    headers: { Cookie: sessionCookie(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: 'customer-1', name: 'Test Customer', phone: '9123456789' })
+  });
+  assert.equal(response.status, 409);
+  assert.match((await response.json()).error, /verified customer session/i);
+});
+
+test('customer registration accepts the verified mobile number', async () => {
+  const response = await request('/api/customers/register', {
+    method: 'POST',
+    headers: { Cookie: sessionCookie(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: 'customer-1', name: 'Test Customer', phone: '9876543210' })
+  });
+  assert.notEqual(response.status, 409);
+});
