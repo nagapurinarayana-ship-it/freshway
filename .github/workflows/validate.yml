@@ -36,6 +36,7 @@ jobs:
           node --check frontend/customer/api.js
           node --check frontend/customer/storage.js
           node --check frontend/customer/catalogue-cart.js
+          node --check frontend/customer/orders.js
           node --check sw.js
       - name: Check Worker JavaScript
         working-directory: worker
@@ -70,6 +71,11 @@ jobs:
           grep -q "const customerStorage=window.FreshWayCustomerStorage" app.js
           grep -q "const api=customerAPI.request" app.js
           grep -q "const save=()=>customerStorage.save(state)" app.js
+          grep -q "window.FreshWayCustomerOrders" frontend/customer/orders.js
+          grep -q "const customerOrders=window.FreshWayCustomerOrders" app.js
+          grep -q "customerOrders.normalize" app.js
+          grep -q "customerOrders.latest" app.js
+          grep -q "customerOrders.statusLabel" app.js
       - name: Enforce backend feature boundaries
         run: |
           ! grep -q "from 'web-push'" worker/src/admin-auth.js
