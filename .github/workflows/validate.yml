@@ -35,6 +35,7 @@ jobs:
           node --check address-fix.js
           node --check frontend/customer/api.js
           node --check frontend/customer/storage.js
+          node --check frontend/customer/catalogue-cart.js
           node --check sw.js
       - name: Check Worker JavaScript
         working-directory: worker
@@ -58,6 +59,13 @@ jobs:
           grep -q "credentials:'include'" frontend/customer/api.js
           grep -q "window.FreshWayCustomerStorage" frontend/customer/storage.js
           grep -q "freshway-state-v2" frontend/customer/storage.js
+          grep -q "window.FreshWayCatalogueCart" frontend/customer/catalogue-cart.js
+          grep -q "const catalogueCart=window.FreshWayCatalogueCart" app.js
+          grep -q "const cartItems=()=>catalogueCart.items(state,PRODUCTS)" app.js
+          grep -q "const cartTotal=()=>catalogueCart.total(state,PRODUCTS)" app.js
+          grep -q "const cartCount=()=>catalogueCart.count(state,PRODUCTS)" app.js
+          grep -q "catalogueCart.filtered(PRODUCTS,filter)" app.js
+          grep -q "catalogueCart.nextQuantity(current,delta)" app.js
           grep -q "const customerAPI=window.FreshWayCustomerAPI" app.js
           grep -q "const customerStorage=window.FreshWayCustomerStorage" app.js
           grep -q "const api=customerAPI.request" app.js
