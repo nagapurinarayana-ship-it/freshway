@@ -81,6 +81,12 @@ jobs:
           grep -q "window.FreshWayCustomerCheckout" frontend/customer/checkout.js
           grep -q "frontend/customer/checkout.js" index.html
           grep -q "window.FreshWayCustomerProfile" frontend/customer/profile.js
+          grep -q "const customerProfile=window.FreshWayCustomerProfile" app.js
+          grep -q "customerProfile.savedAddress" app.js
+          grep -q "customerProfile.name(state.profile,last)" app.js
+          grep -q "customerProfile.phone(state.profile,last)" app.js
+          grep -q "customerProfile.displayAddress(state.profile)" app.js
+          grep -q "customerProfile.homeAddress(state.profile)" app.js
           grep -q "frontend/customer/profile.js" index.html
       - name: Enforce backend feature boundaries
         run: |
