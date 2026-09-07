@@ -43,12 +43,7 @@ const adminEnv = {
 async function request(path, options = {}, target = handler, targetEnv = env) { return target.fetch(new Request(`https://api.example.test${path}`, options), targetEnv, {}); }
 async function jsonResponse(response) { return response.json(); }
 
-test('health endpoint returns a stable success response', async () => {
-  const response = await request('/api/health');
-  assert.equal(response.status, 200);
-  assert.deepEqual(await jsonResponse(response), { ok: true, service: 'freshway-api' });
-  assert.equal(response.headers.get('access-control-allow-origin'), env.APP_ORIGIN);
-});
+test('health endpoint returns a stable success response', async () => { const response = await request('/api/health'); assert.equal(response.status, 200); assert.deepEqual(await jsonResponse(response), { ok: true, service: 'freshway-api' }); assert.equal(response.headers.get('access-control-allow-origin'), env.APP_ORIGIN); });
 test('unknown routes return 404 JSON', async () => { const response = await request('/api/does-not-exist'); assert.equal(response.status, 404); assert.equal((await jsonResponse(response)).error, 'Not found'); });
 test('admin endpoints reject missing credentials', async () => { const response = await request('/api/admin/orders'); assert.equal(response.status, 401); assert.equal((await jsonResponse(response)).error, 'Unauthorized'); });
 test('admin endpoints reject an invalid bearer token', async () => { const response = await request('/api/admin/orders', { headers: { Authorization: 'Bearer wrong-token' } }); assert.equal(response.status, 401); });
@@ -57,6 +52,7 @@ test('order creation validates required customer details before database access'
 test('order creation rejects malformed quantities before database access', async () => { const response = await request('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customerId: 'customer-1', customer: { name: 'Test Customer', phone: '9876543210' }, address: { house: '1', area: 'Main Road', city: 'Hyderabad', pincode: '500001' }, items: [{ id: 'apple', qty: 0 }] }) }); assert.equal(response.status, 400); assert.match((await jsonResponse(response)).error, /invalid cart item/i); });
 test('CORS preflight exposes credential support on the secure customer wrapper', async () => { const response = await request('/api/auth/session', { method: 'OPTIONS' }, secureHandler); assert.equal(response.status, 204); assert.equal(response.headers.get('access-control-allow-origin'), env.APP_ORIGIN); assert.equal(response.headers.get('access-control-allow-credentials'), 'true'); });
 test('customer session endpoint rejects missing or invalid sessions', async () => { const response = await request('/api/auth/session', {}, secureHandler); assert.equal(response.status, 401); assert.match((await jsonResponse(response)).error, /authentication required/i); });
+test('customer session endpoint rejects malformed multi-segment cookies', async () => { const response = await request('/api/auth/session', { headers: { Cookie: 'freshway-customer-session=bad.signature.extra' } }, secureHandler); assert.equal(response.status, 401); });
 test('OTP start validates Indian mobile numbers before calling Twilio', async () => { const response = await request('/api/auth/otp/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '123' }) }, secureHandler); assert.equal(response.status, 400); assert.match((await jsonResponse(response)).error, /valid 10-digit Indian mobile/i); });
 test('OTP verification validates the submitted code before calling Twilio', async () => { const response = await request('/api/auth/otp/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '9876543210', code: 'abc' }) }, secureHandler); assert.equal(response.status, 400); assert.match((await jsonResponse(response)).error, /mobile number and OTP/i); });
 test('admin session wrapper rejects protected requests without its cookie', async () => { const response = await request('/api/admin/orders', {}, adminHandler, adminEnv); assert.equal(response.status, 401); });
