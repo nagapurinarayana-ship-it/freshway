@@ -38,6 +38,7 @@ jobs:
           node --check frontend/customer/catalogue-cart.js
           node --check frontend/customer/orders.js
           node --check frontend/customer/checkout.js
+          node --check frontend/customer/profile.js
           node --check sw.js
       - name: Check Worker JavaScript
         working-directory: worker
@@ -79,6 +80,8 @@ jobs:
           grep -q "customerOrders.statusLabel" app.js
           grep -q "window.FreshWayCustomerCheckout" frontend/customer/checkout.js
           grep -q "frontend/customer/checkout.js" index.html
+          grep -q "window.FreshWayCustomerProfile" frontend/customer/profile.js
+          grep -q "frontend/customer/profile.js" index.html
       - name: Enforce backend feature boundaries
         run: |
           ! grep -q "from 'web-push'" worker/src/admin-auth.js
