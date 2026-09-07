@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import handler from '../src/index.js';
+import passcodeHandler from '../src/passcode-auth.js';
 import adminHandler from '../src/admin-auth.js';
 
 const env = {
@@ -13,7 +14,7 @@ const env = {
   DB: { prepare() { throw new Error('DB should not be touched by this test'); } }
 };
 const rateRows = new Map();
-const adminEnv = {
+const authEnv = {
   ...env,
   DB: {
     prepare(sql) {
@@ -38,6 +39,7 @@ const adminEnv = {
     }
   }
 };
+const adminEnv = authEnv;
 
 async function request(path, options = {}, target = handler, targetEnv = env) {
   return target.fetch(new Request(`https://api.example.test${path}`, options), targetEnv, {});
@@ -75,44 +77,38 @@ test('customer order listing is rejected when customer id is missing', async () 
 });
 
 test('order creation validates required customer details before database access', async () => {
-  const response = await request('/api/orders', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ customerId: 'customer-1', items: [] })
-  });
+  const response = await request('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customerId: 'customer-1', items: [] }) });
   assert.equal(response.status, 400);
   assert.match((await jsonResponse(response)).error, /customer details are required/i);
 });
 
 test('order creation rejects malformed quantities before database access', async () => {
-  const response = await request('/api/orders', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ customerId: 'customer-1', customer: { name: 'Test Customer', phone: '9876543210' }, address: { house: '1', area: 'Main Road', city: 'Hyderabad', pincode: '500001' }, items: [{ id: 'apple', qty: 0 }] })
-  });
+  const response = await request('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customerId: 'customer-1', customer: { name: 'Test Customer', phone: '9876543210' }, address: { house: '1', area: 'Main Road', city: 'Hyderabad', pincode: '500001' }, items: [{ id: 'apple', qty: 0 }] }) });
   assert.equal(response.status, 400);
   assert.match((await jsonResponse(response)).error, /invalid cart item/i);
 });
 
 test('customer auth preflight exposes credential support', async () => {
-  const response = await request('/api/auth/session', { method: 'OPTIONS' });
+  const response = await request('/api/auth/session', { method: 'OPTIONS' }, passcodeHandler, authEnv);
   assert.equal(response.status, 204);
   assert.equal(response.headers.get('access-control-allow-origin'), env.APP_ORIGIN);
   assert.equal(response.headers.get('access-control-allow-credentials'), 'true');
 });
 
 test('customer auth rejects an unexpected Origin', async () => {
-  const response = await request('/api/auth/session', { headers: { Origin: 'https://evil.example' } });
+  const response = await request('/api/auth/session', { headers: { Origin: 'https://evil.example' } }, passcodeHandler, authEnv);
   assert.equal(response.status, 403);
   assert.match((await jsonResponse(response)).error, /origin not allowed/i);
 });
 
 test('customer session endpoint rejects missing sessions', async () => {
-  const response = await request('/api/auth/session');
+  const response = await request('/api/auth/session', {}, passcodeHandler, authEnv);
   assert.equal(response.status, 401);
   assert.match((await jsonResponse(response)).error, /authentication required/i);
 });
 
 test('customer logout clears the session cookie', async () => {
-  const response = await request('/api/auth/logout', { method: 'POST' });
+  const response = await request('/api/auth/logout', { method: 'POST' }, passcodeHandler, authEnv);
   assert.equal(response.status, 200);
   assert.deepEqual(await jsonResponse(response), { ok: true });
   const cookie = response.headers.get('set-cookie') || '';
@@ -124,10 +120,7 @@ test('customer logout clears the session cookie', async () => {
 });
 
 test('customer order POST is rejected without a matching signed session', async () => {
-  const response = await request('/api/orders', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ customerId: 'customer-1', customer: { name: 'Test Customer', phone: '9876543210' }, address: { house: '1', area: 'Main Road', city: 'Hyderabad', pincode: '500001' }, items: [{ id: 'apple', qty: 1 }] })
-  });
+  const response = await request('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customerId: 'customer-1', customer: { name: 'Test Customer', phone: '9876543210' }, address: { house: '1', area: 'Main Road', city: 'Hyderabad', pincode: '500001' }, items: [{ id: 'apple', qty: 1 }] }) }, passcodeHandler, authEnv);
   assert.equal(response.status, 401);
 });
 
