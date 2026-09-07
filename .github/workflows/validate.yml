@@ -44,8 +44,10 @@ jobs:
           grep -q "INSERT OR IGNORE INTO products" schema.sql
           test -s migrations/0001_delivery_plan.sql
           grep -q "ALTER TABLE orders ADD COLUMN delivery_plan" migrations/0001_delivery_plan.sql
-          test -s migrations/0002_auth_rate_limits.sql
-          grep -q "auth_rate_limits" migrations/0002_auth_rate_limits.sql
+          test -s migrations/0002_order_idempotency.sql
+          grep -q "client_order_id" migrations/0002_order_idempotency.sql
+          test -s migrations/0003_auth_rate_limits.sql
+          grep -q "auth_rate_limits" migrations/0003_auth_rate_limits.sql
       - name: Check Worker configuration
         working-directory: worker
         run: node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); if(!x.name||!x.main||!x.d1_databases?.[0]?.binding||x.main!=='src/admin-auth.js'||!x.secrets?.required?.includes('CUSTOMER_SESSION_SECRET')||!x.secrets?.required?.includes('ADMIN_SESSION_SECRET')) process.exit(1); console.log('wrangler configuration structure and secure entrypoint OK')"
