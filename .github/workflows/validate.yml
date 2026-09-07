@@ -35,6 +35,7 @@ jobs:
         run: |
           node --check src/index.js
           node --check src/secure-index.js
+          node --check src/admin-auth.js
       - name: Check D1 schema and migration
         working-directory: worker
         run: |
@@ -47,10 +48,10 @@ jobs:
           grep -q "auth_rate_limits" migrations/0002_auth_rate_limits.sql
       - name: Check Worker configuration
         working-directory: worker
-        run: node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); if(!x.name||!x.main||!x.d1_databases?.[0]?.binding||x.main!=='src/index.js') process.exit(1); console.log('wrangler configuration structure and functionality entrypoint OK')"
+        run: node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); if(!x.name||!x.main||!x.d1_databases?.[0]?.binding||x.main!=='src/admin-auth.js'||!x.secrets?.required?.includes('CUSTOMER_SESSION_SECRET')||!x.secrets?.required?.includes('ADMIN_SESSION_SECRET')) process.exit(1); console.log('wrangler configuration structure and secure entrypoint OK')"
       - name: Check for committed secret values
         run: |
-          ! grep -RInE '(WHATSAPP_ACCESS_TOKEN|VAPID_PRIVATE_KEY|ADMIN_TOKEN|CUSTOMER_SESSION_SECRET)[[:space:]]*[:=][[:space:]]*[^$\"\047[:space:]]{20,}' --exclude-dir=.git --exclude='api.test.js' . || (echo 'Possible committed secret value found' && exit 1)
+          ! grep -RInE '(WHATSAPP_ACCESS_TOKEN|VAPID_PRIVATE_KEY|ADMIN_TOKEN|CUSTOMER_SESSION_SECRET|ADMIN_SESSION_SECRET)[[:space:]]*[:=][[:space:]]*[^$\"\047[:space:]]{20,}' --exclude-dir=.git --exclude='api.test.js' . || (echo 'Possible committed secret value found' && exit 1)
       - name: Check test fixtures are non-production values
         run: |
           grep -q "fixture-admin" worker/test/api.test.js
