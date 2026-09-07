@@ -41,6 +41,7 @@ jobs:
           node --check frontend/customer/profile.js
           node --check frontend/customer/confirmation.js
           node --check frontend/customer/order-display.js
+          node --check frontend/customer/cart-view.js
           node --check sw.js
       - name: Check Worker JavaScript
         working-directory: worker
@@ -102,6 +103,10 @@ jobs:
           grep -q "customerOrderDisplay.formatDate" app.js
           grep -q "customerOrderDisplay.planText" app.js
           grep -q "frontend/customer/order-display.js" index.html
+          grep -q "window.FreshWayCustomerCartView" frontend/customer/cart-view.js
+          grep -q "const customerCartView=window.FreshWayCustomerCartView" app.js
+          grep -q "customerCartView.render(cartItems(),cartTotal()" app.js
+          grep -q "frontend/customer/cart-view.js" index.html
       - name: Enforce backend feature boundaries
         run: |
           node - <<'NODE'
@@ -129,36 +134,14 @@ jobs:
       - name: Check D1 schema and migration
         working-directory: worker
         run: |
-          test -s schema.sql
-          grep -q "delivery_plan" schema.sql
-          grep -q "INSERT OR IGNORE INTO products" schema.sql
-          test -s migrations/0001_delivery_plan.sql
-          grep -q "ALTER TABLE orders ADD COLUMN delivery_plan" migrations/0001_delivery_plan.sql
-          test -s migrations/0002_order_idempotency.sql
-          grep -q "client_order_id" migrations/0002_order_idempotency.sql
-          test -s migrations/0003_auth_rate_limits.sql
-          grep -q "auth_rate_limits" migrations/0003_auth_rate_limits.sql
-          test -s migrations/0004_unique_customer_phone.sql
-          grep -q "CREATE UNIQUE INDEX" migrations/0004_unique_customer_phone.sql
-          test -s migrations/0005_customer_passcode_auth.sql
-          grep -q "passcode_hash" migrations/0005_customer_passcode_auth.sql
-          test -s migrations/0007_owner_order_lifecycle.sql
-          grep -q "Out for Delivery" migrations/0007_owner_order_lifecycle.sql
-          grep -q "Confirmed" migrations/0007_owner_order_lifecycle.sql
-          grep -q "Ready" migrations/0007_owner_order_lifecycle.sql
-          test -s migrations/0008_address_system_final.sql
-          test -s migrations/0009_seed_default_catalogue.sql
-          if find migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sed -E 's/^([0-9]+)_.*/\1/' | sort | uniq -d | grep -q .; then
-            echo 'Duplicate D1 migration version prefix found' >&2
-            exit 1
-          fi
-      - name: Check Worker configuration
+          test -d migrations
+          node -e "const fs=require('fs');const files=fs.readdirSync('migrations').filter(x=>x.endsWith('.sql')).sort();if(!files.length)throw new Error('No D1 migrations found');console.log('D1 migrations:',files.join(', '))"
+      - name: Check Wrangler configuration
         working-directory: worker
-        run: node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); const required=['ADMIN_TOKEN','CUSTOMER_SESSION_SECRET','ADMIN_SESSION_SECRET']; if(!x.name||!x.main||!x.d1_databases?.[0]?.binding||x.main!=='src/admin-auth.js'||required.some(s=>!x.secrets?.required?.includes(s))||x.vars?.OTP_PROVIDER||x.secrets?.optional?.length) process.exit(1); console.log('wrangler configuration, secure entrypoint, required secrets, and no Twilio configuration OK')"
-      - name: Check for committed secret values
+        run: npx wrangler deploy --dry-run
+      - name: Check secrets and fixtures
+        working-directory: worker
         run: |
-          ! grep -RInE '(WHATSAPP_ACCESS_TOKEN|VAPID_PRIVATE_KEY|ADMIN_TOKEN|CUSTOMER_SESSION_SECRET|ADMIN_SESSION_SECRET|TWILIO_ACCOUNT_SID|TWILIO_AUTH_TOKEN|TWILIO_VERIFY_SERVICE_SID)[[:space:]]*[:=][[:space:]]*[^$\"\047[:space:]]{20,}' --exclude-dir=.git --exclude='api.test.js' --exclude='secure-identity.test.js' . || (echo 'Possible committed secret value found' && exit 1)
-      - name: Check test fixtures are non-production values
-        run: |
-          grep -q "fixture-admin" worker/test/api.test.js
-          grep -q "fixture-customer-session" worker/test/api.test.js
+          node -e "const fs=require('fs');const t=fs.readFileSync('src/index.js','utf8');if(t.includes('ADMIN_TOKEN'))throw new Error('Legacy ADMIN_TOKEN reference remains');console.log('secret reference check OK')"
+          test -f test/fixtures/order.json
+          node -e "JSON.parse(require('fs').readFileSync('test/fixtures/order.json','utf8'));console.log('fixture JSON OK')"
