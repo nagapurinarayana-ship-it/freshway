@@ -33,14 +33,14 @@ FreshWay is a hyperlocal customer ordering PWA plus an owner operations dashboar
 
 ## Owner dashboard
 - Shared D1 order board
-- New / processing / delivered / cancelled filters
+- New / confirmed / processing / ready / out-for-delivery / delivered / cancelled filters
 - Cash pending / collected filters
 - Delivery planning: today / tomorrow / later / unscheduled
 - Order search and sorting
 - Customer details panel with name, phone, latest address, order count and order value
 - Pending cash total
 - Delivery and payment tracked independently
-- Mark delivered / mark cash collected
+- Mark delivery progress / mark cash collected
 - Call customer / open address in Maps
 - D1-backed product catalogue management
 - Broadcast customer notification center for app push and WhatsApp
@@ -52,9 +52,10 @@ New customer orders are stored centrally in Cloudflare D1 instead of the browser
 
 Files:
 - `worker/schema.sql` — D1 tables and initial product seed
-- `worker/src/index.js` — customer, order, product, admin and notification API
+- `worker/src/index.js` — core customer, order, product and notification API
 - `worker/src/passcode-auth.js` — customer passcode authentication and signed sessions
-- `worker/src/admin-auth.js` — owner session authentication
+- `worker/src/admin-auth.js` — owner session authentication and protected admin routing
+- `worker/src/admin-data.js` — owner dashboard queries, filters, reports and order lifecycle
 - `worker/wrangler.jsonc` — D1 binding and Worker configuration
 - `worker/README.md` — deployment instructions
 
@@ -99,5 +100,6 @@ Orders created before the D1 backend was deployed remain only in the browser tha
 - No complex quick-commerce delivery logic
 
 The production order model keeps these fields independent:
-- `delivery_status`: ORDERED | PROCESSING | DELIVERED | CANCELLED
+- `delivery_status`: NEW | CONFIRMED | PROCESSING | READY | OUT FOR DELIVERY | DELIVERED | CANCELLED
 - `payment_status`: PENDING | COLLECTED
+- `delivery_plan`: TODAY | TOMORROW | LATER | UNSCHEDULED
