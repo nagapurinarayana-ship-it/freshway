@@ -2,12 +2,25 @@ import original from './index.js';
 
 const COOKIE = 'freshway-customer-session';
 const MAX_AGE = 60 * 60 * 24 * 30;
+const MOCK_OTP = '123456';
 const text = value => new TextEncoder().encode(value);
 const hex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
 const cleanPhone = value => { const digits = String(value || '').replace(/\D/g, ''); return digits.length === 10 ? `91${digits}` : digits; };
 const e164 = value => { const phone = cleanPhone(value); return /^91\d{10}$/.test(phone) ? `+${phone}` : ''; };
 const clientIp = request => String(request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown').split(',')[0].trim().slice(0, 80) || 'unknown';
 const corsOrigin = env => { const value = String(env.APP_ORIGIN || '').trim(); return value && value !== 'https://YOUR-FRESHWAY-DOMAIN' ? value : 'null'; };
+const otpProvider = env => String(env.OTP_PROVIDER || 'twilio').trim().toLowerCase();
+
+function isLocalOrigin(env) {
+  try {
+    const origin = new URL(corsOrigin(env));
+    return origin.protocol === 'http:' && ['localhost', '127.0.0.1', '::1'].includes(origin.hostname);
+  } catch (_) { return false; }
+}
+
+function mockOtpAllowed(env) {
+  return otpProvider(env) === 'mock' && isLocalOrigin(env);
+}
 
 async function key(env) {
   const secret = String(env.CUSTOMER_SESSION_SECRET || '').trim();
@@ -150,6 +163,14 @@ function limited(env, retryAfter = 600) {
   }});
 }
 
+function mockOtpBlocked(env) {
+  return new Response(JSON.stringify({ error: 'Mock OTP is only available on local development origins.' }), { status: 503, headers: {
+    'content-type': 'application/json; charset=utf-8',
+    'access-control-allow-origin': corsOrigin(env),
+    'cache-control': 'no-store'
+  }});
+}
+
 async function otpStart(request, env) {
   let payload = {};
   try { payload = await request.json(); } catch (_) {}
@@ -158,6 +179,11 @@ async function otpStart(request, env) {
   const phoneKey = `otp:start:phone:${phone}`;
   const ipKey = `otp:start:ip:${clientIp(request)}`;
   if (!(await rateLimit(env, phoneKey, RATE_RULES.otpStartPhone)) || !(await rateLimit(env, ipKey, RATE_RULES.otpStartIp))) return limited(env);
+  if (otpProvider(env) === 'mock') {
+    if (!mockOtpAllowed(env)) return mockOtpBlocked(env);
+    return new Response(JSON.stringify({ ok: true, phone: `******${phone.slice(-4)}`, expiresIn: 600, testCode: MOCK_OTP }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env), 'cache-control': 'no-store' } });
+  }
+  if (otpProvider(env) !== 'twilio') throw new Error('Unsupported OTP provider.');
   await twilio(env, 'Verifications', { To: phone, Channel: 'sms' });
   return new Response(JSON.stringify({ ok: true, phone: `******${phone.slice(-4)}`, expiresIn: 600 }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env), 'cache-control': 'no-store' } });
 }
@@ -169,8 +195,16 @@ async function otpVerify(request, env) {
   const code = String(payload.code || '').replace(/\s/g, '');
   if (!phone || !/^\d{4,10}$/.test(code)) return new Response(JSON.stringify({ error: 'Enter the mobile number and OTP.' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env) } });
   if (!(await rateLimit(env, `otp:verify:phone:${phone}`, RATE_RULES.otpVerifyPhone)) || !(await rateLimit(env, `otp:verify:ip:${clientIp(request)}`, RATE_RULES.otpVerifyIp))) return limited(env);
-  const result = await twilio(env, 'VerificationCheck', { To: phone, Code: code });
-  if (result.status !== 'approved' || result.valid === false) return new Response(JSON.stringify({ error: 'Incorrect or expired OTP.' }), { status: 401, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env) } });
+  let verified = false;
+  if (otpProvider(env) === 'mock') {
+    if (!mockOtpAllowed(env)) return mockOtpBlocked(env);
+    verified = code === MOCK_OTP;
+  } else {
+    if (otpProvider(env) !== 'twilio') throw new Error('Unsupported OTP provider.');
+    const result = await twilio(env, 'VerificationCheck', { To: phone, Code: code });
+    verified = result.status === 'approved' && result.valid !== false;
+  }
+  if (!verified) return new Response(JSON.stringify({ error: 'Incorrect or expired OTP.' }), { status: 401, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env) } });
   const customerId = (await customerIdForPhone(env, phone)) || crypto.randomUUID();
   await ensureCustomerForVerifiedPhone(env, customerId, phone);
   return withCookie(new Response(JSON.stringify({ ok: true, customerId, phone: `******${phone.slice(-4)}` }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env), 'cache-control': 'no-store' } }), await signSession(env, customerId));
