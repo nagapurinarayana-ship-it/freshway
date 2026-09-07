@@ -41,7 +41,23 @@ jobs:
           node --check src/secure-index.js
           node --check src/passcode-auth.js
           node --check src/admin-auth.js
+          node --check src/admin-data.js
+          node --check src/admin-orders.js
+          node --check src/admin-customers.js
+          node --check src/admin-reports.js
+          node --check src/admin-products.js
+          node --check src/admin-shared.js
+          node --check src/admin-notifications.js
           node --check src/address-api.js
+      - name: Enforce backend feature boundaries
+        run: |
+          ! grep -q "from 'web-push'" worker/src/admin-auth.js
+          grep -q "from './admin-notifications.js'" worker/src/admin-auth.js
+          grep -q "export async function notifyOrderChange" worker/src/admin-notifications.js
+          grep -q "from './admin-orders.js'" worker/src/admin-data.js
+          grep -q "from './admin-reports.js'" worker/src/admin-data.js
+          grep -q "from './admin-customers.js'" worker/src/admin-data.js
+          grep -q "from './admin-products.js'" worker/src/admin-data.js
       - name: Check D1 schema and migration
         working-directory: worker
         run: |
