@@ -41,8 +41,10 @@ async function sessionCustomerId(request, env) {
     return diff === 0 ? customerId : null;
   } catch (_) { return null; }
 }
-function withSession(data, env, token) { const res = response(data, 200, env); const headers = new Headers(res.headers); headers.append('Set-Cookie', `${COOKIE}=${token}; Max-Age=${MAX_AGE}; Path=/; HttpOnly; Secure; SameSite=Lax`); return new Response(res.body, { status: res.status, headers }); }
-function clearSession(env) { return response({ ok: true }, 200, env, { 'Set-Cookie': `${COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax` }); }
+// The customer app is hosted on pages.dev while the API is on workers.dev.
+// SameSite=None is required for credentialed cross-site fetches; Secure is mandatory with it.
+function withSession(data, env, token) { const res = response(data, 200, env); const headers = new Headers(res.headers); headers.append('Set-Cookie', `${COOKIE}=${token}; Max-Age=${MAX_AGE}; Path=/; HttpOnly; Secure; SameSite=None`); return new Response(res.body, { status: res.status, headers }); }
+function clearSession(env) { return response({ ok: true }, 200, env, { 'Set-Cookie': `${COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=None` }); }
 
 async function rateLimit(env, key, limit) {
   const windowStart = Math.floor(Date.now() / 1000 / 600) * 600;
