@@ -1,5 +1,5 @@
-const CACHE = 'freshway-v5';
-const APP_SHELL = ['/', '/index.html?v=20260907-v5', '/styles.css?v=20260907-v5', '/app.js?v=20260907-app-v2', '/notifications.js?v=20260907-auth-v2', '/address-fix.js?v=20260907-address-fix', '/address-system-final.js?v=20260907-address-final', '/manifest.webmanifest?v=20260907-v5', '/icon.svg'];
+const CACHE = 'freshway-v6';
+const APP_SHELL = ['/', '/index.html?v=20260907-v6', '/styles.css?v=20260907-v6', '/app.js?v=20260907-app-v2', '/notifications.js?v=20260907-auth-v2', '/address-fix.js?v=20260907-address-fix', '/address-system-final.js?v=20260907-address-final-v2', '/manifest.webmanifest?v=20260907-v6', '/icon.svg'];
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(APP_SHELL)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', event => {
@@ -13,7 +13,7 @@ self.addEventListener('fetch', event => {
       return response;
     } catch (_) {
       const cached = await caches.match(event.request);
-      return cached || (event.request.mode === 'navigate' ? caches.match('/index.html?v=20260907-v5') : Response.error());
+      return cached || (event.request.mode === 'navigate' ? caches.match('/index.html?v=20260907-v6') : Response.error());
     }
   })());
 });
