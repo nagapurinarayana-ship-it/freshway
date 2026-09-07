@@ -1,5 +1,22 @@
-const CACHE = 'freshway-v7';
-const APP_SHELL = ['/', '/index.html?v=20260907-v7', '/styles.css?v=20260907-v7', '/app.js?v=20260907-app-v2', '/notifications.js?v=20260907-auth-v2', '/address-fix.js?v=20260907-address-fix', '/address-system-final.js?v=20260907-address-final-v3', '/manifest.webmanifest?v=20260907-v7', '/icon.svg'];
+const CACHE = 'freshway-v8';
+const APP_SHELL = [
+  '/',
+  '/index.html?v=20260907-v8',
+  '/styles.css?v=20260907-layout-v2',
+  '/address-system.css?v=20260907-address-v2',
+  '/app.js?v=20260907-app-v2',
+  '/notifications.js?v=20260907-auth-v2',
+  '/address-fix.js?v=20260907-address-fix',
+  '/address-system-final.js?v=20260907-address-final-v3',
+  '/manifest.webmanifest?v=20260907-v8',
+  '/icon.svg?v=20260907-logo-v2',
+  '/admin.html',
+  '/admin.css?v=20260907-owner-v2',
+  '/admin.js?v=20260907-owner-v4',
+  '/owner-lifecycle.js?v=20260907-owner-v2',
+  '/owner-address-final.js?v=20260907-address-final-v3',
+  '/freshway-logo-clean.svg?v=20260907-logo-v3'
+];
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(APP_SHELL)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', event => {
@@ -13,7 +30,7 @@ self.addEventListener('fetch', event => {
       return response;
     } catch (_) {
       const cached = await caches.match(event.request);
-      return cached || (event.request.mode === 'navigate' ? caches.match('/index.html?v=20260907-v7') : Response.error());
+      return cached || (event.request.mode === 'navigate' ? caches.match('/index.html?v=20260907-v8') : Response.error());
     }
   })());
 });
