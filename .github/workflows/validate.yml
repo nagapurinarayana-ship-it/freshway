@@ -43,6 +43,7 @@ jobs:
           node --check frontend/customer/order-display.js
           node --check frontend/customer/cart-view.js
           node --check frontend/customer/feedback.js
+          node --check frontend/customer/product-view.js
           node --check sw.js
       - name: Check Worker JavaScript
         working-directory: worker
@@ -71,8 +72,6 @@ jobs:
           grep -q "const cartItems=()=>catalogueCart.items(state,PRODUCTS)" app.js
           grep -q "const cartTotal=()=>catalogueCart.total(state,PRODUCTS)" app.js
           grep -q "const cartCount=()=>catalogueCart.count(state,PRODUCTS)" app.js
-          grep -q "catalogueCart.filtered(PRODUCTS,filter)" app.js
-          grep -q "catalogueCart.nextQuantity(current,delta)" app.js
           grep -q "const customerAPI=window.FreshWayCustomerAPI" app.js
           grep -q "const customerStorage=window.FreshWayCustomerStorage" app.js
           grep -q "const api=customerAPI.request" app.js
@@ -112,6 +111,10 @@ jobs:
           grep -q "const customerFeedback=window.FreshWayCustomerFeedback" app.js
           grep -q "customerFeedback.show(document,msg)" app.js
           grep -q "frontend/customer/feedback.js" index.html
+          grep -q "window.FreshWayCustomerProductView" frontend/customer/product-view.js
+          grep -q "const customerProductView=window.FreshWayCustomerProductView" app.js
+          grep -q "customerProductView.render(PRODUCTS,state,filter" app.js
+          grep -q "frontend/customer/product-view.js" index.html
       - name: Enforce backend feature boundaries
         run: |
           node - <<'NODE'
