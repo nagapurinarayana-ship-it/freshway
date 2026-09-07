@@ -26,6 +26,22 @@ CREATE TABLE IF NOT EXISTS addresses (
   landmark TEXT,
   note TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  label TEXT NOT NULL DEFAULT 'Other',
+  recipient_name TEXT,
+  delivery_phone TEXT,
+  building TEXT,
+  floor TEXT,
+  street TEXT,
+  locality TEXT,
+  district TEXT,
+  state TEXT,
+  latitude REAL,
+  longitude REAL,
+  accuracy_meters REAL,
+  location_source TEXT,
+  place_id TEXT,
+  location_updated_at TEXT,
+  is_default INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS orders (
@@ -54,6 +70,31 @@ CREATE TABLE IF NOT EXISTS order_items (
   qty INTEGER NOT NULL CHECK(qty > 0),
   price INTEGER NOT NULL CHECK(price >= 0),
   line_total INTEGER NOT NULL CHECK(line_total >= 0),
+  FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS order_address_snapshots (
+  order_id TEXT PRIMARY KEY,
+  recipient_name TEXT NOT NULL,
+  delivery_phone TEXT NOT NULL,
+  house_flat TEXT NOT NULL,
+  building TEXT,
+  floor TEXT,
+  street TEXT,
+  area TEXT NOT NULL,
+  locality TEXT,
+  city TEXT NOT NULL,
+  district TEXT,
+  state TEXT,
+  pincode TEXT NOT NULL,
+  landmark TEXT,
+  delivery_note TEXT,
+  latitude REAL,
+  longitude REAL,
+  accuracy_meters REAL,
+  location_source TEXT,
+  place_id TEXT,
+  location_updated_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS push_subscriptions (
@@ -89,6 +130,9 @@ CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(delivery_status, created_
 CREATE INDEX IF NOT EXISTS idx_orders_plan ON orders(delivery_plan, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_client_order_id ON orders(client_order_id);
 CREATE INDEX IF NOT EXISTS idx_addresses_customer ON addresses(customer_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_addresses_customer_default ON addresses(customer_id,is_default DESC,id DESC);
+CREATE INDEX IF NOT EXISTS idx_addresses_customer_label ON addresses(customer_id,label);
+CREATE INDEX IF NOT EXISTS idx_order_address_snapshots_location ON order_address_snapshots(latitude,longitude);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_auth_rate_limits_window ON auth_rate_limits(window_start);
 INSERT OR IGNORE INTO products (id,name,unit,price,emoji,active) VALUES
