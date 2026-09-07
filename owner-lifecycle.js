@@ -4,6 +4,7 @@
   const validCoords=(lat,lon)=>Number.isFinite(Number(lat))&&Number.isFinite(Number(lon))&&Number(lat)>=-90&&Number(lat)<=90&&Number(lon)>=-180&&Number(lon)<=180&&!(Number(lat)===0&&Number(lon)===0);
   const next={New:['Confirmed','Cancelled'],Confirmed:['Processing','Cancelled'],Processing:['Ready','Cancelled'],Ready:['Out for Delivery','Cancelled'],"Out for Delivery":['Delivered','Cancelled'],Delivered:[],Cancelled:[]};
   const label={New:'New',Confirmed:'Confirmed',Processing:'Processing',Ready:'Ready','Out for Delivery':'Out for delivery',Delivered:'Delivered',Cancelled:'Cancelled'};
+  const istDay=v=>{if(!v)return'';try{return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(v))}catch(_){return''}};
   async function getOrder(id){const d=await api(`/admin/orders?search=${encodeURIComponent(id)}&limit=1`);return d.orders?.[0]}
   async function openLifecycle(id){
     try{
@@ -27,16 +28,17 @@
     try{
       const r=await api('/admin/reports?range=today');
       const d=await api('/admin/orders?page=1&limit=50&payment=Collected&sort=newest');
-      const collected=(d.orders||[]).filter(o=>o.status!=='Cancelled');
+      const today=istDay(new Date());
+      const collected=(d.orders||[]).filter(o=>o.status!=='Cancelled'&&istDay(o.paymentCollectedAt||o.updatedAt||o.createdAt)===today);
+      const collectedTotal=collected.reduce((sum,o)=>sum+Number(o.total||0),0);
+      const collectedOrders=collected.length;
       root.dataset.cashEnhanced='1';
-      root.innerHTML=`<div class="cash-summary-grid"><article class="report"><span>Cash pending</span><strong>${money2(r.cashPending)}</strong><small>${r.cashPendingOrders} orders still outstanding</small></article><article class="report"><span>Cash collected</span><strong>${money2(r.cashCollected)}</strong><small>${r.cashCollectedOrders} collections today</small></article></div><div class="cash-collected-total"><span>Collected today</span><strong>${money2(r.cashCollected)}</strong></div>`;
+      root.innerHTML=`<div class="cash-summary-grid"><article class="report"><span>Cash pending</span><strong>${money2(r.cashPending)}</strong><small>${r.cashPendingOrders} orders still outstanding</small></article><article class="report"><span>Cash collected</span><strong>${money2(collectedTotal)}</strong><small>${collectedOrders} collections today</small></article></div><div class="cash-collected-total"><span>Collected today</span><strong>${money2(collectedTotal)}</strong></div>`;
       const list=document.getElementById('cashList');
-      if(list){list.innerHTML=collected.length?`<div class="section-head"><div><span class="eyebrow">COLLECTED</span><h2>Cash collected today</h2><p>${r.cashCollectedOrders} orders · ${money2(r.cashCollected)} total</p></div></div>`+collected.map(orderCardForCash).join(''):'<div class="empty">No cash collected today.</div>'}
+      if(list){list.innerHTML=collected.length?`<div class="section-head"><div><span class="eyebrow">COLLECTED</span><h2>Cash collected today</h2><p>${collectedOrders} orders · ${money2(collectedTotal)} total</p></div></div>`+collected.map(orderCardForCash).join(''):'<div class="empty">No cash collected today.</div>'}
     }catch(e){root.dataset.cashEnhanced='';toast(e.message)}
   }
   function orderCardForCash(o){return `<article class="card order-card" data-order="${esc2(o.id)}"><div class="card-top"><div><b>${esc2(o.id)}</b><small>${esc2(new Date(o.createdAt).toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}))}</small></div><span class="badge Delivered">Delivered</span></div><div class="person"><div><b>${esc2(o.customer?.name||'Customer')}</b><small>📞 ${esc2(o.customer?.phone||'')}</small></div><strong>${money2(o.total)}</strong></div><div class="meta">${(o.items||[]).slice(0,3).map(i=>`${esc2(i.name)} ×${i.qty}`).join(' · ')}${(o.items||[]).length>3?' · +more':''}</div><div class="card-foot"><span>🚚 ${esc2(o.deliveryPlan||'Unscheduled')}</span><span class="pay good">💵 Collected</span></div></article>`}
-  // admin.js also has loadCash(); make this wrapper authoritative so its older
-  // pending-only render can never overwrite the collected-total view.
   const baseLoadCash=window.loadCash;
   if(typeof baseLoadCash==='function'){
     window.loadCash=async function(){await baseLoadCash();await enhanceCash(true)};
