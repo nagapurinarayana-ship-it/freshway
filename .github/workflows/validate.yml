@@ -39,6 +39,7 @@ jobs:
           node --check frontend/customer/orders.js
           node --check frontend/customer/checkout.js
           node --check frontend/customer/profile.js
+          node --check frontend/customer/confirmation.js
           node --check sw.js
       - name: Check Worker JavaScript
         working-directory: worker
@@ -91,17 +92,34 @@ jobs:
           grep -q "customerProfile.displayAddress(state.profile)" app.js
           grep -q "customerProfile.homeAddress(state.profile)" app.js
           grep -q "frontend/customer/profile.js" index.html
+          grep -q "window.FreshWayCustomerConfirmation" frontend/customer/confirmation.js
+          grep -q "frontend/customer/confirmation.js" index.html
+          grep -q "const customerConfirmation=window.FreshWayCustomerConfirmation" app.js
+          grep -q "customerConfirmation.show(order" app.js
       - name: Enforce backend feature boundaries
         run: |
-          ! grep -q "from 'web-push'" worker/src/admin-auth.js
-          grep -q "from './admin-notifications.js'" worker/src/admin-auth.js
-          grep -q "from './admin-response.js'" worker/src/admin-auth.js
-          grep -q "export async function notifyOrderChange" worker/src/admin-notifications.js
-          grep -q "export function normalizeOwnerResponse" worker/src/admin-response.js
-          grep -q "from './admin-orders.js'" worker/src/admin-data.js
-          grep -q "from './admin-reports.js'" worker/src/admin-data.js
-          grep -q "from './admin-customers.js'" worker/src/admin-data.js
-          grep -q "from './admin-products.js'" worker/src/admin-data.js
+          node - <<'NODE'
+          const fs = require('fs');
+          const auth = fs.readFileSync('worker/src/admin-auth.js', 'utf8');
+          const data = fs.readFileSync('worker/src/admin-data.js', 'utf8');
+          const notifications = fs.readFileSync('worker/src/admin-notifications.js', 'utf8');
+          const response = fs.readFileSync('worker/src/admin-response.js', 'utf8');
+          const required = [
+            [auth, "from './admin-notifications.js'", 'admin-auth notification boundary'],
+            [auth, "from './admin-response.js'", 'admin-auth response boundary'],
+            [notifications, 'export async function notifyOrderChange', 'notification module export'],
+            [response, 'export async function normalizeOwnerResponse', 'response module export'],
+            [data, "from './admin-orders.js'", 'admin orders boundary'],
+            [data, "from './admin-reports.js'", 'admin reports boundary'],
+            [data, "from './admin-customers.js'", 'admin customers boundary'],
+            [data, "from './admin-products.js'", 'admin products boundary']
+          ];
+          if (auth.includes("from 'web-push'")) throw new Error('admin-auth.js must not own web-push delivery');
+          for (const [text, needle, label] of required) {
+            if (!text.includes(needle)) throw new Error(`Missing ${label}: ${needle}`);
+          }
+          console.log('backend feature boundaries OK');
+          NODE
       - name: Check D1 schema and migration
         working-directory: worker
         run: |
