@@ -3,11 +3,8 @@ const FreshWayNotifications = (() => {
   const STATE_KEY = 'freshway-state-v2';
   let otpBusy = false;
   let otpTimer = null;
-  const id = () => {
-    let value = localStorage.getItem(CUSTOMER_KEY);
-    if (!value) { value = crypto.randomUUID ? crypto.randomUUID() : `c-${Date.now()}-${Math.random().toString(16).slice(2)}`; localStorage.setItem(CUSTOMER_KEY, value); }
-    return value;
-  };
+  let sessionCheckTimer = null;
+  const id = () => String(localStorage.getItem(CUSTOMER_KEY) || '').trim() || null;
   const setCustomerId = value => { const clean = String(value || '').trim(); if (clean) localStorage.setItem(CUSTOMER_KEY, clean); };
   const clearCustomerId = () => localStorage.removeItem(CUSTOMER_KEY);
   const clearLocalCustomerState = () => {
@@ -15,6 +12,7 @@ const FreshWayNotifications = (() => {
       const state = JSON.parse(localStorage.getItem(STATE_KEY) || '{}');
       state.orders = [];
       state.profile = { address: '', checkout: {} };
+      delete state.profile?.pendingCheckout;
       localStorage.setItem(STATE_KEY, JSON.stringify(state));
     } catch (_) { localStorage.removeItem(STATE_KEY); }
   };
@@ -137,24 +135,41 @@ const FreshWayNotifications = (() => {
     return true;
   }
   async function registerCustomer(name, phone, whatsappOptIn = false) {
-    await api('/api/customers/register', { method: 'POST', body: JSON.stringify({ id: id(), name, phone, whatsappOptIn }) });
+    try {
+      await api('/api/customers/register', { method: 'POST', body: JSON.stringify({ id: id(), name, phone, whatsappOptIn }) });
+      return true;
+    } catch (error) {
+      console.warn('FreshWay profile enrichment failed after authentication/order:', error);
+      return false;
+    }
   }
   async function logout() {
-    await api('/api/auth/logout', { method: 'POST' });
+    try { await api('/api/auth/logout', { method: 'POST' }); }
+    finally {
+      clearCustomerId();
+      localStorage.removeItem('freshway-push-enabled');
+      clearLocalCustomerState();
+      document.dispatchEvent(new CustomEvent('freshway:logout'));
+    }
+  }
+  async function validateSession() {
+    try {
+      const current = await session();
+      if (current?.customerId) { setCustomerId(current.customerId); return current.customerId; }
+    } catch (_) {}
     clearCustomerId();
-    localStorage.removeItem('freshway-push-enabled');
     clearLocalCustomerState();
-    document.dispatchEvent(new CustomEvent('freshway:logout'));
+    document.dispatchEvent(new CustomEvent('freshway:session-expired'));
+    return null;
   }
   async function init() {
     if ('serviceWorker' in navigator) await navigator.serviceWorker.register('/sw.js').catch(() => {});
-    try {
-      const current = await session();
-      if (current?.customerId) setCustomerId(current.customerId);
-      else { clearCustomerId(); clearLocalCustomerState(); }
-    } catch (_) { clearCustomerId(); clearLocalCustomerState(); }
+    await validateSession();
+    clearInterval(sessionCheckTimer);
+    sessionCheckTimer = setInterval(() => { validateSession().catch(() => {}); }, 5 * 60 * 1000);
+    document.addEventListener('freshway:logout', () => { window.location.reload(); }, { once: false });
     document.dispatchEvent(new CustomEvent('freshway:session'));
   }
-  return { init, enable, registerCustomer, ensureAuthenticated, session, logout, customerId: id, setCustomerId, clearCustomerId, closeOtp };
+  return { init, enable, registerCustomer, ensureAuthenticated, session, logout, customerId: id, setCustomerId, clearCustomerId, closeOtp, validateSession };
 })();
 FreshWayNotifications.init();
