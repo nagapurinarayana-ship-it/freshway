@@ -48,9 +48,11 @@ jobs:
           grep -q "client_order_id" migrations/0002_order_idempotency.sql
           test -s migrations/0003_auth_rate_limits.sql
           grep -q "auth_rate_limits" migrations/0003_auth_rate_limits.sql
+          test -s migrations/0004_unique_customer_phone.sql
+          grep -q "CREATE UNIQUE INDEX" migrations/0004_unique_customer_phone.sql
       - name: Check Worker configuration
         working-directory: worker
-        run: node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); const required=['ADMIN_TOKEN','CUSTOMER_SESSION_SECRET','ADMIN_SESSION_SECRET','TWILIO_ACCOUNT_SID','TWILIO_AUTH_TOKEN','TWILIO_VERIFY_SERVICE_SID']; if(!x.name||!x.main||!x.d1_databases?.[0]?.binding||x.main!=='src/admin-auth.js'||required.some(s=>!x.secrets?.required?.includes(s))) process.exit(1); console.log('wrangler configuration structure, secure entrypoint, and required production secrets OK')"
+        run: node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); const required=['ADMIN_TOKEN','CUSTOMER_SESSION_SECRET','ADMIN_SESSION_SECRET']; const optional=['TWILIO_ACCOUNT_SID','TWILIO_AUTH_TOKEN','TWILIO_VERIFY_SERVICE_SID']; if(!x.name||!x.main||!x.d1_databases?.[0]?.binding||x.main!=='src/admin-auth.js'||required.some(s=>!x.secrets?.required?.includes(s))||optional.some(s=>x.secrets?.required?.includes(s))) process.exit(1); if(x.vars?.OTP_PROVIDER!=='twilio') process.exit(1); console.log('wrangler configuration structure, secure entrypoint, required secrets, and optional OTP provider secrets OK')"
       - name: Check for committed secret values
         run: |
           ! grep -RInE '(WHATSAPP_ACCESS_TOKEN|VAPID_PRIVATE_KEY|ADMIN_TOKEN|CUSTOMER_SESSION_SECRET|ADMIN_SESSION_SECRET|TWILIO_ACCOUNT_SID|TWILIO_AUTH_TOKEN|TWILIO_VERIFY_SERVICE_SID)[[:space:]]*[:=][[:space:]]*[^$\"\047[:space:]]{20,}' --exclude-dir=.git --exclude='api.test.js' --exclude='secure-identity.test.js' . || (echo 'Possible committed secret value found' && exit 1)
