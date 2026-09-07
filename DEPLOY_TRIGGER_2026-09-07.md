@@ -1,0 +1,1 @@
+FreshWay production deployment trigger. This file exists only to trigger the connected Cloudflare Pages deployment so the current main branch Worker build is published.
