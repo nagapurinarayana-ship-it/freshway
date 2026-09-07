@@ -1,14 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 438" role="img" aria-labelledby="title desc">
-  <title id="title">FreshWay</title>
-  <desc id="desc">FreshWay — Eat Fresh, Stay Healthy.</desc>
-  <g transform="translate(48 22)">
-    <text x="0" y="205" fill="#08753f" font-family="Arial Rounded MT Bold, Trebuchet MS, Arial, sans-serif" font-size="176" font-weight="500" letter-spacing="-9">fresh</text>
-    <text x="425" y="205" fill="#08753f" font-family="Brush Script MT, Segoe Script, cursive" font-size="170" font-weight="700" font-style="italic" letter-spacing="-7">way</text>
-    <g transform="translate(650 0) rotate(13 70 78)">
-      <path d="M0 0 L132 10 L73 91 Z" fill="#ff8a00"/>
-      <path d="M132 10 L73 91 L91 26 Z" fill="#ef4b23"/>
-      <path d="M0 0 L91 26 L73 91 Z" fill="#ffb000" opacity=".72"/>
-    </g>
-    <text x="10" y="345" fill="#17683f" font-family="Arial Rounded MT Bold, Trebuchet MS, Arial, sans-serif" font-size="63" font-weight="800" letter-spacing="1">Eat Fresh, Stay Healthy.</text>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="326 167 292 126" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="title desc"><title id="title">FreshWay</title><desc id="desc">FreshWay — Eat Fresh,Stay Healthy.</desc><image x="0" y="0" width="900" height="438" href="freshway-logo.svg" preserveAspectRatio="none"/></svg>
