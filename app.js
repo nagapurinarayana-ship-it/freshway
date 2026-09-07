@@ -21,6 +21,7 @@ const customerOrderDisplay=window.FreshWayCustomerOrderDisplay;
 const customerCartView=window.FreshWayCustomerCartView;
 const customerFeedback=window.FreshWayCustomerFeedback;
 const customerProductView=window.FreshWayCustomerProductView;
+const customerNavigation=window.FreshWayCustomerNavigation;
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const money=n=>`₹${Number(n||0).toLocaleString('en-IN')}`;
@@ -44,7 +45,9 @@ function startOrdersRefresh(){clearInterval(ordersRefreshTimer);ordersRefreshTim
 function stopOrdersRefresh(){clearInterval(ordersRefreshTimer);ordersRefreshTimer=null}
 function latestOrder(){return customerOrders.latest(state.orders)}
 function prefillCheckout(){const last=latestOrder(),saved=state.profile?.checkout||{},a=customerProfile.savedAddress(state.profile,last);const fields=[['#customerName',saved.name||last?.customer?.name||''],['#customerPhone',saved.phone||last?.customer?.phone||''],['#house',a.house||''],['#area',a.area||''],['#city',a.city||''],['#pincode',a.pincode||''],['#landmark',a.landmark||''],['#note',a.note||'']];fields.forEach(([sel,val])=>{const el=$(sel);if(el&&!el.value)el.value=val})}
-function setView(name){$('#confirmationView')?.remove();$$('.view').forEach(v=>v.classList.remove('active-view'));const view=$(`#${name}View`);if(!view)return;view.classList.add('active-view');$$('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.nav===name));if(name==='orders'){renderOrders();loadOrders();startOrdersRefresh()}else stopOrdersRefresh();if(name==='cart')renderCart();if(name==='checkout'){prefillCheckout();updateCartBar()}if(name==='profile')renderProfile();window.scrollTo({top:0,behavior:'smooth'})}
+function handleView(name){if(name==='orders'){renderOrders();loadOrders();startOrdersRefresh()}else stopOrdersRefresh();if(name==='cart')renderCart();if(name==='checkout'){prefillCheckout();updateCartBar()}if(name==='profile')renderProfile()}
+const navigation=customerNavigation.create({document,onView:handleView});
+function setView(name){navigation.setView(name)}
 function renderProfile(){const last=latestOrder(),name=$('#profileName'),phone=$('#profilePhone'),addr=$('#profileAddressText'),home=$('#homeAddress');if(name)name.textContent=customerProfile.name(state.profile,last);if(phone)phone.textContent=customerProfile.phone(state.profile,last);if(addr)addr.textContent=customerProfile.displayAddress(state.profile);if(home)home.textContent=customerProfile.homeAddress(state.profile)}
 function changeQty(id,delta){const current=Number(state.cart[id]||0);const next=catalogueCart.nextQuantity(current,delta);if(delta>0&&current>=99){toast('Maximum quantity is 99');return}if(next<=0)delete state.cart[id];else state.cart[id]=next;save();renderProducts($('#searchInput')?.value||'');if($('#cartView')?.classList.contains('active-view'))renderCart()}
 function openAddressModal(){const m=$('#addressModal');if(m)m.classList.remove('hidden')}
