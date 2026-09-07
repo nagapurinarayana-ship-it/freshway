@@ -26,6 +26,7 @@ jobs:
         run: |
           node --check app.js
           node --check admin.js
+          node --check owner-lifecycle.js
           node --check notifications.js
           node --check location.js
           node --check orders-ui.js
@@ -53,6 +54,10 @@ jobs:
           grep -q "CREATE UNIQUE INDEX" migrations/0004_unique_customer_phone.sql
           test -s migrations/0005_customer_passcode_auth.sql
           grep -q "passcode_hash" migrations/0005_customer_passcode_auth.sql
+          test -s migrations/0007_owner_order_lifecycle.sql
+          grep -q "Out for Delivery" migrations/0007_owner_order_lifecycle.sql
+          grep -q "Confirmed" migrations/0007_owner_order_lifecycle.sql
+          grep -q "Ready" migrations/0007_owner_order_lifecycle.sql
       - name: Check Worker configuration
         working-directory: worker
         run: node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); const required=['ADMIN_TOKEN','CUSTOMER_SESSION_SECRET','ADMIN_SESSION_SECRET']; if(!x.name||!x.main||!x.d1_databases?.[0]?.binding||x.main!=='src/admin-auth.js'||required.some(s=>!x.secrets?.required?.includes(s))||x.vars?.OTP_PROVIDER||x.secrets?.optional?.length) process.exit(1); console.log('wrangler configuration, secure entrypoint, required secrets, and no Twilio configuration OK')"
