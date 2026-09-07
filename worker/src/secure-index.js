@@ -6,9 +6,10 @@ const text = value => new TextEncoder().encode(value);
 const hex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
 const cleanPhone = value => { const digits = String(value || '').replace(/\D/g, ''); return digits.length === 10 ? `91${digits}` : digits; };
 const e164 = value => { const phone = cleanPhone(value); return /^91\d{10}$/.test(phone) ? `+${phone}` : ''; };
+const clientIp = request => String(request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown').split(',')[0].trim().slice(0, 80) || 'unknown';
 
 async function key(env) {
-  const secret = String(env.ADMIN_TOKEN || '').trim();
+  const secret = String(env.CUSTOMER_SESSION_SECRET || env.ADMIN_TOKEN || '').trim();
   if (!secret) throw new Error('Customer session signing is not configured.');
   return crypto.subtle.importKey('raw', text(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
 }
@@ -106,11 +107,35 @@ async function twilio(env, path, params) {
   return data;
 }
 
+const RATE_WINDOW = 10 * 60;
+const RATE_RULES = { otpStartPhone: 5, otpStartIp: 20, otpVerifyPhone: 10 };
+async function rateLimit(env, keyValue, limit) {
+  const keyName = String(keyValue).slice(0, 180);
+  const windowStart = Math.floor(Date.now() / 1000 / RATE_WINDOW) * RATE_WINDOW;
+  await env.DB.prepare(`INSERT INTO auth_rate_limits (key,window_start,count) VALUES (?,?,1)
+    ON CONFLICT(key) DO UPDATE SET count=CASE WHEN auth_rate_limits.window_start=? THEN auth_rate_limits.count+1 ELSE 1 END, window_start=?`)
+    .bind(keyName, windowStart, windowStart, windowStart).run();
+  const row = await env.DB.prepare('SELECT count,window_start FROM auth_rate_limits WHERE key=?').bind(keyName).first();
+  return !!row && row.window_start === windowStart && Number(row.count) <= limit;
+}
+
+function limited(env, retryAfter = 600) {
+  return new Response(JSON.stringify({ error: 'Too many attempts. Please try again later.' }), { status: 429, headers: {
+    'content-type': 'application/json; charset=utf-8',
+    'access-control-allow-origin': env.APP_ORIGIN || '*',
+    'cache-control': 'no-store',
+    'retry-after': String(retryAfter)
+  }});
+}
+
 async function otpStart(request, env) {
   let payload = {};
   try { payload = await request.json(); } catch (_) {}
   const phone = e164(payload.phone);
   if (!phone) return new Response(JSON.stringify({ error: 'Enter a valid 10-digit Indian mobile number.' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*' } });
+  const phoneKey = `otp:start:phone:${phone}`;
+  const ipKey = `otp:start:ip:${clientIp(request)}`;
+  if (!(await rateLimit(env, phoneKey, RATE_RULES.otpStartPhone)) || !(await rateLimit(env, ipKey, RATE_RULES.otpStartIp))) return limited(env);
   await twilio(env, 'Verifications', { To: phone, Channel: 'sms' });
   return new Response(JSON.stringify({ ok: true, phone: `******${phone.slice(-4)}`, expiresIn: 600 }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*', 'cache-control': 'no-store' } });
 }
@@ -121,6 +146,7 @@ async function otpVerify(request, env) {
   const phone = e164(payload.phone);
   const code = String(payload.code || '').replace(/\s/g, '');
   if (!phone || !/^\d{4,10}$/.test(code)) return new Response(JSON.stringify({ error: 'Enter the mobile number and OTP.' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*' } });
+  if (!(await rateLimit(env, `otp:verify:phone:${phone}`, RATE_RULES.otpVerifyPhone))) return limited(env);
   const result = await twilio(env, 'VerificationCheck', { To: phone, Code: code });
   if (result.status !== 'approved' || result.valid === false) return new Response(JSON.stringify({ error: 'Incorrect or expired OTP.' }), { status: 401, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*' } });
   const customerId = (await customerIdForPhone(env, phone)) || crypto.randomUUID();
@@ -144,7 +170,7 @@ export default {
 
     if (url.pathname === '/api/auth/session' && request.method === 'GET') {
       const customerId = await sessionCustomerId(request, env);
-      if (!customerId) return unauthorized(env);
+      if (!customerId || !(await customerExists(env, customerId))) return unauthorized(env);
       return new Response(JSON.stringify({ ok: true, customerId }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*', 'access-control-allow-credentials': 'true', 'cache-control': 'private, no-store' } });
     }
 
@@ -162,7 +188,7 @@ export default {
       const customerId = String(payload?.id || '').trim().slice(0, 100);
       if (!customerId) return unauthorized(env);
       const sessionId = await sessionCustomerId(request, env);
-      if (sessionId !== customerId) return unauthorized(env);
+      if (sessionId !== customerId || !(await customerExists(env, customerId))) return unauthorized(env);
       const response = await original.fetch(request, env, ctx);
       return response.ok ? withCookie(response, await signSession(env, customerId)) : response;
     }
@@ -170,7 +196,7 @@ export default {
     if (url.pathname === '/api/orders' && request.method === 'GET') {
       const sessionId = await sessionCustomerId(request, env);
       const requestedId = String(url.searchParams.get('customerId') || '').trim();
-      if (!sessionId || !requestedId || requestedId !== sessionId) return unauthorized(env);
+      if (!sessionId || !requestedId || requestedId !== sessionId || !(await customerExists(env, sessionId))) return unauthorized(env);
       return original.fetch(request, env, ctx);
     }
 
