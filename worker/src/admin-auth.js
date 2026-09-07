@@ -41,6 +41,13 @@ async function rateLimit(env, request) {
   const row = await env.DB.prepare('SELECT count,window_start FROM auth_rate_limits WHERE key=?').bind(keyName).first();
   return !!row && row.window_start === start && Number(row.count) <= LIMIT;
 }
+async function sameSecret(a, b) {
+  const [left, right] = await Promise.all([crypto.subtle.digest('SHA-256', enc(a)), crypto.subtle.digest('SHA-256', enc(b))]);
+  const x = new Uint8Array(left), y = new Uint8Array(right);
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
+  return diff === 0;
+}
 function response(data, status, env, extra = {}) { return new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': origin(env), 'access-control-allow-credentials': 'true', 'cache-control': 'private, no-store', ...extra } }); }
 function withCookie(res, token) { const headers = new Headers(res.headers); headers.append('Set-Cookie', `${COOKIE}=${token}; Max-Age=${MAX_AGE}; Path=/; HttpOnly; Secure; SameSite=Lax`); headers.set('Cache-Control', 'private, no-store'); headers.set('Access-Control-Allow-Credentials', 'true'); return new Response(res.body, { status: res.status, statusText: res.statusText, headers }); }
 
@@ -51,7 +58,7 @@ export default { async fetch(request, env, ctx) {
     if (!(await rateLimit(env, request))) return response({ error: 'Too many login attempts. Please try again later.' }, 429, env, { 'retry-after': '600' });
     let payload = {}; try { payload = await request.json(); } catch (_) {}
     const expected = String(env.ADMIN_TOKEN || '').trim(); const supplied = String(payload.token || '').trim();
-    if (!expected || !supplied || supplied !== expected) return response({ error: 'Unauthorized' }, 401, env);
+    if (!expected || !supplied || !(await sameSecret(supplied, expected))) return response({ error: 'Unauthorized' }, 401, env);
     return withCookie(response({ ok: true }, 200, env), await sign(env));
   }
   if (url.pathname === '/api/admin/logout' && request.method === 'POST') {
