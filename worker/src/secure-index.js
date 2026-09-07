@@ -79,6 +79,16 @@ function withCookie(response, token) {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
+function clearCookie(env) {
+  return new Response(JSON.stringify({ ok: true }), { status: 200, headers: {
+    'content-type': 'application/json; charset=utf-8',
+    'access-control-allow-origin': corsOrigin(env),
+    'access-control-allow-credentials': 'true',
+    'cache-control': 'no-store',
+    'Set-Cookie': `${COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax`
+  }});
+}
+
 async function customerExists(env, customerId) {
   const row = await env.DB.prepare('SELECT id FROM customers WHERE id=? LIMIT 1').bind(customerId).first();
   return !!row;
@@ -178,6 +188,8 @@ export default {
       if (!customerId || !(await customerExists(env, customerId))) return unauthorized(env);
       return new Response(JSON.stringify({ ok: true, customerId }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': allowedOrigin, 'access-control-allow-credentials': 'true', 'cache-control': 'private, no-store' } });
     }
+
+    if (url.pathname === '/api/auth/logout' && request.method === 'POST') return clearCookie(env);
 
     if (url.pathname === '/api/auth/otp/start' && request.method === 'POST') {
       try { return await otpStart(request, env); } catch (error) { return new Response(JSON.stringify({ error: error.message || 'Could not send SMS OTP.' }), { status: 502, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': allowedOrigin, 'cache-control': 'no-store' } }); }
