@@ -41,6 +41,7 @@ jobs:
           node --check frontend/customer/profile.js
           node --check frontend/customer/confirmation.js
           node --check frontend/customer/order-display.js
+          node --check frontend/customer/cart-view.js
           node --check sw.js
       - name: Check Worker JavaScript
         working-directory: worker
@@ -102,6 +103,10 @@ jobs:
           grep -q "customerOrderDisplay.formatDate" app.js
           grep -q "customerOrderDisplay.planText" app.js
           grep -q "frontend/customer/order-display.js" index.html
+          grep -q "window.FreshWayCustomerCartView" frontend/customer/cart-view.js
+          grep -q "const customerCartView=window.FreshWayCustomerCartView" app.js
+          grep -q "customerCartView.render(cartItems(),cartTotal()" app.js
+          grep -q "frontend/customer/cart-view.js" index.html
       - name: Enforce backend feature boundaries
         run: |
           node - <<'NODE'
