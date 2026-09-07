@@ -48,12 +48,15 @@ jobs:
           node --check src/admin-products.js
           node --check src/admin-shared.js
           node --check src/admin-notifications.js
+          node --check src/admin-response.js
           node --check src/address-api.js
       - name: Enforce backend feature boundaries
         run: |
           ! grep -q "from 'web-push'" worker/src/admin-auth.js
           grep -q "from './admin-notifications.js'" worker/src/admin-auth.js
+          grep -q "from './admin-response.js'" worker/src/admin-auth.js
           grep -q "export async function notifyOrderChange" worker/src/admin-notifications.js
+          grep -q "export function normalizeOwnerResponse" worker/src/admin-response.js
           grep -q "from './admin-orders.js'" worker/src/admin-data.js
           grep -q "from './admin-reports.js'" worker/src/admin-data.js
           grep -q "from './admin-customers.js'" worker/src/admin-data.js
