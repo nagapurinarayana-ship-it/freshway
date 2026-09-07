@@ -188,7 +188,7 @@ export default {
       const customerId = String(payload?.id || '').trim().slice(0, 100);
       if (!customerId) return unauthorized(env);
       const sessionId = await sessionCustomerId(request, env);
-      if (sessionId !== customerId || !(await customerExists(env, customerId))) return unauthorized(env);
+      if (sessionId !== customerId) return unauthorized(env);
       const response = await original.fetch(request, env, ctx);
       return response.ok ? withCookie(response, await signSession(env, customerId)) : response;
     }
