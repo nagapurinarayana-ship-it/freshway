@@ -73,12 +73,16 @@ test('passcode must be exactly six digits', async () => {
   assert.equal(response.status, 400);
 });
 
-test('customer checkout cannot replace the registered mobile number', async () => {
+test('customer checkout keeps delivery mobile separate from registered mobile', async () => {
+  const registeredPhone = customer.phone;
   const response = await request('/api/orders', { method: 'POST', headers: { Cookie: sessionCookie(), 'Content-Type': 'application/json' }, body: JSON.stringify({ customerId: 'customer-1', customer: { name: 'Test Customer', phone: '9123456789' }, address: { house: '1', area: 'Main Road', city: 'Hyderabad', pincode: '500001' }, items: [{ id: 'apple', qty: 1 }] }) });
-  assert.equal(response.status, 409);
+  assert.notEqual(response.status, 409);
+  assert.equal(customer.phone, registeredPhone);
 });
 
-test('customer registration cannot replace the registered mobile number', async () => {
-  const response = await request('/api/customers/register', { method: 'POST', headers: { Cookie: sessionCookie(), 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'customer-1', name: 'Test Customer', phone: '9123456789' }) });
-  assert.equal(response.status, 409);
+test('customer registration update keeps the registered mobile immutable', async () => {
+  const registeredPhone = customer.phone;
+  const response = await request('/api/customers/register', { method: 'POST', headers: { Cookie: sessionCookie(), 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'customer-1', name: 'Updated Delivery Name', phone: '9123456789' }) });
+  assert.equal(response.status, 200);
+  assert.equal(customer.phone, registeredPhone);
 });
