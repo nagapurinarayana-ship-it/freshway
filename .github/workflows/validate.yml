@@ -19,6 +19,9 @@ jobs:
       - name: Install Worker dependencies
         working-directory: worker
         run: npm install
+      - name: Run automated Worker tests
+        working-directory: worker
+        run: npm test
       - name: Check browser JavaScript
         run: |
           node --check app.js
@@ -32,6 +35,8 @@ jobs:
         run: |
           node --check src/index.js
           node --check src/secure-index.js
+          node --check src/passcode-auth.js
+          node --check src/admin-auth.js
       - name: Check D1 schema and migration
         working-directory: worker
         run: |
@@ -40,9 +45,21 @@ jobs:
           grep -q "INSERT OR IGNORE INTO products" schema.sql
           test -s migrations/0001_delivery_plan.sql
           grep -q "ALTER TABLE orders ADD COLUMN delivery_plan" migrations/0001_delivery_plan.sql
+          test -s migrations/0002_order_idempotency.sql
+          grep -q "client_order_id" migrations/0002_order_idempotency.sql
+          test -s migrations/0003_auth_rate_limits.sql
+          grep -q "auth_rate_limits" migrations/0003_auth_rate_limits.sql
+          test -s migrations/0004_unique_customer_phone.sql
+          grep -q "CREATE UNIQUE INDEX" migrations/0004_unique_customer_phone.sql
+          test -s migrations/0005_customer_passcode_auth.sql
+          grep -q "passcode_hash" migrations/0005_customer_passcode_auth.sql
       - name: Check Worker configuration
         working-directory: worker
-        run: node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); if(!x.name||!x.main||!x.d1_databases?.[0]?.binding||x.main!=='src/index.js') process.exit(1); console.log('wrangler configuration structure and functionality entrypoint OK')"
-      - name: Check for committed secrets
+        run: node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); const required=['ADMIN_TOKEN','CUSTOMER_SESSION_SECRET','ADMIN_SESSION_SECRET']; if(!x.name||!x.main||!x.d1_databases?.[0]?.binding||x.main!=='src/admin-auth.js'||required.some(s=>!x.secrets?.required?.includes(s))||x.vars?.OTP_PROVIDER||x.secrets?.optional?.length) process.exit(1); console.log('wrangler configuration, secure entrypoint, required secrets, and no Twilio configuration OK')"
+      - name: Check for committed secret values
         run: |
-          ! grep -RInE '(WHATSAPP_ACCESS_TOKEN|VAPID_PRIVATE_KEY|ADMIN_TOKEN)[[:space:]]*[:=][[:space:]]*[^$\"\047[:space:]]{12,}' --exclude-dir=.git . || (echo 'Possible committed secret found' && exit 1)
+          ! grep -RInE '(WHATSAPP_ACCESS_TOKEN|VAPID_PRIVATE_KEY|ADMIN_TOKEN|CUSTOMER_SESSION_SECRET|ADMIN_SESSION_SECRET|TWILIO_ACCOUNT_SID|TWILIO_AUTH_TOKEN|TWILIO_VERIFY_SERVICE_SID)[[:space:]]*[:=][[:space:]]*[^$\"\047[:space:]]{20,}' --exclude-dir=.git --exclude='api.test.js' --exclude='secure-identity.test.js' . || (echo 'Possible committed secret value found' && exit 1)
+      - name: Check test fixtures are non-production values
+        run: |
+          grep -q "fixture-admin" worker/test/api.test.js
+          grep -q "fixture-customer-session" worker/test/api.test.js

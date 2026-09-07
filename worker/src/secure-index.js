@@ -2,13 +2,28 @@ import original from './index.js';
 
 const COOKIE = 'freshway-customer-session';
 const MAX_AGE = 60 * 60 * 24 * 30;
+const MOCK_OTP = '123456';
 const text = value => new TextEncoder().encode(value);
 const hex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
 const cleanPhone = value => { const digits = String(value || '').replace(/\D/g, ''); return digits.length === 10 ? `91${digits}` : digits; };
 const e164 = value => { const phone = cleanPhone(value); return /^91\d{10}$/.test(phone) ? `+${phone}` : ''; };
+const clientIp = request => String(request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown').split(',')[0].trim().slice(0, 80) || 'unknown';
+const corsOrigin = env => { const value = String(env.APP_ORIGIN || '').trim(); return value && value !== 'https://YOUR-FRESHWAY-DOMAIN' ? value : 'null'; };
+const otpProvider = env => String(env.OTP_PROVIDER || 'twilio').trim().toLowerCase();
+
+function isLocalOrigin(env) {
+  try {
+    const origin = new URL(corsOrigin(env));
+    return origin.protocol === 'http:' && ['localhost', '127.0.0.1', '::1'].includes(origin.hostname);
+  } catch (_) { return false; }
+}
+
+function mockOtpAllowed(env) {
+  return otpProvider(env) === 'mock' && isLocalOrigin(env);
+}
 
 async function key(env) {
-  const secret = String(env.ADMIN_TOKEN || '').trim();
+  const secret = String(env.CUSTOMER_SESSION_SECRET || '').trim();
   if (!secret) throw new Error('Customer session signing is not configured.');
   return crypto.subtle.importKey('raw', text(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
 }
@@ -36,11 +51,12 @@ async function sessionCustomerId(request, env) {
   const raw = cookieValue(request);
   if (!raw) return null;
   const [encoded, signatureHex] = raw.split('.');
-  if (!encoded || !signatureHex || !/^[0-9a-f]{64}$/i.test(signatureHex)) return null;
+  if (!encoded || !signatureHex || raw.split('.').length !== 2 || !/^[0-9a-f]{64}$/i.test(signatureHex)) return null;
   let payload;
   try { payload = atob(encoded.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((encoded.length + 3) % 4)); }
   catch (_) { return null; }
-  const [customerId, issuedRaw] = payload.split('.');
+  const [customerId, issuedRaw, ...extra] = payload.split('.');
+  if (extra.length) return null;
   const issued = Number(issuedRaw);
   const now = Math.floor(Date.now() / 1000);
   if (!customerId || !Number.isSafeInteger(issued) || issued < now - MAX_AGE || issued > now + 60) return null;
@@ -59,7 +75,7 @@ function unauthorized(env) {
     status: 401,
     headers: {
       'content-type': 'application/json; charset=utf-8',
-      'access-control-allow-origin': env.APP_ORIGIN || '*',
+      'access-control-allow-origin': corsOrigin(env),
       'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS',
       'access-control-allow-headers': 'Content-Type,Authorization,X-Freshway-Admin-Token',
       'access-control-allow-credentials': 'true',
@@ -76,14 +92,34 @@ function withCookie(response, token) {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
+function clearCookie(env) {
+  return new Response(JSON.stringify({ ok: true }), { status: 200, headers: {
+    'content-type': 'application/json; charset=utf-8',
+    'access-control-allow-origin': corsOrigin(env),
+    'access-control-allow-credentials': 'true',
+    'cache-control': 'no-store',
+    'Set-Cookie': `${COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax`
+  }});
+}
+
 async function customerExists(env, customerId) {
   const row = await env.DB.prepare('SELECT id FROM customers WHERE id=? LIMIT 1').bind(customerId).first();
   return !!row;
 }
 
+async function customerPhone(env, customerId) {
+  const row = await env.DB.prepare('SELECT phone FROM customers WHERE id=? LIMIT 1').bind(customerId).first();
+  return row?.phone || '';
+}
+
 async function customerIdForPhone(env, phone) {
   const row = await env.DB.prepare('SELECT id FROM customers WHERE phone=? ORDER BY updated_at DESC LIMIT 1').bind(cleanPhone(phone)).first();
   return row?.id || null;
+}
+
+async function ensureCustomerForVerifiedPhone(env, customerId, phone) {
+  await env.DB.prepare(`INSERT INTO customers (id,name,phone,whatsapp_opt_in,updated_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)
+    ON CONFLICT(id) DO UPDATE SET phone=excluded.phone, updated_at=CURRENT_TIMESTAMP`).bind(customerId, '', cleanPhone(phone), 0).run();
 }
 
 function twilioConfigured(env) {
@@ -106,13 +142,50 @@ async function twilio(env, path, params) {
   return data;
 }
 
+const RATE_WINDOW = 10 * 60;
+const RATE_RULES = { otpStartPhone: 5, otpStartIp: 20, otpVerifyPhone: 10, otpVerifyIp: 30 };
+async function rateLimit(env, keyValue, limit) {
+  const keyName = String(keyValue).slice(0, 180);
+  const windowStart = Math.floor(Date.now() / 1000 / RATE_WINDOW) * RATE_WINDOW;
+  await env.DB.prepare(`INSERT INTO auth_rate_limits (key,window_start,count) VALUES (?,?,1)
+    ON CONFLICT(key) DO UPDATE SET count=CASE WHEN auth_rate_limits.window_start=? THEN auth_rate_limits.count+1 ELSE 1 END, window_start=?`)
+    .bind(keyName, windowStart, windowStart, windowStart).run();
+  const row = await env.DB.prepare('SELECT count,window_start FROM auth_rate_limits WHERE key=?').bind(keyName).first();
+  return !!row && row.window_start === windowStart && Number(row.count) <= limit;
+}
+
+function limited(env, retryAfter = 600) {
+  return new Response(JSON.stringify({ error: 'Too many attempts. Please try again later.' }), { status: 429, headers: {
+    'content-type': 'application/json; charset=utf-8',
+    'access-control-allow-origin': corsOrigin(env),
+    'cache-control': 'no-store',
+    'retry-after': String(retryAfter)
+  }});
+}
+
+function mockOtpBlocked(env) {
+  return new Response(JSON.stringify({ error: 'Mock OTP is only available on local development origins.' }), { status: 503, headers: {
+    'content-type': 'application/json; charset=utf-8',
+    'access-control-allow-origin': corsOrigin(env),
+    'cache-control': 'no-store'
+  }});
+}
+
 async function otpStart(request, env) {
   let payload = {};
   try { payload = await request.json(); } catch (_) {}
   const phone = e164(payload.phone);
-  if (!phone) return new Response(JSON.stringify({ error: 'Enter a valid 10-digit Indian mobile number.' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*' } });
+  if (!phone) return new Response(JSON.stringify({ error: 'Enter a valid 10-digit Indian mobile number.' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env) } });
+  const phoneKey = `otp:start:phone:${phone}`;
+  const ipKey = `otp:start:ip:${clientIp(request)}`;
+  if (!(await rateLimit(env, phoneKey, RATE_RULES.otpStartPhone)) || !(await rateLimit(env, ipKey, RATE_RULES.otpStartIp))) return limited(env);
+  if (otpProvider(env) === 'mock') {
+    if (!mockOtpAllowed(env)) return mockOtpBlocked(env);
+    return new Response(JSON.stringify({ ok: true, phone: `******${phone.slice(-4)}`, expiresIn: 600, testCode: MOCK_OTP }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env), 'cache-control': 'no-store' } });
+  }
+  if (otpProvider(env) !== 'twilio') throw new Error('Unsupported OTP provider.');
   await twilio(env, 'Verifications', { To: phone, Channel: 'sms' });
-  return new Response(JSON.stringify({ ok: true, phone: `******${phone.slice(-4)}`, expiresIn: 600 }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*', 'cache-control': 'no-store' } });
+  return new Response(JSON.stringify({ ok: true, phone: `******${phone.slice(-4)}`, expiresIn: 600 }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env), 'cache-control': 'no-store' } });
 }
 
 async function otpVerify(request, env) {
@@ -120,20 +193,33 @@ async function otpVerify(request, env) {
   try { payload = await request.json(); } catch (_) {}
   const phone = e164(payload.phone);
   const code = String(payload.code || '').replace(/\s/g, '');
-  if (!phone || !/^\d{4,10}$/.test(code)) return new Response(JSON.stringify({ error: 'Enter the mobile number and OTP.' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*' } });
-  const result = await twilio(env, 'VerificationCheck', { To: phone, Code: code });
-  if (result.status !== 'approved' || result.valid === false) return new Response(JSON.stringify({ error: 'Incorrect or expired OTP.' }), { status: 401, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*' } });
+  if (!phone || !/^\d{4,10}$/.test(code)) return new Response(JSON.stringify({ error: 'Enter the mobile number and OTP.' }), { status: 400, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env) } });
+  if (!(await rateLimit(env, `otp:verify:phone:${phone}`, RATE_RULES.otpVerifyPhone)) || !(await rateLimit(env, `otp:verify:ip:${clientIp(request)}`, RATE_RULES.otpVerifyIp))) return limited(env);
+  let verified = false;
+  if (otpProvider(env) === 'mock') {
+    if (!mockOtpAllowed(env)) return mockOtpBlocked(env);
+    verified = code === MOCK_OTP;
+  } else {
+    if (otpProvider(env) !== 'twilio') throw new Error('Unsupported OTP provider.');
+    const result = await twilio(env, 'VerificationCheck', { To: phone, Code: code });
+    verified = result.status === 'approved' && result.valid !== false;
+  }
+  if (!verified) return new Response(JSON.stringify({ error: 'Incorrect or expired OTP.' }), { status: 401, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env) } });
   const customerId = (await customerIdForPhone(env, phone)) || crypto.randomUUID();
-  return withCookie(new Response(JSON.stringify({ ok: true, customerId, phone: `******${phone.slice(-4)}` }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*' } }), await signSession(env, customerId));
+  await ensureCustomerForVerifiedPhone(env, customerId, phone);
+  return withCookie(new Response(JSON.stringify({ ok: true, customerId, phone: `******${phone.slice(-4)}` }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env), 'cache-control': 'no-store' } }), await signSession(env, customerId));
 }
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    const allowedOrigin = corsOrigin(env);
+    const requestOrigin = String(request.headers.get('Origin') || '').trim();
+    if (requestOrigin && requestOrigin !== allowedOrigin) return new Response(JSON.stringify({ error: 'Origin not allowed.' }), { status: 403, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'access-control-allow-origin': allowedOrigin } });
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: {
-        'access-control-allow-origin': env.APP_ORIGIN || '*',
+        'access-control-allow-origin': allowedOrigin,
         'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS',
         'access-control-allow-headers': 'Content-Type,Authorization,X-Freshway-Admin-Token',
         'access-control-allow-credentials': 'true'
@@ -144,33 +230,37 @@ export default {
 
     if (url.pathname === '/api/auth/session' && request.method === 'GET') {
       const customerId = await sessionCustomerId(request, env);
-      if (!customerId) return unauthorized(env);
-      return new Response(JSON.stringify({ ok: true, customerId }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*', 'access-control-allow-credentials': 'true', 'cache-control': 'private, no-store' } });
+      if (!customerId || !(await customerExists(env, customerId))) return unauthorized(env);
+      return new Response(JSON.stringify({ ok: true, customerId }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': allowedOrigin, 'access-control-allow-credentials': 'true', 'cache-control': 'private, no-store' } });
     }
 
+    if (url.pathname === '/api/auth/logout' && request.method === 'POST') return clearCookie(env);
+
     if (url.pathname === '/api/auth/otp/start' && request.method === 'POST') {
-      try { return await otpStart(request, env); } catch (error) { return new Response(JSON.stringify({ error: error.message || 'Could not send SMS OTP.' }), { status: 502, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*', 'cache-control': 'no-store' } }); }
+      try { return await otpStart(request, env); } catch (error) { return new Response(JSON.stringify({ error: error.message || 'Could not send SMS OTP.' }), { status: 502, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': allowedOrigin, 'cache-control': 'no-store' } }); }
     }
 
     if (url.pathname === '/api/auth/otp/verify' && request.method === 'POST') {
-      try { return await otpVerify(request, env); } catch (error) { return new Response(JSON.stringify({ error: error.message || 'Could not verify SMS OTP.' }), { status: 502, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': env.APP_ORIGIN || '*', 'cache-control': 'no-store' } }); }
+      try { return await otpVerify(request, env); } catch (error) { return new Response(JSON.stringify({ error: error.message || 'Could not verify SMS OTP.' }), { status: 502, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': allowedOrigin, 'cache-control': 'no-store' } }); }
     }
 
     if (url.pathname === '/api/customers/register' && request.method === 'POST') {
       let payload;
       try { payload = await request.clone().json(); } catch (_) { payload = {}; }
       const customerId = String(payload?.id || '').trim().slice(0, 100);
-      if (!customerId) return unauthorized(env);
+      const submittedPhone = cleanPhone(payload?.phone);
+      if (!customerId || !/^\d{12}$/.test(submittedPhone)) return unauthorized(env);
       const sessionId = await sessionCustomerId(request, env);
       if (sessionId !== customerId) return unauthorized(env);
-      const response = await original.fetch(request, env, ctx);
-      return response.ok ? withCookie(response, await signSession(env, customerId)) : response;
+      const verifiedPhone = await customerPhone(env, sessionId);
+      if (!verifiedPhone || submittedPhone !== verifiedPhone) return new Response(JSON.stringify({ error: 'The mobile number must match the verified customer session.' }), { status: 409, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': allowedOrigin, 'access-control-allow-credentials': 'true', 'cache-control': 'no-store' } });
+      return original.fetch(request, env, ctx);
     }
 
     if (url.pathname === '/api/orders' && request.method === 'GET') {
       const sessionId = await sessionCustomerId(request, env);
       const requestedId = String(url.searchParams.get('customerId') || '').trim();
-      if (!sessionId || !requestedId || requestedId !== sessionId) return unauthorized(env);
+      if (!sessionId || !requestedId || requestedId !== sessionId || !(await customerExists(env, sessionId))) return unauthorized(env);
       return original.fetch(request, env, ctx);
     }
 
@@ -179,7 +269,10 @@ export default {
       try { payload = await request.clone().json(); } catch (_) { payload = {}; }
       const requestedId = String(payload?.customerId || '').trim();
       const sessionId = await sessionCustomerId(request, env);
-      if (!sessionId || !requestedId || requestedId !== sessionId) return unauthorized(env);
+      if (!sessionId || !requestedId || requestedId !== sessionId || !(await customerExists(env, sessionId))) return unauthorized(env);
+      const submittedPhone = cleanPhone(payload?.customer?.phone);
+      const verifiedPhone = await customerPhone(env, sessionId);
+      if (!submittedPhone || submittedPhone !== verifiedPhone) return new Response(JSON.stringify({ error: 'The mobile number must match the verified customer session.' }), { status: 409, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': allowedOrigin, 'access-control-allow-credentials': 'true', 'cache-control': 'no-store' } });
       return original.fetch(request, env, ctx);
     }
 
@@ -188,7 +281,7 @@ export default {
       try { payload = await request.clone().json(); } catch (_) { payload = {}; }
       const requestedId = String(payload?.customerId || '').trim();
       const sessionId = await sessionCustomerId(request, env);
-      if (!sessionId || !requestedId || requestedId !== sessionId) return unauthorized(env);
+      if (!sessionId || !requestedId || requestedId !== sessionId || !(await customerExists(env, sessionId))) return unauthorized(env);
       return original.fetch(request, env, ctx);
     }
 

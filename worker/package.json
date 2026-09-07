@@ -2,7 +2,11 @@
   "name": "freshway-worker",
   "private": true,
   "type": "module",
-  "scripts": {"dev": "wrangler dev", "deploy": "wrangler deploy"},
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node --test test/**/*.test.js"
+  },
   "dependencies": {"web-push": "^3.6.7"},
   "devDependencies": {"wrangler": "^4.34.0"}
 }

@@ -1,6 +1,6 @@
 {
   "name": "freshway-api",
-  "main": "src/index.js",
+  "main": "src/admin-auth.js",
   "compatibility_date": "2026-09-06",
   "compatibility_flags": ["nodejs_compat"],
   "d1_databases": [
@@ -10,6 +10,11 @@
     "APP_ORIGIN": "https://freshway-f32.pages.dev"
   },
   "secrets": {
-    "required": ["ADMIN_TOKEN"]
+    "required": [
+      "ADMIN_TOKEN",
+      "CUSTOMER_SESSION_SECRET",
+      "ADMIN_SESSION_SECRET"
+    ],
+    "optional": []
   }
 }

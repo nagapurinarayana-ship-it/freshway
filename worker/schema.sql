@@ -77,6 +77,12 @@ CREATE TABLE IF NOT EXISTS notification_log (
   failure_count INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS auth_rate_limits (
+  key TEXT PRIMARY KEY,
+  window_start INTEGER NOT NULL,
+  count INTEGER NOT NULL CHECK(count >= 0),
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
 CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(delivery_status, created_at DESC);
@@ -84,5 +90,6 @@ CREATE INDEX IF NOT EXISTS idx_orders_plan ON orders(delivery_plan, created_at D
 CREATE INDEX IF NOT EXISTS idx_orders_client_order_id ON orders(client_order_id);
 CREATE INDEX IF NOT EXISTS idx_addresses_customer ON addresses(customer_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_auth_rate_limits_window ON auth_rate_limits(window_start);
 INSERT OR IGNORE INTO products (id,name,unit,price,emoji,active) VALUES
 ('apple','Apple','kg',120,'🍎',1),('banana','Banana','dozen',60,'🍌',1),('mango','Mango','kg',180,'🥭',1),('orange','Orange','kg',100,'🍊',1),('watermelon','Watermelon','piece',50,'🍉',1),('grapes','Grapes','kg',110,'🍇',1),('pineapple','Pineapple','piece',70,'🍍',1),('guava','Guava','kg',90,'🍐',1),('papaya','Papaya','piece',80,'🧡',1),('pomegranate','Pomegranate','kg',160,'❤️',1);
