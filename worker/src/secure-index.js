@@ -9,7 +9,7 @@ const e164 = value => { const phone = cleanPhone(value); return /^91\d{10}$/.tes
 const clientIp = request => String(request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown').split(',')[0].trim().slice(0, 80) || 'unknown';
 
 async function key(env) {
-  const secret = String(env.CUSTOMER_SESSION_SECRET || env.ADMIN_TOKEN || '').trim();
+  const secret = String(env.CUSTOMER_SESSION_SECRET || '').trim();
   if (!secret) throw new Error('Customer session signing is not configured.');
   return crypto.subtle.importKey('raw', text(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
 }
@@ -37,11 +37,12 @@ async function sessionCustomerId(request, env) {
   const raw = cookieValue(request);
   if (!raw) return null;
   const [encoded, signatureHex] = raw.split('.');
-  if (!encoded || !signatureHex || !/^[0-9a-f]{64}$/i.test(signatureHex)) return null;
+  if (!encoded || !signatureHex || raw.split('.').length !== 2 || !/^[0-9a-f]{64}$/i.test(signatureHex)) return null;
   let payload;
   try { payload = atob(encoded.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((encoded.length + 3) % 4)); }
   catch (_) { return null; }
-  const [customerId, issuedRaw] = payload.split('.');
+  const [customerId, issuedRaw, ...extra] = payload.split('.');
+  if (extra.length) return null;
   const issued = Number(issuedRaw);
   const now = Math.floor(Date.now() / 1000);
   if (!customerId || !Number.isSafeInteger(issued) || issued < now - MAX_AGE || issued > now + 60) return null;
