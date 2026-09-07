@@ -1,5 +1,5 @@
-const CACHE = 'freshway-v2';
-const APP_SHELL = ['/', '/index.html', '/styles.css', '/app.js', '/notifications.js', '/manifest.webmanifest', '/icon.svg'];
+const CACHE = 'freshway-v3';
+const APP_SHELL = ['/', '/index.html?v=20260907-v3', '/styles.css?v=20260907-v3', '/app.js?v=20260907-v3', '/notifications.js?v=20260907-v3', '/manifest.webmanifest?v=20260907-v3', '/icon.svg'];
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(APP_SHELL)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', event => {
@@ -13,7 +13,7 @@ self.addEventListener('fetch', event => {
       return response;
     } catch (_) {
       const cached = await caches.match(event.request);
-      return cached || (event.request.mode === 'navigate' ? caches.match('/index.html') : Response.error());
+      return cached || (event.request.mode === 'navigate' ? caches.match('/index.html?v=20260907-v3') : Response.error());
     }
   })());
 });
