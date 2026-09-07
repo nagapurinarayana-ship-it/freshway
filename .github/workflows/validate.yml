@@ -80,6 +80,9 @@ jobs:
           grep -q "customerOrders.statusLabel" app.js
           grep -q "window.FreshWayCustomerCheckout" frontend/customer/checkout.js
           grep -q "frontend/customer/checkout.js" index.html
+          grep -q "const customerCheckout=window.FreshWayCustomerCheckout" app.js
+          grep -q "customerCheckout.validate(name,phone,address)" app.js
+          grep -q "customerCheckout.payload(data,address" app.js
           grep -q "window.FreshWayCustomerProfile" frontend/customer/profile.js
           grep -q "const customerProfile=window.FreshWayCustomerProfile" app.js
           grep -q "customerProfile.savedAddress" app.js
