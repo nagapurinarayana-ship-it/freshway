@@ -19,9 +19,10 @@ const customerCheckout=window.FreshWayCustomerCheckout;
 const customerConfirmation=window.FreshWayCustomerConfirmation;
 const customerOrderDisplay=window.FreshWayCustomerOrderDisplay;
 const customerCartView=window.FreshWayCustomerCartView;
+const customerFeedback=window.FreshWayCustomerFeedback;
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
-const money=n=>`₹${Number(n||0).toLocaleString('en-IN')}`;
+const money=n=>`₹${Number(n||0).toLocaleString('en-IN')`;
 const esc=v=>String(v??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c]));
 const state=customerStorage.read();
 let PRODUCTS=FALLBACK_PRODUCTS.slice();
@@ -32,7 +33,7 @@ const customerId=customerAPI.customerId;
 const cartItems=()=>catalogueCart.items(state,PRODUCTS);
 const cartTotal=()=>catalogueCart.total(state,PRODUCTS);
 const cartCount=()=>catalogueCart.count(state,PRODUCTS);
-function toast(msg){const t=$('#toast');if(!t)return;t.textContent=msg;t.classList.add('show');clearTimeout(window.__toast);window.__toast=setTimeout(()=>t.classList.remove('show'),2600)}
+function toast(msg){customerFeedback.show(document,msg)}
 function renderProducts(filter=''){const grid=$('#productGrid');if(!grid)return;const list=catalogueCart.filtered(PRODUCTS,filter);const count=$('.count-pill');if(count)count.textContent=`${list.length} ${list.length===1?'item':'items'}`;grid.innerHTML=list.map(p=>{const qty=Number(state.cart[p.id]||0);return `<article class="product-card"><div class="product-image">${esc(p.emoji)}</div><h3>${esc(p.name)}</h3><div class="product-meta">Fresh today · ${esc(p.unit)}</div><div class="product-actions"><span class="product-price">${money(p.price)}<small>/${esc(p.unit)}</small></span>${qty?`<div class="qty-control"><button data-minus="${esc(p.id)}" aria-label="Remove one ${esc(p.name)}">−</button><span>${qty}</span><button data-plus="${esc(p.id)}" aria-label="Add one ${esc(p.name)}">+</button></div>`:`<button class="add-btn" data-add="${esc(p.id)}">ADD</button>`}</div></article>`}).join('')||'<div class="empty" style="grid-column:1/-1"><strong>No products found</strong><br>Try another search.</div>';updateCartBar()}
 function updateCartBar(){const n=cartCount();const a=$('#cartCount'),b=$('#cartTotal'),c=$('#cartBadge'),bar=$('#cartBar'),t=$('#checkoutTotal');if(a)a.textContent=`${n} ${n===1?'item':'items'}`;if(b)b.textContent=money(cartTotal());if(c){c.textContent=n;c.classList.toggle('hidden',!n)}if(bar)bar.classList.toggle('hidden',!n);if(t)t.textContent=money(cartTotal())}
 function renderCart(){customerCartView.render(cartItems(),cartTotal(),{esc,money,setView})}
