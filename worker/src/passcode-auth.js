@@ -14,86 +14,46 @@ const clientIp = request => String(request.headers.get('CF-Connecting-IP') || re
 function response(data, status, env, extra = {}) {
   return new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env), 'access-control-allow-credentials': 'true', 'cache-control': 'private, no-store', ...extra } });
 }
-
-async function sessionKey(env) {
-  const secret = String(env.CUSTOMER_SESSION_SECRET || '').trim();
-  if (!secret) throw new Error('Customer session signing is not configured.');
-  return crypto.subtle.importKey('raw', enc(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-}
-async function signSession(env, customerId) {
-  const issued = Math.floor(Date.now() / 1000);
-  const payload = `${String(customerId).slice(0, 100)}.${issued}`;
-  const signature = await crypto.subtle.sign('HMAC', await sessionKey(env), enc(payload));
-  return `${btoa(payload).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')}.${hex(new Uint8Array(signature))}`;
-}
+async function sessionKey(env) { const secret = String(env.CUSTOMER_SESSION_SECRET || '').trim(); if (!secret) throw new Error('Customer session signing is not configured.'); return crypto.subtle.importKey('raw', enc(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']); }
+async function signSession(env, customerId) { const issued = Math.floor(Date.now() / 1000); const payload = `${String(customerId).slice(0, 100)}.${issued}`; const signature = await crypto.subtle.sign('HMAC', await sessionKey(env), enc(payload)); return `${btoa(payload).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')}.${hex(new Uint8Array(signature))}`; }
 function cookieValue(request) { const raw = request.headers.get('Cookie') || ''; const match = raw.match(new RegExp(`(?:^|;\\s*)${COOKIE}=([^;]+)`)); return match ? match[1] : ''; }
 async function sessionCustomerId(request, env) {
   const raw = cookieValue(request); if (!raw) return null;
   const parts = raw.split('.'); if (parts.length !== 2 || !/^[0-9a-f]{64}$/i.test(parts[1])) return null;
   let payload; try { payload = atob(parts[0].replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((parts[0].length + 3) % 4)); } catch (_) { return null; }
   const [customerId, issuedRaw, ...extra] = payload.split('.'); if (extra.length || !customerId) return null;
-  const issued = Number(issuedRaw); const now = Math.floor(Date.now() / 1000);
-  if (!Number.isSafeInteger(issued) || issued < now - MAX_AGE || issued > now + 60) return null;
+  const issued = Number(issuedRaw), now = Math.floor(Date.now() / 1000); if (!Number.isSafeInteger(issued) || issued < now - MAX_AGE || issued > now + 60) return null;
   try {
     const expected = new Uint8Array(await crypto.subtle.sign('HMAC', await sessionKey(env), enc(payload)));
     const actual = bytesFromHex(parts[1]); if (actual.length !== expected.length) return null;
-    let diff = 0; for (let i = 0; i < actual.length; i++) diff |= actual[i] ^ expected[i];
-    return diff === 0 ? customerId : null;
+    let diff = 0; for (let i = 0; i < actual.length; i++) diff |= actual[i] ^ expected[i]; return diff === 0 ? customerId : null;
   } catch (_) { return null; }
 }
-// The customer app is hosted on pages.dev while the API is on workers.dev.
-// SameSite=None is required for credentialed cross-site fetches; Secure is mandatory with it.
 function withSession(data, env, token) { const res = response(data, 200, env); const headers = new Headers(res.headers); headers.append('Set-Cookie', `${COOKIE}=${token}; Max-Age=${MAX_AGE}; Path=/; HttpOnly; Secure; SameSite=None`); return new Response(res.body, { status: res.status, headers }); }
 function clearSession(env) { return response({ ok: true }, 200, env, { 'Set-Cookie': `${COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=None` }); }
-
-async function rateLimit(env, key, limit) {
-  const windowStart = Math.floor(Date.now() / 1000 / 600) * 600;
-  const keyName = String(key).slice(0, 180);
-  await env.DB.prepare(`INSERT INTO auth_rate_limits (key,window_start,count) VALUES (?,?,1) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN auth_rate_limits.window_start=? THEN auth_rate_limits.count+1 ELSE 1 END, window_start=?, updated_at=CURRENT_TIMESTAMP`).bind(keyName, windowStart, windowStart, windowStart).run();
-  const row = await env.DB.prepare('SELECT count,window_start FROM auth_rate_limits WHERE key=?').bind(keyName).first();
-  return !!row && Number(row.window_start) === windowStart && Number(row.count) <= limit;
-}
+async function rateLimit(env, key, limit) { const windowStart = Math.floor(Date.now() / 1000 / 600) * 600; const keyName = String(key).slice(0, 180); await env.DB.prepare(`INSERT INTO auth_rate_limits (key,window_start,count) VALUES (?,?,1) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN auth_rate_limits.window_start=? THEN auth_rate_limits.count+1 ELSE 1 END, window_start=?, updated_at=CURRENT_TIMESTAMP`).bind(keyName, windowStart, windowStart, windowStart).run(); const row = await env.DB.prepare('SELECT count,window_start FROM auth_rate_limits WHERE key=?').bind(keyName).first(); return !!row && Number(row.window_start) === windowStart && Number(row.count) <= limit; }
 function limited(env) { return response({ error: 'Too many attempts. Please try again later.' }, 429, env, { 'retry-after': '600' }); }
-
-async function derivePasscode(passcode, saltHex) {
-  const baseKey = await crypto.subtle.importKey('raw', enc(passcode), 'PBKDF2', false, ['deriveBits']);
-  return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: bytesFromHex(saltHex), iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' }, baseKey, 256));
-}
-async function makePasscodeHash(passcode) {
-  const salt = new Uint8Array(16); crypto.getRandomValues(salt);
-  const saltHex = hex(salt); const hashHex = hex(await derivePasscode(passcode, saltHex));
-  return { saltHex, hashHex };
-}
-async function verifyPasscode(passcode, saltHex, expectedHex) {
-  if (!/^[0-9a-f]{32}$/i.test(saltHex || '') || !/^[0-9a-f]{64}$/i.test(expectedHex || '')) return false;
-  const actual = await derivePasscode(passcode, saltHex); const expected = bytesFromHex(expectedHex); let diff = 0;
-  for (let i = 0; i < actual.length; i++) diff |= actual[i] ^ expected[i];
-  return diff === 0;
-}
-
+async function derivePasscode(passcode, saltHex) { const baseKey = await crypto.subtle.importKey('raw', enc(passcode), 'PBKDF2', false, ['deriveBits']); return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: bytesFromHex(saltHex), iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' }, baseKey, 256)); }
+async function makePasscodeHash(passcode) { const salt = new Uint8Array(16); crypto.getRandomValues(salt); const saltHex = hex(salt); return { saltHex, hashHex: hex(await derivePasscode(passcode, saltHex)) }; }
+async function verifyPasscode(passcode, saltHex, expectedHex) { if (!/^[0-9a-f]{32}$/i.test(saltHex || '') || !/^[0-9a-f]{64}$/i.test(expectedHex || '')) return false; const actual = await derivePasscode(passcode, saltHex), expected = bytesFromHex(expectedHex); let diff = 0; for (let i = 0; i < actual.length; i++) diff |= actual[i] ^ expected[i]; return diff === 0; }
 async function customerByPhone(env, phone) { return env.DB.prepare('SELECT id,name,phone,passcode_salt,passcode_hash FROM customers WHERE phone=? LIMIT 1').bind(phone).first(); }
 async function customerExists(env, id) { return !!(await env.DB.prepare('SELECT id FROM customers WHERE id=? LIMIT 1').bind(id).first()); }
-async function customerPhone(env, id) { const row = await env.DB.prepare('SELECT phone FROM customers WHERE id=? LIMIT 1').bind(id).first(); return String(row?.phone || ''); }
 function validPasscode(value) { return /^\d{6}$/.test(String(value || '')); }
 
 async function register(request, env) {
   let payload = {}; try { payload = await request.json(); } catch (_) {}
-  const phone = normalizedPhone(payload.phone); const passcode = String(payload.passcode || ''); const name = String(payload.name || '').trim().slice(0, 120);
+  const phone = normalizedPhone(payload.phone), passcode = String(payload.passcode || ''), name = String(payload.name || '').trim().slice(0, 120);
   if (!phone || !validPasscode(passcode) || !name) return response({ error: 'Enter your name, a valid 10-digit mobile number and a 6-digit passcode.' }, 400, env);
   if (!(await rateLimit(env, `auth:register:phone:${phone}`, 5)) || !(await rateLimit(env, `auth:register:ip:${clientIp(request)}`, 20))) return limited(env);
-  const existing = await customerByPhone(env, phone);
-  const customerId = existing?.id || crypto.randomUUID();
+  const existing = await customerByPhone(env, phone), customerId = existing?.id || crypto.randomUUID();
   if (existing?.passcode_hash) return response({ error: 'This mobile number is already registered. Please log in with your 6-digit passcode.' }, 409, env);
   const { saltHex, hashHex } = await makePasscodeHash(passcode);
-  await env.DB.prepare(`INSERT INTO customers (id,name,phone,passcode_salt,passcode_hash,whatsapp_opt_in,updated_at) VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP)
-    ON CONFLICT(id) DO UPDATE SET name=excluded.name,phone=excluded.phone,passcode_salt=excluded.passcode_salt,passcode_hash=excluded.passcode_hash,updated_at=CURRENT_TIMESTAMP`)
-    .bind(customerId, name, phone, saltHex, hashHex, payload.whatsappOptIn ? 1 : 0).run();
+  await env.DB.prepare(`INSERT INTO customers (id,name,phone,passcode_salt,passcode_hash,whatsapp_opt_in,updated_at) VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET name=excluded.name,phone=excluded.phone,passcode_salt=excluded.passcode_salt,passcode_hash=excluded.passcode_hash,updated_at=CURRENT_TIMESTAMP`).bind(customerId, name, phone, saltHex, hashHex, payload.whatsappOptIn ? 1 : 0).run();
   return withSession({ ok: true, customerId, phone: `******${phone.slice(-4)}`, name, registered: true }, env, await signSession(env, customerId));
 }
-
 async function login(request, env) {
   let payload = {}; try { payload = await request.json(); } catch (_) {}
-  const phone = normalizedPhone(payload.phone); const passcode = String(payload.passcode || '');
+  const phone = normalizedPhone(payload.phone), passcode = String(payload.passcode || '');
   if (!phone || !validPasscode(passcode)) return response({ error: 'Enter your mobile number and 6-digit passcode.' }, 400, env);
   if (!(await rateLimit(env, `auth:login:phone:${phone}`, 5)) || !(await rateLimit(env, `auth:login:ip:${clientIp(request)}`, 20))) return limited(env);
   const customer = await customerByPhone(env, phone);
@@ -101,34 +61,37 @@ async function login(request, env) {
   if (!(await verifyPasscode(passcode, customer.passcode_salt, customer.passcode_hash))) return response({ error: 'Incorrect mobile number or passcode.' }, 401, env);
   return withSession({ ok: true, customerId: customer.id, phone: `******${phone.slice(-4)}`, name: customer.name || '' }, env, await signSession(env, customer.id));
 }
-
 async function updateCustomer(request, env) {
   const sessionId = await sessionCustomerId(request, env); if (!sessionId) return response({ error: 'Customer authentication required.' }, 401, env);
   let payload = {}; try { payload = await request.json(); } catch (_) {}
-  const submittedId = String(payload.id || '').trim(); const phone = normalizedPhone(payload.phone);
-  if (!submittedId || submittedId !== sessionId || !phone) return response({ error: 'Customer identity does not match the signed-in account.' }, 409, env);
-  if (phone !== await customerPhone(env, sessionId)) return response({ error: 'The mobile number cannot be changed after registration.' }, 409, env);
-  await env.DB.prepare('UPDATE customers SET name=?, whatsapp_opt_in=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(String(payload.name || '').trim().slice(0, 120), payload.whatsappOptIn ? 1 : 0, sessionId).run();
+  if (String(payload.id || '').trim() !== sessionId) return response({ error: 'Customer identity does not match the signed-in account.' }, 409, env);
+  await env.DB.prepare('UPDATE customers SET whatsapp_opt_in=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(payload.whatsappOptIn ? 1 : 0, sessionId).run();
   return response({ ok: true, customerId: sessionId }, 200, env);
 }
-
 async function protectedOrders(request, env) {
   const sessionId = await sessionCustomerId(request, env); if (!sessionId || !(await customerExists(env, sessionId))) return response({ error: 'Customer authentication required.' }, 401, env);
   const url = new URL(request.url);
   if (request.method === 'GET') {
-    const requested = String(url.searchParams.get('customerId') || '').trim(); if (requested !== sessionId) return response({ error: 'Customer identity does not match the signed-in account.' }, 403, env);
+    if (String(url.searchParams.get('customerId') || '').trim() !== sessionId) return response({ error: 'Customer identity does not match the signed-in account.' }, 403, env);
     return original.fetch(request, env, {});
   }
   if (request.method === 'POST') {
     let payload = {}; try { payload = await request.clone().json(); } catch (_) {}
     if (String(payload.customerId || '') !== sessionId) return response({ error: 'Customer identity does not match the signed-in account.' }, 403, env);
-    const submittedPhone = normalizedPhone(payload.customer?.phone); const storedPhone = await customerPhone(env, sessionId);
-    if (!submittedPhone || submittedPhone !== storedPhone) return response({ error: 'The mobile number cannot be changed after registration.' }, 409, env);
-    return original.fetch(request, env, {});
+    const deliveryPhone = cleanPhone(payload.customer?.phone);
+    if (!deliveryPhone) return response({ error: 'Enter a valid 10-digit delivery contact number.' }, 400, env);
+    const registration = await env.DB.prepare('SELECT phone FROM customers WHERE id=? LIMIT 1').bind(sessionId).first();
+    const registrationPhone = String(registration?.phone || '');
+    if (!/^91\d{10}$/.test(registrationPhone)) return response({ error: 'Customer registration phone is not configured.' }, 409, env);
+    const forwarded = { ...payload, customer: { ...(payload.customer || {}), phone: registrationPhone.slice(2) } };
+    const responseFromOriginal = await original.fetch(new Request(request, { method: 'POST', body: JSON.stringify(forwarded) }), env, {});
+    if (!responseFromOriginal.ok) return responseFromOriginal;
+    let result = {}; try { result = await responseFromOriginal.clone().json(); } catch (_) {}
+    if (result?.id) await env.DB.prepare('UPDATE orders SET customer_phone=? WHERE id=? AND customer_id=?').bind(`91${deliveryPhone}`, String(result.id), sessionId).run();
+    return responseFromOriginal;
   }
   return original.fetch(request, env, {});
 }
-
 async function protectedPush(request, env) {
   const sessionId = await sessionCustomerId(request, env); if (!sessionId || !(await customerExists(env, sessionId))) return response({ error: 'Customer authentication required.' }, 401, env);
   let payload = {}; try { payload = await request.clone().json(); } catch (_) {}
@@ -137,7 +100,7 @@ async function protectedPush(request, env) {
 }
 
 export default { async fetch(request, env, ctx) {
-  const url = new URL(request.url); const allowedOrigin = corsOrigin(env); const requestOrigin = String(request.headers.get('Origin') || '').trim();
+  const url = new URL(request.url), allowedOrigin = corsOrigin(env), requestOrigin = String(request.headers.get('Origin') || '').trim();
   if (requestOrigin && requestOrigin !== allowedOrigin) return response({ error: 'Origin not allowed.' }, 403, env);
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: { 'access-control-allow-origin': allowedOrigin, 'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS', 'access-control-allow-headers': 'Content-Type,Authorization,X-Freshway-Admin-Token', 'access-control-allow-credentials': 'true' } });
   if (url.pathname === '/api/auth/session' && request.method === 'GET') {
