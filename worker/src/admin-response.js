@@ -1,0 +1,5 @@
+export function response(data,status,origin,extra={}){return new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json; charset=utf-8','access-control-allow-origin':origin,'access-control-allow-credentials':'true','cache-control':'private, no-store',...extra}})}
+
+export function withCookie(res,token,{name,maxAge}){const h=new Headers(res.headers);h.append('Set-Cookie',`${name}=${token}; Max-Age=${maxAge}; Path=/; HttpOnly; Secure; SameSite=None`);h.set('Cache-Control','private, no-store');h.set('Access-Control-Allow-Credentials','true');return new Response(res.body,{status:res.status,statusText:res.statusText,headers:h})}
+
+export async function normalizeOwnerResponse(request,url,data,origin){if(url.pathname==='/api/admin/orders'&&request.method==='GET'){const body=await data.json();body.orders=(body.orders||[]).map(o=>o.status==='Cancelled'?{...o,payment:o.payment==='Pending'?'Not Collected':o.payment,deliveryPlan:'Unscheduled'}:o);return response(body,data.status,origin)}return data}
