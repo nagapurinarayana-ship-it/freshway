@@ -8,7 +8,7 @@ CREATE TABLE orders_lifecycle (
   customer_phone TEXT NOT NULL,
   total INTEGER NOT NULL CHECK(total >= 0),
   payment_status TEXT NOT NULL DEFAULT 'Pending' CHECK(payment_status IN ('Pending','Collected')),
-  delivery_status TEXT NOT NULL DEFAULT 'New' CHECK(delivery_status IN ('New','Confirmed','Processing','Ready','Out for Delivery','Delivered','Cancelled')),
+  delivery_status TEXT NOT NULL DEFAULT 'New' CHECK(delivery_status IN ('New','Ordered','Confirmed','Processing','Ready','Out for Delivery','Delivered','Cancelled')),
   delivery_plan TEXT NOT NULL DEFAULT 'Tomorrow' CHECK(delivery_plan IN ('Today','Tomorrow','Later','Unscheduled')),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
