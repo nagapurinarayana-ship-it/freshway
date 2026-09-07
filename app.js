@@ -22,7 +22,7 @@ const customerCartView=window.FreshWayCustomerCartView;
 const customerFeedback=window.FreshWayCustomerFeedback;
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
-const money=n=>`₹${Number(n||0).toLocaleString('en-IN')`;
+const money=n=>`₹${Number(n||0).toLocaleString('en-IN')}`;
 const esc=v=>String(v??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c]));
 const state=customerStorage.read();
 let PRODUCTS=FALLBACK_PRODUCTS.slice();
