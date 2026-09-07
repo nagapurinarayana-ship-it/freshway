@@ -94,9 +94,19 @@ async function customerExists(env, customerId) {
   return !!row;
 }
 
+async function customerPhone(env, customerId) {
+  const row = await env.DB.prepare('SELECT phone FROM customers WHERE id=? LIMIT 1').bind(customerId).first();
+  return row?.phone || '';
+}
+
 async function customerIdForPhone(env, phone) {
   const row = await env.DB.prepare('SELECT id FROM customers WHERE phone=? ORDER BY updated_at DESC LIMIT 1').bind(cleanPhone(phone)).first();
   return row?.id || null;
+}
+
+async function ensureCustomerForVerifiedPhone(env, customerId, phone) {
+  await env.DB.prepare(`INSERT INTO customers (id,name,phone,whatsapp_opt_in,updated_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)
+    ON CONFLICT(id) DO UPDATE SET phone=excluded.phone, updated_at=CURRENT_TIMESTAMP`).bind(customerId, '', cleanPhone(phone), 0).run();
 }
 
 function twilioConfigured(env) {
@@ -162,6 +172,7 @@ async function otpVerify(request, env) {
   const result = await twilio(env, 'VerificationCheck', { To: phone, Code: code });
   if (result.status !== 'approved' || result.valid === false) return new Response(JSON.stringify({ error: 'Incorrect or expired OTP.' }), { status: 401, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env) } });
   const customerId = (await customerIdForPhone(env, phone)) || crypto.randomUUID();
+  await ensureCustomerForVerifiedPhone(env, customerId, phone);
   return withCookie(new Response(JSON.stringify({ ok: true, customerId, phone: `******${phone.slice(-4)}` }), { status: 200, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env), 'cache-control': 'no-store' } }), await signSession(env, customerId));
 }
 
@@ -206,8 +217,7 @@ export default {
       if (!customerId) return unauthorized(env);
       const sessionId = await sessionCustomerId(request, env);
       if (sessionId !== customerId) return unauthorized(env);
-      const response = await original.fetch(request, env, ctx);
-      return response.ok ? withCookie(response, await signSession(env, customerId)) : response;
+      return original.fetch(request, env, ctx);
     }
 
     if (url.pathname === '/api/orders' && request.method === 'GET') {
@@ -222,7 +232,10 @@ export default {
       try { payload = await request.clone().json(); } catch (_) { payload = {}; }
       const requestedId = String(payload?.customerId || '').trim();
       const sessionId = await sessionCustomerId(request, env);
-      if (!sessionId || !requestedId || requestedId !== sessionId) return unauthorized(env);
+      if (!sessionId || !requestedId || requestedId !== sessionId || !(await customerExists(env, sessionId))) return unauthorized(env);
+      const submittedPhone = cleanPhone(payload?.customer?.phone);
+      const verifiedPhone = await customerPhone(env, sessionId);
+      if (!submittedPhone || submittedPhone !== verifiedPhone) return new Response(JSON.stringify({ error: 'The mobile number must match the verified customer session.' }), { status: 409, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': allowedOrigin, 'access-control-allow-credentials': 'true', 'cache-control': 'no-store' } });
       return original.fetch(request, env, ctx);
     }
 
@@ -231,7 +244,7 @@ export default {
       try { payload = await request.clone().json(); } catch (_) { payload = {}; }
       const requestedId = String(payload?.customerId || '').trim();
       const sessionId = await sessionCustomerId(request, env);
-      if (!sessionId || !requestedId || requestedId !== sessionId) return unauthorized(env);
+      if (!sessionId || !requestedId || requestedId !== sessionId || !(await customerExists(env, sessionId))) return unauthorized(env);
       return original.fetch(request, env, ctx);
     }
 
