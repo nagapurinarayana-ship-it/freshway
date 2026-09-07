@@ -19,6 +19,9 @@ jobs:
       - name: Install Worker dependencies
         working-directory: worker
         run: npm install
+      - name: Run automated Worker tests
+        working-directory: worker
+        run: npm test
       - name: Check browser JavaScript
         run: |
           node --check app.js
@@ -40,9 +43,11 @@ jobs:
           grep -q "INSERT OR IGNORE INTO products" schema.sql
           test -s migrations/0001_delivery_plan.sql
           grep -q "ALTER TABLE orders ADD COLUMN delivery_plan" migrations/0001_delivery_plan.sql
+          test -s migrations/0002_auth_rate_limits.sql
+          grep -q "auth_rate_limits" migrations/0002_auth_rate_limits.sql
       - name: Check Worker configuration
         working-directory: worker
         run: node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); if(!x.name||!x.main||!x.d1_databases?.[0]?.binding||x.main!=='src/index.js') process.exit(1); console.log('wrangler configuration structure and functionality entrypoint OK')"
       - name: Check for committed secrets
         run: |
-          ! grep -RInE '(WHATSAPP_ACCESS_TOKEN|VAPID_PRIVATE_KEY|ADMIN_TOKEN)[[:space:]]*[:=][[:space:]]*[^$\"\047[:space:]]{12,}' --exclude-dir=.git . || (echo 'Possible committed secret found' && exit 1)
+          ! grep -RInE '(WHATSAPP_ACCESS_TOKEN|VAPID_PRIVATE_KEY|ADMIN_TOKEN|CUSTOMER_SESSION_SECRET)[[:space:]]*[:=][[:space:]]*[^$\"\047[:space:]]{12,}' --exclude-dir=.git . || (echo 'Possible committed secret found' && exit 1)
