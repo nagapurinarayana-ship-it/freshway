@@ -2,7 +2,7 @@ import original from './index.js';
 
 const COOKIE = 'freshway-customer-session';
 const MAX_AGE = 60 * 60 * 24 * 30;
-const PBKDF2_ITERATIONS = 120000;
+const PBKDF2_ITERATIONS = 100000;
 const enc = value => new TextEncoder().encode(String(value));
 const hex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
 const bytesFromHex = value => { const out = new Uint8Array(value.length / 2); for (let i = 0; i < out.length; i++) out[i] = parseInt(value.slice(i * 2, i * 2 + 2), 16); return out; };
