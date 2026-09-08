@@ -41,6 +41,20 @@ CREATE INDEX IF NOT EXISTS idx_orders_status_payment_plan_created ON orders(deli
 CREATE INDEX IF NOT EXISTS idx_orders_customer_name ON orders(customer_name);
 CREATE INDEX IF NOT EXISTS idx_orders_customer_phone ON orders(customer_phone);
 
+CREATE TRIGGER IF NOT EXISTS orders_normalize_ordered_insert
+AFTER INSERT ON orders
+WHEN NEW.delivery_status='Ordered'
+BEGIN
+  UPDATE orders SET delivery_status='New',updated_at=CURRENT_TIMESTAMP WHERE id=NEW.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS orders_normalize_ordered_update
+AFTER UPDATE OF delivery_status ON orders
+WHEN NEW.delivery_status='Ordered'
+BEGIN
+  UPDATE orders SET delivery_status='New',updated_at=CURRENT_TIMESTAMP WHERE id=NEW.id;
+END;
+
 CREATE TRIGGER IF NOT EXISTS orders_normalize_pending_payment_insert
 AFTER INSERT ON orders
 WHEN NEW.payment_status='Pending'
