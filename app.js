@@ -42,7 +42,7 @@ function renderProducts(filter=''){customerProductView.render(PRODUCTS,state,fil
 const updateCartBar=()=>{
   customerCartBar.update(document,{count:cartCount(),total:cartTotal(),money})
 };
-function renderCart(){customerCartView.render(cartItems(),cartTotal(),{esc,money,setView})}
+function renderCart(){customerCartView.render(cartItems(),cartTotal(),{esc,money,setView});updateCartBar()}
 function renderOrders(list=customerOrders.normalize(state.orders)){customerOrdersView.render(document,list,{esc,formatDate:customerOrderDisplay.formatDate,money,statusLabel:customerOrders.statusLabel,planText:customerOrderDisplay.planText})}
 function latestOrder(){return customerOrders.latest(state.orders)}
 function prefillCheckout(){const last=latestOrder(),saved=state.profile?.checkout||{},a=customerProfile.savedAddress(state.profile,last);const fields=[['#customerName',saved.name||last?.customer?.name||''],['#customerPhone',saved.phone||last?.customer?.phone||'']];fields.forEach(([sel,val])=>{const el=$(sel);if(el&&!el.value)el.value=val});customerAddressFlow.fill(document,a,{onlyEmpty:true})}
@@ -56,11 +56,10 @@ function openAddressModal(){customerModal.open(document)}
 function closeModal(){customerModal.close(document)}
 function showConfirmation(order){customerConfirmation.show(order,{esc,planText:customerOrderDisplay.planText,setView,updateCartBar})}
 const checkoutSubmit=customerCheckoutSubmit.create({document,cartItems,state,save,customerAddress,customerAddressFlow,customerCheckout,customerAuth,customerId,api,customerNotifications,toast,renderProducts,renderProfile,showConfirmation,updateCartBar,setView,money});
-// Checkout submission delegates customerCheckout.validate(name,phone,address), customerCheckout.payload(data,address,...) and customerCheckout.clientOrderId(data,address,...); notification registration stays inside the checkout boundary via customerNotifications.registerCustomer.
 window.showConfirmation=showConfirmation;
 window.setView=setView;
 window.state=state;
-async function loadProducts(){try{const d=await api('/api/products');if(Array.isArray(d.products)&&d.products.length)PRODUCTS=d.products}catch(_){}renderProducts($('#searchInput')?.value||'')}
+async function loadProducts(){try{const d=await api('/api/products');if(Array.isArray(d.products)&&d.products.length)PRODUCTS=d.products}catch(_){}renderProducts($('#searchInput')?.value||'');if($('#cartView')?.classList.contains('active-view'))renderCart();else updateCartBar()}
 document.addEventListener('click',e=>{const t=e.target;const nav=t.closest('[data-nav]');if(nav)setView(nav.dataset.nav);if(t.closest('#viewCartBtn'))setView('cart');if(t.closest('#checkoutBtn'))setView('checkout');if(t.closest('#addressBtn')||t.closest('#profileAddress'))openAddressModal();if(t.closest('[data-close-modal]'))closeModal();if(t.closest('#profileBtn'))setView('profile');if(t.closest('#brandHome'))setView('home');if(t.closest('.back-btn'))setView(t.closest('.back-btn').dataset.back)});
 checkoutSubmit.bind();
 customerSearch.bind({document,render:renderProducts});
