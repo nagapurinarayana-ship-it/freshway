@@ -25,7 +25,7 @@
   const bind=({document,sessionStorage,window})=>{
     if(!document||!sessionStorage||!window)return;
     if(document.__freshwayViewStateBound)return;
-    document.__freshwayViewBound=true;
+    document.__freshwayViewStateBound=true;
     document.addEventListener('click',e=>save(clickedView(e.target)));
     const run=()=>restore({sessionStorage,window});
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run,{once:true});
