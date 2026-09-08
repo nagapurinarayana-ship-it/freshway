@@ -1,0 +1,32 @@
+name: FreshWay customer notification validation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  notifications:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check customer notification JavaScript
+        run: |
+          node --check frontend/customer/notifications.js
+          node --check frontend/customer/notifications.test.js
+      - name: Run customer notification tests
+        run: node frontend/customer/notifications.test.js
+      - name: Enforce customer notification boundary
+        run: |
+          grep -q "window.FreshWayCustomerNotifications" frontend/customer/notifications.js
+          grep -q "const customerNotifications=window.FreshWayCustomerNotifications" app.js
+          grep -q "customerNotifications.registerCustomer" app.js
+          grep -q "frontend/customer/notifications.js" index.html
+          grep -q "notifications.enable()" frontend/customer/account-actions.js
+          grep -q "auth.logout()" frontend/customer/account-actions.js
