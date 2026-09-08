@@ -104,6 +104,8 @@ jobs:
           grep -q "const customerOrderDisplay=window.FreshWayCustomerOrderDisplay" app.js
           grep -q "customerOrderDisplay.formatDate" app.js
           grep -q "customerOrderDisplay.planText" app.js
+          grep -q "customerOrderDisplay.money" app.js
+          grep -q "const money=customerOrderDisplay.money" app.js
           grep -q "frontend/customer/order-display.js" index.html
           grep -q "window.FreshWayCustomerCartView" frontend/customer/cart-view.js
           grep -q "const customerCartView=window.FreshWayCustomerCartView" app.js
