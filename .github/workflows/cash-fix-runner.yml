@@ -18,32 +18,22 @@ jobs:
         with:
           ref: main
           fetch-depth: 1
-      - name: Patch cash date handling
+      - name: Patch Owner overview loading
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
-
-          p=Path('owner-lifecycle.js')
+          p=Path('admin.js')
           s=p.read_text()
-          old="const istDay=v=>{if(!v)return'';try{return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(v))}catch(_){return''}};"
-          new="const istDay=v=>{if(!v)return'';try{const raw=String(v).trim();const normalized=/^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?$/.test(raw)?raw.replace(' ','T')+'Z':raw;return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(normalized))}catch(_){return''}};"
-          if old not in s: raise SystemExit('owner-lifecycle.js: expected istDay implementation not found')
-          p.write_text(s.replace(old,new,1))
-
-          p=Path('worker/src/admin-reports.js')
-          s=p.read_text()
-          old="payment_collected_at>=? AND payment_collected_at<=? AND payment_status='Collected'"
-          new="datetime(payment_collected_at)>=datetime(?) AND datetime(payment_collected_at)<=datetime(?) AND payment_status='Collected'"
-          if old not in s: raise SystemExit('admin-reports.js: expected collection query not found')
+          old="if(id==='overview'){loadBusiness().catch(e=>toast(e.message));loadHome()}"
+          new="if(id==='overview'){Promise.all([loadSummary(),loadBusiness(),loadHome()]).catch(e=>toast(e.message))}"
+          if old not in s: raise SystemExit('admin.js: expected overview navigation block not found')
           p.write_text(s.replace(old,new,1))
           PY
-          node --check owner-lifecycle.js
-          node --check worker/src/admin-reports.js
+          node --check admin.js
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add owner-lifecycle.js worker/src/admin-reports.js
+          git add admin.js
           git diff --cached --check
-          git commit -m 'fix: count cash collected on IST day'
+          git commit -m 'fix: load all Owner overview data'
           git push origin HEAD:main
