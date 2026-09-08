@@ -1,14 +1,5 @@
 const FALLBACK_PRODUCTS=[
-  {id:'apple',name:'Apple',unit:'kg',price:120,emoji:'🍎'},
-  {id:'banana',name:'Banana',unit:'dozen',price:60,emoji:'🍌'},
-  {id:'mango',name:'Mango',unit:'kg',price:180,emoji:'🥭'},
-  {id:'orange',name:'Orange',unit:'kg',price:100,emoji:'🍊'},
-  {id:'watermelon',name:'Watermelon',unit:'piece',price:50,emoji:'🍉'},
-  {id:'grapes',name:'Grapes',unit:'kg',price:110,emoji:'🍇'},
-  {id:'pineapple',name:'Pineapple',unit:'piece',price:70,emoji:'🍍'},
-  {id:'guava',name:'Guava',unit:'kg',price:90,emoji:'🍐'},
-  {id:'papaya',name:'Papaya',unit:'piece',price:80,emoji:'🧡'},
-  {id:'pomegranate',name:'Pomegranate',unit:'kg',price:160,emoji:'❤️'}
+  {id:'apple',name:'Apple',unit:'kg',price:120,emoji:'🍎'},{id:'banana',name:'Banana',unit:'dozen',price:60,emoji:'🍌'},{id:'mango',name:'Mango',unit:'kg',price:180,emoji:'🥭'},{id:'orange',name:'Orange',unit:'kg',price:100,emoji:'🍊'},{id:'watermelon',name:'Watermelon',unit:'piece',price:50,emoji:'🍉'},{id:'grapes',name:'Grapes',unit:'kg',price:110,emoji:'🍇'},{id:'pineapple',name:'Pineapple',unit:'piece',price:70,emoji:'🍍'},{id:'guava',name:'Guava',unit:'kg',price:90,emoji:'🍐'},{id:'papaya',name:'Papaya',unit:'piece',price:80,emoji:'🧡'},{id:'pomegranate',name:'Pomegranate',unit:'kg',price:160,emoji:'❤️'}
 ];
 const customerStorage=window.FreshWayCustomerStorage;
 const customerAPI=window.FreshWayCustomerAPI;
@@ -48,7 +39,9 @@ const cartTotal=()=>catalogueCart.total(state,PRODUCTS);
 const cartCount=()=>catalogueCart.count(state,PRODUCTS);
 function toast(msg){customerFeedback.show(document,msg)}
 function renderProducts(filter=''){customerProductView.render(PRODUCTS,state,filter,{esc,money,changeQty,updateCartBar})}
-function updateCartBar(){customerCartBar.update(document,{count:cartCount(),total:cartTotal(),money})}
+function updateCartBar(){
+  customerCartBar.update(document,{count:cartCount(),total:cartTotal(),money})
+}
 function renderCart(){customerCartView.render(cartItems(),cartTotal(),{esc,money,setView})}
 function renderOrders(list=customerOrders.normalize(state.orders)){customerOrdersView.render(document,list,{esc,formatDate:customerOrderDisplay.formatDate,money,statusLabel:customerOrders.statusLabel,planText:customerOrderDisplay.planText})}
 function latestOrder(){return customerOrders.latest(state.orders)}
