@@ -46,7 +46,9 @@ jobs:
           node --check frontend/customer/product-view.js
           node --check frontend/customer/navigation.js
           node --check frontend/customer/modal.js
+          node --check frontend/customer/account-actions.js
           node --check frontend/customer/view-state.js
+          node --check frontend/customer/search.js
           node --check frontend/customer/view-state.test.js
           node --check sw.js
       - name: Run customer view-state tests
@@ -135,6 +137,11 @@ jobs:
           grep -q "customerModal.close(document)" app.js
           grep -q "window.FreshWayCustomerViewState" frontend/customer/view-state.js
           grep -q "freshway-current-view-v1" frontend/customer/view-state.js
+          grep -q "window.FreshWayCustomerSearch" frontend/customer/search.js
+          grep -q "const customerSearch=window.FreshWayCustomerSearch" app.js
+          grep -q "customerSearch.bind({document,render:renderProducts})" app.js
+          grep -q "frontend/customer/search.js" index.html
+          ! grep -q "searchInput.*addEventListener('input'" app.js
       - name: Enforce backend feature boundaries
         run: |
           node - <<'NODE'
