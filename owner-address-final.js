@@ -4,6 +4,10 @@ const valid=(lat,lon)=>Number.isFinite(Number(lat))&&Number.isFinite(Number(lon)
 const maps=(lat,lon)=>`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${Number(lat).toFixed(6)},${Number(lon).toFixed(6)}`)}`;
 const statuses=['New','Confirmed','Processing','Ready','Out for Delivery','Delivered','Cancelled'];
 const payments=['Not Collected','Collected','Refunded','Cancelled'];
+const ownerGetControllers=new Set();
+const nativeFetch=window.fetch.bind(window);
+window.fetch=function(input,init={}){const url=typeof input==='string'?input:(input?.url||'');const method=String(init?.method||input?.method||'GET').toUpperCase();if(method==='GET'&&/^\/api(?:\/|$)/.test(url)){const controller=new AbortController();ownerGetControllers.add(controller);const signal=init?.signal;const merged={...init,signal:controller.signal};if(signal){if(signal.aborted)controller.abort();else signal.addEventListener('abort',()=>controller.abort(),{once:true})}return nativeFetch(input,merged).finally(()=>ownerGetControllers.delete(controller))}return nativeFetch(input,init)};
+function abortStaleOwnerGets(){ownerGetControllers.forEach(c=>{try{c.abort()}catch(_){}});ownerGetControllers.clear()}
 function hardenExisting(){document.querySelectorAll('#modalExactMap').forEach(btn=>{if(btn.dataset.fwHardened)return;btn.dataset.fwHardened='1';const box=btn.closest('.exact-location')||btn.parentElement;const text=box?.textContent||'';const m=text.match(/(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/);if(!m||!valid(m[1],m[2])){btn.disabled=true;btn.textContent='Exact map location unavailable';btn.title='This order has no valid saved coordinates.';return}btn.onclick=e=>{e.preventDefault();e.stopImmediatePropagation();const w=window.open(maps(m[1],m[2]),'_blank','noopener,noreferrer');if(!w)window.location.assign(maps(m[1],m[2]))}})}
 function options(values,current){return values.map(v=>`<option value="${esc(v)}"${v===current?' selected':''}>${esc(v)}</option>`).join('')}
 function addOrderControls(){const body=document.querySelector('#modalBody');if(!body||document.querySelector('#modal.hidden')||body.querySelector('#fwOrderControls'))return;const h=body.querySelector('h2');const id=h?.textContent?.trim();if(!id)return;const detail=body.querySelector('.detail-grid');const cells=detail?detail.querySelectorAll('div'):[];const currentStatus=cells[0]?.querySelector('b')?.textContent?.trim()||'New';const currentPayment=cells[1]?.querySelector('b')?.textContent?.trim()||'Not Collected';const box=document.createElement('div');box.id='fwOrderControls';box.className='fw-order-controls';box.innerHTML=`<div><label>Order status</label><select id="fwOrderStatus">${options(statuses,currentStatus)}</select></div><div><label>Payment status</label><select id="fwPaymentStatus">${options(payments,currentPayment)}</select></div>`;const anchor=body.querySelector('h3');body.insertBefore(box,anchor||body.firstChild);const apply=(kind,value,select)=>{select.disabled=true;const patch=kind==='status'?{status:value}:{payment:value};if(typeof window.updateOrder!=='function'){select.disabled=false;return}window.updateOrder(id,patch).finally(()=>{select.disabled=false})};box.querySelector('#fwOrderStatus').onchange=e=>apply('status',e.target.value,e.target);box.querySelector('#fwPaymentStatus').onchange=e=>apply('payment',e.target.value,e.target)}
@@ -13,6 +17,7 @@ async function ensurePushState(){const input=document.getElementById('channelApp
 const modalBody=document.getElementById('modalBody');ensurePaymentFilter();ensurePushState();if(!modalBody)return;const obs=new MutationObserver(()=>{ensurePaymentFilter();ensurePushState();hardenExisting();addOrderControls();if(!modalBody.querySelector('#ownerExactLocation'))enrich()});obs.observe(modalBody,{childList:true,subtree:true});const bodyObs=new MutationObserver(ensurePushState);bodyObs.observe(document.body,{childList:true,subtree:true});document.addEventListener('click',e=>{const b=e.target.closest?.('#modalExactMap');if(b&&!b.dataset.fwHardened)hardenExisting()});
 
 function clearOwnerScreenForFreshLoad(id){
+  abortStaleOwnerGets();
   const empty=(selector,message='Loading live data…')=>{const el=document.querySelector(selector);if(el)el.innerHTML=`<div class="empty">${message}</div>`};
   const hide=(selector)=>{const el=document.querySelector(selector);if(el)el.style.display='none'};
   if(id==='overview'){
@@ -24,7 +29,7 @@ function clearOwnerScreenForFreshLoad(id){
   else if(id==='customers'){
     const meta=document.querySelector('#customersMeta');if(meta)meta.textContent='Loading…';empty('#customersList');hide('#customersMore');
   }else if(id==='catalogue'){
-    const el=document.querySelector('#catalogue');if(el)el.innerHTML='<div class="page-head"><div><span class="eyebrow">CATALOGUE</span><h1>Catalogue</h1><p>Loading live catalogue…</p></div></div><div class="empty">Loading live data…</div>';
+    const area=document.querySelector('#fwProductsArea');if(area)area.innerHTML='<div class="fw-empty">Loading live data…</div>';else{const list=document.querySelector('#productList');if(list)list.innerHTML='<div class="empty">Loading live data…</div>'}
   }else if(id==='notifications')empty('#notificationHistory');
   else if(id==='reports'){empty('#reportCards');empty('#topProducts');empty('#topCustomers');}
 }
