@@ -27,35 +27,18 @@ jobs:
           find . -maxdepth 3 -type f -name '*.js' -not -path './node_modules/*' -not -path './worker/node_modules/*' -print0 | xargs -0 -n1 node --check
       - name: Run customer boundary tests
         run: |
-          for test in frontend/customer/*.test.js; do
-            node "$test"
-          done
+          node frontend/customer/view-state.test.js
+          node frontend/customer/search.test.js
+          node frontend/customer/orders-view.test.js
+          node frontend/customer/keyboard.test.js
+          node frontend/customer/cart-actions.test.js
+          node frontend/customer/cart-bar.test.js
+          node frontend/customer/checkout-submit.test.js
       - name: Check customer module wiring
         run: |
-          test -s frontend/customer/api.js
-          test -s frontend/customer/storage.js
-          test -s frontend/customer/catalogue-cart.js
-          test -s frontend/customer/orders.js
-          test -s frontend/customer/orders-data.js
-          test -s frontend/customer/orders-view.js
-          test -s frontend/customer/checkout.js
-          test -s frontend/customer/checkout-submit.js
-          test -s frontend/customer/profile.js
-          test -s frontend/customer/address.js
-          test -s frontend/customer/address-flow.js
-          test -s frontend/customer/confirmation.js
-          test -s frontend/customer/order-display.js
-          test -s frontend/customer/cart-view.js
-          test -s frontend/customer/feedback.js
-          test -s frontend/customer/product-view.js
-          test -s frontend/customer/navigation.js
-          test -s frontend/customer/modal.js
-          test -s frontend/customer/account-actions.js
-          test -s frontend/customer/view-state.js
-          test -s frontend/customer/search.js
-          test -s frontend/customer/keyboard.js
-          test -s frontend/customer/cart-actions.js
-          test -s frontend/customer/cart-bar.js
+          for module in api storage catalogue-cart orders orders-data orders-view checkout checkout-submit profile address address-flow confirmation order-display cart-view feedback product-view navigation modal account-actions view-state search keyboard cart-actions cart-bar; do
+            test -s "frontend/customer/$module.js"
+          done
           grep -q 'FreshWayCustomerAPI' app.js
           grep -q 'FreshWayCustomerStorage' app.js
           grep -q 'FreshWayCatalogueCart' app.js
