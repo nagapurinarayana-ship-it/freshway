@@ -22,9 +22,31 @@
     };
   }
 
-  const refreshCurrent=()=>{
+  const refreshCurrent=async()=>{
     const id=location.hash.slice(1)||'overview';
-    if(typeof window.navigateAdminScreen==='function')window.navigateAdminScreen(id);
+    try{
+      if(id==='overview'){
+        await Promise.all([loadSummary(),loadBusiness(),loadHome()]);
+      }else if(id==='orders'){
+        await loadOrders(true);
+      }else if(id==='delivery'){
+        await loadDelivery(true);
+      }else if(id==='cash'){
+        await loadCash();
+      }else if(id==='customers'){
+        await loadCustomers(true);
+      }else if(id==='catalogue'){
+        const d=await api('/admin/products');
+        products=d.products||[];
+        renderProducts();
+      }else if(id==='notifications'){
+        await loadHistory();
+      }else if(id==='reports'){
+        await loadReports();
+      }
+    }catch(e){
+      if(typeof toast==='function')toast(e.message||'Refresh failed');
+    }
   };
 
   // Keep one consistent Owner refresh control: the top-right control.
