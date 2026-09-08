@@ -51,5 +51,5 @@
     if(location.hash==='#cash')enhanceCash(true);
   });
   if(!document.querySelector('script[src*="frontend/admin/catalogue.js"]')){const s=document.createElement('script');s.src='frontend/admin/catalogue.js?v=20260908-catalogue-v1';document.body.appendChild(s)}
-  const p0=document.createElement('script');p0.src='frontend/admin/p0-owner-stability.js?v=20260909-p0-v1';p0.async=false;document.head.appendChild(p0);
+  const p0=document.createElement('script');p0.src='frontend/admin/p0-owner-stability.js?v=20260909-p0-v2';p0.async=false;document.head.appendChild(p0);
 })();

@@ -27,22 +27,26 @@
     if(typeof window.navigateAdminScreen==='function')window.navigateAdminScreen(id);
   };
 
-  // Make the Owner refresh control work independently on every Owner screen.
+  // Keep one consistent Owner refresh control: the top-right control.
   document.addEventListener('click',e=>{
     const target=e.target;
     if(target.closest('#refreshBtn')){
       e.preventDefault();
       e.stopImmediatePropagation();
       refreshCurrent();
-      return;
-    }
-    // Catalogue and notification-history refresh controls are dynamically rendered.
-    if(target.closest('#fwRefreshCatalogue')||target.closest('#refreshHistory')){
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      refreshCurrent();
     }
   },true);
+
+  const removeDuplicateRefreshControls=()=>{
+    document.getElementById('fwRefreshCatalogue')?.remove();
+    document.getElementById('refreshHistory')?.remove();
+  };
+
+  document.addEventListener('DOMContentLoaded',removeDuplicateRefreshControls,{once:true});
+  if(document.body){
+    new MutationObserver(removeDuplicateRefreshControls).observe(document.body,{childList:true,subtree:true});
+    removeDuplicateRefreshControls();
+  }
 
   window.addEventListener('popstate',()=>{
     const id=location.hash.slice(1)||'overview';
