@@ -1,7 +1,7 @@
 (()=>{
   const esc2=v=>String(v??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
   const money2=n=>`₹${Number(n||0).toLocaleString('en-IN')}`;
-  const validCoords=(lat,lon)=>Number.isFinite(Number(lat))&&Number.isFinite(Number(lon))&&Number(lat)>=-90&&Number(lat)<=90&&Number(lon)>=-180&&Number(lon)<=180&&!(Number(lat)===0&&Number(lon)===0);
+  const validCoords=(lat,lon)=>Number.isFinite(Number(lat))&&Number.isFinite(Number(lon))&&Number(lat)>=-90&&Number(lat)<=90&&!(Number(lat)===0&&Number(lon)===0);
   const next={New:['Confirmed','Cancelled'],Confirmed:['Processing','Cancelled'],Processing:['Ready','Cancelled'],Ready:['Out for Delivery','Cancelled'],"Out for Delivery":['Delivered','Cancelled'],Delivered:[],Cancelled:[]};
   const label={New:'New',Confirmed:'Confirmed',Processing:'Processing',Ready:'Ready','Out for Delivery':'Out for delivery',Delivered:'Delivered',Cancelled:'Cancelled'};
   const istDay=v=>{if(!v)return'';try{return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(v))}catch(_){return''}};
@@ -51,5 +51,5 @@
     if(location.hash==='#cash')enhanceCash(true);
   });
   if(!document.querySelector('script[src*="frontend/admin/catalogue.js"]')){const s=document.createElement('script');s.src='frontend/admin/catalogue.js?v=20260908-catalogue-v1';document.body.appendChild(s)}
-  const p0=document.createElement('script');p0.src='frontend/admin/p0-owner-stability.js?v=20260909-p0-v1';p0.async=false;document.head.appendChild(p0);
+  const p0=document.createElement('script');p0.src='frontend/admin/p0-owner-stability.js?v=20260909-p0-v2';p0.async=false;document.head.appendChild(p0);
 })();
