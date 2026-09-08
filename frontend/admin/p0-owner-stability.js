@@ -22,6 +22,28 @@
     };
   }
 
+  const refreshCurrent=()=>{
+    const id=location.hash.slice(1)||'overview';
+    if(typeof window.navigateAdminScreen==='function')window.navigateAdminScreen(id);
+  };
+
+  // Make the Owner refresh control work independently on every Owner screen.
+  document.addEventListener('click',e=>{
+    const target=e.target;
+    if(target.closest('#refreshBtn')){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      refreshCurrent();
+      return;
+    }
+    // Catalogue and notification-history refresh controls are dynamically rendered.
+    if(target.closest('#fwRefreshCatalogue')||target.closest('#refreshHistory')){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      refreshCurrent();
+    }
+  },true);
+
   window.addEventListener('popstate',()=>{
     const id=location.hash.slice(1)||'overview';
     restoring=true;
