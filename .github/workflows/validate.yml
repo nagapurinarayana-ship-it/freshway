@@ -50,9 +50,11 @@ jobs:
           node --check frontend/customer/account-actions.js
           node --check frontend/customer/view-state.js
           node --check frontend/customer/search.js
+          node --check frontend/customer/keyboard.js
           node --check frontend/customer/view-state.test.js
           node --check frontend/customer/search.test.js
           node --check frontend/customer/orders-view.test.js
+          node --check frontend/customer/keyboard.test.js
           node --check sw.js
       - name: Run customer view-state tests
         run: node frontend/customer/view-state.test.js
@@ -60,6 +62,8 @@ jobs:
         run: node frontend/customer/search.test.js
       - name: Run customer orders-view tests
         run: node frontend/customer/orders-view.test.js
+      - name: Run customer keyboard tests
+        run: node frontend/customer/keyboard.test.js
       - name: Check Worker JavaScript
         working-directory: worker
         run: |
@@ -153,7 +157,11 @@ jobs:
           grep -q "const customerSearch=window.FreshWayCustomerSearch" app.js
           grep -q "customerSearch.bind({document,render:renderProducts})" app.js
           grep -q "frontend/customer/search.js" index.html
-          ! grep -q "searchInput.*addEventListener('input'" app.js
+          grep -q "window.FreshWayCustomerKeyboard" frontend/customer/keyboard.js
+          grep -q "const customerKeyboard=window.FreshWayCustomerKeyboard" app.js
+          grep -q "customerKeyboard.bind({document,onHome:()=>setView('home')})" app.js
+          grep -q "frontend/customer/keyboard.js" index.html
+          ! grep -q "brandHome.*addEventListener('keydown'" index.html
       - name: Enforce backend feature boundaries
         run: |
           node - <<'NODE'
