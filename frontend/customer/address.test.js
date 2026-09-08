@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict');
+const vm=require('node:vm');
+const context={window:{}};
+vm.runInNewContext(require('node:fs').readFileSync('frontend/customer/address.js','utf8'),context);
+const api=context.window.FreshWayCustomerAddress;
+assert.equal(typeof api.normalize,'function');
+assert.equal(api.format({house:' 12 ',area:' Main Road ',city:'Warangal',pincode:'506001'}),'12, Main Road, Warangal - 506001');
+assert.equal(api.validate({house:'12',area:'Main Road',city:'Warangal',pincode:'506001'}),'');
+assert.equal(api.validate({house:'12',area:'Main Road',city:'Warangal',pincode:'123'}),'Enter a valid 6-digit PIN code');
+assert.equal(api.validate({house:'12',area:'',city:'Warangal',pincode:'506001'}),'Complete your delivery address');
+console.log('customer address helpers OK');
