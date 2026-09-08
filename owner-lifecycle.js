@@ -15,8 +15,6 @@
   document.addEventListener('DOMContentLoaded',()=>{const sel=document.getElementById('orderStatus');if(sel)sel.innerHTML='<option value="all">All status</option><option value="New">New</option><option value="Confirmed">Confirmed</option><option value="Processing">Processing</option><option value="Ready">Ready</option><option value="Out for Delivery">Out for delivery</option><option value="Delivered">Delivered</option><option value="Cancelled">Cancelled</option>';const cash=document.getElementById('cash');if(cash){const observer=new MutationObserver(()=>{if(cash.classList.contains('active')){const root=document.getElementById('cashSummary');if(root)root.dataset.cashEnhanced='';enhanceCash()}});observer.observe(cash,{attributes:true,subtree:true,attributeFilter:['class']})}if(location.hash==='#cash')enhanceCash(true)});
   if(!document.querySelector('script[src*="frontend/admin/catalogue.js"]')){const s=document.createElement('script');s.src='frontend/admin/catalogue.js?v=20260908-catalogue-v1';document.body.appendChild(s)}
 
-  // One authoritative Owner refresh handler. admin.js still installs its legacy handler,
-  // so this assignment intentionally replaces that onclick after admin.js has loaded.
   const ownerRefresh=async()=>{
     const button=document.getElementById('refreshBtn');
     if(button){button.disabled=true;button.setAttribute('aria-busy','true');}
@@ -36,12 +34,15 @@
     finally{const b=document.getElementById('refreshBtn');if(b){b.disabled=false;b.removeAttribute('aria-busy')}}
   };
   window.freshWayOwnerRefresh=ownerRefresh;
-  const installRefresh=()=>{
+  const removeDuplicateRefreshControls=()=>{
+    document.getElementById('refreshHistory')?.remove();
+    document.getElementById('fwRefreshCatalogue')?.remove();
     const b=document.getElementById('refreshBtn');
-    if(!b)return false;
+    if(!b)return;
     b.type='button';
     b.onclick=ownerRefresh;
-    return true;
   };
-  if(!installRefresh())document.addEventListener('DOMContentLoaded',installRefresh,{once:true});
+  removeDuplicateRefreshControls();
+  document.addEventListener('DOMContentLoaded',removeDuplicateRefreshControls,{once:true});
+  if(document.body)new MutationObserver(removeDuplicateRefreshControls).observe(document.body,{childList:true,subtree:true});
 })();
