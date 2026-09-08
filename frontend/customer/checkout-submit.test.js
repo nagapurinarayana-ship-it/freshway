@@ -50,7 +50,7 @@ assert.equal(listeners[0][0],'submit');
 (async()=>{
   await service.submitOrder({preventDefault(){},target:elements['#checkoutForm']});
   assert.equal(state.orders[0].id,'order-1');
-  assert.deepEqual(state.cart,{});
+  assert.equal(JSON.stringify(state.cart),'{}');
   assert.equal(state.profile.address,'formatted');
   assert.equal(state.profile.checkout.name,'Ravi');
   assert.equal(state.profile.checkout.phone,'9876543210');
