@@ -98,7 +98,7 @@ async function createOrder(env, payload) {
     .bind(customerId, String(address.house).trim().slice(0, 200), String(address.area).trim().slice(0, 200), String(address.city).trim().slice(0, 100), String(address.pincode), String(address.landmark || '').trim().slice(0, 200), String(address.note || '').trim().slice(0, 500)).run();
   const addressId = addressResult?.meta?.last_row_id; if (!addressId) throw new Error('Could not save delivery address.');
   const id = orderId(), createdAt = now();
-  const statements = [env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at) VALUES (?,?,?,?,?,?, 'Pending','Ordered','Tomorrow',?,?,?)`).bind(id, customerId, addressId, customerName, phone, total, clientOrderId || null, createdAt, createdAt), ...items.map(item => env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total) VALUES (?,?,?,?,?,?,?)`).bind(id, item.id, item.name, item.unit, item.qty, item.price, item.lineTotal))];
+  const statements = [env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at) VALUES (?,?,?,?,?,?, 'Pending','New','Tomorrow',?,?,?)`).bind(id, customerId, addressId, customerName, phone, total, clientOrderId || null, createdAt, createdAt), ...items.map(item => env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total) VALUES (?,?,?,?,?,?,?)`).bind(id, item.id, item.name, item.unit, item.qty, item.price, item.lineTotal))];
   try { await env.DB.batch(statements); } catch (error) {
     await env.DB.prepare('DELETE FROM addresses WHERE id=?').bind(addressId).run();
     if (clientOrderId && /unique|constraint/i.test(error?.message || '')) {
@@ -108,7 +108,7 @@ async function createOrder(env, payload) {
     throw error;
   }
   try { await sendCustomerPush(env, customerId, 'FreshWay order placed', `Order ${id} is confirmed. Delivery is planned for tomorrow or when your route is available.`); } catch (_) {}
-  return { id, customerId, total, payment: 'Pending', status: 'Ordered', deliveryPlan: 'Tomorrow', createdAt, updatedAt: createdAt, address: { ...address, pincode: String(address.pincode) }, items };
+  return { id, customerId, total, payment: 'Pending', status: 'New', deliveryPlan: 'Tomorrow', createdAt, updatedAt: createdAt, address: { ...address, pincode: String(address.pincode) }, items };
 }
 
 async function customerOrders(env, customerId) {
