@@ -30,6 +30,6 @@
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',restore,{once:true});
     else restore();
   };
-  window.FreshWayCustomerViewState=Object.freeze({VIEW_KEY,saveView,clickedView,bind});
-  bind({document,window});
+  window.FreshWayCustomerViewState=Object.freeze({KEY:VIEW_KEY,VIEW_KEY,saveView,clickedView,bind});
+  if(typeof document!=='undefined'&&typeof window!=='undefined')bind({document,window});
 })();
