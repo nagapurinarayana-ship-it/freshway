@@ -37,6 +37,7 @@ jobs:
           node --check frontend/customer/storage.js
           node --check frontend/customer/catalogue-cart.js
           node --check frontend/customer/orders.js
+          node --check frontend/customer/orders-view.js
           node --check frontend/customer/checkout.js
           node --check frontend/customer/profile.js
           node --check frontend/customer/confirmation.js
@@ -51,11 +52,14 @@ jobs:
           node --check frontend/customer/search.js
           node --check frontend/customer/view-state.test.js
           node --check frontend/customer/search.test.js
+          node --check frontend/customer/orders-view.test.js
           node --check sw.js
       - name: Run customer view-state tests
         run: node frontend/customer/view-state.test.js
       - name: Run customer search tests
         run: node frontend/customer/search.test.js
+      - name: Run customer orders-view tests
+        run: node frontend/customer/orders-view.test.js
       - name: Check Worker JavaScript
         working-directory: worker
         run: |
@@ -92,6 +96,11 @@ jobs:
           grep -q "customerOrders.normalize" app.js
           grep -q "customerOrders.latest" app.js
           grep -q "customerOrders.statusLabel" app.js
+          grep -q "window.FreshWayCustomerOrdersView" frontend/customer/orders-view.js
+          grep -q "const customerOrdersView=window.FreshWayCustomerOrdersView" app.js
+          grep -q "customerOrdersView.render(document,list" app.js
+          grep -q "frontend/customer/orders-view.js" index.html
+          ! grep -q "function renderOrders(list=customerOrders.normalize" app.js
           grep -q "window.FreshWayCustomerCheckout" frontend/customer/checkout.js
           grep -q "frontend/customer/checkout.js" index.html
           grep -q "const customerCheckout=window.FreshWayCustomerCheckout" app.js
