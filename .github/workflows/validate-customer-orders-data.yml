@@ -1,0 +1,42 @@
+name: FreshWay customer order data validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app.js'
+      - 'index.html'
+      - 'frontend/customer/orders-data.js'
+      - 'frontend/customer/orders-data.test.js'
+      - '.github/workflows/validate-customer-orders-data.yml'
+
+jobs:
+  customer-orders-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check JavaScript
+        run: |
+          node --check app.js
+          node --check frontend/customer/orders-data.js
+          node --check frontend/customer/orders-data.test.js
+      - name: Run focused order data tests
+        run: node frontend/customer/orders-data.test.js
+      - name: Enforce order data boundary
+        run: |
+          grep -q "window.FreshWayCustomerOrdersData" frontend/customer/orders-data.js
+          grep -q "const customerOrdersDataModule=window.FreshWayCustomerOrdersData" app.js
+          grep -q "const customerOrderData=customerOrdersDataModule.create" app.js
+          grep -q "customerOrderData.load()" app.js
+          grep -q "customerOrderData.start()" app.js
+          grep -q "customerOrderData.stop()" app.js
+          grep -q "frontend/customer/orders-data.js" index.html
+          ! grep -q "async function loadOrders" app.js
+          ! grep -q "function startOrdersRefresh" app.js
+          ! grep -q "function stopOrdersRefresh" app.js
+          ! grep -q "let ordersRefreshTimer" app.js
