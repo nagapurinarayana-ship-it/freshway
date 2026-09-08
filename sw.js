@@ -41,7 +41,7 @@ self.addEventListener('push', event => {
   if (!event.data) return;
   let data = {};
   try { data = event.data.json(); } catch (_) { data = { body: event.data.text() }; }
-  event.waitUntil(self.registration.showNotification(data.title || 'FreshWay update', {
+  event.waitUntil(self.registration.showNotification(data.title || 'FreshWay', {
     body: data.body || 'You have a new FreshWay update.',
     icon: data.icon || '/icon.svg', badge: data.badge || '/icon.svg',
     tag: data.tag || 'freshway-notification', data: { url: data.url || '/', ...(data.data || {}) }
