@@ -33,6 +33,15 @@ export async function notifyOrderChange(request, env) {
     } else if (payment === 'Collected') {
       title = 'FreshWay payment update';
       message = `Payment for order ${id} has been collected.`;
+    } else if (payment === 'Refunded') {
+      title = 'FreshWay payment update';
+      message = `Payment for order ${id} has been refunded.`;
+    } else if (payment === 'Cancelled') {
+      title = 'FreshWay payment update';
+      message = `Payment for order ${id} has been cancelled.`;
+    } else if (payment === 'Not Collected') {
+      title = 'FreshWay payment update';
+      message = `Payment for order ${id} is not collected.`;
     } else if (plan) {
       title = 'FreshWay delivery update';
       message = `Delivery for order ${id} is planned for ${plan}.`;
