@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v12';
+const CACHE = 'freshway-v13';
 const APP_SHELL = [
   '/',
   '/index.html?v=20260907-v8',
@@ -12,9 +12,10 @@ const APP_SHELL = [
   '/icon.svg?v=20260907-logo-v2',
   '/admin.html',
   '/admin.css?v=20260907-owner-v2',
-  '/admin.js?v=20260907-owner-v4',
-  '/owner-lifecycle.js?v=20260908-owner-v4',
-  '/owner-address-final.js?v=20260907-address-final-v3',
+  '/admin.js?v=20260909-owner-v5',
+  '/frontend/admin/catalogue.js?v=20260909-catalogue-v5',
+  '/owner-lifecycle.js?v=20260909-refresh-v3',
+  '/owner-address-final.js?v=20260909-address-final-v6',
   '/freshway-logo-clean.svg?v=20260908-logo-v4'
 ];
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(APP_SHELL)).catch(() => {})); self.skipWaiting(); });
@@ -40,7 +41,7 @@ self.addEventListener('push', event => {
   if (!event.data) return;
   let data = {};
   try { data = event.data.json(); } catch (_) { data = { body: event.data.text() }; }
-  event.waitUntil(self.registration.showNotification(data.title || 'FreshWay', {
+  event.waitUntil(self.registration.showNotification(data.title || 'FreshWay update', {
     body: data.body || 'You have a new FreshWay update.',
     icon: data.icon || '/icon.svg', badge: data.badge || '/icon.svg',
     tag: data.tag || 'freshway-notification', data: { url: data.url || '/', ...(data.data || {}) }
