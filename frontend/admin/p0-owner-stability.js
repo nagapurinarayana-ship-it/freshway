@@ -22,8 +22,13 @@
     };
   }
 
+  let refreshing=false;
   const refreshCurrent=async()=>{
+    if(refreshing)return;
+    refreshing=true;
     const id=location.hash.slice(1)||'overview';
+    const button=document.getElementById('refreshBtn');
+    if(button){button.disabled=true;button.setAttribute('aria-busy','true');button.dataset.refreshing='1';}
     try{
       if(id==='overview'){
         await Promise.all([loadSummary(),loadBusiness(),loadHome()]);
@@ -46,13 +51,29 @@
       }
     }catch(e){
       if(typeof toast==='function')toast(e.message||'Refresh failed');
+    }finally{
+      refreshing=false;
+      const current=document.getElementById('refreshBtn');
+      if(current){current.disabled=false;current.removeAttribute('aria-busy');delete current.dataset.refreshing;}
     }
   };
+  window.freshWayOwnerRefresh=refreshCurrent;
 
-  // Keep one consistent Owner refresh control: the top-right control.
+  const bindRefresh=()=>{
+    const button=document.getElementById('refreshBtn');
+    if(!button||button.dataset.refreshBound==='1')return;
+    button.dataset.refreshBound='1';
+    button.type='button';
+    button.addEventListener('click',e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      refreshCurrent();
+    });
+  };
+
   document.addEventListener('click',e=>{
     const target=e.target;
-    if(target.closest('#refreshBtn')){
+    if(target&&target.closest('#refreshBtn')){
       e.preventDefault();
       e.stopImmediatePropagation();
       refreshCurrent();
@@ -62,6 +83,7 @@
   const removeDuplicateRefreshControls=()=>{
     document.getElementById('fwRefreshCatalogue')?.remove();
     document.getElementById('refreshHistory')?.remove();
+    bindRefresh();
   };
 
   document.addEventListener('DOMContentLoaded',removeDuplicateRefreshControls,{once:true});
