@@ -17,6 +17,7 @@ const customerNotifications=window.FreshWayCustomerNotifications;
 const catalogueCart=window.FreshWayCatalogueCart;
 const customerOrders=window.FreshWayCustomerOrders;
 const customerOrdersView=window.FreshWayCustomerOrdersView;
+const customerOrdersData=window.FreshWayCustomerOrdersData;
 const customerProfile=window.FreshWayCustomerProfile;
 const customerCheckout=window.FreshWayCustomerCheckout;
 const customerConfirmation=window.FreshWayCustomerConfirmation;
@@ -38,7 +39,6 @@ const money=customerOrderDisplay.money;
 const esc=v=>String(v??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c]));
 const state=customerStorage.read();
 let PRODUCTS=FALLBACK_PRODUCTS.slice();
-let ordersRefreshTimer=null;
 const save=()=>customerStorage.save(state);
 const api=customerAPI.request;
 const customerId=customerAuth.customerId;
@@ -50,12 +50,9 @@ function renderProducts(filter=''){customerProductView.render(PRODUCTS,state,fil
 function updateCartBar(){customerCartBar.update(document,{count:cartCount(),total:cartTotal(),money})}
 function renderCart(){customerCartView.render(cartItems(),cartTotal(),{esc,money,setView})}
 function renderOrders(list=customerOrders.normalize(state.orders)){customerOrdersView.render(document,list,{esc,formatDate:customerOrderDisplay.formatDate,money,statusLabel:customerOrders.statusLabel,planText:customerOrderDisplay.planText})}
-async function loadOrders(){const id=customerId();if(!id){renderOrders(state.orders);return}try{const d=await api(`/api/orders?customerId=${encodeURIComponent(id)}`);if(Array.isArray(d.orders)){state.orders=d.orders;save();renderOrders(state.orders);renderProfile()}}catch(_){renderOrders(state.orders);if(state.orders.length)toast('Showing saved orders from this device.')}}
-function startOrdersRefresh(){clearInterval(ordersRefreshTimer);ordersRefreshTimer=setInterval(()=>{if($('#ordersView')?.classList.contains('active-view'))loadOrders()},30000)}
-function stopOrdersRefresh(){clearInterval(ordersRefreshTimer);ordersRefreshTimer=null}
 function latestOrder(){return customerOrders.latest(state.orders)}
 function prefillCheckout(){const last=latestOrder(),saved=state.profile?.checkout||{},a=customerProfile.savedAddress(state.profile,last);const fields=[['#customerName',saved.name||last?.customer?.name||''],['#customerPhone',saved.phone||last?.customer?.phone||'']];fields.forEach(([sel,val])=>{const el=$(sel);if(el&&!el.value)el.value=val});customerAddressFlow.fill(document,a,{onlyEmpty:true})}
-function handleView(name){if(name==='orders'){renderOrders();loadOrders();startOrdersRefresh()}else stopOrdersRefresh();if(name==='cart')renderCart();if(name==='checkout'){prefillCheckout();updateCartBar()}if(name==='profile')renderProfile()}
+function handleView(name){if(name==='orders'){renderOrders();customerOrdersData.load();customerOrdersData.start()}else customerOrdersData.stop();if(name==='cart')renderCart();if(name==='checkout'){prefillCheckout();updateCartBar()}if(name==='profile')renderProfile()}
 const navigation=customerNavigation.create({document,onView:handleView});
 function setView(name){navigation.setView(name)}
 function renderProfile(){const last=latestOrder(),name=$('#profileName'),phone=$('#profilePhone'),addr=$('#profileAddressText'),home=$('#homeAddress');if(name)name.textContent=customerProfile.name(state.profile,last);if(phone)phone.textContent=customerProfile.phone(state.profile,last);if(addr)addr.textContent=customerProfile.displayAddress(state.profile);if(home)home.textContent=customerProfile.homeAddress(state.profile)}
@@ -74,4 +71,4 @@ const checkoutForm=$('#checkoutForm');if(checkoutForm)checkoutForm.addEventListe
 customerSearch.bind({document,render:renderProducts});
 customerKeyboard.bind({document,onHome:()=>setView('home')});
 customerCartActions.bind({document,changeQty,toast});
-renderProducts();renderProfile();updateCartBar();loadProducts();loadOrders();
+renderProducts();renderProfile();updateCartBar();loadProducts();customerOrdersData.load();
