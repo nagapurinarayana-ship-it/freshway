@@ -1,0 +1,33 @@
+name: Customer address flow validation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  validate-address-flow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check customer address modules
+        run: |
+          node --check frontend/customer/address.js
+          node --check frontend/customer/address-flow.js
+          node --check frontend/customer/address-flow.test.js
+          node frontend/customer/address-flow.test.js
+      - name: Enforce address-flow wiring
+        run: |
+          grep -q "window.FreshWayCustomerAddress" frontend/customer/address.js
+          grep -q "window.FreshWayCustomerAddressFlow" frontend/customer/address-flow.js
+          grep -q "const customerAddress=window.FreshWayCustomerAddress" app.js
+          grep -q "const customerAddressFlow=window.FreshWayCustomerAddressFlow" app.js
+          grep -q "customerAddressFlow.fill(document,a,{onlyEmpty:true})" app.js
+          grep -q "customerAddressFlow.read(document,customerAddress)" app.js
+          grep -q "frontend/customer/address-flow.js" index.html
