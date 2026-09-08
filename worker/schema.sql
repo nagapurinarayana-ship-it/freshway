@@ -1,10 +1,23 @@
+CREATE TABLE IF NOT EXISTS categories (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  icon TEXT NOT NULL DEFAULT '🛒',
+  description TEXT NOT NULL DEFAULT '',
+  display_order INTEGER NOT NULL DEFAULT 999,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS products (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   unit TEXT NOT NULL,
   price INTEGER NOT NULL CHECK(price >= 0),
-  emoji TEXT NOT NULL DEFAULT '🍎',
+  emoji TEXT NOT NULL DEFAULT '🛒',
   active INTEGER NOT NULL DEFAULT 1,
+  category_id TEXT REFERENCES categories(id) ON DELETE SET NULL,
+  display_order INTEGER NOT NULL DEFAULT 999,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -124,6 +137,8 @@ CREATE TABLE IF NOT EXISTS auth_rate_limits (
   count INTEGER NOT NULL CHECK(count >= 0),
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_categories_active_order ON categories(active, display_order, name);
+CREATE INDEX IF NOT EXISTS idx_products_category_active ON products(category_id, active, name);
 CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
 CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(delivery_status, created_at DESC);
@@ -135,5 +150,6 @@ CREATE INDEX IF NOT EXISTS idx_addresses_customer_label ON addresses(customer_id
 CREATE INDEX IF NOT EXISTS idx_order_address_snapshots_location ON order_address_snapshots(latitude,longitude);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_auth_rate_limits_window ON auth_rate_limits(window_start);
-INSERT OR IGNORE INTO products (id,name,unit,price,emoji,active) VALUES
-('apple','Apple','kg',120,'🍎',1),('banana','Banana','dozen',60,'🍌',1),('mango','Mango','kg',180,'🥭',1),('orange','Orange','kg',100,'🍊',1),('watermelon','Watermelon','piece',50,'🍉',1),('grapes','Grapes','kg',110,'🍇',1),('pineapple','Pineapple','piece',70,'🍍',1),('guava','Guava','kg',90,'🍐',1),('papaya','Papaya','piece',80,'🧡',1),('pomegranate','Pomegranate','kg',160,'❤️',1);
+INSERT OR IGNORE INTO categories (id,name,slug,icon,description,display_order,active) VALUES
+('cat-oils','Oils','oils','🫒','Cooking and everyday oils',1,1),
+('cat-rice','Rice','rice','🍚','Rice and rice varieties',2,1);
