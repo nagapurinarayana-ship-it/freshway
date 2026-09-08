@@ -1,0 +1,30 @@
+name: FreshWay customer auth validation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  auth:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check customer auth JavaScript
+        run: |
+          node --check frontend/customer/auth.js
+          node --check frontend/customer/auth.test.js
+      - name: Run customer auth tests
+        run: node frontend/customer/auth.test.js
+      - name: Enforce customer auth boundary
+        run: |
+          grep -q "window.FreshWayCustomerAuth" frontend/customer/auth.js
+          grep -q "const customerAuth=window.FreshWayCustomerAuth" app.js
+          grep -q "customerAuth.ensureAuthenticated()" app.js
+          grep -q "frontend/customer/auth.js" index.html
