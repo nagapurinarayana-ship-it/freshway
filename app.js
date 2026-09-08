@@ -27,6 +27,7 @@ const customerModal=window.FreshWayCustomerModal;
 const customerSearch=window.FreshWayCustomerSearch;
 const customerKeyboard=window.FreshWayCustomerKeyboard;
 const customerAddress=window.FreshWayCustomerAddress;
+const customerCartActions=window.FreshWayCustomerCartActions;
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const money=customerOrderDisplay.money;
@@ -64,8 +65,9 @@ window.showConfirmation=showConfirmation;
 window.setView=setView;
 window.state=state;
 async function loadProducts(){try{const d=await api('/api/products');if(Array.isArray(d.products)&&d.products.length)PRODUCTS=d.products}catch(_){}renderProducts($('#searchInput')?.value||'')}
-document.addEventListener('click',e=>{const t=e.target;const add=t.closest('[data-add]'),plus=t.closest('[data-plus]'),minus=t.closest('[data-minus]');if(add)changeQty(add.dataset.add,1);if(plus)changeQty(plus.dataset.plus,1);if(minus)changeQty(minus.dataset.minus,-1);const nav=t.closest('[data-nav]');if(nav)setView(nav.dataset.nav);if(t.closest('#viewCartBtn'))setView('cart');if(t.closest('#checkoutBtn'))setView('checkout');if(t.closest('#addressBtn')||t.closest('#profileAddress'))openAddressModal();if(t.hasAttribute('data-close-modal'))closeModal();if(t.closest('#profileBtn'))setView('profile');if(t.closest('#brandHome'))setView('home');if(t.closest('.back-btn'))setView(t.closest('.back-btn').dataset.back);if(add||plus)toast('Added to cart')});
+document.addEventListener('click',e=>{const t=e.target;const nav=t.closest('[data-nav]');if(nav)setView(nav.dataset.nav);if(t.closest('#viewCartBtn'))setView('cart');if(t.closest('#checkoutBtn'))setView('checkout');if(t.closest('#addressBtn')||t.closest('#profileAddress'))openAddressModal();if(t.hasAttribute('data-close-modal'))closeModal();if(t.closest('#profileBtn'))setView('profile');if(t.closest('#brandHome'))setView('home');if(t.closest('.back-btn'))setView(t.closest('.back-btn').dataset.back)});
 const checkoutForm=$('#checkoutForm');if(checkoutForm)checkoutForm.addEventListener('submit',submitOrder);
 customerSearch.bind({document,render:renderProducts});
 customerKeyboard.bind({document,onHome:()=>setView('home')});
+customerCartActions.bind({document,changeQty,toast});
 renderProducts();renderProfile();updateCartBar();loadProducts();loadOrders();
