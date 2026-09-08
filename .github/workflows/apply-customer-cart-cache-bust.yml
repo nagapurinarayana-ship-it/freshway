@@ -1,0 +1,54 @@
+name: Apply customer cart cache bust
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-customer-cart-cache-bust.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Bust customer app script caches
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('index.html')
+          s = p.read_text()
+          replacements = {
+              'app.js?v=20260908-modular-v13': 'app.js?v=20260909-cart-v14',
+              'frontend/customer/api.js?v=20260908-customer-api-v1': 'frontend/customer/api.js?v=20260909-cart-v14',
+          }
+          for old, new in replacements.items():
+              if s.count(old) != 1:
+                  raise SystemExit(f'index.html expected exactly one {old!r}, found {s.count(old)}')
+              s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+
+      - name: Validate customer app JavaScript
+        run: |
+          node --check app.js
+          node --check frontend/customer/api.js
+          node --check sw.js
+
+      - name: Commit and push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git diff --cached --check
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: bust customer cart script caches'
+          git push origin HEAD:main
