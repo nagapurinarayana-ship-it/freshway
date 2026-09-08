@@ -1,0 +1,99 @@
+name: FreshWay validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install Worker dependencies
+        working-directory: worker
+        run: npm install
+      - name: Run automated Worker tests
+        working-directory: worker
+        run: npm test
+      - name: Check browser JavaScript
+        run: |
+          find . -maxdepth 3 -type f -name '*.js' -not -path './node_modules/*' -not -path './worker/node_modules/*' -print0 | xargs -0 -n1 node --check
+      - name: Run customer boundary tests
+        run: |
+          for test in frontend/customer/*.test.js; do
+            node "$test"
+          done
+      - name: Check customer module wiring
+        run: |
+          test -s frontend/customer/api.js
+          test -s frontend/customer/storage.js
+          test -s frontend/customer/catalogue-cart.js
+          test -s frontend/customer/orders.js
+          test -s frontend/customer/orders-data.js
+          test -s frontend/customer/orders-view.js
+          test -s frontend/customer/checkout.js
+          test -s frontend/customer/checkout-submit.js
+          test -s frontend/customer/profile.js
+          test -s frontend/customer/address.js
+          test -s frontend/customer/address-flow.js
+          test -s frontend/customer/confirmation.js
+          test -s frontend/customer/order-display.js
+          test -s frontend/customer/cart-view.js
+          test -s frontend/customer/feedback.js
+          test -s frontend/customer/product-view.js
+          test -s frontend/customer/navigation.js
+          test -s frontend/customer/modal.js
+          test -s frontend/customer/account-actions.js
+          test -s frontend/customer/view-state.js
+          test -s frontend/customer/search.js
+          test -s frontend/customer/keyboard.js
+          test -s frontend/customer/cart-actions.js
+          test -s frontend/customer/cart-bar.js
+          grep -q 'FreshWayCustomerAPI' app.js
+          grep -q 'FreshWayCustomerStorage' app.js
+          grep -q 'FreshWayCatalogueCart' app.js
+          grep -q 'FreshWayCustomerOrdersData' app.js
+          grep -q 'FreshWayCustomerCheckoutSubmit' app.js
+          grep -q 'checkoutSubmit.bind()' app.js
+          grep -q 'frontend/customer/checkout-submit.js' index.html
+      - name: Check backend feature boundaries
+        run: |
+          grep -q "from './admin-orders.js'" worker/src/admin-data.js
+          grep -q "from './admin-reports.js'" worker/src/admin-data.js
+          grep -q "from './admin-customers.js'" worker/src/admin-data.js
+          grep -q "from './admin-products.js'" worker/src/admin-data.js
+          grep -q "from './admin-notifications.js'" worker/src/admin-auth.js
+          grep -q "from './admin-response.js'" worker/src/admin-auth.js
+          grep -q 'export async function notifyOrderChange' worker/src/admin-notifications.js
+          grep -q 'export async function normalizeOwnerResponse' worker/src/admin-response.js
+          ! grep -q "from 'web-push'" worker/src/admin-auth.js
+      - name: Check D1 schema and migrations
+        working-directory: worker
+        run: |
+          test -s schema.sql
+          grep -q 'delivery_plan' schema.sql
+          grep -q 'INSERT OR IGNORE INTO products' schema.sql
+          for migration in migrations/0001_delivery_plan.sql migrations/0002_order_idempotency.sql migrations/0003_auth_rate_limits.sql migrations/0004_unique_customer_phone.sql migrations/0005_customer_passcode_auth.sql migrations/0007_owner_order_lifecycle.sql migrations/0008_address_system_final.sql migrations/0009_seed_default_catalogue.sql; do test -s "$migration"; done
+          grep -q 'client_order_id' migrations/0002_order_idempotency.sql
+          grep -q 'auth_rate_limits' migrations/0003_auth_rate_limits.sql
+          grep -q 'CREATE UNIQUE INDEX' migrations/0004_unique_customer_phone.sql
+          grep -q 'passcode_hash' migrations/0005_customer_passcode_auth.sql
+          grep -q 'Out for Delivery' migrations/0007_owner_order_lifecycle.sql
+          if find migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sed -E 's/^([0-9]+)_.*/\1/' | sort | uniq -d | grep -q .; then exit 1; fi
+      - name: Check Worker configuration
+        working-directory: worker
+        run: node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); const required=['ADMIN_TOKEN','CUSTOMER_SESSION_SECRET','ADMIN_SESSION_SECRET']; if(!x.name||!x.main||!x.d1_databases?.[0]?.binding||x.main!=='src/admin-auth.js'||required.some(s=>!x.secrets?.required?.includes(s))||x.vars?.OTP_PROVIDER||x.secrets?.optional?.length) process.exit(1); console.log('wrangler configuration OK')"
+      - name: Check for committed secret values
+        run: |
+          ! grep -RInE '(WHATSAPP_ACCESS_TOKEN|VAPID_PRIVATE_KEY|ADMIN_TOKEN|CUSTOMER_SESSION_SECRET|ADMIN_SESSION_SECRET|TWILIO_ACCOUNT_SID|TWILIO_AUTH_TOKEN|TWILIO_VERIFY_SERVICE_SID)[[:space:]]*[:=][[:space:]]*[^$\"\047[:space:]]{20,}' --exclude-dir=.git --exclude='api.test.js' --exclude='secure-identity.test.js' .
+      - name: Check test fixtures are non-production values
+        run: |
+          grep -q 'fixture-admin' worker/test/api.test.js
+          grep -q 'fixture-customer-session' worker/test/api.test.js
