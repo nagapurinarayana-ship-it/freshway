@@ -20,6 +20,7 @@
   async function saveCategory(e,c){e.preventDefault();const payload={name:$('#fwCatName').value.trim(),icon:$('#fwCatIcon').value.trim()||'🛒',description:$('#fwCatDesc').value.trim(),displayOrder:Number($('#fwCatOrder').value)||999,active:$('#fwCatActive').value==='1'};try{await api(c?`/admin/categories/${encodeURIComponent(c.id)}`:'/admin/categories',{method:c?'PATCH':'POST',body:JSON.stringify(payload)});closeModal();await load();toast(c?'Category updated':'Category created')}catch(x){toast(x.message)}}
   async function saveProduct(e,p){e.preventDefault();const payload={name:$('#fwPName').value.trim(),categoryId:$('#fwPCat').value,price:Number($('#fwPPrice').value),unit:$('#fwPUnit').value,emoji:$('#fwPEmoji').value.trim()||'🛒',displayOrder:Number($('#fwPOrder').value)||999,active:$('#fwPActive').value==='1'};try{await api(p?`/admin/catalogue/products/${encodeURIComponent(p.id)}`:'/admin/catalogue/products',{method:p?'PATCH':'POST',body:JSON.stringify(payload)});closeModal();selected=payload.categoryId;await load();toast(p?'Product updated':'Product added')}catch(x){toast(x.message)}}
   async function mutate(path,method,payload,msg){try{await api(path,{method,body:payload?JSON.stringify(payload):undefined});await load();toast(msg)}catch(e){toast(e.message)}}
+  window.freshWayCatalogueRefresh=load;
   function install(){
     const baseNavigate=window.navigateAdminScreen;
     if(typeof baseNavigate!=='function')return;
