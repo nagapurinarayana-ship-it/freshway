@@ -10,7 +10,7 @@ assert.equal(typeof create,'function');
 
 const listeners=[];
 const elements={
-  '#checkoutForm':{querySelector:()=>({disabled:false,innerHTML:'',textContent:''}),addEventListener:(type,fn)=>listeners.push([type,fn])},
+  '#checkoutForm':{querySelector:()=>({disabled:false,innerHTML:'',textContent:''}),addEventListener:(type,fn)=>listeners.push([type,fn]),reset:()=>{}},
   '#customerName':{value:'Ravi'},
   '#customerPhone':{value:'9876543210'},
   '#whatsappOptIn':{checked:true}
