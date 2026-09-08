@@ -57,6 +57,7 @@ jobs:
           node --check frontend/customer/search.test.js
           node --check frontend/customer/orders-view.test.js
           node --check frontend/customer/keyboard.test.js
+          node --check frontend/customer/cart-actions.test.js
           node --check sw.js
       - name: Run customer view-state tests
         run: node frontend/customer/view-state.test.js
@@ -66,6 +67,8 @@ jobs:
         run: node frontend/customer/orders-view.test.js
       - name: Run customer keyboard tests
         run: node frontend/customer/keyboard.test.js
+      - name: Run customer cart-actions tests
+        run: node frontend/customer/cart-actions.test.js
       - name: Check Worker JavaScript
         working-directory: worker
         run: |
