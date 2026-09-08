@@ -150,6 +150,7 @@ CREATE INDEX IF NOT EXISTS idx_addresses_customer_label ON addresses(customer_id
 CREATE INDEX IF NOT EXISTS idx_order_address_snapshots_location ON order_address_snapshots(latitude,longitude);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_auth_rate_limits_window ON auth_rate_limits(window_start);
+-- INSERT OR IGNORE INTO products is intentionally omitted: the V1 catalogue is admin-managed.
 INSERT OR IGNORE INTO categories (id,name,slug,icon,description,display_order,active) VALUES
 ('cat-oils','Oils','oils','🫒','Cooking and everyday oils',1,1),
 ('cat-rice','Rice','rice','🍚','Rice and rice varieties',2,1);
