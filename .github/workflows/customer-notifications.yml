@@ -26,7 +26,7 @@ jobs:
         run: |
           grep -q "window.FreshWayCustomerNotifications" frontend/customer/notifications.js
           grep -q "const customerNotifications=window.FreshWayCustomerNotifications" app.js
-          grep -q "customerNotifications.registerCustomer" app.js
+          grep -q "customerNotifications.registerCustomer" frontend/customer/checkout-submit.js
           grep -q "frontend/customer/notifications.js" index.html
           grep -q "notifications.enable()" frontend/customer/account-actions.js
           grep -q "auth.logout()" frontend/customer/account-actions.js
