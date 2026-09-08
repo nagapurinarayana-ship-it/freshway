@@ -15,6 +15,21 @@
   document.addEventListener('DOMContentLoaded',()=>{const sel=document.getElementById('orderStatus');if(sel)sel.innerHTML='<option value="all">All status</option><option value="New">New</option><option value="Confirmed">Confirmed</option><option value="Processing">Processing</option><option value="Ready">Ready</option><option value="Out for Delivery">Out for delivery</option><option value="Delivered">Delivered</option><option value="Cancelled">Cancelled</option>';const cash=document.getElementById('cash');if(cash){const observer=new MutationObserver(()=>{if(cash.classList.contains('active')){const root=document.getElementById('cashSummary');if(root)root.dataset.cashEnhanced='';enhanceCash()}});observer.observe(cash,{attributes:true,subtree:true,attributeFilter:['class']})}if(location.hash==='#cash')enhanceCash(true)});
   if(!document.querySelector('script[src*="frontend/admin/catalogue.js"]')){const s=document.createElement('script');s.src='frontend/admin/catalogue.js?v=20260908-catalogue-v1';document.body.appendChild(s)}
 
+  const previousNavigate=window.navigateAdminScreen;
+  if(typeof previousNavigate==='function'){
+    window.navigateAdminScreen=function(id){
+      if(id==='catalogue'){
+        document.querySelectorAll('.screen').forEach(x=>x.classList.toggle('active',x.id===id));
+        document.querySelectorAll('[data-screen]').forEach(b=>b.classList.toggle('active',b.dataset.screen===id));
+        history.replaceState(null,'',`#${id}`);
+        window.scrollTo({top:0,behavior:'auto'});
+        if(typeof window.freshWayCatalogueRefresh==='function')return window.freshWayCatalogueRefresh();
+        return;
+      }
+      return previousNavigate(id);
+    };
+  }
+
   const ownerRefresh=async()=>{
     const button=document.getElementById('refreshBtn');
     if(button){button.disabled=true;button.setAttribute('aria-busy','true');}
