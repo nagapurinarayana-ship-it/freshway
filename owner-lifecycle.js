@@ -50,4 +50,5 @@
     if(cash){const observer=new MutationObserver(()=>{if(cash.classList.contains('active')){const root=document.getElementById('cashSummary');if(root)root.dataset.cashEnhanced='';enhanceCash()}});observer.observe(cash,{attributes:true,subtree:true,attributeFilter:['class']});}
     if(location.hash==='#cash')enhanceCash(true);
   });
+  if(!document.querySelector('script[src*="frontend/admin/catalogue.js"]')){const s=document.createElement('script');s.src='frontend/admin/catalogue.js?v=20260908-catalogue-v1';document.body.appendChild(s)}
 })();
