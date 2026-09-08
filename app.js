@@ -20,6 +20,7 @@ const customerOrdersView=window.FreshWayCustomerOrdersView;
 const customerOrdersDataModule=window.FreshWayCustomerOrdersData;
 const customerProfile=window.FreshWayCustomerProfile;
 const customerCheckout=window.FreshWayCustomerCheckout;
+const customerCheckoutSubmit=window.FreshWayCustomerCheckoutSubmit;
 const customerConfirmation=window.FreshWayCustomerConfirmation;
 const customerOrderDisplay=window.FreshWayCustomerOrderDisplay;
 const customerCartView=window.FreshWayCustomerCartView;
@@ -60,15 +61,14 @@ function setView(name){navigation.setView(name)}
 function changeQty(id,delta){const current=Number(state.cart[id]||0);const next=catalogueCart.nextQuantity(current,delta);if(delta>0&&current>=99){toast('Maximum quantity is 99');return}if(next<=0)delete state.cart[id];else state.cart[id]=next;save();renderProducts($('#searchInput')?.value||'');if($('#cartView')?.classList.contains('active-view'))renderCart()}
 function openAddressModal(){customerModal.open(document)}
 function closeModal(){customerModal.close(document)}
-function checkoutClientId(data,address){const result=customerCheckout.clientOrderId(data,address,cartItems().map(x=>({id:x.product.id,qty:x.qty})),state);if(result===undefined)return null;if(typeof result==='string')return result;state.profile.pendingCheckout=result;save();return result.key}
-async function submitOrder(e){e.preventDefault();if(!cartItems().length){toast('Your cart is empty');setView('home');return}const form=e.target,name=$('#customerName')?.value.trim()||'',phone=$('#customerPhone')?.value.trim()||'',address=customerAddress.normalize(customerAddressFlow.read(document,customerAddress));const validationError=customerCheckout.validate(name,phone,address);if(validationError)return toast(validationError);const data={name,phone},clientOrderId=checkoutClientId(data,address),button=form.querySelector('button[type="submit"]');if(button){button.disabled=true;button.textContent='Placing order…'}try{await customerAuth.ensureAuthenticated();const id=customerId();if(!id)throw new Error('Please log in before placing your order.');const result=await api('/api/orders',{method:'POST',body:JSON.stringify(customerCheckout.payload(data,address,cartItems().map(x=>({id:x.product.id,qty:x.qty})),id,clientOrderId,$('#whatsappOptIn')?.checked||false))});const order={id:result.id,customer:data,address,items:(result.items||[]).map(i=>({name:i.name,unit:i.unit,qty:i.qty,price:i.price,lineTotal:i.lineTotal})),total:result.total,payment:result.payment,status:result.status,deliveryPlan:result.deliveryPlan,createdAt:result.createdAt,updatedAt:result.updatedAt};state.orders=[order,...state.orders.filter(x=>x.id!==order.id)];state.cart={};state.profile.address=customerAddress.format(address);state.profile.checkout={name,phone,address};delete state.profile.pendingCheckout;save();await customerNotifications.registerCustomer(name,phone,$('#whatsappOptIn')?.checked||false);form.reset();renderProducts();renderProfile();showConfirmation(order)}catch(err){toast(err.message||'Could not place order. Your cart is still saved.')}finally{if(button){button.disabled=false;button.innerHTML='Place order · <span id="checkoutTotal">'+money(cartTotal())+'</span>'}updateCartBar()}}
 function showConfirmation(order){customerConfirmation.show(order,{esc,planText:customerOrderDisplay.planText,setView,updateCartBar})}
+const checkoutSubmit=customerCheckoutSubmit.create({document,cartItems,state,save,customerAddress,customerAddressFlow,customerCheckout,customerAuth,customerId,api,customerNotifications,toast,renderProducts,renderProfile,showConfirmation,updateCartBar,setView,money});
 window.showConfirmation=showConfirmation;
 window.setView=setView;
 window.state=state;
 async function loadProducts(){try{const d=await api('/api/products');if(Array.isArray(d.products)&&d.products.length)PRODUCTS=d.products}catch(_){}renderProducts($('#searchInput')?.value||'')}
 document.addEventListener('click',e=>{const t=e.target;const nav=t.closest('[data-nav]');if(nav)setView(nav.dataset.nav);if(t.closest('#viewCartBtn'))setView('cart');if(t.closest('#checkoutBtn'))setView('checkout');if(t.closest('#addressBtn')||t.closest('#profileAddress'))openAddressModal();if(t.hasAttribute('data-close-modal'))closeModal();if(t.closest('#profileBtn'))setView('profile');if(t.closest('#brandHome'))setView('home');if(t.closest('.back-btn'))setView(t.closest('.back-btn').dataset.back)});
-const checkoutForm=$('#checkoutForm');if(checkoutForm)checkoutForm.addEventListener('submit',submitOrder);
+checkoutSubmit.bind();
 customerSearch.bind({document,render:renderProducts});
 customerKeyboard.bind({document,onHome:()=>setView('home')});
 customerCartActions.bind({document,changeQty,toast});
