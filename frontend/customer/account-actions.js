@@ -1,5 +1,5 @@
 // Customer account-actions boundary.
-// Owns notification enable/sign-out behavior while preserving the existing UI and auth contract.
+// Owns account menu interactions while auth and notification services stay isolated.
 (function(){
   const showToast=(document,msg,duration)=>{
     const t=document.querySelector('#toast');
@@ -9,8 +9,8 @@
     clearTimeout(window.__toast);
     window.__toast=setTimeout(()=>t.classList.remove('show'),duration);
   };
-  const bind=({document,notifications})=>{
-    if(!document||!notifications||document.__freshwayAccountActionsBound)return;
+  const bind=({document,auth,notifications})=>{
+    if(!document||!auth||!notifications||document.__freshwayAccountActionsBound)return;
     document.__freshwayAccountActionsBound=true;
     document.addEventListener('click',async e=>{
       if(e.target.closest('#enableNotifications')){
@@ -23,7 +23,7 @@
       }
       if(e.target.closest('#signOutBtn')){
         try{
-          await notifications.logout();
+          await auth.logout();
           const s=document.querySelector('#notificationStatus');
           if(s)s.textContent='Verify your mobile to enable updates';
           const p=document.querySelector('#profilePhone');
@@ -36,7 +36,7 @@
     });
     document.addEventListener('freshway:session',async()=>{
       try{
-        const s=await notifications.session();
+        const s=await auth.session();
         const p=document.querySelector('#profilePhone');
         if(p)p.textContent=s?.customerId?'Mobile verified':'Not signed in';
         const n=document.querySelector('#notificationStatus');
@@ -45,5 +45,5 @@
     });
   };
   window.FreshWayCustomerAccountActions=Object.freeze({bind});
-  if(window.FreshWayNotifications)bind({document,notifications:window.FreshWayNotifications});
+  if(window.FreshWayCustomerAuth&&window.FreshWayCustomerNotifications)bind({document,auth:window.FreshWayCustomerAuth,notifications:window.FreshWayCustomerNotifications});
 })();
