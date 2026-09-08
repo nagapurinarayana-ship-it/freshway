@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict');
+const vm=require('node:vm');
+const context={window:{},sessionStorage:{getItem(){return null},setItem(){}}};
+vm.runInNewContext(require('node:fs').readFileSync('frontend/customer/view-state.js','utf8'),context);
+const api=context.window.FreshWayCustomerViewState;
+assert.equal(api.KEY,'freshway-current-view-v1');
+assert.equal(api.clickedView({closest:s=>s==='[data-nav]'?{dataset:{nav:'orders'}}:null}),'orders');
+assert.equal(api.clickedView({closest:s=>s==='.back-btn'?{dataset:{back:'home'}}:null}),'home');
+assert.equal(api.clickedView({closest:s=>s==='#viewCartBtn'?{}:null}),'cart');
+assert.equal(api.clickedView({closest(){return null}}),null);
+console.log('customer view-state helpers OK');
