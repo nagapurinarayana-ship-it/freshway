@@ -11,3 +11,4 @@
   function install(){ensureUI();document.addEventListener('click',e=>{const b=e.target.closest('[data-fw-category]');if(b){e.preventDefault();e.stopImmediatePropagation();setMode(b.dataset.fwCategory);return}if(e.target.closest('#fwCategoryBack button')){e.preventDefault();e.stopImmediatePropagation();setMode(null);return}},true);const observer=new MutationObserver(()=>{if(selected)applyMode()});const grid=$('#productGrid');if(grid)observer.observe(grid,{childList:true});[...document.querySelectorAll('[data-nav]')].forEach(b=>b.addEventListener('click',()=>{if(b.dataset.nav==='home'){setMode(null);setTimeout(applyMode,0)}},true))}
   install();load();
 })();
+const fwPushDestinationLoader=document.createElement('script');fwPushDestinationLoader.src='frontend/customer/push-destination.js?v=20260908-push-destination-v1';fwPushDestinationLoader.async=false;document.head.appendChild(fwPushDestinationLoader);
