@@ -28,10 +28,18 @@ function clearOwnerScreenForFreshLoad(id){
   }else if(id==='notifications')empty('#notificationHistory');
   else if(id==='reports'){empty('#reportCards');empty('#topProducts');empty('#topCustomers');}
 }
+window.freshWayClearOwnerScreen=clearOwnerScreenForFreshLoad;
 const baseFreshNavigate=window.navigateAdminScreen;
 if(typeof baseFreshNavigate==='function'&&baseFreshNavigate.__fwFreshnessWrapped!=='1'){
   const freshNavigate=function(id){clearOwnerScreenForFreshLoad(id);return baseFreshNavigate(id)};
   freshNavigate.__fwFreshnessWrapped='1';
   window.navigateAdminScreen=freshNavigate;
+}
+const baseOwnerRefresh=window.freshWayOwnerRefresh;
+if(typeof baseOwnerRefresh==='function'&&baseOwnerRefresh.__fwFreshnessWrapped!=='1'){
+  const freshRefresh=async function(){const id=location.hash.slice(1)||'overview';clearOwnerScreenForFreshLoad(id);return baseOwnerRefresh()};
+  freshRefresh.__fwFreshnessWrapped='1';
+  window.freshWayOwnerRefresh=freshRefresh;
+  const btn=document.getElementById('refreshBtn');if(btn)btn.onclick=freshRefresh;
 }
 })();
