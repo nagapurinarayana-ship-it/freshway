@@ -14,5 +14,37 @@
   document.addEventListener('click',e=>{const card=e.target.closest('[data-order]');if(!card)return;e.preventDefault();e.stopImmediatePropagation();openLifecycle(card.dataset.order)},true);
   document.addEventListener('DOMContentLoaded',()=>{const sel=document.getElementById('orderStatus');if(sel)sel.innerHTML='<option value="all">All status</option><option value="New">New</option><option value="Confirmed">Confirmed</option><option value="Processing">Processing</option><option value="Ready">Ready</option><option value="Out for Delivery">Out for delivery</option><option value="Delivered">Delivered</option><option value="Cancelled">Cancelled</option>';const cash=document.getElementById('cash');if(cash){const observer=new MutationObserver(()=>{if(cash.classList.contains('active')){const root=document.getElementById('cashSummary');if(root)root.dataset.cashEnhanced='';enhanceCash()}});observer.observe(cash,{attributes:true,subtree:true,attributeFilter:['class']})}if(location.hash==='#cash')enhanceCash(true)});
   if(!document.querySelector('script[src*="frontend/admin/catalogue.js"]')){const s=document.createElement('script');s.src='frontend/admin/catalogue.js?v=20260908-catalogue-v1';document.body.appendChild(s)}
-  const p0=document.createElement('script');p0.src='frontend/admin/p0-owner-stability.js?v=20260909-p0-v3';p0.async=false;document.head.appendChild(p0);
+
+  // Final authoritative Owner refresh. This runs from the already-loaded lifecycle module,
+  // so it does not depend on a second dynamically injected refresh script.
+  const ownerRefresh=async()=>{
+    const button=document.getElementById('refreshBtn');
+    if(button){button.disabled=true;button.setAttribute('aria-busy','true');}
+    try{
+      const id=location.hash.slice(1)||'overview';
+      if(id==='overview')await Promise.all([loadSummary(),loadBusiness(),loadHome()]);
+      else if(id==='orders')await loadOrders(true);
+      else if(id==='delivery')await loadDelivery(true);
+      else if(id==='cash')await loadCash();
+      else if(id==='customers')await loadCustomers(true);
+      else if(id==='catalogue'){
+        if(typeof window.freshWayCatalogueRefresh==='function')await window.freshWayCatalogueRefresh();
+        else{const d=await api('/admin/products');products=d.products||[];renderProducts();}
+      }else if(id==='notifications')await loadHistory();
+      else if(id==='reports')await loadReports();
+    }catch(e){toast(e.message||'Refresh failed')}
+    finally{const b=document.getElementById('refreshBtn');if(b){b.disabled=false;b.removeAttribute('aria-busy')}}
+  };
+  window.freshWayOwnerRefresh=ownerRefresh;
+  const installRefresh=()=>{
+    const b=document.getElementById('refreshBtn');
+    if(!b)return false;
+    b.type='button';
+    b.onclick=ownerRefresh;
+    b.removeAttribute('data-refresh-bound');
+    return true;
+  };
+  if(!installRefresh())document.addEventListener('DOMContentLoaded',installRefresh,{once:true});
+
+  const p0=document.createElement('script');p0.src='frontend/admin/p0-owner-stability.js?v=20260909-p0-v4';p0.async=false;document.head.appendChild(p0);
 })();
