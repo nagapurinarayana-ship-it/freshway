@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v14';
+const CACHE = 'freshway-v15';
 const APP_SHELL = [
   '/',
   '/index.html?v=20260909-cart-v14',
@@ -14,7 +14,7 @@ const APP_SHELL = [
   '/admin.css?v=20260907-owner-v2',
   '/admin.js?v=20260909-owner-v5',
   '/frontend/admin/catalogue.js?v=20260909-catalogue-v5',
-  '/owner-lifecycle.js?v=20260909-refresh-v3',
+  '/owner-lifecycle.js?v=20260909-refresh-v4',
   '/owner-address-final.js?v=20260909-address-final-v6',
   '/freshway-logo-clean.svg?v=20260908-logo-v4'
 ];
@@ -24,8 +24,10 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
   event.respondWith((async () => {
     try {
-      const isLogo = new URL(event.request.url).pathname === '/freshway-logo-clean.svg';
-      const request = isLogo ? new Request(event.request, { cache: 'reload' }) : event.request;
+      const url = new URL(event.request.url);
+      const isLogo = url.pathname === '/freshway-logo-clean.svg';
+      const isOwnerLifecycle = url.pathname === '/owner-lifecycle.js';
+      const request = isLogo ? new Request(event.request, { cache: 'reload' }) : isOwnerLifecycle ? new Request(`${url.origin}/owner-lifecycle.js?v=20260909-refresh-v4`, event.request) : event.request;
       const response = await fetch(request);
       if (response.ok && ['document','script','style','image','manifest'].includes(event.request.destination)) {
         const cache = await caches.open(CACHE); cache.put(event.request, response.clone());
