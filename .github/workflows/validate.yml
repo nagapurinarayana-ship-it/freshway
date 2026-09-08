@@ -45,6 +45,7 @@ jobs:
           node --check frontend/customer/feedback.js
           node --check frontend/customer/product-view.js
           node --check frontend/customer/navigation.js
+          node --check frontend/customer/modal.js
           node --check sw.js
       - name: Check Worker JavaScript
         working-directory: worker
@@ -124,6 +125,10 @@ jobs:
           grep -q "const navigation=customerNavigation.create" app.js
           grep -q "function setView(name){navigation.setView(name)}" app.js
           grep -q "frontend/customer/navigation.js" index.html
+          grep -q "window.FreshWayCustomerModal" frontend/customer/modal.js
+          grep -q "const customerModal=window.FreshWayCustomerModal" app.js
+          grep -q "customerModal.open(document)" app.js
+          grep -q "customerModal.close(document)" app.js
       - name: Enforce backend feature boundaries
         run: |
           node - <<'NODE'
