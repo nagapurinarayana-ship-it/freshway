@@ -11,7 +11,7 @@
     if(target?.closest?.('#viewCartBtn'))return'cart';
     if(target?.closest?.('#checkoutBtn'))return'checkout';
     if(target?.closest?.('#profileBtn'))return'profile';
-    if(target?.closest?.('#brandHome'))return'home';
+    if(target?.closest?.'#brandHome')return'home';
     if(target?.closest?.('#confirmationOrders'))return'orders';
     if(target?.closest?.('#confirmationHome'))return'home';
     return null;
