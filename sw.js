@@ -1,10 +1,10 @@
-const CACHE = 'freshway-v13';
+const CACHE = 'freshway-v14';
 const APP_SHELL = [
   '/',
-  '/index.html?v=20260907-v8',
+  '/index.html?v=20260909-cart-v14',
   '/styles.css?v=20260907-layout-v2',
   '/address-system.css?v=20260907-address-v2',
-  '/app.js?v=20260907-app-v2',
+  '/app.js?v=20260909-cart-v14',
   '/notifications.js?v=20260907-auth-v2',
   '/address-fix.js?v=20260908-address-hotfix-v2',
   '/address-system-final.js?v=20260908-address-final-v4',
@@ -33,7 +33,7 @@ self.addEventListener('fetch', event => {
       return response;
     } catch (_) {
       const cached = await caches.match(event.request);
-      return cached || (event.request.mode === 'navigate' ? caches.match('/index.html?v=20260907-v8') : Response.error());
+      return cached || (event.request.mode === 'navigate' ? caches.match('/index.html?v=20260909-cart-v14') : Response.error());
     }
   })());
 });
