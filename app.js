@@ -63,6 +63,7 @@ function openAddressModal(){customerModal.open(document)}
 function closeModal(){customerModal.close(document)}
 function showConfirmation(order){customerConfirmation.show(order,{esc,planText:customerOrderDisplay.planText,setView,updateCartBar})}
 const checkoutSubmit=customerCheckoutSubmit.create({document,cartItems,state,save,customerAddress,customerAddressFlow,customerCheckout,customerAuth,customerId,api,customerNotifications,toast,renderProducts,renderProfile,showConfirmation,updateCartBar,setView,money});
+// Checkout submission delegates customerCheckout.validate(name,phone,address), customerCheckout.payload(data,address,...) and customerCheckout.clientOrderId(data,address,...); notification registration stays inside the checkout boundary via customerNotifications.registerCustomer.
 window.showConfirmation=showConfirmation;
 window.setView=setView;
 window.state=state;
