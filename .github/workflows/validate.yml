@@ -50,9 +50,12 @@ jobs:
           node --check frontend/customer/view-state.js
           node --check frontend/customer/search.js
           node --check frontend/customer/view-state.test.js
+          node --check frontend/customer/search.test.js
           node --check sw.js
       - name: Run customer view-state tests
         run: node frontend/customer/view-state.test.js
+      - name: Run customer search tests
+        run: node frontend/customer/search.test.js
       - name: Check Worker JavaScript
         working-directory: worker
         run: |
