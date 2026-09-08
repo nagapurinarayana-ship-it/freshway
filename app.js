@@ -39,9 +39,9 @@ const cartTotal=()=>catalogueCart.total(state,PRODUCTS);
 const cartCount=()=>catalogueCart.count(state,PRODUCTS);
 function toast(msg){customerFeedback.show(document,msg)}
 function renderProducts(filter=''){customerProductView.render(PRODUCTS,state,filter,{esc,money,changeQty,updateCartBar})}
-function updateCartBar(){
+const updateCartBar=()=>{
   customerCartBar.update(document,{count:cartCount(),total:cartTotal(),money})
-}
+};
 function renderCart(){customerCartView.render(cartItems(),cartTotal(),{esc,money,setView})}
 function renderOrders(list=customerOrders.normalize(state.orders)){customerOrdersView.render(document,list,{esc,formatDate:customerOrderDisplay.formatDate,money,statusLabel:customerOrders.statusLabel,planText:customerOrderDisplay.planText})}
 function latestOrder(){return customerOrders.latest(state.orders)}
