@@ -98,7 +98,7 @@ async function createOrder(env, payload) {
     .bind(customerId, String(address.house).trim().slice(0, 200), String(address.area).trim().slice(0, 200), String(address.city).trim().slice(0, 100), String(address.pincode), String(address.landmark || '').trim().slice(0, 200), String(address.note || '').trim().slice(0, 500)).run();
   const addressId = addressResult?.meta?.last_row_id; if (!addressId) throw new Error('Could not save delivery address.');
   const id = orderId(), createdAt = now();
-  const statements = [env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at) VALUES (?,?,?,?,?,?, 'Pending','New','Tomorrow',?,?,?)`).bind(id, customerId, addressId, customerName, phone, total, clientOrderId || null, createdAt, createdAt), ...items.map(item => env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total) VALUES (?,?,?,?,?,?,?)`).bind(id, item.id, item.name, item.unit, item.qty, item.price, item.lineTotal))];
+  const statements = [env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at) VALUES (?,?,?,?,?,?, 'Not Collected','New','Tomorrow',?,?,?)`).bind(id, customerId, addressId, customerName, phone, total, clientOrderId || null, createdAt, createdAt), ...items.map(item => env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total) VALUES (?,?,?,?,?,?,?)`).bind(id, item.id, item.name, item.unit, item.qty, item.price, item.lineTotal))];
   try { await env.DB.batch(statements); } catch (error) {
     await env.DB.prepare('DELETE FROM addresses WHERE id=?').bind(addressId).run();
     if (clientOrderId && /unique|constraint/i.test(error?.message || '')) {
@@ -108,7 +108,7 @@ async function createOrder(env, payload) {
     throw error;
   }
   try { await sendCustomerPush(env, customerId, 'FreshWay order placed', `Order ${id} is confirmed. Delivery is planned for tomorrow or when your route is available.`); } catch (_) {}
-  return { id, customerId, total, payment: 'Pending', status: 'New', deliveryPlan: 'Tomorrow', createdAt, updatedAt: createdAt, address: { ...address, pincode: String(address.pincode) }, items };
+  return { id, customerId, total, payment: 'Not Collected', status: 'New', deliveryPlan: 'Tomorrow', createdAt, updatedAt: createdAt, address: { ...address, pincode: String(address.pincode) }, items };
 }
 
 async function customerOrders(env, customerId) {
@@ -177,7 +177,7 @@ if(url.pathname.startsWith('/api/admin/orders/')&&request.method==='PATCH'){if(!
 if(url.pathname==='/api/admin/products'&&request.method==='GET'){if(!auth(request,env))return json({error:'Unauthorized'},401,cors);return json({products:await products(env,true)},200,cors)}
 if(url.pathname==='/api/admin/products'&&request.method==='POST'){if(!auth(request,env))return json({error:'Unauthorized'},401,cors);return json(await addProduct(env,await body(request)),201,cors)}
 if(url.pathname.startsWith('/api/admin/products/')&&request.method==='PATCH'){if(!auth(request,env))return json({error:'Unauthorized'},401,cors);const id=decodeURIComponent(url.pathname.split('/').pop());return json(await updateProduct(env,id,await body(request)),200,cors)}
-if(url.pathname==='/api/admin/notifications/history'&&request.method==='GET'){if(!auth(request,env))return json({error:'Unauthorized'},401,cors);return json({notifications:await notificationHistory(env)},200,cors)}
+if(url.pathname==='/api/admin/notifications/history'&&request.method==='GET'){if(!auth(request,env))return json({notifications:await notificationHistory(env)},200,cors)}
 if(url.pathname==='/api/notifications/broadcast'&&request.method==='POST'){if(!auth(request,env))return json({error:'Unauthorized'},401,cors);const payload=await body(request),channels=Array.isArray(payload.channels)?payload.channels:[];if(!channels.length)return json({error:'Select at least one notification channel.'},400,cors);if(channels.some(channel=>!['app','whatsapp'].includes(channel)))return json({error:'Invalid notification channel.'},400,cors);const results=[];if(channels.includes('app'))results.push(await broadcastPush(env,payload));if(channels.includes('whatsapp'))results.push(await broadcastWhatsApp(env,payload));return json({results},200,cors)}
 return json({error:'Not found'},404,cors);
 }catch(error){const message=error?.message||'Unexpected server error.';const status=/Unauthorized/i.test(message)?401:/required|invalid|empty|available|maximum|cannot|not found|no order|no product|only after/i.test(message)?400:500;return json({error:message},status,cors)}}};
