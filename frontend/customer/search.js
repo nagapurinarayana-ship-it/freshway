@@ -6,9 +6,7 @@
     const input=document.querySelector('#searchInput');
     if(!input)return;
     document.__freshwaySearchBound=true;
-    const update=()=>render(input.value||'');
-    input.addEventListener('input',update);
+    input.addEventListener('input',()=>render(input.value||''));
   };
   window.FreshWayCustomerSearch=Object.freeze({bind});
-  if(typeof document!=='undefined')bind({document,render:window.FreshWayCustomerRenderProducts});
 })();
