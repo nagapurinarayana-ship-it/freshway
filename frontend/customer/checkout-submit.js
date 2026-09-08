@@ -36,7 +36,9 @@
         state.profile.checkout={name,phone,address};
         delete state.profile.pendingCheckout;
         save();
-        await customerNotifications.registerCustomer(name,phone,$('#whatsappOptIn')?.checked||false);
+        // Notification/customer-registration bookkeeping must never turn a successfully
+        // created order into a checkout failure message.
+        try{await customerNotifications.registerCustomer(name,phone,$('#whatsappOptIn')?.checked||false)}catch(error){console.warn('FreshWay customer notification registration failed after order creation:',error?.message||error)}
         form.reset();
         renderProducts();
         renderProfile();
