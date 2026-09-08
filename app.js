@@ -17,7 +17,7 @@ const customerNotifications=window.FreshWayCustomerNotifications;
 const catalogueCart=window.FreshWayCatalogueCart;
 const customerOrders=window.FreshWayCustomerOrders;
 const customerOrdersView=window.FreshWayCustomerOrdersView;
-const customerOrdersData=window.FreshWayCustomerOrdersData;
+const customerOrdersDataModule=window.FreshWayCustomerOrdersData;
 const customerProfile=window.FreshWayCustomerProfile;
 const customerCheckout=window.FreshWayCustomerCheckout;
 const customerConfirmation=window.FreshWayCustomerConfirmation;
@@ -52,10 +52,11 @@ function renderCart(){customerCartView.render(cartItems(),cartTotal(),{esc,money
 function renderOrders(list=customerOrders.normalize(state.orders)){customerOrdersView.render(document,list,{esc,formatDate:customerOrderDisplay.formatDate,money,statusLabel:customerOrders.statusLabel,planText:customerOrderDisplay.planText})}
 function latestOrder(){return customerOrders.latest(state.orders)}
 function prefillCheckout(){const last=latestOrder(),saved=state.profile?.checkout||{},a=customerProfile.savedAddress(state.profile,last);const fields=[['#customerName',saved.name||last?.customer?.name||''],['#customerPhone',saved.phone||last?.customer?.phone||'']];fields.forEach(([sel,val])=>{const el=$(sel);if(el&&!el.value)el.value=val});customerAddressFlow.fill(document,a,{onlyEmpty:true})}
-function handleView(name){if(name==='orders'){renderOrders();customerOrdersData.load();customerOrdersData.start()}else customerOrdersData.stop();if(name==='cart')renderCart();if(name==='checkout'){prefillCheckout();updateCartBar()}if(name==='profile')renderProfile()}
+function renderProfile(){const last=latestOrder(),name=$('#profileName'),phone=$('#profilePhone'),addr=$('#profileAddressText'),home=$('#homeAddress');if(name)name.textContent=customerProfile.name(state.profile,last);if(phone)phone.textContent=customerProfile.phone(state.profile,last);if(addr)addr.textContent=customerProfile.displayAddress(state.profile);if(home)home.textContent=customerProfile.homeAddress(state.profile)}
+const customerOrderData=customerOrdersDataModule.create({api,customerId,readState:()=>state,save,renderOrders,renderProfile,toast,document});
+function handleView(name){if(name==='orders'){renderOrders();customerOrderData.load();customerOrderData.start()}else customerOrderData.stop();if(name==='cart')renderCart();if(name==='checkout'){prefillCheckout();updateCartBar()}if(name==='profile')renderProfile()}
 const navigation=customerNavigation.create({document,onView:handleView});
 function setView(name){navigation.setView(name)}
-function renderProfile(){const last=latestOrder(),name=$('#profileName'),phone=$('#profilePhone'),addr=$('#profileAddressText'),home=$('#homeAddress');if(name)name.textContent=customerProfile.name(state.profile,last);if(phone)phone.textContent=customerProfile.phone(state.profile,last);if(addr)addr.textContent=customerProfile.displayAddress(state.profile);if(home)home.textContent=customerProfile.homeAddress(state.profile)}
 function changeQty(id,delta){const current=Number(state.cart[id]||0);const next=catalogueCart.nextQuantity(current,delta);if(delta>0&&current>=99){toast('Maximum quantity is 99');return}if(next<=0)delete state.cart[id];else state.cart[id]=next;save();renderProducts($('#searchInput')?.value||'');if($('#cartView')?.classList.contains('active-view'))renderCart()}
 function openAddressModal(){customerModal.open(document)}
 function closeModal(){customerModal.close(document)}
@@ -71,4 +72,4 @@ const checkoutForm=$('#checkoutForm');if(checkoutForm)checkoutForm.addEventListe
 customerSearch.bind({document,render:renderProducts});
 customerKeyboard.bind({document,onHome:()=>setView('home')});
 customerCartActions.bind({document,changeQty,toast});
-renderProducts();renderProfile();updateCartBar();loadProducts();customerOrdersData.load();
+renderProducts();renderProfile();updateCartBar();loadProducts();customerOrderData.load();
