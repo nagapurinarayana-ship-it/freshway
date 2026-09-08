@@ -3,7 +3,7 @@ const vm=require('node:vm');
 const context={window:{}};
 vm.runInNewContext(require('node:fs').readFileSync('frontend/customer/address-flow.js','utf8'),context);
 const api=context.window.FreshWayCustomerAddressFlow;
-assert.deepEqual(api.fields,['house','area','city','pincode','landmark','note']);
+assert.deepEqual(Array.from(api.fields),['house','area','city','pincode','landmark','note']);
 const values={house:'12',area:'Main Road',city:'Warangal',pincode:'506001',landmark:'Temple',note:'Call first'};
 const nodes=Object.fromEntries(Object.entries(values).map(([id,value])=>[id,{value}]));
 const document={querySelector(selector){return nodes[selector.slice(1)]||null}};
