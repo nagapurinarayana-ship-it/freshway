@@ -10,6 +10,8 @@
     window.__toast=setTimeout(()=>t.classList.remove('show'),duration);
   };
   const bind=({document,notifications})=>{
+    if(!document||!notifications||document.__freshwayAccountActionsBound)return;
+    document.__freshwayAccountActionsBound=true;
     document.addEventListener('click',async e=>{
       if(e.target.closest('#enableNotifications')){
         try{
