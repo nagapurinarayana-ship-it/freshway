@@ -22,8 +22,13 @@
     };
   }
 
+  let refreshing=false;
   const refreshCurrent=async()=>{
+    if(refreshing)return;
+    refreshing=true;
     const id=location.hash.slice(1)||'overview';
+    const button=document.getElementById('refreshBtn');
+    if(button){button.disabled=true;button.setAttribute('aria-busy','true');button.dataset.refreshing='1';}
     try{
       if(id==='overview'){
         await Promise.all([loadSummary(),loadBusiness(),loadHome()]);
@@ -36,23 +41,46 @@
       }else if(id==='customers'){
         await loadCustomers(true);
       }else if(id==='catalogue'){
-        const d=await api('/admin/products');
-        products=d.products||[];
-        renderProducts();
+        if(typeof window.freshWayCatalogueRefresh==='function')await window.freshWayCatalogueRefresh();
+        else{
+          const d=await api('/admin/products');
+          products=d.products||[];
+          renderProducts();
+        }
       }else if(id==='notifications'){
         await loadHistory();
       }else if(id==='reports'){
         await loadReports();
+      }else if(id==='settings'){
+        toast('Settings is already current');
       }
     }catch(e){
       if(typeof toast==='function')toast(e.message||'Refresh failed');
+    }finally{
+      refreshing=false;
+      const current=document.getElementById('refreshBtn');
+      if(current){current.disabled=false;current.removeAttribute('aria-busy');delete current.dataset.refreshing;}
     }
   };
+  window.freshWayOwnerRefresh=refreshCurrent;
 
-  // Keep one consistent Owner refresh control: the top-right control.
+  const bindRefresh=()=>{
+    const button=document.getElementById('refreshBtn');
+    if(!button)return;
+    button.type='button';
+    button.onclick=null;
+    if(button.dataset.refreshBound==='1')return;
+    button.dataset.refreshBound='1';
+    button.addEventListener('click',e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      refreshCurrent();
+    });
+  };
+
   document.addEventListener('click',e=>{
     const target=e.target;
-    if(target.closest('#refreshBtn')){
+    if(target&&target.closest('#refreshBtn')){
       e.preventDefault();
       e.stopImmediatePropagation();
       refreshCurrent();
@@ -62,6 +90,7 @@
   const removeDuplicateRefreshControls=()=>{
     document.getElementById('fwRefreshCatalogue')?.remove();
     document.getElementById('refreshHistory')?.remove();
+    bindRefresh();
   };
 
   document.addEventListener('DOMContentLoaded',removeDuplicateRefreshControls,{once:true});
