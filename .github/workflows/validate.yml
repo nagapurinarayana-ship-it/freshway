@@ -40,6 +40,7 @@ jobs:
           node --check frontend/customer/orders-view.js
           node --check frontend/customer/checkout.js
           node --check frontend/customer/profile.js
+          node --check frontend/customer/address.js
           node --check frontend/customer/confirmation.js
           node --check frontend/customer/order-display.js
           node --check frontend/customer/cart-view.js
@@ -51,6 +52,7 @@ jobs:
           node --check frontend/customer/view-state.js
           node --check frontend/customer/search.js
           node --check frontend/customer/keyboard.js
+          node --check frontend/customer/cart-actions.js
           node --check frontend/customer/view-state.test.js
           node --check frontend/customer/search.test.js
           node --check frontend/customer/orders-view.test.js
@@ -119,6 +121,11 @@ jobs:
           grep -q "customerProfile.displayAddress(state.profile)" app.js
           grep -q "customerProfile.homeAddress(state.profile)" app.js
           grep -q "frontend/customer/profile.js" index.html
+          grep -q "window.FreshWayCustomerAddress" frontend/customer/address.js
+          grep -q "const customerAddress=window.FreshWayCustomerAddress" app.js
+          grep -q "customerAddress.normalize" app.js
+          grep -q "customerAddress.format(address)" app.js
+          grep -q "frontend/customer/address.js" index.html
           grep -q "window.FreshWayCustomerConfirmation" frontend/customer/confirmation.js
           grep -q "frontend/customer/confirmation.js" index.html
           grep -q "const customerConfirmation=window.FreshWayCustomerConfirmation" app.js
@@ -162,6 +169,11 @@ jobs:
           grep -q "customerKeyboard.bind({document,onHome:()=>setView('home')})" app.js
           grep -q "frontend/customer/keyboard.js" index.html
           ! grep -q "brandHome.*addEventListener('keydown'" index.html
+          grep -q "window.FreshWayCustomerCartActions" frontend/customer/cart-actions.js
+          grep -q "const customerCartActions=window.FreshWayCustomerCartActions" app.js
+          grep -q "customerCartActions.bind({document,changeQty,toast})" app.js
+          grep -q "frontend/customer/cart-actions.js" index.html
+          ! grep -q "const add=t.closest('\[data-add\]')" app.js
       - name: Enforce backend feature boundaries
         run: |
           node - <<'NODE'
