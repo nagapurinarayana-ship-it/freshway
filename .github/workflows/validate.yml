@@ -46,7 +46,11 @@ jobs:
           node --check frontend/customer/product-view.js
           node --check frontend/customer/navigation.js
           node --check frontend/customer/modal.js
+          node --check frontend/customer/view-state.js
+          node --check frontend/customer/view-state.test.js
           node --check sw.js
+      - name: Run customer view-state tests
+        run: node frontend/customer/view-state.test.js
       - name: Check Worker JavaScript
         working-directory: worker
         run: |
@@ -129,6 +133,8 @@ jobs:
           grep -q "const customerModal=window.FreshWayCustomerModal" app.js
           grep -q "customerModal.open(document)" app.js
           grep -q "customerModal.close(document)" app.js
+          grep -q "window.FreshWayCustomerViewState" frontend/customer/view-state.js
+          grep -q "freshway-current-view-v1" frontend/customer/view-state.js
       - name: Enforce backend feature boundaries
         run: |
           node - <<'NODE'
