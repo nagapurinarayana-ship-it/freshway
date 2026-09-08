@@ -1,0 +1,63 @@
+name: Apply cache freshness patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-cache-freshness-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Apply surgical cache protections
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          changes = []
+
+          p = Path('admin.js')
+          s = p.read_text()
+          old = "fetch(`/api${path}`,{...opt,credentials:'include',headers:h})"
+          new = "fetch(`/api${path}`,{...opt,cache:'no-store',credentials:'include',headers:h})"
+          if s.count(old) != 1:
+              raise SystemExit(f'admin.js expected exactly one target, found {s.count(old)}')
+          p.write_text(s.replace(old, new, 1))
+          changes.append('admin.js')
+
+          p = Path('worker/src/index.js')
+          s = p.read_text()
+          old = "'content-type':'application/json; charset=utf-8',"
+          new = "'content-type':'application/json; charset=utf-8','cache-control':'no-store, no-cache, must-revalidate, max-age=0',"
+          if s.count(old) != 1:
+              raise SystemExit(f'worker/src/index.js expected exactly one target, found {s.count(old)}')
+          p.write_text(s.replace(old, new, 1))
+          changes.append('worker/src/index.js')
+
+          print('Patched:', ', '.join(changes))
+          PY
+
+      - name: Validate JavaScript syntax
+        run: |
+          node --check admin.js
+          node --check worker/src/index.js
+
+      - name: Commit and push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add admin.js worker/src/index.js
+          git diff --cached --check
+          git diff --cached --quiet && exit 0
+          git commit -m 'fix: prevent stale owner API reads'
+          git push origin HEAD:main
