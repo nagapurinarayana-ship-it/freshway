@@ -4,6 +4,7 @@ const json = (data, status = 200, origin = '*') => new Response(JSON.stringify(d
   status,
   headers: {
     'content-type': 'application/json; charset=utf-8',
+    'cache-control': 'no-store, no-cache, must-revalidate, max-age=0',
     'access-control-allow-origin': origin,
     'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS',
     'access-control-allow-headers': 'Content-Type,Authorization,X-Freshway-Admin-Token'
