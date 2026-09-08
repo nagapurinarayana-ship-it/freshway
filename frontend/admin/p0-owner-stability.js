@@ -30,25 +30,21 @@
     const button=document.getElementById('refreshBtn');
     if(button){button.disabled=true;button.setAttribute('aria-busy','true');button.dataset.refreshing='1';}
     try{
-      if(id==='overview'){
-        await Promise.all([loadSummary(),loadBusiness(),loadHome()]);
-      }else if(id==='orders'){
-        await loadOrders(true);
-      }else if(id==='delivery'){
-        await loadDelivery(true);
-      }else if(id==='cash'){
-        await loadCash();
-      }else if(id==='customers'){
-        await loadCustomers(true);
-      }else if(id==='catalogue'){
-        const d=await api('/admin/products');
-        products=d.products||[];
-        renderProducts();
-      }else if(id==='notifications'){
-        await loadHistory();
-      }else if(id==='reports'){
-        await loadReports();
-      }
+      if(id==='overview')await Promise.all([loadSummary(),loadBusiness(),loadHome()]);
+      else if(id==='orders')await loadOrders(true);
+      else if(id==='delivery')await loadDelivery(true);
+      else if(id==='cash')await loadCash();
+      else if(id==='customers')await loadCustomers(true);
+      else if(id==='catalogue'){
+        if(typeof window.freshWayCatalogueRefresh==='function')await window.freshWayCatalogueRefresh();
+        else{
+          const d=await api('/admin/products');
+          products=d.products||[];
+          renderProducts();
+        }
+      }else if(id==='notifications')await loadHistory();
+      else if(id==='reports')await loadReports();
+      else if(id==='settings')toast('Settings is already current');
     }catch(e){
       if(typeof toast==='function')toast(e.message||'Refresh failed');
     }finally{
@@ -61,9 +57,11 @@
 
   const bindRefresh=()=>{
     const button=document.getElementById('refreshBtn');
-    if(!button||button.dataset.refreshBound==='1')return;
-    button.dataset.refreshBound='1';
+    if(!button)return;
     button.type='button';
+    button.onclick=null;
+    if(button.dataset.refreshBound==='1')return;
+    button.dataset.refreshBound='1';
     button.addEventListener('click',e=>{
       e.preventDefault();
       e.stopPropagation();
