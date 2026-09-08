@@ -31,6 +31,7 @@ const customerKeyboard=window.FreshWayCustomerKeyboard;
 const customerAddress=window.FreshWayCustomerAddress;
 const customerAddressFlow=window.FreshWayCustomerAddressFlow;
 const customerCartActions=window.FreshWayCustomerCartActions;
+const customerCartBar=window.FreshWayCustomerCartBar;
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
 const money=customerOrderDisplay.money;
@@ -46,7 +47,7 @@ const cartTotal=()=>catalogueCart.total(state,PRODUCTS);
 const cartCount=()=>catalogueCart.count(state,PRODUCTS);
 function toast(msg){customerFeedback.show(document,msg)}
 function renderProducts(filter=''){customerProductView.render(PRODUCTS,state,filter,{esc,money,changeQty,updateCartBar})}
-function updateCartBar(){const n=cartCount(),a=$('#cartCount'),b=$('#cartTotal'),c=$('#cartBadge'),bar=$('#cartBar'),t=$('#checkoutTotal');if(a)a.textContent=`${n} ${n===1?'item':'items'}`;if(b)b.textContent=money(cartTotal());if(c){c.textContent=n;c.classList.toggle('hidden',!n)}if(bar)bar.classList.toggle('hidden',!n);if(t)t.textContent=money(cartTotal())}
+function updateCartBar(){customerCartBar.update(document,{count:cartCount(),total:cartTotal(),money})}
 function renderCart(){customerCartView.render(cartItems(),cartTotal(),{esc,money,setView})}
 function renderOrders(list=customerOrders.normalize(state.orders)){customerOrdersView.render(document,list,{esc,formatDate:customerOrderDisplay.formatDate,money,statusLabel:customerOrders.statusLabel,planText:customerOrderDisplay.planText})}
 async function loadOrders(){const id=customerId();if(!id){renderOrders(state.orders);return}try{const d=await api(`/api/orders?customerId=${encodeURIComponent(id)}`);if(Array.isArray(d.orders)){state.orders=d.orders;save();renderOrders(state.orders);renderProfile()}}catch(_){renderOrders(state.orders);if(state.orders.length)toast('Showing saved orders from this device.')}}

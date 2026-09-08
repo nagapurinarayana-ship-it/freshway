@@ -41,6 +41,7 @@ jobs:
           node --check frontend/customer/checkout.js
           node --check frontend/customer/profile.js
           node --check frontend/customer/address.js
+          node --check frontend/customer/address-flow.js
           node --check frontend/customer/confirmation.js
           node --check frontend/customer/order-display.js
           node --check frontend/customer/cart-view.js
@@ -53,11 +54,13 @@ jobs:
           node --check frontend/customer/search.js
           node --check frontend/customer/keyboard.js
           node --check frontend/customer/cart-actions.js
+          node --check frontend/customer/cart-bar.js
           node --check frontend/customer/view-state.test.js
           node --check frontend/customer/search.test.js
           node --check frontend/customer/orders-view.test.js
           node --check frontend/customer/keyboard.test.js
           node --check frontend/customer/cart-actions.test.js
+          node --check frontend/customer/cart-bar.test.js
           node --check sw.js
       - name: Run customer view-state tests
         run: node frontend/customer/view-state.test.js
@@ -69,6 +72,8 @@ jobs:
         run: node frontend/customer/keyboard.test.js
       - name: Run customer cart-actions tests
         run: node frontend/customer/cart-actions.test.js
+      - name: Run customer cart-bar tests
+        run: node frontend/customer/cart-bar.test.js
       - name: Check Worker JavaScript
         working-directory: worker
         run: |
@@ -177,6 +182,11 @@ jobs:
           grep -q "customerCartActions.bind({document,changeQty,toast})" app.js
           grep -q "frontend/customer/cart-actions.js" index.html
           ! grep -q "const add=t.closest('\[data-add\]')" app.js
+          grep -q "window.FreshWayCustomerCartBar" frontend/customer/cart-bar.js
+          grep -q "const customerCartBar=window.FreshWayCustomerCartBar" app.js
+          grep -q "customerCartBar.update(document,{count:cartCount(),total:cartTotal(),money})" app.js
+          grep -q "frontend/customer/cart-bar.js" index.html
+          ! grep -q "function updateCartBar(){const n=cartCount()" app.js
       - name: Enforce backend feature boundaries
         run: |
           node - <<'NODE'
