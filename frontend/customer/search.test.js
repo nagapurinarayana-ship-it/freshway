@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict');
+const vm=require('node:vm');
+const listeners={};
+const input={addEventListener:(name,fn)=>{listeners[name]=fn},value:'Apple'};
+const document={__freshwaySearchBound:false,querySelector:s=>s==='#searchInput'?input:null};
+const context={window:{},document};
+vm.runInNewContext(require('node:fs').readFileSync('frontend/customer/search.js','utf8'),context);
+const api=context.window.FreshWayCustomerSearch;
+assert.equal(typeof api.bind,'function');
+let value='';
+api.bind({document,render:v=>{value=v}});
+assert.equal(typeof listeners.input,'function');
+listeners.input();
+assert.equal(value,'Apple');
+assert.equal(document.__freshwaySearchBound,true);
+console.log('customer search binding OK');
