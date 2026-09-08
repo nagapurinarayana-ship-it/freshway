@@ -26,5 +26,5 @@ jobs:
         run: |
           grep -q "window.FreshWayCustomerAuth" frontend/customer/auth.js
           grep -q "const customerAuth=window.FreshWayCustomerAuth" app.js
-          grep -q "customerAuth.ensureAuthenticated()" app.js
+          grep -q "customerAuth.ensureAuthenticated" frontend/customer/checkout-submit.js
           grep -q "frontend/customer/auth.js" index.html

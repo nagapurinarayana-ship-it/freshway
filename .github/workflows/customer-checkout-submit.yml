@@ -1,0 +1,35 @@
+name: FreshWay customer checkout submission validation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  checkout-submit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check customer checkout JavaScript
+        run: |
+          node --check frontend/customer/checkout.js
+          node --check frontend/customer/checkout-submit.js
+          node --check frontend/customer/checkout-submit.test.js
+          node --check app.js
+      - name: Run customer checkout submission tests
+        run: node frontend/customer/checkout-submit.test.js
+      - name: Enforce checkout submission boundary
+        run: |
+          grep -q "window.FreshWayCustomerCheckoutSubmit" frontend/customer/checkout-submit.js
+          grep -q "const customerCheckoutSubmit=window.FreshWayCustomerCheckoutSubmit" app.js
+          grep -q "customerCheckoutSubmit.create" app.js
+          grep -q "checkoutSubmit.bind()" app.js
+          grep -q "frontend/customer/checkout-submit.js" index.html
+          ! grep -q "async function submitOrder" app.js
+          ! grep -q "function checkoutClientId" app.js
