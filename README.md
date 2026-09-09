@@ -16,7 +16,7 @@ FreshWay is a hyperlocal customer ordering PWA plus an owner operations dashboar
 - The passcode is stored as a salted PBKDF2-SHA-256 hash; it is never stored in plain text.
 - Login uses the registered mobile number and the same 6-digit passcode.
 - A signed, HttpOnly, Secure customer session cookie protects customer API actions.
-- No SMS OTP and no Twilio dependency.
+- No SMS OTP or Twilio dependency is part of the V1 authentication flow.
 - Customer phone number cannot be changed after registration.
 - Login/registration attempts are rate limited by mobile number and client IP.
 
@@ -34,7 +34,7 @@ FreshWay is a hyperlocal customer ordering PWA plus an owner operations dashboar
 ## Owner dashboard
 - Shared D1 order board
 - New / confirmed / processing / ready / out-for-delivery / delivered / cancelled filters
-- Cash pending / collected filters
+- Cash not collected / collected / refunded / cancelled payment states
 - Delivery planning: today / tomorrow / later / unscheduled
 - Order search and sorting
 - Customer details panel with name, phone, latest address, order count and order value
@@ -52,11 +52,13 @@ New customer orders are stored centrally in Cloudflare D1 instead of the browser
 
 Files:
 - `worker/schema.sql` — D1 tables and initial product seed
-- `worker/src/index.js` — core customer, order, product and notification API
+- `worker/src/admin-auth.js` — production Worker entrypoint and owner session/authentication boundary
 - `worker/src/passcode-auth.js` — customer passcode authentication and signed sessions
-- `worker/src/admin-auth.js` — owner session authentication and protected admin routing
-- `worker/src/admin-data.js` — owner dashboard queries, filters, reports and order lifecycle
-- `worker/wrangler.jsonc` — D1 binding and Worker configuration
+- `worker/src/admin-data.js` — owner dashboard dispatcher
+- `worker/src/admin-orders.js` — owner order queries and lifecycle/payment rules
+- `worker/src/admin-shared.js` — shared lifecycle/domain helpers
+- `worker/src/catalogue-api.js` — catalogue API boundary
+- `worker/src/index.js` — shared legacy-compatible customer/order data handler used behind the canonical auth wrappers; new owner logic does not belong here
 - `worker/README.md` — deployment instructions
 
 ## Notification architecture
@@ -100,6 +102,6 @@ Orders created before the D1 backend was deployed remain only in the browser tha
 - No complex quick-commerce delivery logic
 
 The production order model keeps these fields independent:
-- `delivery_status`: NEW | CONFIRMED | PROCESSING | READY | OUT FOR DELIVERY | DELIVERED | CANCELLED
-- `payment_status`: PENDING | COLLECTED
-- `delivery_plan`: TODAY | TOMORROW | LATER | UNSCHEDULED
+- `delivery_status`: `New` | `Confirmed` | `Processing` | `Ready` | `Out for Delivery` | `Delivered` | `Cancelled`
+- `payment_status`: `Not Collected` | `Collected` | `Refunded` | `Cancelled`
+- `delivery_plan`: `Today` | `Tomorrow` | `Later` | `Unscheduled`
