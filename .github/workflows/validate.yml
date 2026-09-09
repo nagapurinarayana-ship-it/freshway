@@ -110,7 +110,7 @@ jobs:
           if (!canonicalLifecycle.includes('function legalPaymentValues')) fail('canonical owner payment rules are missing');
 
           const legacyLifecycle = fs.readFileSync('frontend/admin/owner-lifecycle-autosave.js', 'utf8');
-          for (const forbidden of ['data-fw-life-action', 'data-fw-life-map', 'addEventListener(\'click\'', 'addEventListener("click"', 'modalBody').innerHTML']) {
+          for (const forbidden of ['data-fw-life-action', 'data-fw-life-map', 'addEventListener', 'modalBody']) {
             if (legacyLifecycle.includes(forbidden)) fail(`duplicate lifecycle controller detected: ${forbidden}`);
           }
 
