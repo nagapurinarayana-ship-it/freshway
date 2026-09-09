@@ -104,7 +104,18 @@ jobs:
             if (!readme.includes(value)) fail(`README is missing ${value}`);
           }
 
+          const canonicalLifecycle = fs.readFileSync('owner-lifecycle.js', 'utf8');
+          if (!canonicalLifecycle.includes('function renderLifecycle')) fail('canonical owner lifecycle renderer is missing');
+          if (!canonicalLifecycle.includes('function queueSave')) fail('canonical owner lifecycle autosave queue is missing');
+          if (!canonicalLifecycle.includes('function legalPaymentValues')) fail('canonical owner payment rules are missing');
+
+          const legacyLifecycle = fs.readFileSync('frontend/admin/owner-lifecycle-autosave.js', 'utf8');
+          for (const forbidden of ['data-fw-life-action', 'data-fw-life-map', 'addEventListener(\'click\'', 'addEventListener("click"', 'modalBody').innerHTML']) {
+            if (legacyLifecycle.includes(forbidden)) fail(`duplicate lifecycle controller detected: ${forbidden}`);
+          }
+
           console.log(`canonical Worker boundaries OK (${adminFiles.length} admin modules checked)`);
+          console.log('single Owner lifecycle controller OK');
           NODE
       - name: Check D1 schema and migrations
         working-directory: worker
