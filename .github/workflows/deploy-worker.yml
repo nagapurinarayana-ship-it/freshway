@@ -17,14 +17,18 @@ jobs:
     environment: production
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 24
+          package-manager-cache: false
       - name: Install Worker dependencies
         working-directory: worker
         run: npm install
+      - name: Audit Worker dependencies
+        working-directory: worker
+        run: npm audit --audit-level=high
       - name: Run Worker tests
         working-directory: worker
         run: npm test
