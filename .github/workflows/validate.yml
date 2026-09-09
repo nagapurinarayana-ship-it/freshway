@@ -75,16 +75,24 @@ jobs:
           if (!passcodeAuth.includes("from './index.js'")) fail('passcode-auth.js no longer wraps index.js');
 
           const adminDir = 'worker/src';
-          const adminFiles = fs.readdirSync(adminDir).filter(name => /^admin-.*\.js$/.test(name));
+          const adminFiles = fs.readdirSync(adminDir).filter(name => /^admin-.*\\.js$/.test(name));
           for (const name of adminFiles) {
             const source = fs.readFileSync(path.join(adminDir, name), 'utf8');
-            if (/\bfrom\s+['"]\.\/index\.js['"]/.test(source) || /\brequire\(\s*['"]\.\/index\.js['"]\s*\)/.test(source)) {
+            if (/\\bfrom\\s+['"]\\.\\/index\\.js['"]/.test(source) || /\\brequire\\(\\s*['"]\\.\\/index\\.js['"]\\s*\\)/.test(source)) {
               fail(`forbidden index.js dependency in ${name}`);
             }
           }
 
-          const architecture = fs.readFileSync('ARCHITECTURE.md', 'utf8');
-          if (!architecture.includes('index.js remains a compatibility/data layer')) fail('architecture boundary statement missing');
+          const architecture = fs.readFileSync('ARCHITECTURE.md', 'utf8').toLowerCase();
+          for (const value of [
+            'passcode-auth.js',
+            'index.js',
+            'compatibility/data layer',
+            'new owner lifecycle/business logic',
+            'admin-* modules'
+          ]) {
+            if (!architecture.includes(value)) fail(`architecture rule is missing ${value}`);
+          }
 
           const readme = fs.readFileSync('README.md', 'utf8').toLowerCase();
           for (const value of [
@@ -104,7 +112,7 @@ jobs:
           grep -q 'delivery_plan' schema.sql
           grep -q 'client_order_id' schema.sql
           for migration in migrations/*.sql; do test -s "$migration"; done
-          if find migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sed -E 's/^([0-9]+)_.*/\1/' | sort | uniq -d | grep -q .; then exit 1; fi
+          if find migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\\n' | sed -E 's/^([0-9]+)_.*/\\1/' | sort | uniq -d | grep -q .; then exit 1; fi
           test "$(find migrations -maxdepth 1 -type f -name '*.sql' | wc -l)" -ge 1
           test -s migrations/0011_order_payment_statuses.sql
           test -s migrations/0012_catalogue_categories.sql
