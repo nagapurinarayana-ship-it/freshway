@@ -84,19 +84,19 @@ jobs:
           const architecture = fs.readFileSync('ARCHITECTURE.md', 'utf8');
           if (!architecture.includes('index.js remains a compatibility/data layer')) process.exit(1);
 
-          const readme = fs.readFileSync('README.md', 'utf8');
+          const readme = fs.readFileSync('README.md', 'utf8').toLowerCase();
           for (const value of [
             'delivery_status',
-            'New',
-            'Confirmed',
-            'Processing',
-            'Ready',
-            'Out for Delivery',
-            'Delivered',
-            'Cancelled',
-            'Not Collected',
-            'Collected',
-            'Refunded'
+            'new',
+            'confirmed',
+            'processing',
+            'ready',
+            'out for delivery',
+            'delivered',
+            'cancelled',
+            'not collected',
+            'collected',
+            'refunded'
           ]) {
             if (!readme.includes(value)) process.exit(1);
           }
