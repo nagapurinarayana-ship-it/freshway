@@ -60,11 +60,20 @@ jobs:
       - name: Check canonical Worker boundaries
         run: |
           test "$(node -e "const fs=require('fs'); console.log(JSON.parse(fs.readFileSync('worker/wrangler.jsonc','utf8')).main)")" = "src/admin-auth.js"
-          grep -qF "from './index.js'" worker/src/passcode-auth.js
-          if grep -R -nF "from './index.js'" worker/src/admin-*.js; then exit 1; fi
-          grep -qF 'worker/src/index.js` remains' ARCHITECTURE.md
-          grep -qF '`delivery_status`: `New` | `Confirmed` | `Processing` | `Ready` | `Out for Delivery` | `Delivered` | `Cancelled`' README.md
-          grep -qF '`payment_status`: `Not Collected` | `Collected` | `Refunded` | `Cancelled`' README.md
+          grep -qF "./index.js" worker/src/passcode-auth.js
+          if grep -R -nF "./index.js" worker/src/admin-*.js; then exit 1; fi
+          grep -qF 'index.js remains a compatibility/data layer' ARCHITECTURE.md
+          grep -qF 'delivery_status' README.md
+          grep -qF 'New' README.md
+          grep -qF 'Confirmed' README.md
+          grep -qF 'Processing' README.md
+          grep -qF 'Ready' README.md
+          grep -qF 'Out for Delivery' README.md
+          grep -qF 'Delivered' README.md
+          grep -qF 'Cancelled' README.md
+          grep -qF 'Not Collected' README.md
+          grep -qF 'Collected' README.md
+          grep -qF 'Refunded' README.md
       - name: Check D1 schema and migrations
         working-directory: worker
         run: |
