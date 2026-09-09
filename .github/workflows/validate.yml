@@ -89,7 +89,8 @@ jobs:
             'index.js',
             'compatibility/data layer',
             'new owner lifecycle/business logic',
-            'admin-* modules'
+            'admin-orders.js',
+            'admin-data.js'
           ]) {
             if (!architecture.includes(value)) fail(`architecture rule is missing ${value}`);
           }
