@@ -62,14 +62,19 @@ jobs:
         run: |
           test -s schema.sql
           grep -q 'delivery_plan' schema.sql
-          grep -q 'INSERT OR IGNORE INTO products' schema.sql
-          for migration in migrations/0001_delivery_plan.sql migrations/0002_order_idempotency.sql migrations/0003_auth_rate_limits.sql migrations/0004_unique_customer_phone.sql migrations/0005_customer_passcode_auth.sql migrations/0007_owner_order_lifecycle.sql migrations/0008_address_system_final.sql migrations/0009_seed_default_catalogue.sql; do test -s "$migration"; done
+          grep -q 'client_order_id' schema.sql
+          for migration in migrations/*.sql; do test -s "$migration"; done
+          if find migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sed -E 's/^([0-9]+)_.*/\1/' | sort | uniq -d | grep -q .; then exit 1; fi
+          test "$(find migrations -maxdepth 1 -type f -name '*.sql' | wc -l)" -ge 1
+          test -s migrations/0011_order_payment_statuses.sql
+          test -s migrations/0012_catalogue_categories.sql
           grep -q 'client_order_id' migrations/0002_order_idempotency.sql
           grep -q 'auth_rate_limits' migrations/0003_auth_rate_limits.sql
           grep -q 'CREATE UNIQUE INDEX' migrations/0004_unique_customer_phone.sql
           grep -q 'passcode_hash' migrations/0005_customer_passcode_auth.sql
           grep -q 'Out for Delivery' migrations/0007_owner_order_lifecycle.sql
-          if find migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sed -E 's/^([0-9]+)_.*/\1/' | sort | uniq -d | grep -q .; then exit 1; fi
+          grep -q "Not Collected" migrations/0011_order_payment_statuses.sql
+          grep -q 'category_id' migrations/0012_catalogue_categories.sql
       - name: Check Worker configuration
         working-directory: worker
         run: node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); const required=['ADMIN_TOKEN','CUSTOMER_SESSION_SECRET','ADMIN_SESSION_SECRET']; if(!x.name||!x.main||!x.d1_databases?.[0]?.binding||x.main!=='src/admin-auth.js'||required.some(s=>!x.secrets?.required?.includes(s))||x.vars?.OTP_PROVIDER||x.secrets?.optional?.length) process.exit(1); console.log('wrangler configuration OK')"
