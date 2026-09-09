@@ -66,41 +66,36 @@ jobs:
           node <<'NODE'
           const fs = require('fs');
           const path = require('path');
+          const fail = message => { console.error(`CANONICAL BOUNDARY FAILURE: ${message}`); process.exit(1); };
+
           const wrangler = JSON.parse(fs.readFileSync('worker/wrangler.jsonc', 'utf8'));
-          if (wrangler.main !== 'src/admin-auth.js') process.exit(1);
+          if (wrangler.main !== 'src/admin-auth.js') fail(`wrangler main is ${wrangler.main}`);
 
           const passcodeAuth = fs.readFileSync('worker/src/passcode-auth.js', 'utf8');
-          if (!passcodeAuth.includes("from './index.js'")) process.exit(1);
+          if (!passcodeAuth.includes("from './index.js'")) fail('passcode-auth.js no longer wraps index.js');
 
           const adminDir = 'worker/src';
-          for (const name of fs.readdirSync(adminDir).filter(name => /^admin-.*\.js$/.test(name))) {
+          const adminFiles = fs.readdirSync(adminDir).filter(name => /^admin-.*\.js$/.test(name));
+          for (const name of adminFiles) {
             const source = fs.readFileSync(path.join(adminDir, name), 'utf8');
-            if (/from\s+['"]\.\/index\.js['"]/.test(source) || /require\(\s*['"]\.\/index\.js['"]\s*\)/.test(source)) {
-              console.error(`Forbidden index.js dependency in ${name}`);
-              process.exit(1);
+            if (/\bfrom\s+['"]\.\/index\.js['"]/.test(source) || /\brequire\(\s*['"]\.\/index\.js['"]\s*\)/.test(source)) {
+              fail(`forbidden index.js dependency in ${name}`);
             }
           }
 
           const architecture = fs.readFileSync('ARCHITECTURE.md', 'utf8');
-          if (!architecture.includes('index.js remains a compatibility/data layer')) process.exit(1);
+          if (!architecture.includes('index.js remains a compatibility/data layer')) fail('architecture boundary statement missing');
 
           const readme = fs.readFileSync('README.md', 'utf8').toLowerCase();
           for (const value of [
-            'delivery_status',
-            'new',
-            'confirmed',
-            'processing',
-            'ready',
-            'out for delivery',
-            'delivered',
-            'cancelled',
-            'not collected',
-            'collected',
-            'refunded'
+            'delivery_status', 'new', 'confirmed', 'processing', 'ready',
+            'out for delivery', 'delivered', 'cancelled', 'not collected',
+            'collected', 'refunded'
           ]) {
-            if (!readme.includes(value)) process.exit(1);
+            if (!readme.includes(value)) fail(`README is missing ${value}`);
           }
-          console.log('canonical Worker boundaries OK');
+
+          console.log(`canonical Worker boundaries OK (${adminFiles.length} admin modules checked)`);
           NODE
       - name: Check D1 schema and migrations
         working-directory: worker
