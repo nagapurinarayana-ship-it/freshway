@@ -16,7 +16,7 @@
     };
   }
 
-  const api=window.api||async(path,opt={})=>{const h={'Content-Type':'application/json',...(opt.headers||{})},s=session();if(s)h['X-Freshway-Admin-Session']=s;const r=await fetch(`/api${path}`,{...opt,credentials:'include',headers:h}),d=await r.json().catch(()=>({error:`Request failed (${r.status})`}));if(!r.ok)throw Error(d.error||`Request failed (${r.status})`);return d};
+  const api=window.api||async function(path,opt={}){const h={'Content-Type':'application/json',...(opt.headers||{})},s=session();if(s)h['X-Freshway-Admin-Session']=s;const r=await fetch(`/api${path}`,{...opt,credentials:'include',headers:h}),d=await r.json().catch(()=>({error:`Request failed (${r.status})`}));if(!r.ok)throw Error(d.error||`Request failed (${r.status})`);return d};
   let catalogue={categories:[],products:[]};
   function toast(m){if(typeof window.toast==='function')return window.toast(m);const t=$('#toast');if(!t)return;t.textContent=m;t.classList.add('show');clearTimeout(window.__fwPushToast);window.__fwPushToast=setTimeout(()=>t.classList.remove('show'),2600)}
   function destinationUrl(){const d=$('#fwPushDestination')?.value||'home';if(d==='category'){const id=$('#fwPushCategory')?.value;if(!id)throw Error('Select a category destination.');return `/?category=${encodeURIComponent(id)}`}if(d==='product'){const id=$('#fwPushProduct')?.value;if(!id)throw Error('Select a product destination.');const p=catalogue.products.find(x=>String(x.id)===String(id));if(!p)throw Error('Select a valid product destination.');if(!p.category_id)throw Error('This product has no category destination.');return `/?category=${encodeURIComponent(p.category_id)}&product=${encodeURIComponent(p.id)}`}return '/'}
