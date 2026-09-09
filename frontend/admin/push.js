@@ -2,7 +2,21 @@
   const $=s=>document.querySelector(s);
   const esc=v=>String(v??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
   const session=()=>{try{return sessionStorage.getItem('freshway-admin-session')||''}catch(_){return''}};
-  const api=window.api||async(path,opt={})=>{const h={'Content-Type':'application/json',...(opt.headers||{})},s=session();if(s)h['X-Freshway-Admin-Session']=s;const r=await fetch(`/api${path}`,{...opt,credentials:'include',headers:h}),d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||`Request failed (${r.status})`);return d};
+
+  // Owner stability: catalogue replaces #productList with its category UI. The
+  // legacy overview loader still calls renderProducts(), so make that renderer
+  // a safe no-op when its legacy target no longer exists. This prevents a
+  // successful order/payment update from ending with "null.innerHTML".
+  if(typeof window.renderProducts==='function'&&!window.__freshwaySafeLegacyProductRenderer){
+    const baseRenderProducts=window.renderProducts;
+    window.__freshwaySafeLegacyProductRenderer=true;
+    window.renderProducts=function(){
+      if(!document.getElementById('productList'))return;
+      return baseRenderProducts.apply(this,arguments);
+    };
+  }
+
+  const api=window.api||async(path,opt={})=>{const h={'Content-Type':'application/json',...(opt.headers||{})},s=session();if(s)h['X-Freshway-Admin-Session']=s;const r=await fetch(`/api${path}`,{...opt,credentials:'include',headers:h}),d=await r.json().catch(()=>({error:`Request failed (${r.status})`}));if(!r.ok)throw Error(d.error||`Request failed (${r.status})`);return d};
   let catalogue={categories:[],products:[]};
   function toast(m){if(typeof window.toast==='function')return window.toast(m);const t=$('#toast');if(!t)return;t.textContent=m;t.classList.add('show');clearTimeout(window.__fwPushToast);window.__fwPushToast=setTimeout(()=>t.classList.remove('show'),2600)}
   function destinationUrl(){const d=$('#fwPushDestination')?.value||'home';if(d==='category'){const id=$('#fwPushCategory')?.value;if(!id)throw Error('Select a category destination.');return `/?category=${encodeURIComponent(id)}`}if(d==='product'){const id=$('#fwPushProduct')?.value;if(!id)throw Error('Select a product destination.');const p=catalogue.products.find(x=>String(x.id)===String(id));if(!p)throw Error('Select a valid product destination.');if(!p.category_id)throw Error('This product has no category destination.');return `/?category=${encodeURIComponent(p.category_id)}&product=${encodeURIComponent(p.id)}`}return '/'}
