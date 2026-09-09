@@ -2,59 +2,65 @@
   const esc2=v=>String(v??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
   const money2=n=>`₹${Number(n||0).toLocaleString('en-IN')}`;
   const validCoords=(lat,lon)=>Number.isFinite(Number(lat))&&Number.isFinite(Number(lon))&&Number(lat)>=-90&&Number(lat)<=90&&!(Number(lat)===0&&Number(lon)===0)&&Number(lon)>=-180&&Number(lon)<=180;
-  const next={New:['Confirmed','Cancelled'],Confirmed:['Processing','Cancelled'],Processing:['Ready','Cancelled'],Ready:['Out for Delivery','Cancelled'],"Out for Delivery":['Delivered','Cancelled'],Delivered:[],Cancelled:[]};
-  const label={New:'New',Confirmed:'Confirmed',Processing:'Processing',Ready:'Ready','Out for Delivery':'Out for delivery',Delivered:'Delivered',Cancelled:'Cancelled'};
+  const next={New:['Confirmed','Cancelled'],Confirmed:['Processing','Cancelled'],Processing:['Ready','Cancelled'],Ready:['Out for Delivery','Cancelled'],'Out for Delivery':['Delivered','Cancelled'],Delivered:[],Cancelled:[]};
+  const statusLabel={New:'New',Confirmed:'Confirmed',Processing:'Processing',Ready:'Ready','Out for Delivery':'Out for delivery',Delivered:'Delivered',Cancelled:'Cancelled'};
+  const state={id:'',order:null,queue:Promise.resolve()};
   const istDay=v=>{if(!v)return'';try{const raw=String(v).trim();const normalized=/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(raw)?raw.replace(' ','T')+'Z':raw;return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(normalized))}catch(_){return''}};
+  const addUxStyle=()=>{if(document.getElementById('fwOwnerUxStyle'))return;const s=document.createElement('style');s.id='fwOwnerUxStyle';s.textContent='.fw-life-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding-right:42px}.fw-life-head h2{margin:5px 0 3px}.fw-life-save{display:inline-flex;align-items:center;font-size:8px;font-weight:900;padding:4px 7px;border-radius:20px;background:#eaf7ef;color:#0f7a4b}.fw-life-save.saving{background:#fff5dc;color:#a46600}.fw-life-save.error{background:#fdeeee;color:#b83d3d}.fw-life-copy{border:1px solid var(--line);background:#fff;color:var(--g);border-radius:9px;padding:7px 9px;font-size:8px;font-weight:900;cursor:pointer}.fw-life-nav{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}.fw-life-nav button:disabled{opacity:.45;cursor:not-allowed}.fw-order-controls select:disabled{opacity:.65;cursor:wait}.fw-life-head+.fw-order-controls{margin-top:10px}';document.head.appendChild(s)};
   async function getOrder(id){const d=await api(`/admin/orders?search=${encodeURIComponent(id)}&limit=1`);return d.orders?.[0]}
-  async function openLifecycle(id){try{const o=await getOrder(id);if(!o)return;const choices=next[o.status]||[];const actionButtons=choices.map(s=>`<button class="${s==='Cancelled'?'danger':'primary'}" data-life-action="${esc2(s)}">${s==='Cancelled'?'Cancel order':`Mark ${esc2(label[s])}`}</button>`).join('');const payment=o.status==='Delivered'&&String(o.payment).toLowerCase()!=='collected'?'<button class="primary" data-life-payment="Collected">Mark cash collected</button>':'';const hasCoords=validCoords(o.address?.latitude,o.address?.longitude);const mapTarget=hasCoords?`${o.address.latitude},${o.address.longitude}`:[o.address?.house,o.address?.area,o.address?.locality,o.address?.city,o.address?.district,o.address?.state,o.address?.pincode].filter(Boolean).join(', ');$('#modalBody').innerHTML=`<span class="eyebrow">ORDER LIFECYCLE</span><h2>${esc2(o.id)}</h2><div class="detail-grid"><div><small>Status</small><b>${esc2(label[o.status]||o.status)}</b></div><div><small>Payment</small><b>${esc2(o.payment)}</b></div><div><small>Delivery</small><b>${esc2(o.deliveryPlan)}</b></div><div><small>Total</small><b>${money2(o.total)}</b></div></div><h3>Customer</h3><p><b>${esc2(o.customer?.name||'')}</b><br>📞 ${esc2(o.customer?.phone||'')}<br>📍 ${esc2([o.address?.house,o.address?.area,o.address?.locality,o.address?.city,o.address?.district,o.address?.state,o.address?.pincode].filter(Boolean).join(', '))}</p><h3>Items</h3><div class="detail-items">${(o.items||[]).map(i=>`<div><span>${esc2(i.name)} ×${i.qty} ${esc2(i.unit)}</span><b>${money2(i.lineTotal)}</b></div>`).join('')}</div><div class="detail-actions">${actionButtons}${payment}${mapTarget?`<button class="ghost" data-life-map="${encodeURIComponent(mapTarget)}">${hasCoords?'Open exact location in Maps':'Open written address in Maps'}</button>`:''}</div>`;$('#modal').classList.remove('hidden');$$('[data-life-action]').forEach(b=>b.onclick=async()=>{const status=b.dataset.lifeAction;if(status==='Cancelled'&&!confirm('Cancel this order?'))return;await change(o.id,{status})});$$('[data-life-payment]').forEach(b=>b.onclick=async()=>change(o.id,{payment:b.dataset.lifePayment}));$$('[data-life-map]').forEach(b=>b.onclick=()=>{const target=decodeURIComponent(b.dataset.lifeMap);const url=hasCoords?`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(target)}`:`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(target)}`;const w=window.open(url,'_blank','noopener,noreferrer');if(!w)window.location.href=url})}catch(e){toast(e.message)}}
-  async function change(id,patch){try{await api(`/admin/orders/${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify(patch)});toast('Order updated');$('#modal').classList.add('hidden');await loadSummary();if(typeof loadOrders==='function')await loadOrders(true);if(typeof loadHome==='function')await loadHome();if(document.getElementById('cash')?.classList.contains('active'))await enhanceCash(true)}catch(e){toast(e.message)}}
+  function setSaveState(text,kind=''){const el=document.getElementById('fwLifeSave');if(!el)return;el.textContent=text;el.className=`fw-life-save ${kind}`}
+  function legalPaymentValues(o){const current=String(o.payment||'Not Collected');const values=[current];if(o.status==='Delivered'&&current!=='Collected')values.push('Collected');if(current==='Collected')values.push('Refunded');if(o.status==='Cancelled'&&current!=='Cancelled')values.push('Cancelled');if(current!=='Collected'&&current!=='Refunded'&&current!=='Cancelled')values.push('Not Collected');return [...new Set(values)]}
+  function selectOptions(values,current,labelMap={}){return values.map(v=>`<option value="${esc2(v)}"${v===current?' selected':''}>${esc2(labelMap[v]||v)}</option>`).join('')}
+  function renderLifecycle(o){
+    state.order=o;state.id=o.id;addUxStyle();
+    const choices=[o.status,...(next[o.status]||[])];
+    const hasCoords=validCoords(o.address?.latitude,o.address?.longitude);
+    const mapTarget=hasCoords?`${o.address.latitude},${o.address.longitude}`:[o.address?.house,o.address?.area,o.address?.locality,o.address?.city,o.address?.district,o.address?.state,o.address?.pincode].filter(Boolean).join(', ');
+    const items=(o.items||[]).map(i=>`<div><span>${esc2(i.name)} ×${i.qty} ${esc2(i.unit)}</span><b>${money2(i.lineTotal)}</b></div>`).join('');
+    const queueIds=typeof orders!=='undefined'&&Array.isArray(orders)?orders.map(x=>x.id):[];
+    const pos=queueIds.indexOf(o.id),prev=pos>0?queueIds[pos-1]:'',nextId=pos>=0&&pos<queueIds.length-1?queueIds[pos+1]:'';
+    $('#modalBody').innerHTML=`<div class="fw-life-head"><div><span class="eyebrow">ORDER LIFECYCLE</span><h2>${esc2(o.id)}</h2><span id="fwLifeSave" class="fw-life-save">Saved</span></div><button type="button" class="fw-life-copy" data-life-copy="${esc2(o.id)}">Copy ID</button></div><div class="fw-order-controls"><div><label>Status · auto-saves</label><select id="fwLifeStatus">${selectOptions(choices,o.status,statusLabel)}</select></div><div><label>Payment · auto-saves</label><select id="fwLifePayment">${selectOptions(legalPaymentValues(o),o.payment)}</select></div></div><div class="detail-grid"><div><small>Delivery</small><b>${esc2(o.deliveryPlan||'Unscheduled')}</b></div><div><small>Total</small><b>${money2(o.total)}</b></div><div><small>Items</small><b>${(o.items||[]).length}</b></div><div><small>Customer</small><b>${esc2(o.customer?.name||'Customer')}</b></div></div><h3>Customer</h3><p><b>${esc2(o.customer?.name||'')}</b><br>📞 ${esc2(o.customer?.phone||'')}<br>📍 ${esc2([o.address?.house,o.address?.area,o.address?.locality,o.address?.city,o.address?.district,o.address?.state,o.address?.pincode].filter(Boolean).join(', '))}</p>${hasCoords?`<div class="exact-location"><b>📍 Exact delivery location</b><small>${Number(o.address.latitude).toFixed(6)}, ${Number(o.address.longitude).toFixed(6)}${o.address.accuracyMeters?` · ±${Math.round(Number(o.address.accuracyMeters))}m`:''}</small><button id="modalExactMap" class="primary full" type="button">Open exact location in Maps →</button></div>`:'<div class="exact-location warning"><b>Map location unavailable</b><small>This order has no saved coordinates. Use the written address.</small></div>'}<h3>Items</h3><div class="detail-items">${items||'<div class="empty">No items recorded.</div>'}</div><div class="detail-actions">${mapTarget?`<button class="ghost" data-life-map="${encodeURIComponent(mapTarget)}">Open address in Maps</button>`:''}<button class="ghost" data-life-refresh>Refresh order</button></div><div class="fw-life-nav"><button class="ghost" data-life-prev ${prev?'':'disabled'}>← Previous</button><button class="ghost" data-life-next ${nextId?'':'disabled'}>Next →</button></div>`;
+    $('#modal').classList.remove('hidden');
+    bindLifecycle(o,prev,nextId,hasCoords);
+  }
+  function bindLifecycle(o,prev,nextId,hasCoords){
+    const status=document.getElementById('fwLifeStatus'),payment=document.getElementById('fwLifePayment');
+    status?.addEventListener('change',()=>queueSave(o.id,'status',status.value,status));
+    payment?.addEventListener('change',()=>queueSave(o.id,'payment',payment.value,payment));
+    document.querySelector('[data-life-copy]')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(o.id);setSaveState('Order ID copied','')}catch(_){toast('Order ID: '+o.id)}});
+    document.querySelector('[data-life-refresh]')?.addEventListener('click',async()=>{setSaveState('Refreshing…','saving');try{const fresh=await getOrder(o.id);if(fresh)renderLifecycle(fresh);else toast('Order no longer exists')}catch(e){setSaveState('Refresh failed','error');toast(e.message)}});
+    document.querySelector('[data-life-prev]')?.addEventListener('click',()=>prev&&openLifecycle(prev));
+    document.querySelector('[data-life-next]')?.addEventListener('click',()=>nextId&&openLifecycle(nextId));
+    if(hasCoords)document.getElementById('modalExactMap')?.addEventListener('click',()=>window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${o.address.latitude},${o.address.longitude}`)}`,'_blank','noopener,noreferrer'));
+    document.querySelector('[data-life-map]')?.addEventListener('click',e=>window.open(`https://www.google.com/maps/search/?api=1&query=${e.currentTarget.dataset.lifeMap}`,'_blank','noopener,noreferrer'));
+  }
+  function queueSave(id,field,value,control){
+    state.queue=state.queue.then(async()=>{
+      if(state.id!==id)return;
+      const previous=state.order?.[field==='status'?'status':'payment'];
+      if(previous===value)return;
+      control.disabled=true;setSaveState('Saving…','saving');
+      try{
+        await api(`/admin/orders/${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify({[field]:value})});
+        const fresh=await getOrder(id);if(!fresh)throw Error('Order could not be refreshed.');
+        if(state.id===id)renderLifecycle(fresh);
+        toast(field==='status'?'Status saved':'Payment saved');
+      }catch(e){if(state.id===id){control.value=previous;setSaveState('Save failed','error')}toast(e.message||'Update failed')}finally{control.disabled=false}
+    });
+    return state.queue;
+  }
+  async function openLifecycle(id){try{const o=await getOrder(id);if(!o)return toast('Order not found');renderLifecycle(o)}catch(e){toast(e.message)}}
   async function fetchAllCashOrders(payment){let page=1,all=[];for(let guard=0;guard<100;guard++){const d=await api(`/admin/orders?page=${page}&limit=50&payment=${encodeURIComponent(payment)}&sort=newest`);const rows=Array.isArray(d.orders)?d.orders:[];all.push(...rows);const total=Number(d.pagination?.total||0);if(!rows.length||!d.pagination||all.length>=total)break;page++}return all}
   async function enhanceCash(force=false){const root=document.getElementById('cashSummary');if(!root||(!force&&root.dataset.cashEnhanced==='1'))return;try{const pending=(await fetchAllCashOrders('Pending')).filter(o=>o.status!=='Cancelled');const collected=await fetchAllCashOrders('Collected');const today=istDay(new Date());const collectedToday=collected.filter(o=>o.status!=='Cancelled'&&istDay(o.paymentCollectedAt||o.updatedAt||o.createdAt)===today);const pendingTotal=pending.reduce((sum,o)=>sum+Number(o.total||0),0);const collectedTotal=collectedToday.reduce((sum,o)=>sum+Number(o.total||0),0);const collectedOrders=collectedToday.length;root.dataset.cashEnhanced='1';root.innerHTML=`<div class="cash-summary-grid"><article class="report"><span>Cash pending</span><strong>${money2(pendingTotal)}</strong><small>${pending.length} orders still outstanding</small></article><article class="report"><span>Cash collected</span><strong>${money2(collectedTotal)}</strong><small>${collectedOrders} collections today</small></article></div><div class="cash-collected-total"><span>Collected today</span><strong>${money2(collectedTotal)}</strong></div>`;const list=document.getElementById('cashList');if(list){list.innerHTML=pending.length?`<div class="section-head"><div><span class="eyebrow">PENDING CASH</span><h2>Cash not collected</h2><p>${pending.length} orders · ${money2(pendingTotal)} outstanding</p></div></div>`+pending.map(orderCard).join(''):'<div class="empty">All clear — no cash orders are pending.</div>'}}catch(e){root.dataset.cashEnhanced='';toast(e.message)}}
   const baseLoadCash=window.loadCash;if(typeof baseLoadCash==='function')window.loadCash=async function(){await baseLoadCash();await enhanceCash(true)};
-  document.addEventListener('click',e=>{const card=e.target.closest('[data-order]');if(!card)return;e.preventDefault();e.stopImmediatePropagation();openLifecycle(card.dataset.order)},true);
+  document.addEventListener('click',e=>{const card=e.target.closest('[data-order]');if(!card)return;if(e.target.closest('button,a,select,input,textarea'))return;e.preventDefault();e.stopImmediatePropagation();openLifecycle(card.dataset.order)},true);
+  document.addEventListener('keydown',e=>{if(e.key==='/'&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)){const s=document.getElementById('orderSearch');if(s){e.preventDefault();s.focus();}}});
   document.addEventListener('DOMContentLoaded',()=>{const sel=document.getElementById('orderStatus');if(sel)sel.innerHTML='<option value="all">All status</option><option value="New">New</option><option value="Confirmed">Confirmed</option><option value="Processing">Processing</option><option value="Ready">Ready</option><option value="Out for Delivery">Out for delivery</option><option value="Delivered">Delivered</option><option value="Cancelled">Cancelled</option>';const cash=document.getElementById('cash');if(cash){const observer=new MutationObserver(()=>{if(cash.classList.contains('active')){const root=document.getElementById('cashSummary');if(root)root.dataset.cashEnhanced='';enhanceCash()}});observer.observe(cash,{attributes:true,subtree:true,attributeFilter:['class']})}if(location.hash==='#cash')enhanceCash(true)});
-  if(!document.querySelector('script[src*="frontend/admin/catalogue.js"]')){const s=document.createElement('script');s.src='frontend/admin/catalogue.js?v=20260908-catalogue-v1';document.body.appendChild(s)}
+  if(!document.querySelector('script[src*="frontend/admin/catalogue.js"]')){const s=document.createElement('script');s.src='frontend/admin/catalogue.js?v=20260909-catalogue-v6';document.body.appendChild(s)}
   const previousNavigate=window.navigateAdminScreen;
-  if(typeof previousNavigate==='function'){
-    window.navigateAdminScreen=function(id){
-      if(id==='catalogue'){
-        document.querySelectorAll('.screen').forEach(x=>x.classList.toggle('active',x.id===id));
-        document.querySelectorAll('[data-screen]').forEach(b=>b.classList.toggle('active',b.dataset.screen===id));
-        history.replaceState(null,'',`#${id}`);
-        window.scrollTo({top:0,behavior:'auto'});
-        if(typeof window.freshWayCatalogueRefresh==='function')return window.freshWayCatalogueRefresh();
-        return;
-      }
-      return previousNavigate(id);
-    };
-  }
-  const ownerRefresh=async()=>{
-    const button=document.getElementById('refreshBtn');
-    if(button){button.disabled=true;button.setAttribute('aria-busy','true');}
-    try{
-      const id=location.hash.slice(1)||'overview';
-      if(id==='overview')await Promise.all([loadSummary(),loadBusiness(),loadHome()]);
-      else if(id==='orders')await loadOrders(true);
-      else if(id==='delivery')await loadDelivery(true);
-      else if(id==='cash')await loadCash();
-      else if(id==='customers')await loadCustomers(true);
-      else if(id==='catalogue'){
-        if(typeof window.freshWayCatalogueRefresh==='function')await window.freshWayCatalogueRefresh();
-      }else if(id==='notifications')await loadHistory();
-      else if(id==='reports')await loadReports();
-    }catch(e){toast(e.message||'Refresh failed')}
-    finally{const b=document.getElementById('refreshBtn');if(b){b.disabled=false;b.removeAttribute('aria-busy')}}
-  };
+  if(typeof previousNavigate==='function')window.navigateAdminScreen=function(id){if(id==='catalogue'){document.querySelectorAll('.screen').forEach(x=>x.classList.toggle('active',x.id===id));document.querySelectorAll('[data-screen]').forEach(b=>b.classList.toggle('active',b.dataset.screen===id));history.replaceState(null,'',`#${id}`);window.scrollTo({top:0,behavior:'auto'});if(typeof window.freshWayCatalogueRefresh==='function')return window.freshWayCatalogueRefresh();return}return previousNavigate(id)};
+  const ownerRefresh=async()=>{const button=document.getElementById('refreshBtn');if(button){button.disabled=true;button.setAttribute('aria-busy','true')}try{const id=location.hash.slice(1)||'overview';if(id==='overview')await Promise.all([loadSummary(),loadBusiness(),loadHome()]);else if(id==='orders')await loadOrders(true);else if(id==='delivery')await loadDelivery(true);else if(id==='cash')await loadCash();else if(id==='customers')await loadCustomers(true);else if(id==='catalogue'){if(typeof window.freshWayCatalogueRefresh==='function')await window.freshWayCatalogueRefresh()}else if(id==='notifications')await loadHistory();else if(id==='reports')await loadReports()}catch(e){toast(e.message||'Refresh failed')}finally{const b=document.getElementById('refreshBtn');if(b){b.disabled=false;b.removeAttribute('aria-busy')}}};
   window.freshWayOwnerRefresh=ownerRefresh;
-  const removeDuplicateRefreshControls=()=>{
-    document.getElementById('refreshHistory')?.remove();
-    document.getElementById('fwRefreshCatalogue')?.remove();
-    const b=document.getElementById('refreshBtn');
-    if(!b)return;
-    b.type='button';
-    b.onclick=ownerRefresh;
-  };
-  removeDuplicateRefreshControls();
-  document.addEventListener('DOMContentLoaded',removeDuplicateRefreshControls,{once:true});
-  if(document.body)new MutationObserver(removeDuplicateRefreshControls).observe(document.body,{childList:true,subtree:true});
+  const removeDuplicateRefreshControls=()=>{document.getElementById('refreshHistory')?.remove();document.getElementById('fwRefreshCatalogue')?.remove();const b=document.getElementById('refreshBtn');if(!b)return;b.type='button';b.onclick=ownerRefresh};
+  removeDuplicateRefreshControls();document.addEventListener('DOMContentLoaded',removeDuplicateRefreshControls,{once:true});if(document.body)new MutationObserver(removeDuplicateRefreshControls).observe(document.body,{childList:true,subtree:true});
 })();
