@@ -2,8 +2,7 @@
   const esc=v=>String(v??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
   const money=n=>`₹${Number(n||0).toLocaleString('en-IN')}`;
   const next={New:['Confirmed','Cancelled'],Confirmed:['Processing','Cancelled'],Processing:['Ready','Cancelled'],Ready:['Out for Delivery','Cancelled'],'Out for Delivery':['Delivered','Cancelled'],Delivered:[],Cancelled:[]};
-  const statuses=['New','Confirmed','Processing','Ready','Out for Delivery','Delivered','Cancelled'];
-  const payments=['Not Collected','Collected','Refunded','Cancelled'];
+  const paymentNext={'Not Collected':['Collected'],Collected:['Refunded'],Refunded:[],Cancelled:[]};
   const statusLabel={'Out for Delivery':'Out for delivery'};
   const paymentLabel={'Not Collected':'Not collected'};
   let id='',order=null,busy=false,queue=Promise.resolve();
@@ -17,9 +16,10 @@
     order=o;
     const a=o.address||{};
     const choices=next[o.status]||[];
+    const paymentChoices=o.status==='Delivered'?(paymentNext[o.payment]||[]):o.status==='Cancelled'&&o.payment==='Not Collected'?['Cancelled']:[];
     const mapTarget=[a.house,a.area,a.locality,a.city,a.district,a.state,a.pincode].filter(Boolean).join(', ');
     const actions=choices.map(s=>`<button type="button" class="${s==='Cancelled'?'danger':'primary'}" data-fw-life-action="${esc(s)}">${s==='Cancelled'?'Cancel order':`Mark ${esc(statusLabel[s]||s)}`}</button>`).join('');
-    $('#modalBody').innerHTML=`<span class="eyebrow">ORDER LIFECYCLE</span><h2>${esc(o.id)}</h2><div class="detail-grid lifecycle-fields"><label><small>Status</small><select id="fwLifeStatus">${optionList(o.status,statuses,statusLabel)}</select></label><label><small>Payment</small><select id="fwLifePayment">${optionList(o.payment,payments,paymentLabel)}</select></label><div><small>Delivery</small><b>${esc(o.deliveryPlan||'Unscheduled')}</b></div><div><small>Total</small><b>${money(o.total)}</b></div></div><p class="lifecycle-autosave">Auto-saved immediately. You can update status and payment without closing this window.</p><h3>Customer</h3><p><b>${esc(o.customer?.name||'')}</b><br>📞 ${esc(o.customer?.phone||'')}<br>📍 ${esc([a.house,a.area,a.locality,a.city,a.district,a.state,a.pincode].filter(Boolean).join(', '))}${a.landmark?`<br>Landmark: ${esc(a.landmark)}`:''}${a.note?`<br>Instructions: ${esc(a.note)}`:''}</p><h3>Items</h3><div class="detail-items">${(o.items||[]).map(i=>`<div><span>${esc(i.name)} ×${i.qty} ${esc(i.unit)}</span><b>${money(i.lineTotal)}</b></div>`).join('')}</div><div class="detail-actions">${actions}${mapTarget?`<button type="button" class="ghost" data-fw-life-map="${encodeURIComponent(mapTarget)}">Open written address in Maps</button>`:''}</div>`;
+    $('#modalBody').innerHTML=`<span class="eyebrow">ORDER LIFECYCLE</span><h2>${esc(o.id)}</h2><div class="detail-grid lifecycle-fields"><label><small>Status</small><select id="fwLifeStatus">${optionList(o.status,choices,statusLabel)}</select></label><label><small>Payment</small><select id="fwLifePayment">${optionList(o.payment,paymentChoices,paymentLabel)}</select></label><div><small>Delivery</small><b>${esc(o.deliveryPlan||'Unscheduled')}</b></div><div><small>Total</small><b>${money(o.total)}</b></div></div><p class="lifecycle-autosave">Auto-saved immediately. You can update status and payment without closing this window.</p><h3>Customer</h3><p><b>${esc(o.customer?.name||'')}</b><br>📞 ${esc(o.customer?.phone||'')}<br>📍 ${esc([a.house,a.area,a.locality,a.city,a.district,a.state,a.pincode].filter(Boolean).join(', '))}${a.landmark?`<br>Landmark: ${esc(a.landmark)}`:''}${a.note?`<br>Instructions: ${esc(a.note)}`:''}</p><h3>Items</h3><div class="detail-items">${(o.items||[]).map(i=>`<div><span>${esc(i.name)} ×${i.qty} ${esc(i.unit)}</span><b>${money(i.lineTotal)}</b></div>`).join('')}</div><div class="detail-actions">${actions}${mapTarget?`<button type="button" class="ghost" data-fw-life-map="${encodeURIComponent(mapTarget)}">Open written address in Maps</button>`:''}</div>`;
     $('#modal').classList.remove('hidden');
     $('#fwLifeStatus').value=o.status;
     $('#fwLifePayment').value=o.payment;
