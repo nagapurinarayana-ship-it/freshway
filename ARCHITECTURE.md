@@ -12,29 +12,34 @@ The production Worker entrypoint is `worker/src/admin-auth.js`.
 Request
   |
   v
-admin-auth.js             Authentication, CORS, session gate
+admin-auth.js             Owner authentication, CORS, session gate
   |
-  v
-admin-data.js             Small admin route table / dispatcher
+  +--> admin-data.js      Small admin route table / dispatcher
+  |      +--> admin-orders.js
+  |      +--> admin-customers.js
+  |      +--> admin-reports.js
+  |      +--> admin-products.js
+  |      +--> admin-notifications.js
+  |      +--> admin-shared.js
+  |      +--> admin-response.js
   |
-  +--> admin-orders.js    Order reads and lifecycle/payment updates
-  +--> admin-customers.js Customer reads
-  +--> admin-reports.js   Dashboard/report calculations
-  +--> admin-products.js  Product deletion
-  +--> admin-shared.js    Shared, domain-neutral helpers
-  +--> admin-notifications.js
-                           Best-effort customer push side effects
+  +--> passcode-auth.js   Customer passcode authentication/session boundary
+         |
+         +--> index.js    Shared legacy-compatible customer/order data handler
+         +--> address-api.js
 ```
 
 ### Rules
 
-1. Authentication code must not contain order/report/customer business logic.
-2. Notification delivery must not be required for an order mutation to succeed.
-3. A feature module owns its queries and business rules; other features call its exported functions instead of duplicating SQL.
-4. Shared helpers must remain domain-neutral. Do not move feature-specific rules into `admin-shared.js` just for convenience.
-5. `admin-data.js` is a dispatcher, not a business-logic dumping ground.
-6. `worker/src/index.js` is legacy compatibility code. New admin behaviour belongs behind the canonical `admin-auth.js` entrypoint.
-7. Database migrations are append-only and versioned. Never edit an already-applied migration to change production data.
+1. `admin-auth.js` owns the production entrypoint and owner session/authentication boundary; it must not contain order/report/customer business logic.
+2. `admin-data.js` is a dispatcher, not a business-logic dumping ground.
+3. `admin-orders.js` owns owner order queries and lifecycle/payment rules.
+4. `admin-customers.js`, `admin-reports.js`, `admin-products.js`, and `admin-notifications.js` own their respective feature domains.
+5. `admin-shared.js` contains shared, domain-neutral helpers. Feature-specific rules should stay in the owning feature module.
+6. Notification delivery must not be required for an order mutation to succeed.
+7. `passcode-auth.js` is the canonical customer authentication/session wrapper. `index.js` remains a compatibility/data layer used behind that wrapper, including public customer/order APIs and health behaviour. Do not remove it without migrating those dependencies and tests together.
+8. New owner lifecycle/business logic must not be added back into `worker/src/index.js`; it belongs in the `admin-*` modules behind `admin-auth.js`.
+9. Database migrations are append-only and versioned. Never edit an already-applied migration to change production data.
 
 ## Frontend boundaries
 
