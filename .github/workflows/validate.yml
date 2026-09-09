@@ -57,6 +57,14 @@ jobs:
           grep -q 'export async function notifyOrderChange' worker/src/admin-notifications.js
           grep -q 'export async function normalizeOwnerResponse' worker/src/admin-response.js
           ! grep -q "from 'web-push'" worker/src/admin-auth.js
+      - name: Check canonical Worker boundaries
+        run: |
+          test "$(node -e "const fs=require('fs'); console.log(JSON.parse(fs.readFileSync('worker/wrangler.jsonc','utf8')).main)")" = "src/admin-auth.js"
+          grep -q "from './index.js'" worker/src/passcode-auth.js
+          ! grep -R -n "from './index.js'" worker/src/admin-*.js
+          grep -q 'worker/src/index.js.*legacy' ARCHITECTURE.md
+          grep -q 'delivery_status.*New.*Confirmed.*Processing.*Ready.*Out for Delivery.*Delivered.*Cancelled' README.md
+          grep -q 'payment_status.*Not Collected.*Collected.*Refunded.*Cancelled' README.md
       - name: Check D1 schema and migrations
         working-directory: worker
         run: |
