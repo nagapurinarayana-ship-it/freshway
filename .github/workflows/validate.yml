@@ -63,21 +63,45 @@ jobs:
           ! grep -qF "from 'web-push'" worker/src/admin-auth.js
       - name: Check canonical Worker boundaries
         run: |
-          test "$(node -e "const fs=require('fs'); console.log(JSON.parse(fs.readFileSync('worker/wrangler.jsonc','utf8')).main)")" = "src/admin-auth.js"
-          grep -qF "./index.js" worker/src/passcode-auth.js
-          if grep -R -nF "./index.js" worker/src/admin-*.js; then exit 1; fi
-          grep -qF 'index.js remains a compatibility/data layer' ARCHITECTURE.md
-          grep -qF 'delivery_status' README.md
-          grep -qF 'New' README.md
-          grep -qF 'Confirmed' README.md
-          grep -qF 'Processing' README.md
-          grep -qF 'Ready' README.md
-          grep -qF 'Out for Delivery' README.md
-          grep -qF 'Delivered' README.md
-          grep -qF 'Cancelled' README.md
-          grep -qF 'Not Collected' README.md
-          grep -qF 'Collected' README.md
-          grep -qF 'Refunded' README.md
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const wrangler = JSON.parse(fs.readFileSync('worker/wrangler.jsonc', 'utf8'));
+          if (wrangler.main !== 'src/admin-auth.js') process.exit(1);
+
+          const passcodeAuth = fs.readFileSync('worker/src/passcode-auth.js', 'utf8');
+          if (!passcodeAuth.includes("from './index.js'")) process.exit(1);
+
+          const adminDir = 'worker/src';
+          for (const name of fs.readdirSync(adminDir).filter(name => /^admin-.*\.js$/.test(name))) {
+            const source = fs.readFileSync(path.join(adminDir, name), 'utf8');
+            if (/from\s+['"]\.\/index\.js['"]/.test(source) || /require\(\s*['"]\.\/index\.js['"]\s*\)/.test(source)) {
+              console.error(`Forbidden index.js dependency in ${name}`);
+              process.exit(1);
+            }
+          }
+
+          const architecture = fs.readFileSync('ARCHITECTURE.md', 'utf8');
+          if (!architecture.includes('index.js remains a compatibility/data layer')) process.exit(1);
+
+          const readme = fs.readFileSync('README.md', 'utf8');
+          for (const value of [
+            'delivery_status',
+            'New',
+            'Confirmed',
+            'Processing',
+            'Ready',
+            'Out for Delivery',
+            'Delivered',
+            'Cancelled',
+            'Not Collected',
+            'Collected',
+            'Refunded'
+          ]) {
+            if (!readme.includes(value)) process.exit(1);
+          }
+          console.log('canonical Worker boundaries OK');
+          NODE
       - name: Check D1 schema and migrations
         working-directory: worker
         run: |
