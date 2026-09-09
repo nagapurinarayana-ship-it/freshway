@@ -39,32 +39,32 @@ jobs:
           for module in api storage catalogue-cart orders orders-data orders-view checkout checkout-submit profile address address-flow confirmation order-display cart-view feedback product-view navigation modal account-actions view-state search keyboard cart-actions cart-bar; do
             test -s "frontend/customer/$module.js"
           done
-          grep -q 'FreshWayCustomerAPI' app.js
-          grep -q 'FreshWayCustomerStorage' app.js
-          grep -q 'FreshWayCatalogueCart' app.js
-          grep -q 'FreshWayCustomerOrdersData' app.js
-          grep -q 'FreshWayCustomerCheckoutSubmit' app.js
-          grep -q 'checkoutSubmit.bind()' app.js
-          grep -q 'frontend/customer/checkout-submit.js' index.html
+          grep -qF 'FreshWayCustomerAPI' app.js
+          grep -qF 'FreshWayCustomerStorage' app.js
+          grep -qF 'FreshWayCatalogueCart' app.js
+          grep -qF 'FreshWayCustomerOrdersData' app.js
+          grep -qF 'FreshWayCustomerCheckoutSubmit' app.js
+          grep -qF 'checkoutSubmit.bind()' app.js
+          grep -qF 'frontend/customer/checkout-submit.js' index.html
       - name: Check backend feature boundaries
         run: |
-          grep -q "from './admin-orders.js'" worker/src/admin-data.js
-          grep -q "from './admin-reports.js'" worker/src/admin-data.js
-          grep -q "from './admin-customers.js'" worker/src/admin-data.js
-          grep -q "from './admin-products.js'" worker/src/admin-data.js
-          grep -q "from './admin-notifications.js'" worker/src/admin-auth.js
-          grep -q "from './admin-response.js'" worker/src/admin-auth.js
-          grep -q 'export async function notifyOrderChange' worker/src/admin-notifications.js
-          grep -q 'export async function normalizeOwnerResponse' worker/src/admin-response.js
-          ! grep -q "from 'web-push'" worker/src/admin-auth.js
+          grep -qF "from './admin-orders.js'" worker/src/admin-data.js
+          grep -qF "from './admin-reports.js'" worker/src/admin-data.js
+          grep -qF "from './admin-customers.js'" worker/src/admin-data.js
+          grep -qF "from './admin-products.js'" worker/src/admin-data.js
+          grep -qF "from './admin-notifications.js'" worker/src/admin-auth.js
+          grep -qF "from './admin-response.js'" worker/src/admin-auth.js
+          grep -qF 'export async function notifyOrderChange' worker/src/admin-notifications.js
+          grep -qF 'export async function normalizeOwnerResponse' worker/src/admin-response.js
+          ! grep -qF "from 'web-push'" worker/src/admin-auth.js
       - name: Check canonical Worker boundaries
         run: |
           test "$(node -e "const fs=require('fs'); console.log(JSON.parse(fs.readFileSync('worker/wrangler.jsonc','utf8')).main)")" = "src/admin-auth.js"
-          grep -q "from './index.js'" worker/src/passcode-auth.js
-          ! grep -R -n "from './index.js'" worker/src/admin-*.js
-          grep -q 'worker/src/index.js.*legacy' ARCHITECTURE.md
-          grep -q 'delivery_status.*New.*Confirmed.*Processing.*Ready.*Out for Delivery.*Delivered.*Cancelled' README.md
-          grep -q 'payment_status.*Not Collected.*Collected.*Refunded.*Cancelled' README.md
+          grep -qF "from './index.js'" worker/src/passcode-auth.js
+          if grep -R -nF "from './index.js'" worker/src/admin-*.js; then exit 1; fi
+          grep -qF 'worker/src/index.js` remains' ARCHITECTURE.md
+          grep -qF '`delivery_status`: `New` | `Confirmed` | `Processing` | `Ready` | `Out for Delivery` | `Delivered` | `Cancelled`' README.md
+          grep -qF '`payment_status`: `Not Collected` | `Collected` | `Refunded` | `Cancelled`' README.md
       - name: Check D1 schema and migrations
         working-directory: worker
         run: |
@@ -91,5 +91,5 @@ jobs:
           ! grep -RInE '(WHATSAPP_ACCESS_TOKEN|VAPID_PRIVATE_KEY|ADMIN_TOKEN|CUSTOMER_SESSION_SECRET|ADMIN_SESSION_SECRET|TWILIO_ACCOUNT_SID|TWILIO_AUTH_TOKEN|TWILIO_VERIFY_SERVICE_SID)[[:space:]]*[:=][[:space:]]*[^$\"\047[:space:]]{20,}' --exclude-dir=.git --exclude='api.test.js' --exclude='secure-identity.test.js' .
       - name: Check test fixtures are non-production values
         run: |
-          grep -q 'fixture-admin' worker/test/api.test.js
-          grep -q 'fixture-customer-session' worker/test/api.test.js
+          grep -qF 'fixture-admin' worker/test/api.test.js
+          grep -qF 'fixture-customer-session' worker/test/api.test.js
