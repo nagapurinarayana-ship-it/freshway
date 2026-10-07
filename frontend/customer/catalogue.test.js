@@ -15,3 +15,9 @@ assert.doesNotMatch(app,/FALLBACK_PRODUCTS/);
 assert.match(app,/window\.FreshWayCustomerCatalogue/);
 
 console.log('catalogue server-authority/error-boundary OK');
+
+const productView=fs.readFileSync('frontend/customer/product-view.js','utf8');
+assert.match(productView,/stock_status/);
+assert.match(productView,/OUT OF STOCK/);
+assert.match(productView,/data-plus/);
+assert.match(productView,/stock-cart-warning/);

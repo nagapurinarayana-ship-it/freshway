@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS products (
   active INTEGER NOT NULL DEFAULT 1,
   category_id TEXT REFERENCES categories(id) ON DELETE SET NULL,
   display_order INTEGER NOT NULL DEFAULT 999,
+  stock_managed INTEGER NOT NULL DEFAULT 0 CHECK(stock_managed IN (0,1)),
+  stock_quantity INTEGER NOT NULL DEFAULT 0 CHECK(stock_quantity >= 0),
+  low_stock_threshold INTEGER NOT NULL DEFAULT 5 CHECK(low_stock_threshold >= 0),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -83,6 +86,7 @@ CREATE TABLE IF NOT EXISTS order_items (
   qty INTEGER NOT NULL CHECK(qty > 0),
   price INTEGER NOT NULL CHECK(price >= 0),
   line_total INTEGER NOT NULL CHECK(line_total >= 0),
+  stock_reserved_qty INTEGER NOT NULL DEFAULT 0 CHECK(stock_reserved_qty >= 0),
   FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS order_address_snapshots (
@@ -139,6 +143,8 @@ CREATE TABLE IF NOT EXISTS auth_rate_limits (
 );
 CREATE INDEX IF NOT EXISTS idx_categories_active_order ON categories(active, display_order, name);
 CREATE INDEX IF NOT EXISTS idx_products_category_active ON products(category_id, active, name);
+CREATE INDEX IF NOT EXISTS idx_products_stock ON products(stock_managed,stock_quantity,active);
+CREATE INDEX IF NOT EXISTS idx_order_items_stock_reserved ON order_items(product_id,stock_reserved_qty);
 CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
 CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(delivery_status, created_at DESC);

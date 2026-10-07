@@ -58,6 +58,7 @@ jobs:
           node frontend/customer/cart-bar.test.js
           node frontend/customer/checkout-submit.test.js
           node frontend/customer/catalogue.test.js
+          node worker/test/inventory.test.js
       - name: Run customer API resilience test
         run: node frontend/customer/api.test.js
 
@@ -236,6 +237,12 @@ jobs:
           test "$(find migrations -maxdepth 1 -type f -name '*.sql' | wc -l)" -ge 1
           test -s migrations/0011_order_payment_statuses.sql
           test -s migrations/0012_catalogue_categories.sql
+          test -s migrations/0013_inventory_stock.sql
+          grep -q 'stock_managed' schema.sql
+          grep -q 'stock_quantity' schema.sql
+          grep -q 'stock_reserved_qty' schema.sql
+          grep -q 'stock_managed' migrations/0013_inventory_stock.sql
+          grep -q 'stock_reserved_qty' migrations/0013_inventory_stock.sql
           grep -q 'client_order_id' migrations/0002_order_idempotency.sql
           grep -q 'auth_rate_limits' migrations/0003_auth_rate_limits.sql
           grep -q 'CREATE UNIQUE INDEX' migrations/0004_unique_customer_phone.sql

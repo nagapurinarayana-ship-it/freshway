@@ -10,7 +10,14 @@
     if(count)count.textContent=`${list.length} ${list.length===1?'item':'items'}`;
     grid.innerHTML=list.map(p=>{
       const qty=Number(state.cart[p.id]||0);
-      return `<article class="product-card"><div class="product-image" aria-hidden="true">${esc(p.emoji)}</div><h3>${esc(p.name)}</h3><div class="product-meta">Fresh today · ${esc(p.unit)}</div><div class="product-actions"><span class="product-price">${money(p.price)}<small>/${esc(p.unit)}</small></span>${qty?`<div class="qty-control"><button data-minus="${esc(p.id)}" aria-label="Remove one ${esc(p.name)}">−</button><span>${qty}</span><button data-plus="${esc(p.id)}" aria-label="Add one ${esc(p.name)}">+</button></div>`:`<button class="add-btn" data-add="${esc(p.id)}">ADD</button>`}</div></article>`
+      const stock=String(p.stock_status||'not_tracked');
+      const out=stock==='out_of_stock';
+      const stockLabel=stock==='out_of_stock'?'Out of stock':stock==='low_stock'?'Low stock':stock==='in_stock'?'In stock':'Available';
+      const stockClass=out?'stock-out':stock==='low_stock'?'stock-low':'stock-ok';
+      const action=qty
+        ? `<div class="qty-control"><button data-minus="${esc(p.id)}" aria-label="Remove one ${esc(p.name)}">−</button><span>${qty}</span>${out?'<span class="stock-cart-warning">Unavailable</span>':'<button data-plus="'+esc(p.id)+'" aria-label="Add one '+esc(p.name)+'">+</button>'}</div>`
+        : `<button class="add-btn" data-add="${esc(p.id)}" ${out?'disabled aria-disabled="true"':''}>${out?'OUT OF STOCK':'ADD'}</button>`;
+      return `<article class="product-card"><div class="product-image" aria-hidden="true">${esc(p.emoji)}</div><h3>${esc(p.name)}</h3><div class="product-meta">${stockLabel} · ${esc(p.unit)}</div><div class="product-actions"><span class="product-price">${money(p.price)}<small>/${esc(p.unit)}</small></span><span class="stock-pill ${stockClass}">${stockLabel}</span>${action}</div></article>`;
     }).join('')||'<div class="empty" style="grid-column:1/-1"><strong>No products found</strong><br>Try another search.</div>';
     updateCartBar();
   };

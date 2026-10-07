@@ -24,10 +24,11 @@ const now = () => new Date().toISOString();
 const cleanPhone = value => { const digits = String(value || '').replace(/\D/g, ''); return digits.length === 10 ? `91${digits}` : digits; };
 const orderId = () => `FW-${Date.now().toString().slice(-8)}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
 const validPlans = ['Today','Tomorrow','Later','Unscheduled'];
+const stockStatus=(managed,quantity,threshold)=>!managed?'not_tracked':Number(quantity)<=0?'out_of_stock':Number(quantity)<=Number(threshold||0)?'low_stock':'in_stock';
 
 async function products(env, includeInactive = false) {
-  const query = includeInactive ? 'SELECT id,name,unit,price,emoji,active FROM products ORDER BY name' : 'SELECT id,name,unit,price,emoji,active FROM products WHERE active=1 ORDER BY name';
-  const { results } = await env.DB.prepare(query).all(); return results || [];
+  const query = includeInactive ? 'SELECT id,name,unit,price,emoji,active,stock_managed,stock_quantity,low_stock_threshold FROM products ORDER BY name' : 'SELECT id,name,unit,price,emoji,active,stock_managed,stock_quantity,low_stock_threshold FROM products WHERE active=1 ORDER BY name';
+  const { results } = await env.DB.prepare(query).all(); const mapped=(results||[]).map(p=>({...p,stock_status:stockStatus(p.stock_managed,p.stock_quantity,p.low_stock_threshold)})); if(includeInactive)return mapped; return mapped.map(({stock_managed,stock_quantity,low_stock_threshold,...p})=>p);
 }
 
 async function registerCustomer(env, payload) {
@@ -50,9 +51,9 @@ async function validateOrderItems(env, rawItems) {
     unique.set(id, nextQty);
   }
   const ids = [...unique.keys()]; const placeholders = ids.map(() => '?').join(',');
-  const { results: dbProducts } = await env.DB.prepare(`SELECT id,name,unit,price,emoji FROM products WHERE active=1 AND id IN (${placeholders})`).bind(...ids).all();
+  const { results: dbProducts } = await env.DB.prepare(`SELECT id,name,unit,price,emoji,stock_managed,stock_quantity,low_stock_threshold FROM products WHERE active=1 AND id IN (${placeholders})`).bind(...ids).all();
   if (!dbProducts || dbProducts.length !== ids.length) throw new Error('One or more products are no longer available. Please refresh and try again.');
-  const items = dbProducts.map(p => ({ ...p, qty: unique.get(p.id), lineTotal: p.price * unique.get(p.id) }));
+  const items = dbProducts.map(p => { const qty=unique.get(p.id); if(Number(p.stock_managed)===1&&Number(p.stock_quantity)<qty)throw new Error(`Not enough stock for ${p.name}. Please reduce the quantity and try again.`); return { ...p, qty, lineTotal:p.price*qty, stockReservedQty:Number(p.stock_managed)===1?qty:0 }; });
   return { items, total: items.reduce((sum, item) => sum + item.lineTotal, 0) };
 }
 
@@ -99,13 +100,15 @@ async function createOrder(env, payload) {
     .bind(customerId, String(address.house).trim().slice(0, 200), String(address.area).trim().slice(0, 200), String(address.city).trim().slice(0, 100), String(address.pincode), String(address.landmark || '').trim().slice(0, 200), String(address.note || '').trim().slice(0, 500)).run();
   const addressId = addressResult?.meta?.last_row_id; if (!addressId) throw new Error('Could not save delivery address.');
   const id = orderId(), createdAt = now();
-  const statements = [env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at) VALUES (?,?,?,?,?,?, 'Not Collected','New','Tomorrow',?,?,?)`).bind(id, customerId, addressId, customerName, phone, total, clientOrderId || null, createdAt, createdAt), ...items.map(item => env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total) VALUES (?,?,?,?,?,?,?)`).bind(id, item.id, item.name, item.unit, item.qty, item.price, item.lineTotal))];
+  const stockUpdates=items.filter(item=>item.stockReservedQty>0).map(item=>env.DB.prepare('UPDATE products SET stock_quantity=stock_quantity-? WHERE id=? AND stock_managed=1').bind(item.stockReservedQty,item.id));
+  const statements=[...stockUpdates,env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at) VALUES (?,?,?,?,?,?, 'Not Collected','New','Tomorrow',?,?,?)`).bind(id,customerId,addressId,customerName,phone,total,clientOrderId||null,createdAt,createdAt),...items.map(item=>env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total,stock_reserved_qty) VALUES (?,?,?,?,?,?,?,?)`).bind(id,item.id,item.name,item.unit,item.qty,item.price,item.lineTotal,item.stockReservedQty))];
   try { await env.DB.batch(statements); } catch (error) {
     await env.DB.prepare('DELETE FROM addresses WHERE id=?').bind(addressId).run();
     if (clientOrderId && /unique|constraint/i.test(error?.message || '')) {
       const duplicate = await existingOrderByClientId(env, customerId, clientOrderId);
       if (duplicate) return duplicate;
     }
+    if (/stock_quantity/i.test(error?.message || '')) throw new Error('Stock changed while you were checking out. Please refresh your cart and try again.');
     throw error;
   }
   try { await sendCustomerPush(env, customerId, 'FreshWay order placed', `Order ${id} is confirmed. Delivery is planned for tomorrow or when your route is available.`); } catch (_) {}
@@ -216,27 +219,56 @@ async function updateOrder(env,id,payload){
   if(!sets.length)throw new Error('No order change supplied.');
   sets.push('updated_at=CURRENT_TIMESTAMP');
   const whereParams=[id,current.delivery_status,current.payment_status,current.delivery_plan];
-  const result=await env.DB.prepare(`UPDATE orders SET ${sets.join(',')} WHERE id=? AND delivery_status=? AND payment_status=? AND delivery_plan=?`).bind(...params,...whereParams).run();
-  if(!result.meta?.changes)throw new Error('Order changed by another admin. Refresh and try again.');
+  const statements=[];
+  if(status==='Cancelled'&&status!==current.delivery_status){
+    const {results:reserved}=await env.DB.prepare('SELECT product_id,SUM(stock_reserved_qty) stock_reserved_qty FROM order_items WHERE order_id=? AND stock_reserved_qty>0 GROUP BY product_id').bind(id).all();
+    statements.push(...(reserved||[]).map(item=>env.DB.prepare('UPDATE products SET stock_quantity=stock_quantity+? WHERE id=?').bind(Number(item.stock_reserved_qty),item.product_id)));
+  }
+  statements.push(env.DB.prepare(`UPDATE orders SET ${sets.join(',')} WHERE id=? AND delivery_status=? AND payment_status=? AND delivery_plan=?`).bind(...params,...whereParams));
+  try{const batchResult=await env.DB.batch(statements);const updateResult=batchResult?.[batchResult.length-1];if(!updateResult?.meta?.changes)throw new Error('Order changed by another admin. Refresh and try again.')}catch(error){if(/stock_quantity/i.test(error?.message||''))throw new Error('Stock could not be restored safely. Refresh and try again.');throw error}
   if((status&&status!==current.delivery_status)||(payment&&payment!==current.payment_status)||(deliveryPlan&&deliveryPlan!==current.delivery_plan)){
     let text;
     if(status&&status!==current.delivery_status)text=status==='Processing'?`Order ${id} is now being prepared.`:status==='Ready'?`Order ${id} is ready for delivery.`:status==='Out for Delivery'?`Order ${id} is out for delivery.`:status==='Delivered'?`Order ${id} has been delivered.`:status==='Cancelled'?`Order ${id} has been cancelled.`:status==='Confirmed'?`Order ${id} has been confirmed.`:`Order ${id} status is ${status}.`;
     else if(payment&&payment!==current.payment_status)text=payment==='Collected'?`Payment for order ${id} has been collected.`:payment==='Refunded'?`Payment for order ${id} has been refunded.`:`Payment for order ${id} is ${payment.toLowerCase()}.`;
     else text=`Delivery plan for order ${id} is now ${deliveryPlan}.`;
-    try{await sendCustomerPush(env,current.customer_id,'FreshWay order update',text)}catch(_){}
+    try{await sendCustomerPush(env,current.customer_id,'FreshWay order update',text)}catch(_){ }
   }
   return {ok:true,status:status||current.delivery_status,payment:payment||current.payment_status,deliveryPlan:deliveryPlan||current.delivery_plan};
 }
 
-async function addProduct(env,payload){const id=String(payload.id||`p-${Date.now()}-${Math.random().toString(36).slice(2,6)}`).trim().slice(0,100),name=String(payload.name||'').trim().slice(0,100),unit=String(payload.unit||'').trim().slice(0,30),price=Number(payload.price),emoji=String(payload.emoji||'🍎').slice(0,8);if(!name||!unit||!Number.isFinite(price)||price<0)throw new Error('Product name, unit and valid price are required.');await env.DB.prepare(`INSERT INTO products (id,name,unit,price,emoji,active) VALUES (?,?,?,?,?,1)`).bind(id,name,unit,Math.round(price),emoji).run();return{id,name,unit,price:Math.round(price),emoji,active:1}}
-async function updateProduct(env,id,payload){const sets=[],params=[];if(payload.name!==undefined){const v=String(payload.name).trim().slice(0,100);if(!v)throw new Error('Product name cannot be empty.');sets.push('name=?');params.push(v)}if(payload.unit!==undefined){const v=String(payload.unit).trim().slice(0,30);if(!v)throw new Error('Product unit cannot be empty.');sets.push('unit=?');params.push(v)}if(payload.price!==undefined){const v=Number(payload.price);if(!Number.isFinite(v)||v<0)throw new Error('Invalid price.');sets.push('price=?');params.push(Math.round(v))}if(payload.emoji!==undefined){sets.push('emoji=?');params.push(String(payload.emoji).slice(0,8))}if(payload.active!==undefined){sets.push('active=?');params.push(payload.active?1:0)}if(!sets.length)throw new Error('No product change supplied.');sets.push('updated_at=CURRENT_TIMESTAMP');params.push(id);const result=await env.DB.prepare(`UPDATE products SET ${sets.join(',')} WHERE id=?`).bind(...params).run();if(!result.meta?.changes)throw new Error('Product not found.');return{ok:true}}
+async function addProduct(env,payload){
+  const id=String(payload.id||`p-${Date.now()}-${Math.random().toString(36).slice(2,6)}`).trim().slice(0,100),name=String(payload.name||'').trim().slice(0,100),unit=String(payload.unit||'').trim().slice(0,30),price=Number(payload.price),emoji=String(payload.emoji||'🛒').slice(0,8),stockManaged=payload.stockManaged===true,stockQuantity=Number(payload.stockQuantity??0),lowStockThreshold=Number(payload.lowStockThreshold??5);
+  if(!name||!unit||!Number.isFinite(price)||price<0)throw new Error('Product name, unit and valid price are required.');
+  if(!Number.isInteger(stockQuantity)||stockQuantity<0||!Number.isInteger(lowStockThreshold)||lowStockThreshold<0)throw new Error('Enter valid stock values.');
+  await env.DB.prepare(`INSERT INTO products (id,name,unit,price,emoji,active,stock_managed,stock_quantity,low_stock_threshold) VALUES (?,?,?,?,?,?,?,?,?)`).bind(id,name,unit,Math.round(price),emoji,1,stockManaged?1:0,stockQuantity,lowStockThreshold).run();
+  return{id,name,unit,price:Math.round(price),emoji,active:1,stock_managed:stockManaged?1:0,stock_quantity:stockQuantity,low_stock_threshold:lowStockThreshold}
+}
+
+async function updateProduct(env,id,payload){
+  const current=await env.DB.prepare('SELECT stock_managed FROM products WHERE id=?').bind(id).first();
+  if(!current)throw new Error('Product not found.');
+  const sets=[],params=[];
+  if(payload.name!==undefined){const v=String(payload.name).trim().slice(0,100);if(!v)throw new Error('Product name cannot be empty.');sets.push('name=?');params.push(v)}
+  if(payload.unit!==undefined){const v=String(payload.unit).trim().slice(0,30);if(!v)throw new Error('Product unit cannot be empty.');sets.push('unit=?');params.push(v)}
+  if(payload.price!==undefined){const v=Number(payload.price);if(!Number.isFinite(v)||v<0)throw new Error('Invalid price.');sets.push('price=?');params.push(Math.round(v))}
+  if(payload.emoji!==undefined){sets.push('emoji=?');params.push(String(payload.emoji).slice(0,8))}
+  if(payload.active!==undefined){sets.push('active=?');params.push(payload.active?1:0)}
+  if(payload.stockManaged!==undefined){const next=payload.stockManaged?1:0;if(Number(current.stock_managed)===1&&next===0)throw new Error('Stock tracking cannot be disabled after it is enabled.');sets.push('stock_managed=?');params.push(next)}
+  if(payload.stockQuantity!==undefined){const v=Number(payload.stockQuantity);if(!Number.isInteger(v)||v<0)throw new Error('Invalid stock quantity.');sets.push('stock_quantity=?');params.push(v)}
+  if(payload.lowStockThreshold!==undefined){const v=Number(payload.lowStockThreshold);if(!Number.isInteger(v)||v<0)throw new Error('Invalid low-stock threshold.');sets.push('low_stock_threshold=?');params.push(v)}
+  if(!sets.length)throw new Error('No product change supplied.');
+  sets.push('updated_at=CURRENT_TIMESTAMP');params.push(id);
+  const result=await env.DB.prepare(`UPDATE products SET ${sets.join(',')} WHERE id=?`).bind(...params).run();
+  if(!result.meta?.changes)throw new Error('Product not found.');
+  return{ok:true}
+}
 
 async function saveSubscription(env,payload){const s=payload.subscription;if(!payload.customerId||!s?.endpoint||!s?.keys?.p256dh||!s?.keys?.auth)throw new Error('Invalid push subscription.');await env.DB.prepare(`INSERT INTO push_subscriptions (customer_id,endpoint,p256dh,auth,expiration_time,updated_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(endpoint) DO UPDATE SET customer_id=excluded.customer_id,p256dh=excluded.p256dh,auth=excluded.auth,expiration_time=excluded.expiration_time,updated_at=CURRENT_TIMESTAMP`).bind(String(payload.customerId).slice(0,100),s.endpoint,s.keys.p256dh,s.keys.auth,s.expirationTime||null).run();return{ok:true}}
 async function broadcastPush(env,payload){if(!env.VAPID_PUBLIC_KEY||!env.VAPID_PRIVATE_KEY||!env.VAPID_SUBJECT)throw new Error('Web Push VAPID secrets are not configured.');webpush.setVapidDetails(env.VAPID_SUBJECT,env.VAPID_PUBLIC_KEY,env.VAPID_PRIVATE_KEY);const{results}=await env.DB.prepare('SELECT endpoint,p256dh,auth FROM push_subscriptions').all();let success=0,failure=0;const dead=[];await Promise.all((results||[]).map(async row=>{try{await webpush.sendNotification({endpoint:row.endpoint,keys:{p256dh:row.p256dh,auth:row.auth}},JSON.stringify({title:payload.title||'FreshWay',body:payload.body||'You have a new FreshWay update.',url:payload.url||'/',tag:payload.tag||`freshway-${Date.now()}`}));success++}catch(error){failure++;const status=error?.statusCode||0;if(status===404||status===410)dead.push(row.endpoint)}}));if(dead.length)await env.DB.batch(dead.map(endpoint=>env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint=?').bind(endpoint)));await env.DB.prepare('INSERT INTO notification_log (channel,title,body,recipient_count,success_count,failure_count) VALUES (?,?,?,?,?,?)').bind('app',payload.title||'FreshWay',payload.body||'',results?.length||0,success,failure).run();return{channel:'app',recipients:results?.length||0,success,failure}}
 async function broadcastWhatsApp(env,payload){if(!env.WHATSAPP_ACCESS_TOKEN||!env.WHATSAPP_PHONE_NUMBER_ID||!env.WHATSAPP_GRAPH_VERSION)throw new Error('WhatsApp API secrets are not configured.');if(!payload.templateName)throw new Error('WhatsApp requires an approved template name for broadcast messaging.');const{results}=await env.DB.prepare('SELECT phone FROM customers WHERE phone IS NOT NULL AND whatsapp_opt_in=1').all();const url=`https://graph.facebook.com/${env.WHATSAPP_GRAPH_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`;let success=0,failure=0;await Promise.all((results||[]).map(async row=>{try{const response=await fetch(url,{method:'POST',headers:{'Authorization':`Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,'Content-Type':'application/json'},body:JSON.stringify({messaging_product:'whatsapp',to:String(row.phone).replace(/\D/g,''),type:'template',template:{name:payload.templateName,language:{code:payload.languageCode||'en_US'},...(payload.parameters?.length?{components:[{type:'body',parameters:payload.parameters.map(text=>({type:'text',text:String(text)}))}]}:{})}})});if(response.ok)success++;else failure++}catch(_){failure++}}));await env.DB.prepare('INSERT INTO notification_log (channel,title,body,recipient_count,success_count,failure_count) VALUES (?,?,?,?,?,?)').bind('whatsapp',payload.templateName,payload.body||'',results?.length||0,success,failure).run();return{channel:'whatsapp',recipients:results?.length||0,success,failure}}
 async function notificationHistory(env){const{results}=await env.DB.prepare('SELECT id,channel,title,body,recipient_count,success_count,failure_count,created_at FROM notification_log ORDER BY created_at DESC,id DESC LIMIT 50').all();return results||[]}
 
-export { normalizePaymentFilter, validateOrderPatch };
+export { normalizePaymentFilter, validateOrderPatch, validateOrderItems, updateOrder };
 
 export default{async fetch(request,env){const cors=origin(env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{'access-control-allow-origin':cors,'access-control-allow-methods':'GET,POST,PATCH,OPTIONS','access-control-allow-headers':'Content-Type,Authorization,X-Freshway-Admin-Token'}});const url=new URL(request.url);try{
 if(url.pathname==='/api/health'&&request.method==='GET')return json({ok:true,service:'freshway-api'},200,cors);
