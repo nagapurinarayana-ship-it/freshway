@@ -5,23 +5,72 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone"],
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
   "orientation": "portrait-primary",
   "background_color": "#0f7a4b",
   "theme_color": "#0f7a4b",
   "description": "FreshWay local ordering app for groceries and everyday essentials.",
   "lang": "en-IN",
   "dir": "ltr",
-  "categories": ["shopping", "food", "lifestyle"],
+  "categories": [
+    "shopping",
+    "food",
+    "lifestyle"
+  ],
   "prefer_related_applications": false,
   "icons": [
-    {"src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
-    {"src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
-    {"src": "/icons/icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable"},
-    {"src": "/icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ],
   "shortcuts": [
-    {"name": "My Orders", "short_name": "Orders", "url": "/?view=orders", "icons": [{"src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/svg+xml"}]},
-    {"name": "Cart", "short_name": "Cart", "url": "/?view=cart", "icons": [{"src": "/icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml"}]}
+    {
+      "name": "My Orders",
+      "short_name": "Orders",
+      "url": "/?view=orders",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Cart",
+      "short_name": "Cart",
+      "url": "/?view=cart",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
   ]
 }
