@@ -113,6 +113,16 @@ jobs:
           grep -qF 'aria-label="Search products"' index.html
           echo 'Security and accessibility baseline OK'
 
+      - name: Check critical frontend asset budgets
+        run: |
+          test "$(wc -c < index.html)" -le 20000
+          test "$(wc -c < styles.css)" -le 25000
+          test "$(wc -c < app.js)" -le 12000
+          test "$(wc -c < frontend/customer/pwa-install.js)" -le 8000
+          test "$(wc -c < frontend/customer/seo.js)" -le 6000
+          test "$(wc -c < sw.js)" -le 6000
+          echo 'Critical frontend asset budgets OK'
+
       - name: Check customer module wiring
         run: |
           for module in api storage catalogue-cart orders orders-data orders-view checkout checkout-submit profile address address-flow confirmation order-display cart-view feedback product-view navigation modal account-actions view-state search keyboard cart-actions cart-bar; do
