@@ -1,6 +1,3 @@
-const FALLBACK_PRODUCTS=[
-  {id:'apple',name:'Apple',unit:'kg',price:120,emoji:'🍎'},{id:'banana',name:'Banana',unit:'dozen',price:60,emoji:'🍌'},{id:'mango',name:'Mango',unit:'kg',price:180,emoji:'🥭'},{id:'orange',name:'Orange',unit:'kg',price:100,emoji:'🍊'},{id:'watermelon',name:'Watermelon',unit:'piece',price:50,emoji:'🍉'},{id:'grapes',name:'Grapes',unit:'kg',price:110,emoji:'🍇'},{id:'pineapple',name:'Pineapple',unit:'piece',price:70,emoji:'🍍'},{id:'guava',name:'Guava',unit:'kg',price:90,emoji:'🍐'},{id:'papaya',name:'Papaya',unit:'piece',price:80,emoji:'🧡'},{id:'pomegranate',name:'Pomegranate',unit:'kg',price:160,emoji:'❤️'}
-];
 const customerStorage=window.FreshWayCustomerStorage;
 const customerAPI=window.FreshWayCustomerAPI;
 const customerAuth=window.FreshWayCustomerAuth;
@@ -30,7 +27,14 @@ const $$=s=>[...document.querySelectorAll(s)];
 const money=customerOrderDisplay.money;
 const esc=v=>String(v??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c]));
 const state=customerStorage.read();
-let PRODUCTS=FALLBACK_PRODUCTS.slice();
+let PRODUCTS=[];
+const publishCatalogueProducts=next=>{
+  PRODUCTS=Array.isArray(next)?next:[];
+  renderProducts($('#searchInput')?.value||'');
+  if($('#cartView')?.classList.contains('active-view'))renderCart();
+  updateCartBar();
+};
+window.FreshWayCustomerCatalogue=Object.freeze({setProducts:publishCatalogueProducts,clear:()=>publishCatalogueProducts([])});
 const save=()=>customerStorage.save(state);
 const api=customerAPI.request;
 const customerId=customerAuth.customerId;
@@ -59,10 +63,9 @@ const checkoutSubmit=customerCheckoutSubmit.create({document,cartItems,state,sav
 window.showConfirmation=showConfirmation;
 window.setView=setView;
 window.state=state;
-async function loadProducts(){try{const d=await api('/api/products');if(Array.isArray(d.products)&&d.products.length)PRODUCTS=d.products}catch(_){}renderProducts($('#searchInput')?.value||'');if($('#cartView')?.classList.contains('active-view'))renderCart();else updateCartBar()}
 document.addEventListener('click',e=>{const t=e.target;const nav=t.closest('[data-nav]');if(nav)setView(nav.dataset.nav);if(t.closest('#viewCartBtn'))setView('cart');if(t.closest('#checkoutBtn'))setView('checkout');if(t.closest('#addressBtn')||t.closest('#profileAddress'))openAddressModal();if(t.closest('[data-close-modal]'))closeModal();if(t.closest('#profileBtn'))setView('profile');if(t.closest('#brandHome'))setView('home');if(t.closest('.back-btn'))setView(t.closest('.back-btn').dataset.back)});
 checkoutSubmit.bind();
 customerSearch.bind({document,render:renderProducts});
 customerKeyboard.bind({document,onHome:()=>setView('home')});
 customerCartActions.bind({document,changeQty,toast});
-renderProducts();renderProfile();updateCartBar();loadProducts();customerOrderData.load();
+renderProducts();renderProfile();updateCartBar();customerOrderData.load();
