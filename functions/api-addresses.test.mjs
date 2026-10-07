@@ -14,12 +14,12 @@ assert.match(production, /const fallbackResponse = await fetch\(buildRequest\(ta
 assert.match(production, /Address service returned an unexpected response\./);
 assert.match(production, /Address service is temporarily unavailable/);
 
-const browserFixPath = fileURLToPath(new URL('../../address-fix.js', import.meta.url));
+const browserFixPath = fileURLToPath(new URL('../address-fix.js', import.meta.url));
 const browserFix = readFileSync(browserFixPath, 'utf8');
 assert.match(browserFix, /const addressPath=\/\^\\\/api\\\/addresses/);
 assert.match(browserFix, /contentType\.split\(';',1\)\.trim\(\)\.endsWith\('\/json'\)/);
 
-const addressUiPath = fileURLToPath(new URL('../../address-system-final.js', import.meta.url));
+const addressUiPath = fileURLToPath(new URL('../address-system-final.js', import.meta.url));
 const addressUi = readFileSync(addressUiPath, 'utf8');
 assert.match(addressUi, /async function readJsonResponse\(response\)/);
 assert.match(addressUi, /Address service returned invalid data/);
