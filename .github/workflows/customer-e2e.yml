@@ -1,0 +1,55 @@
+name: FreshWay customer browser E2E
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'app.js'
+      - 'styles.css'
+      - 'address-system.css'
+      - 'frontend/customer/**'
+      - 'manifest.webmanifest'
+      - 'sw.js'
+      - 'icons/**'
+      - 'e2e/**'
+      - '.github/workflows/customer-e2e.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'index.html'
+      - 'app.js'
+      - 'styles.css'
+      - 'address-system.css'
+      - 'frontend/customer/**'
+      - 'manifest.webmanifest'
+      - 'sw.js'
+      - 'icons/**'
+      - 'e2e/**'
+      - '.github/workflows/customer-e2e.yml'
+
+# Deterministic browser regression gate.
+jobs:
+  browser-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: e2e
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install E2E dependencies
+        run: npm install
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run customer browser E2E
+        run: npm test
