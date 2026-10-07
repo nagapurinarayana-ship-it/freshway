@@ -54,3 +54,10 @@ assert.match(catalogueApi,/image_data/);
 assert.match(catalogueApi,/imageFields\(p,'Category'\)/);
 assert.match(catalogueApi,/image_data,c\.image_mime_type/);
 console.log('catalogue UI-only media mapping OK');
+
+const navigation=fs.readFileSync('frontend/customer/navigation.js','utf8');
+assert.match(navigation,/__freshwayCustomer/);
+assert.match(source,/history\.pushState/);
+assert.match(source,/history\.back\(\)/);
+assert.match(source,/category:selected/);
+console.log('customer category back navigation contract OK');

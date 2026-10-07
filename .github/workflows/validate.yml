@@ -51,6 +51,8 @@ jobs:
       - name: Run customer boundary tests
         run: |
           node frontend/customer/view-state.test.js
+          node frontend/customer/navigation.test.js
+          node admin-navigation.test.js
           node frontend/customer/search.test.js
           node frontend/customer/orders-view.test.js
           node frontend/customer/keyboard.test.js

@@ -1,0 +1,13 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const source=fs.readFileSync('frontend/customer/navigation.js','utf8');
+assert.match(source,/__freshwayCustomer/);
+assert.match(source,/history\.pushState/);
+assert.match(source,/history\.back/);
+assert.match(source,/popstate/);
+assert.match(source,/history:'none'/);
+const app=fs.readFileSync('app.js','utf8');
+assert.match(app,/navigation\.goBack\(\)/);
+const viewState=fs.readFileSync('frontend/customer/view-state.js','utf8');
+assert.match(viewState,/history:'replace'/);
+console.log('customer navigation history isolation OK');
