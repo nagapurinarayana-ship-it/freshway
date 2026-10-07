@@ -18,6 +18,9 @@ assert.match(app,/window\.FreshWayCustomerCatalogue/);
 
 console.log('catalogue server-authority/error-boundary OK');
 
+const cartView=fs.readFileSync('frontend/customer/cart-view.js','utf8');
+assert.match(cartView,/image_data&&x\.product\.image_mime_type/);
+assert.match(cartView,/cart-product-media/);
 const productView=fs.readFileSync('frontend/customer/product-view.js','utf8');
 assert.match(productView,/stock_status/);
 assert.match(productView,/OUT OF STOCK/);
@@ -35,6 +38,9 @@ const styles=fs.readFileSync('styles.css','utf8');
 assert.match(styles,/grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/);
 assert.match(styles,/\.product-image img\{[^}]*object-fit:contain/);
 assert.match(styles,/\.product-card\{min-width:0;overflow:hidden\}/);
+assert.match(styles,/\.fw-category-icon\{width:76px;height:76px/);
+assert.match(styles,/\.fw-category-back\{min-height:54px/);
+assert.match(styles,/\.product-image\{height:132px/);
 const ownerCatalogue=fs.readFileSync('frontend/admin/catalogue.js','utf8');
 assert.match(ownerCatalogue,/type="file"/);
 assert.match(ownerCatalogue,/compressProductImage/);
