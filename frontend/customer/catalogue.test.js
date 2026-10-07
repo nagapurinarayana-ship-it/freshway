@@ -3,11 +3,17 @@ const fs=require('node:fs');
 
 const source=fs.readFileSync('frontend/customer/catalogue.js','utf8');
 const app=fs.readFileSync('app.js','utf8');
+const freshness=fs.readFileSync('frontend/customer/state-freshness.js','utf8');
+const ordersData=fs.readFileSync('frontend/customer/orders-data.js','utf8');
 
 assert.match(source,/window\.FreshWayCustomerAPI\?\.request/);
 assert.match(source,/Promise\.allSettled\(\[/);
 assert.doesNotMatch(source,/fetch\(['"]\/api\/(categories|products)/);
 assert.match(source,/window\.FreshWayCustomerCatalogue\?\.setProducts/);
+assert.match(source,/loadToken/);
+assert.match(source,/hadData/);
+assert.match(source,/freshWayCustomerCatalogueRefresh/);
+assert.doesNotMatch(source,/productOk\)window\.FreshWayCustomerCatalogue\?\.clear/);
 assert.match(source,/window\.FreshWayCustomerCatalogue\?\.clear/);
 assert.match(source,/role="alert"/);
 assert.match(source,/fwCatalogueRetry/);
@@ -15,6 +21,15 @@ assert.match(source,/image_data&&x\.image_mime_type/);
 assert.match(source,/'data:'\+x\.image_mime_type/);
 assert.doesNotMatch(app,/FALLBACK_PRODUCTS/);
 assert.match(app,/window\.FreshWayCustomerCatalogue/);
+assert.match(app,/FreshWayCustomerStateFreshness/);
+assert.match(app,/freshway:session-expired/);
+assert.match(app,/freshway:catalogue-sync/);
+assert.match(freshness,/pageshow/);
+assert.match(freshness,/visibilitychange/);
+assert.match(freshness,/cart/);
+assert.match(freshness,/checkout/);
+assert.match(ordersData,/customerId\(\)!==id/);
+assert.match(ordersData,/state\.orders=\[\]/);
 
 console.log('catalogue server-authority/error-boundary OK');
 
