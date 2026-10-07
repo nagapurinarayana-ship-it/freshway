@@ -54,3 +54,35 @@ button,input,textarea,select{touch-action:manipulation}
 @media(prefers-reduced-motion:reduce){
   .card,.kpi,.report,.panel,.settings-grid article{transition:none}
 }
+
+/* Owner orders: keep operational data above advanced filters on mobile. */
+.order-toolbar{align-items:stretch}
+.order-toolbar>#orderSearch{min-width:0}
+.order-advanced-filters{grid-column:1/-1;border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}
+.order-advanced-filters>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;font-size:10px;font-weight:900;color:var(--ink)}
+.order-advanced-filters>summary::-webkit-details-marker{display:none}
+.order-advanced-filters>summary::after{content:'⌄';color:var(--muted);font-size:13px;transition:transform .16s ease}
+.order-advanced-filters[open]>summary::after{transform:rotate(180deg)}
+.order-advanced-filters>summary span:last-child{margin-left:auto;color:var(--muted);font-size:9px;font-weight:800}
+.order-advanced-filters[open]>summary{border-bottom:1px solid var(--line);background:#fbfcfb}
+.order-advanced-filters .filter-extra{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding:10px}
+.filter-field{display:grid;gap:5px;min-width:0}
+.filter-field>span{font-size:9px;color:var(--muted);font-weight:800}
+.order-filter-hint{margin:0;padding:0 10px 10px;color:var(--muted);font-size:9px;min-height:0}
+.order-filter-hint.error{color:var(--red);font-weight:900}
+.order-toolbar #clearOrders{white-space:nowrap}
+@media(max-width:1150px){
+  .order-advanced-filters .filter-extra{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:800px){
+  .order-toolbar{grid-template-columns:1fr 1fr}
+  .order-toolbar>#orderSearch{grid-column:1/-1}
+  .order-toolbar>#clearOrders{grid-column:1/-1}
+  .order-advanced-filters{grid-column:1/-1}
+}
+@media(max-width:480px){
+  .order-toolbar{grid-template-columns:1fr 1fr}
+  .order-toolbar>#orderSearch{grid-column:1/-1}
+  .order-toolbar>#clearOrders{grid-column:auto}
+  .order-advanced-filters .filter-extra{grid-template-columns:1fr}
+}
