@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v17';
+const CACHE = 'freshway-v18';
 const APP_SHELL = [
   '/',
   '/index.html?v=20260909-cart-v14',
