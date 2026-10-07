@@ -29,6 +29,16 @@ jobs:
       - name: Check browser JavaScript
         run: |
           find . -maxdepth 3 -type f -name '*.js' -not -path './node_modules/*' -not -path './worker/node_modules/*' -print0 | xargs -0 -n1 node --check
+      - name: Enforce authoritative customer catalogue
+        run: |
+          ! grep -qF 'FALLBACK_PRODUCTS' app.js
+          grep -qF 'window.FreshWayCustomerCatalogue' app.js
+          grep -qF 'window.FreshWayCustomerCatalogue?.setProducts' frontend/customer/catalogue.js
+          grep -qF 'window.FreshWayCustomerCatalogue?.clear' frontend/customer/catalogue.js
+          grep -qF 'role=\"alert\"' frontend/customer/catalogue.js
+          grep -qF 'fwCatalogueRetry' frontend/customer/catalogue.js
+          echo 'Authoritative customer catalogue contract OK'
+
       - name: Run customer boundary tests
         run: |
           node frontend/customer/view-state.test.js
