@@ -28,6 +28,7 @@ on:
       - 'e2e/**'
       - '.github/workflows/customer-e2e.yml'
 
+# Deterministic browser regression gate.
 jobs:
   browser-e2e:
     runs-on: ubuntu-latest
