@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 const productionPath = fileURLToPath(new URL('./api/[[path]].js', import.meta.url));
 const production = readFileSync(productionPath, 'utf8');
+const workerAuthPath = fileURLToPath(new URL('../worker/src/passcode-auth.js', import.meta.url));
+const workerAuth = readFileSync(workerAuthPath, 'utf8');
 
 assert.match(production, /const isAddressApi = \/\^\\\/api\\\/addresses/);
 assert.match(production, /const addressBody = isAddressApi && needsBody/);
@@ -26,3 +28,11 @@ assert.match(addressUi, /Address service returned invalid data/);
 assert.equal((addressUi.match(/await readJsonResponse\(r\)/g) || []).length, 4);
 
 console.log('address API JSON-boundary regression contract OK');
+
+assert.match(workerAuth, /addressMatch/);
+assert.match(production, /deleteAlias/);
+assert.match(workerAuth, /Method not allowed/);
+assert.match(workerAuth, /new Request\(new URL/);
+assert.match(browserFix, /default\|delete/);
+assert.match(addressUi, /dataset\.fwDelete\}\/delete/);
+assert.match(addressUi, /method:'POST'/);
