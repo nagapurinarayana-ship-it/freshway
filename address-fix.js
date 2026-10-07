@@ -1,6 +1,6 @@
 (function(){
   const base=window.fetch.bind(window);
-  const addressPath=/^\/api\/addresses\/(\d+)(?:\/default)?\/?$/;
+  const addressPath=/^\/api\/addresses(?:\/(\d+)(?:\/default)?)?\/?$/;
   const jsonResponse=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});
   window.fetch=async function(input,init){
     let url=typeof input==='string'?input:input?.url||'';
@@ -14,7 +14,7 @@
     }else if(match){
       init={...(init||{}),credentials:'include'};
     }
-    const response=await base(input,init);
+    const response=await base(input,init);\n    const contentType=String(response.headers.get('content-type')||'').toLowerCase();\n    if(match && !contentType.split(';',1)[0].trim().endsWith('/json')){\n      return jsonResponse({error:'Address service returned an unexpected response. Please refresh and try again.'},502);\n    }
     // A stale cached UI can still have a mutation endpoint that the Pages
     // shell does not know. Never let its HTML response become a JSON parse
     // exception; the current API route is the source of truth.
