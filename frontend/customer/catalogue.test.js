@@ -26,6 +26,6 @@ const media=fs.readFileSync('frontend/catalogue-media.js','utf8');
 assert.match(media,/cat-oils/);
 assert.match(media,/p-1788808795819-x0yy/);
 assert.match(media,/groundnut-oil\.svg/);
-assert.doesNotMatch(media,/api\\/admin|r2|D1/i);
+assert.doesNotMatch(media, new RegExp('api/admin|r2|D1', 'i'));
 assert.match(productView,/FreshWayCatalogueMedia/);
 console.log('catalogue UI-only media mapping OK');
