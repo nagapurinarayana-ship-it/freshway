@@ -9,3 +9,48 @@ html{background:#0f7a4b}body{background:var(--bg)}body::before{content:"";positi
 /* Senior mobile polish: clearer hierarchy and touch targets without changing admin behavior. */
 @media(max-width:800px){main{padding:16px 14px 88px}.page-head,.hero{margin-bottom:16px}.page-head h1,.hero h1{letter-spacing:-.35px}.fw-category-list{gap:10px}.fw-category-card{padding:13px;border-radius:17px}.fw-cat-icon{width:64px;height:64px;border-radius:17px}.fw-cat-actions button,.fw-product-actions button{min-height:38px;padding:9px 12px}.fw-products-head{margin:16px 0 10px}.fw-product{padding:12px}.fw-product-icon{height:86px;border-radius:14px}.fw-image-preview{height:200px}.fw-image-actions{position:sticky;bottom:0;background:#fff;padding-top:4px}.fw-image-actions label,.fw-image-actions button{min-height:42px}.fw-modal-card{border-radius:22px;padding:20px}.toolbar{gap:7px}}
 @media(max-width:480px){.fw-category-list{grid-template-columns:1fr}.fw-cat-main{align-items:center}.fw-cat-icon{width:72px;height:72px}.fw-cat-count{font-size:8px}.fw-cat-actions{margin-top:10px}.fw-cat-actions button{flex:1}.fw-products{grid-template-columns:1fr}.fw-product-icon{height:120px}.fw-product-actions button{flex:1}.fw-modal-card h2{font-size:21px}}
+
+/* Final owner design system — presentation only, preserves all existing behavior. */
+html{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button,input,textarea,select{touch-action:manipulation}
+.top{box-shadow:0 1px 0 rgba(15,30,24,.02)}
+.primary,.ghost,.icon-btn,.load-more,.seg button{min-height:40px}
+.primary{box-shadow:0 5px 14px rgba(15,122,75,.12)}
+.side button{min-height:40px}
+.side button.active{box-shadow:inset 3px 0 0 var(--g)}
+.panel,.card,.kpi,.report,.login-card,.modal-card{box-shadow:0 7px 24px rgba(20,70,45,.04)}
+.card,.kpi,.report,.panel,.settings-grid article{transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.card:hover,.kpi:hover{box-shadow:0 10px 28px rgba(20,70,45,.07)}
+.toolbar input,.toolbar select,.notify input,.notify textarea,.login input{min-height:42px}
+.product-grid{min-width:0}
+.product-card{min-width:0;overflow:hidden}
+.product-icon{height:96px;border-radius:14px;background:linear-gradient(145deg,#f7faf8,#edf4ef);display:grid;place-items:center;overflow:hidden}
+.product-icon img{width:100%;height:100%;object-fit:contain;display:block}
+.fw-category-card{overflow:hidden}
+.fw-cat-icon{background:linear-gradient(145deg,#edf8f1,#e5f3ea)}
+.fw-cat-icon img{display:block}
+.fw-cat-actions,.fw-product-actions{align-items:stretch}
+.fw-cat-actions button,.fw-product-actions button{min-height:40px}
+.fw-image-upload{box-shadow:inset 0 0 0 1px rgba(15,122,75,.02)}
+.fw-image-preview{background:linear-gradient(145deg,#f7faf8,#edf4ef)}
+.fw-image-preview img{object-fit:contain}
+.modal-card{box-shadow:0 18px 55px rgba(9,29,20,.18)}
+.toast{box-shadow:0 10px 25px rgba(9,29,20,.18)}
+.mobile-nav{box-shadow:0 -8px 25px rgba(20,70,45,.05)}
+.mobile-nav button{min-height:48px}
+.mobile-nav button.active{position:relative}
+.mobile-nav button.active::after{content:"";display:block;width:22px;height:3px;border-radius:999px;background:currentColor;margin:4px auto 0}
+@media(max-width:800px){
+  .top{height:68px}
+  .brand img{height:56px}
+  .hero,.page-head{gap:12px}
+  .page-head h1,.hero h1{font-weight:850;letter-spacing:-.5px}
+}
+@media(max-width:480px){
+  .kpi strong{font-weight:900}
+  .card-grid{gap:10px}
+  .toolbar{gap:8px}
+}
+@media(prefers-reduced-motion:reduce){
+  .card,.kpi,.report,.panel,.settings-grid article{transition:none}
+}
