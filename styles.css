@@ -72,3 +72,22 @@ button,input,textarea{touch-action:manipulation}
 @media(prefers-reduced-motion:reduce){
   .location-card,.hero-banner,.fw-category-card,.product-card,.order-card,.summary-card,.form-card,.profile-card,.menu-card{transition:none}
 }
+
+/* Mobile product cards: keep price/availability and quantity controls on separate rows. */
+.product-actions{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;align-items:stretch}
+.product-action-info{display:flex;align-items:center;justify-content:space-between;gap:7px;min-width:0}
+.product-action-info .product-price{min-width:0;white-space:nowrap}
+.product-action-info .stock-pill{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.product-action-control{min-width:0}
+.product-action-control>.qty-control{width:100%;justify-content:space-between}
+.product-action-control>.qty-control button{flex:1}
+.product-action-control>.qty-control span{flex:0 0 42px}
+.product-action-control>.add-btn{width:100%;min-height:38px}
+@media(min-width:500px){
+  .product-actions{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+  .product-action-info{display:contents}
+  .product-action-info .stock-pill{justify-self:start}
+  .product-action-control>.qty-control{width:auto}
+  .product-action-control>.qty-control button{flex:0 0 auto}
+  .product-action-control>.qty-control span{flex:0 0 30px}
+}
