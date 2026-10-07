@@ -60,7 +60,7 @@
     document.addEventListener('click',e=>{if(e.target.closest('#fwCatalogueRetry')){e.preventDefault();load();return}const b=e.target.closest('[data-fw-category]');if(b){e.preventDefault();e.stopImmediatePropagation();setMode(b.dataset.fwCategory);return}if(e.target.closest('#fwCategoryBack button')){e.preventDefault();e.stopImmediatePropagation();if(window.history.state?.__freshwayCustomer&&window.history.state.category){window.history.back()}else setMode(null,{history:'none'});return}},true);
     const observer=new MutationObserver(()=>{if(selected)applyMode()});
     const grid=$('#productGrid');if(grid)observer.observe(grid,{childList:true});
-    [...document.querySelectorAll('[data-nav]')].forEach(b=>b.addEventListener('click',()=>{if(b.dataset.nav==='home'){setMode(null);setTimeout(applyMode,0)}},true));
+    [...document.querySelectorAll('[data-nav]')].forEach(b=>b.addEventListener('click',()=>{if(b.dataset.nav==='home'){setMode(null,{history:'none'});setTimeout(applyMode,0)}},true));
   }
   window.addEventListener('popstate',event=>{if(event.state?.__freshwayCustomer&&event.state.view==='home')setMode(event.state.category||null,{history:'none'})});
   install();load();
