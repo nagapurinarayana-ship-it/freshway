@@ -53,6 +53,9 @@ jobs:
             if (!fs.existsSync(file)) throw new Error('Missing PWA asset ' + file);
           }
           const index = fs.readFileSync('index.html', 'utf8');
+          const pwa = fs.readFileSync('frontend/customer/pwa-install.js', 'utf8');
+          if (!pwa.includes("navigator.serviceWorker.register('/sw.js'")) throw new Error('PWA service worker registration missing');
+          if (!pwa.includes("beforeinstallprompt")) throw new Error('Native install prompt handling missing');
           for (const required of ['manifest.webmanifest','pwa-install.css','pwa-install.js']) {
             if (!index.includes(required)) throw new Error('index.html is missing ' + required);
           }
