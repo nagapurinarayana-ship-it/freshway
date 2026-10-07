@@ -31,13 +31,22 @@ jobs:
           find . -maxdepth 3 -type f -name '*.js' -not -path './node_modules/*' -not -path './worker/node_modules/*' -print0 | xargs -0 -n1 node --check
       - name: Enforce authoritative customer catalogue
         run: |
-          ! grep -qF 'FALLBACK_PRODUCTS' app.js
-          grep -qF 'window.FreshWayCustomerCatalogue' app.js
-          grep -qF 'window.FreshWayCustomerCatalogue?.setProducts' frontend/customer/catalogue.js
-          grep -qF 'window.FreshWayCustomerCatalogue?.clear' frontend/customer/catalogue.js
-          grep -qF 'role=\"alert\"' frontend/customer/catalogue.js
-          grep -qF 'fwCatalogueRetry' frontend/customer/catalogue.js
-          echo 'Authoritative customer catalogue contract OK'
+          node <<'NODE'
+          const fs = require('fs');
+          const app = fs.readFileSync('app.js', 'utf8');
+          const catalogue = fs.readFileSync('frontend/customer/catalogue.js', 'utf8');
+          const required = [
+            [!app.includes('FALLBACK_PRODUCTS'), 'legacy FALLBACK_PRODUCTS still exists in app.js'],
+            [app.includes('window.FreshWayCustomerCatalogue'), 'customer catalogue bridge is missing from app.js'],
+            [catalogue.includes('window.FreshWayCustomerCatalogue?.setProducts'), 'server product publication is missing'],
+            [catalogue.includes('window.FreshWayCustomerCatalogue?.clear'), 'catalogue failure clear path is missing'],
+            [catalogue.includes('role="alert"'), 'catalogue error alert is missing'],
+            [catalogue.includes('fwCatalogueRetry'), 'catalogue retry control is missing']
+          ];
+          const failed = required.find(([ok]) => !ok);
+          if (failed) throw new Error(failed[1]);
+          console.log('Authoritative customer catalogue contract OK');
+          NODE
 
       - name: Run customer boundary tests
         run: |
