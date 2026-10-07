@@ -67,3 +67,11 @@ assert.match(source,/history\.pushState/);
 assert.match(source,/history\.back\(\)/);
 assert.match(source,/category:selected/);
 console.log('customer category back navigation contract OK');
+
+const ownerLifecycle=fs.readFileSync('owner-lifecycle.js','utf8');
+const adminSource=fs.readFileSync('admin.js','utf8');
+assert.match(ownerLifecycle,/refreshOwnerAfterOrderMutation/);
+assert.match(ownerLifecycle,/await refreshOwnerAfterOrderMutation\(\)/);
+assert.match(adminSource,/async function refreshOwnerAfterOrderMutation/);
+assert.match(adminSource,/await loadHome\(\)/);
+assert.match(adminSource,/if\(id==='orders'\)await loadOrders\(true\)/);
