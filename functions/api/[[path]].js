@@ -21,20 +21,58 @@ export async function onRequest(context) {
   const targetUrl = new URL(context.request.url);
   targetUrl.pathname = targetPath;
   targetUrl.search = incoming.search;
-  const request = new Request(targetUrl.toString(), {
+  const isAddressApi = /^\/api\/addresses(?:\/|$)/.test(targetPath);
+  const needsBody = !['GET', 'HEAD', 'DELETE'].includes(method);
+  const addressBody = isAddressApi && needsBody
+    ? (typeof body === 'string' ? new TextEncoder().encode(body).buffer : await context.request.clone().arrayBuffer())
+    : null;
+  const headers = new Headers(context.request.headers);
+  if (isAddressApi) headers.set('Accept', 'application/json');
+
+  const buildRequest = target => new Request(target, {
     method,
-    headers: context.request.headers,
-    body: method === 'GET' || method === 'HEAD' || method === 'DELETE' ? undefined : body
+    headers,
+    body: needsBody ? (isAddressApi ? addressBody : body) : undefined
   });
-  for (const name of ['Authorization', 'X-Freshway-Admin-Token', 'X-Freshway-Admin-Session', 'Cookie']) {
-    const value = context.request.headers.get(name);
-    if (value) request.headers.set(name, value);
+
+  const isJsonResponse = response => {
+    const type = String(response?.headers?.get('content-type') || '').toLowerCase();
+    return type.split(';', 1)[0].trim() === 'application/json';
+  };
+
+  const jsonError = (message, status = 502) => new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'private, no-store',
+      'access-control-allow-origin': context.request.headers.get('Origin') || '*',
+      'access-control-allow-credentials': 'true'
+    }
+  });
+
+  if (binding && typeof binding.fetch === 'function') {
+    try {
+      const primaryResponse = await binding.fetch(buildRequest(targetUrl.toString()));
+      if (!isAddressApi || isJsonResponse(primaryResponse)) return primaryResponse;
+    } catch (_) {
+      // Fall through to the direct Worker endpoint for address requests.
+      if (!isAddressApi) throw _;
+    }
   }
 
-  if (binding && typeof binding.fetch === 'function') return binding.fetch(request);
-
-  const target = new URL(request.url);
+  const target = new URL(targetUrl.toString());
   target.protocol = 'https:';
   target.host = new URL(fallbackOrigin).host;
-  return fetch(new Request(target.toString(), request));
+
+  if (isAddressApi) {
+    try {
+      const fallbackResponse = await fetch(buildRequest(target.toString()));
+      if (isJsonResponse(fallbackResponse)) return fallbackResponse;
+      return jsonError('Address service returned an unexpected response.');
+    } catch (_) {
+      return jsonError('Address service is temporarily unavailable. Please refresh and try again.');
+    }
+  }
+
+  return fetch(buildRequest(target.toString()));
 }
