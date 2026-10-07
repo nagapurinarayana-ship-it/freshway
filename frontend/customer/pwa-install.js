@@ -42,7 +42,7 @@ const FreshWayPwaInstall=(()=>{
         :'Tap the browser menu <strong>⋮</strong>, then choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.';
     const actionLabel=nativeAvailable?'Install FreshWay':'Show install steps';
 
-    modal.innerHTML='<div class="modal-sheet pwa-help"><div class="modal-head"><div><span class="eyebrow">FRESHWAY APP</span><h2 id="pwaInstallHelpTitle">Install FreshWay</h2></div><button class="icon-btn" type="button" aria-label="Close">×</button></div><p>'+instruction+'</p><button class="primary-btn full pwa-install-action" type="button">'+actionLabel+'</button><button class="secondary-btn full pwa-install-later" type="button>Not now</button></div>';
+    modal.innerHTML='<div class="modal-sheet pwa-help"><div class="modal-head"><div><span class="eyebrow">FRESHWAY APP</span><h2 id="pwaInstallHelpTitle">Install FreshWay</h2></div><button class="icon-btn" type="button" aria-label="Close">×</button></div><p>'+instruction+'</p><button class="primary-btn full pwa-install-action" type="button">'+actionLabel+'</button><button class="secondary-btn full pwa-install-later" type="button">Not now</button></div>';
 
     const close=()=>{
       modal.remove();
@@ -73,7 +73,6 @@ const FreshWayPwaInstall=(()=>{
         }
       }else{
         close();
-        showInstallHelp();
       }
     });
 
