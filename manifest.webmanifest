@@ -1,1 +1,25 @@
-{"name":"FreshWay","short_name":"FreshWay","start_url":"./","scope":"./","display":"standalone","orientation":"portrait-primary","background_color":"#0f7a4b","theme_color":"#0f7a4b","description":"FreshWay local ordering app","icons":[{"src":"./icon.svg?v=20260908-refresh-v1","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
+{
+  "id": "/",
+  "name": "FreshWay",
+  "short_name": "FreshWay",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "portrait-primary",
+  "background_color": "#0f7a4b",
+  "theme_color": "#0f7a4b",
+  "description": "FreshWay local ordering app for groceries and everyday essentials.",
+  "lang": "en-IN",
+  "dir": "ltr",
+  "categories": ["shopping", "food", "lifestyle"],
+  "prefer_related_applications": false,
+  "icons": [
+    {"src": "/icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any maskable"},
+    {"src": "/icons/icon-512.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any maskable"}
+  ],
+  "shortcuts": [
+    {"name": "My Orders", "short_name": "Orders", "url": "/?view=orders", "icons": [{"src": "/icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml"}]},
+    {"name": "Cart", "short_name": "Cart", "url": "/?view=cart", "icons": [{"src": "/icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml"}]}
+  ]
+}
