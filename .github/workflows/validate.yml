@@ -47,9 +47,12 @@ jobs:
           if (manifest.id !== '/' || manifest.start_url !== '/' || manifest.scope !== '/' || manifest.display !== 'standalone') throw new Error('PWA identity/display contract is invalid');
           if (manifest.prefer_related_applications === true) throw new Error('PWA must remain independently installable');
           for (const size of ['192x192','512x512']) {
-            if (!manifest.icons.some(icon => icon.sizes === size)) throw new Error('Missing PWA icon ' + size);
+            if (!manifest.icons.some(icon => icon.sizes === size && icon.type === 'image/png')) throw new Error('Missing raster PWA icon ' + size);
           }
-          for (const file of ['frontend/customer/pwa-install.js','frontend/customer/pwa-install.css','icons/icon-192.svg','icons/icon-512.svg','sw.js']) {
+          for (const purpose of ['any','maskable']) {
+            if (!manifest.icons.some(icon => icon.purpose === purpose && icon.type === 'image/png')) throw new Error('Missing PWA ' + purpose + ' icon');
+          }
+          for (const file of ['frontend/customer/pwa-install.js','frontend/customer/pwa-install.css','icons/icon-192.png','icons/icon-512.png','icons/icon-192-maskable.png','icons/icon-512-maskable.png','sw.js']) {
             if (!fs.existsSync(file)) throw new Error('Missing PWA asset ' + file);
           }
           const index = fs.readFileSync('index.html', 'utf8');
@@ -61,7 +64,9 @@ jobs:
           }
           const sw = fs.readFileSync('sw.js', 'utf8');
           if (!/const CACHE = 'freshway-v[0-9]+'/.test(sw)) throw new Error('Service worker cache version missing');
-          if (!sw.includes('/icons/icon-192.svg') || !sw.includes('/icons/icon-512.svg')) throw new Error('PWA icons are not cached');
+          for (const icon of ['/icons/icon-192.png','/icons/icon-512.png','/icons/icon-192-maskable.png','/icons/icon-512-maskable.png']) {
+            if (!sw.includes(icon)) throw new Error('PWA icon is not cached: ' + icon);
+          }
           console.log('PWA direct-install contract OK');
           NODE
 
