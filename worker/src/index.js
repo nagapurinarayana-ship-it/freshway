@@ -119,40 +119,111 @@ async function customerOrders(env, customerId) {
 }
 function groupOrders(rows) { const map = new Map(); for (const r of rows) { if (!map.has(r.id)) map.set(r.id,{id:r.id,customer:{name:r.customer_name,phone:r.customer_phone},address:{house:r.house,area:r.area,city:r.city,pincode:r.pincode,landmark:r.landmark,note:r.note},items:[],total:r.total,payment:r.payment_status,status:r.delivery_status,deliveryPlan:r.delivery_plan,createdAt:r.created_at,updatedAt:r.updated_at,paymentCollectedAt:r.payment_collected_at}); map.get(r.id).items.push({id:r.product_id,name:r.name,unit:r.unit,qty:r.qty,price:r.price,lineTotal:r.line_total}); } return [...map.values()]; }
 
-async function adminOrders(env) {
-  const { results } = await env.DB.prepare(`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.payment_collected_at,a.house,a.area,a.city,a.pincode,a.landmark,a.note,oi.product_id,oi.name,oi.unit,oi.qty,oi.price,oi.line_total FROM orders o JOIN addresses a ON a.id=o.address_id JOIN order_items oi ON oi.order_id=o.id ORDER BY o.created_at DESC, oi.id ASC`).all();
-  return groupOrders(results || []);
+const ORDER_STATUSES=['New','Confirmed','Processing','Ready','Out for Delivery','Delivered','Cancelled'];
+const ORDER_PAYMENTS=['Not Collected','Collected','Refunded','Cancelled'];
+const ORDER_STATUS_TRANSITIONS={
+  New:['Confirmed','Cancelled'],
+  Confirmed:['Processing','Cancelled'],
+  Processing:['Ready','Cancelled'],
+  Ready:['Out for Delivery','Cancelled'],
+  'Out for Delivery':['Delivered','Cancelled'],
+  Delivered:[],
+  Cancelled:[]
+};
+const normalizePaymentFilter=value=>value==='Pending'?'Not Collected':value;
+
+function validateOrderPatch(current,payload={}){
+  const status=payload.status, payment=payload.payment, deliveryPlan=payload.deliveryPlan;
+  if(status&&!ORDER_STATUSES.includes(status))throw new Error('Invalid delivery status.');
+  if(payment&&!ORDER_PAYMENTS.includes(payment))throw new Error('Invalid payment status.');
+  if(deliveryPlan&&!validPlans.includes(deliveryPlan))throw new Error('Invalid delivery plan.');
+  if(status&&status!==current.delivery_status&&!ORDER_STATUS_TRANSITIONS[current.delivery_status]?.includes(status)){
+    throw new Error(`Cannot change ${current.delivery_status} order to ${status}.`);
+  }
+  const nextStatus=status||current.delivery_status;
+  if(deliveryPlan&&(current.delivery_status==='Delivered'||current.delivery_status==='Cancelled'||nextStatus==='Delivered'||nextStatus==='Cancelled')){
+    throw new Error('Delivery plan cannot be changed after an order is completed or cancelled.');
+  }
+  if(payment==='Collected'&&nextStatus!=='Delivered')throw new Error('Cash can be marked collected only after delivery.');
+  if(payment==='Refunded'&&current.payment_status!=='Collected')throw new Error('Only collected payments can be refunded.');
+  if(payment==='Cancelled'&&nextStatus!=='Cancelled')throw new Error('Payment can be cancelled only for a cancelled order.');
+  if(current.payment_status==='Collected'&&payment&&payment!=='Collected'&&payment!=='Refunded'){
+    throw new Error('Collected cash cannot be changed to an unpaid or cancelled payment.');
+  }
+  return {status,payment,deliveryPlan};
 }
 
-async function updateOrder(env, id, payload) {
-  const allowedStatus=['Ordered','Processing','Delivered','Cancelled'], allowedPayment=['Pending','Collected'];
-  const status=payload.status, payment=payload.payment, deliveryPlan=payload.deliveryPlan;
-  if (status && !allowedStatus.includes(status)) throw new Error('Invalid delivery status.');
-  if (payment && !allowedPayment.includes(payment)) throw new Error('Invalid payment status.');
-  if (deliveryPlan && !validPlans.includes(deliveryPlan)) throw new Error('Invalid delivery plan.');
-  const { results }=await env.DB.prepare('SELECT delivery_status,payment_status,delivery_plan,customer_id FROM orders WHERE id=?').bind(id).all(); const current=results?.[0];
-  if (!current) throw new Error('Order not found.');
-  if (status && status!==current.delivery_status) {
-    const allowedNext={Ordered:['Processing','Delivered','Cancelled'],Processing:['Delivered','Cancelled'],Delivered:[],Cancelled:[]};
-    if (!allowedNext[current.delivery_status]?.includes(status)) throw new Error(`Cannot change ${current.delivery_status} order to ${status}.`);
+async function adminOrders(env,url){
+  const page=Math.max(1,Math.min(100,Number.parseInt(url?.searchParams.get('page')||'1',10)||1));
+  const limit=Math.max(1,Math.min(100,Number.parseInt(url?.searchParams.get('limit')||'25',10)||25));
+  const search=String(url?.searchParams.get('search')||'').trim().slice(0,100);
+  const status=String(url?.searchParams.get('status')||'').trim();
+  const payment=normalizePaymentFilter(String(url?.searchParams.get('payment')||'').trim());
+  const plan=String(url?.searchParams.get('plan')||'').trim();
+  const customer=String(url?.searchParams.get('customer')||'').trim().slice(0,100);
+  const from=String(url?.searchParams.get('from')||'').trim();
+  const to=String(url?.searchParams.get('to')||'').trim();
+  const minRaw=url?.searchParams.get('minAmount');
+  const maxRaw=url?.searchParams.get('maxAmount');
+  const minAmount=minRaw===null||minRaw===''?null:Number(minRaw);
+  const maxAmount=maxRaw===null||maxRaw===''?null:Number(maxRaw);
+  const sort=String(url?.searchParams.get('sort')||'newest').trim();
+  const where=[],binds=[];
+  const add=(sql,...values)=>{where.push(sql);binds.push(...values)};
+  if(search){
+    const like=`%${search}%`;
+    add('(o.id LIKE ? OR o.customer_name LIKE ? OR o.customer_phone LIKE ? OR a.house LIKE ? OR a.area LIKE ? OR a.city LIKE ? OR a.pincode LIKE ?)',like,like,like,like,like,like,like);
   }
-  if (deliveryPlan && (current.delivery_status==='Delivered'||current.delivery_status==='Cancelled'||status==='Delivered'||status==='Cancelled')) throw new Error('Delivery plan cannot be changed after an order is completed or cancelled.');
-  if (payment==='Collected' && (status || current.delivery_status) !== 'Delivered') throw new Error('Cash can be marked collected only after delivery.');
-  if (current.payment_status==='Collected' && payment==='Pending') throw new Error('Collected cash cannot be changed back to pending.');
+  if(status&&status!=='all')add('o.delivery_status=?',status);
+  if(payment&&payment!=='all')add('o.payment_status=?',payment);
+  if(plan&&plan!=='all')add('o.delivery_plan=?',plan);
+  if(customer)add('(o.customer_id LIKE ? OR o.customer_name LIKE ? OR o.customer_phone LIKE ?)',`%${customer}%`,`%${customer}%`,`%${customer}%`);
+  if(/^\d{4}-\d{2}-\d{2}$/.test(from))add("o.created_at>=?",`${from} 00:00:00`);
+  if(/^\d{4}-\d{2}-\d{2}$/.test(to))add("o.created_at<=?",`${to} 23:59:59`);
+  if(Number.isFinite(minAmount)&&minAmount>=0)add('o.total>=?',Math.round(minAmount));
+  if(Number.isFinite(maxAmount)&&maxAmount>=0)add('o.total<=?',Math.round(maxAmount));
+  const clause=where.length?` WHERE ${where.join(' AND ')}`:'';
+  const sortSql={
+    newest:'o.created_at DESC',
+    oldest:'o.created_at ASC',
+    'value-high':'o.total DESC,o.created_at DESC',
+    'value-low':'o.total ASC,o.created_at DESC',
+    delivery:"CASE o.delivery_plan WHEN 'Today' THEN 1 WHEN 'Tomorrow' THEN 2 WHEN 'Later' THEN 3 ELSE 4 END,o.created_at ASC"
+  }[sort]||'o.created_at DESC';
+  const totalRow=await env.DB.prepare(`SELECT COUNT(*) total FROM orders o JOIN addresses a ON a.id=o.address_id${clause}`).bind(...binds).first();
+  const total=Number(totalRow?.total||0);
+  const offset=(page-1)*limit;
+  const {results:orderRows}=await env.DB.prepare(`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.payment_collected_at,a.house,a.area,a.city,a.pincode,a.landmark,a.note FROM orders o JOIN addresses a ON a.id=o.address_id${clause} ORDER BY ${sortSql} LIMIT ? OFFSET ?`).bind(...binds,limit,offset).all();
+  const rows=orderRows||[];
+  if(!rows.length)return {orders:[],pagination:{page,limit,total,pages:Math.ceil(total/limit)}};
+  const ids=rows.map(x=>x.id),placeholders=ids.map(()=>'?').join(',');
+  const {results:itemRows}=await env.DB.prepare(`SELECT order_id,product_id,name,unit,qty,price,line_total FROM order_items WHERE order_id IN (${placeholders}) ORDER BY order_id,id ASC`).bind(...ids).all();
+  const itemMap=new Map(ids.map(id=>[id,[]]));
+  for(const item of itemRows||[])itemMap.get(item.order_id)?.push({id:item.product_id,name:item.name,unit:item.unit,qty:item.qty,price:item.price,lineTotal:item.line_total});
+  const orders=rows.map(r=>({id:r.id,customer:{name:r.customer_name,phone:r.customer_phone},address:{house:r.house,area:r.area,city:r.city,pincode:r.pincode,landmark:r.landmark,note:r.note},items:itemMap.get(r.id)||[],total:r.total,payment:r.payment_status,status:r.delivery_status,deliveryPlan:r.delivery_plan,createdAt:r.created_at,updatedAt:r.updated_at,paymentCollectedAt:r.payment_collected_at}));
+  return {orders,pagination:{page,limit,total,pages:Math.ceil(total/limit)}};
+}
+
+async function updateOrder(env,id,payload){
+  const {results}=await env.DB.prepare('SELECT delivery_status,payment_status,delivery_plan,customer_id FROM orders WHERE id=?').bind(id).all();
+  const current=results?.[0];
+  if(!current)throw new Error('Order not found.');
+  const {status,payment,deliveryPlan}=validateOrderPatch(current,payload);
   const sets=[],params=[];
   if(status){sets.push('delivery_status=?');params.push(status)}
-  if(payment){sets.push('payment_status=?');params.push(payment);if(payment==='Collected')sets.push('payment_collected_at=CURRENT_TIMESTAMP');else sets.push('payment_collected_at=NULL')}
+  if(payment){sets.push('payment_status=?');params.push(payment);if(payment==='Collected')sets.push('payment_collected_at=CURRENT_TIMESTAMP')}
   if(deliveryPlan){sets.push('delivery_plan=?');params.push(deliveryPlan)}
-  if(!sets.length) throw new Error('No order change supplied.'); sets.push('updated_at=CURRENT_TIMESTAMP');
+  if(!sets.length)throw new Error('No order change supplied.');
+  sets.push('updated_at=CURRENT_TIMESTAMP');
   const whereParams=[id,current.delivery_status,current.payment_status,current.delivery_plan];
   const result=await env.DB.prepare(`UPDATE orders SET ${sets.join(',')} WHERE id=? AND delivery_status=? AND payment_status=? AND delivery_plan=?`).bind(...params,...whereParams).run();
-  if(!result.meta?.changes) throw new Error('Order changed by another admin. Refresh and try again.');
-  if ((status && status!==current.delivery_status) || (payment && payment!==current.payment_status) || (deliveryPlan && deliveryPlan!==current.delivery_plan)) {
+  if(!result.meta?.changes)throw new Error('Order changed by another admin. Refresh and try again.');
+  if((status&&status!==current.delivery_status)||(payment&&payment!==current.payment_status)||(deliveryPlan&&deliveryPlan!==current.delivery_plan)){
     let text;
-    if (status && status!==current.delivery_status) text = status==='Processing' ? `Order ${id} is now being prepared.` : status==='Delivered' ? `Order ${id} has been delivered.` : status==='Cancelled' ? `Order ${id} has been cancelled.` : `Order ${id} status is ${status}.`;
-    else if (payment && payment!==current.payment_status) text = payment==='Collected' ? `Payment for order ${id} has been collected.` : `Payment for order ${id} is pending.`;
-    else text = `Delivery plan for order ${id} is now ${deliveryPlan}.`;
-    try { await sendCustomerPush(env,current.customer_id,'FreshWay order update',text); } catch (_) {}
+    if(status&&status!==current.delivery_status)text=status==='Processing'?`Order ${id} is now being prepared.`:status==='Ready'?`Order ${id} is ready for delivery.`:status==='Out for Delivery'?`Order ${id} is out for delivery.`:status==='Delivered'?`Order ${id} has been delivered.`:status==='Cancelled'?`Order ${id} has been cancelled.`:status==='Confirmed'?`Order ${id} has been confirmed.`:`Order ${id} status is ${status}.`;
+    else if(payment&&payment!==current.payment_status)text=payment==='Collected'?`Payment for order ${id} has been collected.`:payment==='Refunded'?`Payment for order ${id} has been refunded.`:`Payment for order ${id} is ${payment.toLowerCase()}.`;
+    else text=`Delivery plan for order ${id} is now ${deliveryPlan}.`;
+    try{await sendCustomerPush(env,current.customer_id,'FreshWay order update',text)}catch(_){}
   }
   return {ok:true,status:status||current.delivery_status,payment:payment||current.payment_status,deliveryPlan:deliveryPlan||current.delivery_plan};
 }
@@ -165,6 +236,8 @@ async function broadcastPush(env,payload){if(!env.VAPID_PUBLIC_KEY||!env.VAPID_P
 async function broadcastWhatsApp(env,payload){if(!env.WHATSAPP_ACCESS_TOKEN||!env.WHATSAPP_PHONE_NUMBER_ID||!env.WHATSAPP_GRAPH_VERSION)throw new Error('WhatsApp API secrets are not configured.');if(!payload.templateName)throw new Error('WhatsApp requires an approved template name for broadcast messaging.');const{results}=await env.DB.prepare('SELECT phone FROM customers WHERE phone IS NOT NULL AND whatsapp_opt_in=1').all();const url=`https://graph.facebook.com/${env.WHATSAPP_GRAPH_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`;let success=0,failure=0;await Promise.all((results||[]).map(async row=>{try{const response=await fetch(url,{method:'POST',headers:{'Authorization':`Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,'Content-Type':'application/json'},body:JSON.stringify({messaging_product:'whatsapp',to:String(row.phone).replace(/\D/g,''),type:'template',template:{name:payload.templateName,language:{code:payload.languageCode||'en_US'},...(payload.parameters?.length?{components:[{type:'body',parameters:payload.parameters.map(text=>({type:'text',text:String(text)}))}]}:{})}})});if(response.ok)success++;else failure++}catch(_){failure++}}));await env.DB.prepare('INSERT INTO notification_log (channel,title,body,recipient_count,success_count,failure_count) VALUES (?,?,?,?,?,?)').bind('whatsapp',payload.templateName,payload.body||'',results?.length||0,success,failure).run();return{channel:'whatsapp',recipients:results?.length||0,success,failure}}
 async function notificationHistory(env){const{results}=await env.DB.prepare('SELECT id,channel,title,body,recipient_count,success_count,failure_count,created_at FROM notification_log ORDER BY created_at DESC,id DESC LIMIT 50').all();return results||[]}
 
+export { normalizePaymentFilter, validateOrderPatch };
+
 export default{async fetch(request,env){const cors=origin(env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{'access-control-allow-origin':cors,'access-control-allow-methods':'GET,POST,PATCH,OPTIONS','access-control-allow-headers':'Content-Type,Authorization,X-Freshway-Admin-Token'}});const url=new URL(request.url);try{
 if(url.pathname==='/api/health'&&request.method==='GET')return json({ok:true,service:'freshway-api'},200,cors);
 if(url.pathname==='/api/products'&&request.method==='GET')return json({products:await products(env,false)},200,cors);
@@ -173,7 +246,7 @@ if(url.pathname==='/api/push/subscribe'&&request.method==='POST')return json(awa
 if(url.pathname==='/api/customers/register'&&request.method==='POST')return json(await registerCustomer(env,await body(request)),200,cors);
 if(url.pathname==='/api/orders'&&request.method==='POST')return json(await createOrder(env,await body(request)),201,cors);
 if(url.pathname==='/api/orders'&&request.method==='GET')return json({orders:await customerOrders(env,url.searchParams.get('customerId'))},200,cors);
-if(url.pathname==='/api/admin/orders'&&request.method==='GET'){if(!auth(request,env))return json({error:'Unauthorized'},401,cors);return json({orders:await adminOrders(env)},200,cors)}
+if(url.pathname==='/api/admin/orders'&&request.method==='GET'){if(!auth(request,env))return json({error:'Unauthorized'},401,cors);return json(await adminOrders(env,url),200,cors)}
 if(url.pathname.startsWith('/api/admin/orders/')&&request.method==='PATCH'){if(!auth(request,env))return json({error:'Unauthorized'},401,cors);const id=decodeURIComponent(url.pathname.split('/').pop());return json(await updateOrder(env,id,await body(request)),200,cors)}
 if(url.pathname==='/api/admin/products'&&request.method==='GET'){if(!auth(request,env))return json({error:'Unauthorized'},401,cors);return json({products:await products(env,true)},200,cors)}
 if(url.pathname==='/api/admin/products'&&request.method==='POST'){if(!auth(request,env))return json({error:'Unauthorized'},401,cors);return json(await addProduct(env,await body(request)),201,cors)}
