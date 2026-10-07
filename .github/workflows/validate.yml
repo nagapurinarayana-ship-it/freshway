@@ -38,6 +38,7 @@ jobs:
           node frontend/customer/cart-actions.test.js
           node frontend/customer/cart-bar.test.js
           node frontend/customer/checkout-submit.test.js
+          node frontend/customer/catalogue.test.js
       - name: Run customer API resilience test
         run: node frontend/customer/api.test.js
 

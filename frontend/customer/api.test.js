@@ -51,5 +51,22 @@ function createApi(fetchImpl){
     await assert.rejects(api.request('/api/test'),/Backend failed/);
   }
 
-  console.log('customer API timeout contract OK');
+
+  {
+    let calls=0;
+    let resolveFetch;
+    const api=createApi(()=>new Promise(resolve=>{
+      calls++;
+      resolveFetch=()=>resolve({ok:true,json:async()=>({products:[{id:'p1'}]})});
+    }));
+    const first=api.request('/api/products');
+    const second=api.request('/api/products');
+    assert.strictEqual(first,second);
+    resolveFetch();
+    const [a,b]=await Promise.all([first,second]);
+    assert.deepEqual(a,b);
+    assert.equal(calls,1);
+  }
+
+  console.log('customer API timeout and GET dedupe contract OK');
 })();
