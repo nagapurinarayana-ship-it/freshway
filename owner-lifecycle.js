@@ -44,6 +44,7 @@
       try{
         await api(`/admin/orders/${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify({[field]:value})});
         const fresh=await getOrder(id);if(!fresh)throw Error('Order could not be refreshed.');
+        if(typeof refreshOwnerAfterOrderMutation==='function')await refreshOwnerAfterOrderMutation();
         if(state.id===id)renderLifecycle(fresh);
       }catch(e){if(state.id===id){control.value=previous;setSaveState('Save failed','error')}toast(e.message||'Update failed')}finally{control.disabled=false}
     });
