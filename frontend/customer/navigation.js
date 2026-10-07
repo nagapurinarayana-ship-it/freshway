@@ -11,6 +11,7 @@
       [...document.querySelectorAll('.nav-item')].forEach(b=>b.classList.toggle('active',b.dataset.nav===name));
       onView(name);
       afterView(name);
+      afterView(name);
       window.scrollTo({top:0,behavior:'smooth'});
     };
     return Object.freeze({setView});

@@ -70,6 +70,32 @@ jobs:
           console.log('PWA direct-install contract OK');
           NODE
 
+      - name: Check SEO and public crawler contract
+        run: |
+          test -s robots.txt
+          test -s sitemap.xml
+          grep -qF 'Sitemap: https://freshway-f32.pages.dev/sitemap.xml' robots.txt
+          grep -qF '<loc>https://freshway-f32.pages.dev/</loc>' sitemap.xml
+          grep -qF 'rel="canonical" href="https://freshway-f32.pages.dev/"' index.html
+          grep -qF 'meta name="robots" content="index,follow' index.html
+          grep -qF 'property="og:title"' index.html
+          grep -qF 'property="og:description"' index.html
+          grep -qF 'twitter:card' index.html
+          test -s frontend/customer/seo.js
+          grep -qF "FreshWaySeo" frontend/customer/seo.js
+          grep -qF "afterView:name=>window.FreshWaySeo?.setView(name)" app.js
+          node <<'NODE'
+          const fs = require('fs');
+          const html = fs.readFileSync('index.html','utf8');
+          const schema = html.includes('application/ld+json');
+          if (!schema) throw new Error('Homepage JSON-LD bootstrap is missing');
+          const seo = fs.readFileSync('frontend/customer/seo.js','utf8');
+          for (const required of ["'@type':'Organization'","'@type':'WebSite'","noindex,follow","index,follow"]) {
+            if (!seo.includes(required)) throw new Error('SEO boundary is missing ' + required);
+          }
+          console.log('SEO and public crawler contract OK');
+          NODE
+
       - name: Check customer module wiring
         run: |
           for module in api storage catalogue-cart orders orders-data orders-view checkout checkout-submit profile address address-flow confirmation order-display cart-view feedback product-view navigation modal account-actions view-state search keyboard cart-actions cart-bar; do
