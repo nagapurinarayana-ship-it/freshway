@@ -78,3 +78,17 @@ test('cancelling an order restores its reserved stock in the same database batch
   const result=await updateOrder(env,'FW-00000001',{status:'Cancelled'});
   assert.equal(result.status,'Cancelled');
 });
+
+test('customer product responses expose stock state without exact inventory counts',async()=>{
+  const response=await (await import('../src/index.js')).default.fetch(
+    new Request('https://api.example.test/api/products'),
+    {APP_ORIGIN:'https://freshway-f32.pages.dev',DB:mockProducts([
+      {id:'p1',name:'Rice',unit:'kg',price:450,emoji:'🍚',active:1,stock_managed:1,stock_quantity:2,low_stock_threshold:2}
+    ])},
+    {}
+  );
+  assert.equal(response.status,200);
+  const data=await response.json();
+  assert.equal(data.products[0].stock_status,'low_stock');
+  assert.equal('stock_quantity' in data.products[0],false);
+});
