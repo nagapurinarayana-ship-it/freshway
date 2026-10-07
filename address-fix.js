@@ -1,6 +1,6 @@
 (function(){
   const base=window.fetch.bind(window);
-  const addressPath=/^\/api\/addresses(?:\/(\d+)(?:\/default)?)?\/?$/;
+  const addressPath=/^\/api\/addresses(?:\/(\d+)(?:\/(?:default|delete))?)?\/?$/;
   const jsonResponse=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}});
   window.fetch=async function(input,init){
     let url=typeof input==='string'?input:input?.url||'';
