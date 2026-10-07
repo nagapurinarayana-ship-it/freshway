@@ -23,7 +23,9 @@ export async function onRequest(context) {
   targetUrl.search = incoming.search;
   const isAddressApi = /^\/api\/addresses(?:\/|$)/.test(targetPath);
   const needsBody = !['GET', 'HEAD', 'DELETE'].includes(method);
-  const addressBody = isAddressApi && needsBody ? await context.request.clone().arrayBuffer() : null;
+  const addressBody = isAddressApi && needsBody
+    ? (typeof body === 'string' ? new TextEncoder().encode(body).buffer : await context.request.clone().arrayBuffer())
+    : null;
   const headers = new Headers(context.request.headers);
   if (isAddressApi) headers.set('Accept', 'application/json');
 
