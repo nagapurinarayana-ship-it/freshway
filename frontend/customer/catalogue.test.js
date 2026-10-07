@@ -11,6 +11,8 @@ assert.match(source,/window\.FreshWayCustomerCatalogue\?\.setProducts/);
 assert.match(source,/window\.FreshWayCustomerCatalogue\?\.clear/);
 assert.match(source,/role="alert"/);
 assert.match(source,/fwCatalogueRetry/);
+assert.match(source,/image_data&&x\.image_mime_type/);
+assert.match(source,/'data:'\+x\.image_mime_type/);
 assert.doesNotMatch(app,/FALLBACK_PRODUCTS/);
 assert.match(app,/window\.FreshWayCustomerCatalogue/);
 
