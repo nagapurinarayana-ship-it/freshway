@@ -34,7 +34,7 @@ function duplicateKey(r) {
   return [r.label,r.recipient_name,r.delivery_phone,r.house_flat,r.building,r.floor,r.street,r.area,r.locality,r.city,r.district,r.state,r.pincode,r.landmark,r.note,r.latitude,r.longitude].map(v => String(v ?? '')).join('\u001f');
 }
 async function list(env, customerId) {
-  const { results } = await env.DB.prepare('SELECT * FROM addresses WHERE customer_id=? ORDER BY is_default DESC,id DESC').bind(customerId).all();
+  const { results } = await env.DB.prepare('SELECT * FROM addresses WHERE customer_id=? AND deleted_at IS NULL ORDER BY is_default DESC,id DESC').bind(customerId).all();
   const seen = new Set();
   const rows = [];
   for (const row of (results || [])) {
@@ -55,13 +55,13 @@ function validate(a) {
   return '';
 }
 async function findDuplicate(env, customerId, a) {
-  return env.DB.prepare(`SELECT id FROM addresses WHERE customer_id=? AND label=? AND recipient_name=? AND delivery_phone=? AND house=? AND building=? AND floor=? AND street=? AND area=? AND locality=? AND city=? AND district=? AND state=? AND pincode=? AND landmark=? AND note=? AND ((latitude=? AND longitude=?) OR (latitude IS NULL AND longitude IS NULL)) LIMIT 1`)
+  return env.DB.prepare(`SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL AND label=? AND recipient_name=? AND delivery_phone=? AND house=? AND building=? AND floor=? AND street=? AND area=? AND locality=? AND city=? AND district=? AND state=? AND pincode=? AND landmark=? AND note=? AND ((latitude=? AND longitude=?) OR (latitude IS NULL AND longitude IS NULL)) LIMIT 1`)
     .bind(customerId,a.label,a.recipient_name,a.delivery_phone,a.house_flat,a.building,a.floor,a.street,a.area,a.locality,a.city,a.district,a.state,a.pincode,a.landmark,a.note,a.latitude,a.longitude).first();
 }
 async function ensureDefault(env, customerId) {
-  const current = await env.DB.prepare('SELECT id FROM addresses WHERE customer_id=? AND is_default=1 ORDER BY id DESC LIMIT 1').bind(customerId).first();
+  const current = await env.DB.prepare('SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL AND is_default=1 ORDER BY id DESC LIMIT 1').bind(customerId).first();
   if (current) return current.id;
-  const next = await env.DB.prepare('SELECT id FROM addresses WHERE customer_id=? ORDER BY id DESC LIMIT 1').bind(customerId).first();
+  const next = await env.DB.prepare('SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1').bind(customerId).first();
   if (next) await env.DB.prepare('UPDATE addresses SET is_default=1 WHERE id=? AND customer_id=?').bind(next.id, customerId).run();
   return next?.id || null;
 }
@@ -86,12 +86,12 @@ export async function handleAddress(request, env, customerId, action) {
     await ensureDefault(env, customerId);
     return response({ ok:true, addresses:await list(env,customerId), id:r.meta?.last_row_id }, 201, env);
   }
-  const owned = await env.DB.prepare('SELECT * FROM addresses WHERE id=? AND customer_id=?').bind(id,customerId).first();
+  const owned = await env.DB.prepare('SELECT * FROM addresses WHERE id=? AND customer_id=? AND deleted_at IS NULL').bind(id,customerId).first();
   // DELETE is intentionally idempotent. A stale UI copy must never surface a false
   // "Address not found" error after the address has already been removed elsewhere.
   if (action === 'delete' && request.method === 'DELETE') {
     if (!owned) return response({ ok:true, alreadyDeleted:true, addresses:await list(env,customerId) }, 200, env);
-    await env.DB.prepare('DELETE FROM addresses WHERE id=? AND customer_id=?').bind(id,customerId).run();
+    await env.DB.prepare('UPDATE addresses SET is_default=0,deleted_at=CURRENT_TIMESTAMP WHERE id=? AND customer_id=? AND deleted_at IS NULL').bind(id,customerId).run();
     await ensureDefault(env, customerId);
     return response({ ok:true, addresses:await list(env,customerId) }, 200, env);
   }
