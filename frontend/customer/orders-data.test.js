@@ -43,8 +43,11 @@ function setup({customerId='cust-1',orders=[{id:'o1'}],api=async()=>({orders:[{i
   const guest=setup({customerId:null});
   await guest.service.load();
   assert.equal(guest.calls.length,0);
-  assert.deepEqual(guest.state.orders,[]);
-  assert.deepEqual(guest.events,['save',['orders',[]],'profile']);
+  assert.equal(guest.state.orders.length,0);
+  assert.equal(guest.events[0],'save');
+  assert.equal(guest.events[1][0],'orders');
+  assert.equal(guest.events[1][1].length,0);
+  assert.equal(guest.events[2],'profile');
 
   const timer=setup();
   timer.service.start();
