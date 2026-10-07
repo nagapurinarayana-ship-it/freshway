@@ -12,6 +12,12 @@ export async function onRequest(context) {
   let method = context.request.method;
   let body = context.request.body;
   const defaultMatch = targetPath.match(/^\/api\/addresses\/(\d+)\/default\/?$/);
+  const deleteAlias = targetPath.match(/^\/api\/addresses\/(\d+)\/delete\/?$/);
+  if (deleteAlias && method === 'POST') {
+    targetPath = `/api/addresses/${deleteAlias[1]}/delete`;
+    body = JSON.stringify({ id: Number(deleteAlias[1]) });
+  }
+
   if (defaultMatch && (method === 'POST' || method === 'PATCH')) {
     targetPath = `/api/addresses/${defaultMatch[1]}`;
     method = 'PATCH';
