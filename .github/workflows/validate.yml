@@ -59,6 +59,7 @@ jobs:
           node frontend/customer/keyboard.test.js
           node frontend/customer/cart-actions.test.js
           node frontend/customer/cart-bar.test.js
+          node mobile-visual.test.js
           node frontend/customer/checkout-submit.test.js
           node frontend/customer/catalogue.test.js
           node worker/test/inventory.test.js
