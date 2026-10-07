@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS products (
   unit TEXT NOT NULL,
   price INTEGER NOT NULL CHECK(price >= 0),
   emoji TEXT NOT NULL DEFAULT '🛒',
+  image_data TEXT,
+  image_mime_type TEXT,
   active INTEGER NOT NULL DEFAULT 1,
   category_id TEXT REFERENCES categories(id) ON DELETE SET NULL,
   display_order INTEGER NOT NULL DEFAULT 999,
