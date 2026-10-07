@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import handler from '../src/index.js';
 import passcodeHandler from '../src/passcode-auth.js';
 import adminHandler from '../src/admin-auth.js';
+import { handleAddress } from '../src/address-api.js';
 
 const env = {
   APP_ORIGIN: 'https://freshway-f32.pages.dev',
@@ -181,4 +182,48 @@ test('customer auth UI uses mobile, name for registration, plus 6-digit passcode
   assert.match(notifications, /passcodeValue/);
   assert.match(notifications, /6-digit passcode/);
   assert.match(html, /id="signOutBtn"/);
+});
+
+
+test('saved-address deletion soft-deletes rows so order foreign keys remain valid', async () => {
+  const queries = [];
+  const deleteEnv = {
+    ...env,
+    DB: {
+      prepare(sql) {
+        queries.push(sql);
+        return {
+          bind(...args) {
+            return {
+              async first() {
+                if (/SELECT \* FROM addresses WHERE id=\?/.test(sql)) {
+                  return { id: 42, customer_id: 'customer-1', is_default: 1 };
+                }
+                return null;
+              },
+              async all() {
+                return { results: [] };
+              },
+              async run() {
+                return { meta: { changes: 1 } };
+              }
+            };
+          }
+        };
+      }
+    }
+  };
+
+  const response = await handleAddress(
+    new Request('https://api.example.test/api/addresses/42', { method: 'DELETE' }),
+    deleteEnv,
+    'customer-1',
+    'delete'
+  );
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { ok: true, addresses: [] });
+  assert.ok(queries.some(sql => /UPDATE addresses SET is_default=0,deleted_at=CURRENT_TIMESTAMP/.test(sql)));
+  assert.ok(queries.every(sql => !/DELETE FROM addresses WHERE/.test(sql)));
+  assert.ok(queries.some(sql => /deleted_at IS NULL/.test(sql)));
 });
