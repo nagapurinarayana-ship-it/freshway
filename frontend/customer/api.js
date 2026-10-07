@@ -2,16 +2,16 @@
 // Keep network/session behavior here so customer features can depend on one stable client contract.
 (function(){
   const pendingGets=new Map();
-  const request=async(path,options={})=>{
-    const {timeoutMs=15000,...fetchOptions}=options;
+  const request=(path,options={})=>{
+    const {timeoutMs=15000,dedupe=true,...fetchOptions}=options;
     const method=String(fetchOptions.method||'GET').toUpperCase();
-    const dedupeKey=method==='GET'&&fetchOptions.dedupe!==false?String(path):null;
+    const dedupeKey=method==='GET'&&dedupe!==false?String(path):null;
     if(dedupeKey&&pendingGets.has(dedupeKey))return pendingGets.get(dedupeKey);
     const controller=new AbortController();
     const timer=setTimeout(()=>controller.abort(),Math.max(1000,Number(timeoutMs)||15000));
     const operation=(async()=>{
       try{
-        const response=await fetch(path,{...fetchOptions,dedupe:undefined,cache:'no-store',credentials:'include',signal:controller.signal,headers:{'Content-Type':'application/json',...(fetchOptions.headers||{})}});
+        const response=await fetch(path,{...fetchOptions,cache:'no-store',credentials:'include',signal:controller.signal,headers:{'Content-Type':'application/json',...(fetchOptions.headers||{})}});
         const data=await response.json().catch(()=>({}));
         if(!response.ok)throw new Error(data.error||'FreshWay server is unavailable.');
         return data;
