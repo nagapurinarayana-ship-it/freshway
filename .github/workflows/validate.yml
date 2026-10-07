@@ -90,6 +90,8 @@ jobs:
           for (const icon of ['/icons/icon-192.png','/icons/icon-512.png','/icons/icon-192-maskable.png','/icons/icon-512-maskable.png']) {
             if (!sw.includes(icon)) throw new Error('PWA icon is not cached: ' + icon);
           }
+          if (sw.includes(".catch(() => {})")) throw new Error('Service worker install failures must not be silently swallowed');
+          if (!sw.includes('const REQUIRED_SHELL')) throw new Error('Service worker critical shell contract missing');
           console.log('PWA direct-install contract OK');
           NODE
 
