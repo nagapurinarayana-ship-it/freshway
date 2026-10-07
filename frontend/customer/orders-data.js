@@ -6,9 +6,18 @@
     const load=async()=>{
       const state=readState();
       const id=customerId();
-      if(!id){renderOrders(state.orders);return}
+      if(!id){
+        state.orders=[];
+        save();
+        renderOrders([]);
+        renderProfile();
+        return;
+      }
       try{
         const data=await api(`/api/orders?customerId=${encodeURIComponent(id)}`);
+        // The account can change while this request is in flight. Never allow a
+        // previous customer's response to overwrite the newly signed-in user's state.
+        if(customerId()!==id)return;
         if(Array.isArray(data.orders)){
           state.orders=data.orders;
           save();
