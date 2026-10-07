@@ -5,14 +5,14 @@ import { validateOrderItems, updateOrder } from '../src/index.js';
 function mockProducts(rows){
   return {
     prepare(sql){
+      const result={
+        async all(){ return { results: rows }; },
+        async first(){ return rows[0] || null; },
+        async run(){ return { meta:{changes:1} }; }
+      };
       return {
-        bind(){
-          return {
-            async all(){ return { results: rows }; },
-            async first(){ return rows[0] || null; },
-            async run(){ return { meta:{changes:1} }; }
-          };
-        }
+        ...result,
+        bind(){ return result; }
       };
     }
   };
