@@ -12,7 +12,7 @@
     const checkoutTotal=document.querySelector('#checkoutTotal');
     if(item)item.textContent=`${n} ${n===1?'item':'items'}`;
     if(totalEl)totalEl.textContent=money(value);
-    if(badge){badge.textContent=n;badge.classList.toggle('hidden',!n)}
+    if(badge){badge.textContent=n;badge.setAttribute('aria-label',`${n} ${n===1?'item':'items'} in cart`);badge.classList.toggle('hidden',!n)}
     if(bar)bar.classList.toggle('hidden',!n);
     if(checkoutTotal)checkoutTotal.textContent=money(value);
   };
