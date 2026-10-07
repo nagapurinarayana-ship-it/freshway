@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v22';
+const CACHE = 'freshway-v23';
 const APP_SHELL = [
   '/',
   '/index.html?v=20261007-seo-v1',
@@ -26,12 +26,29 @@ const APP_SHELL = [
   '/freshway-logo-clean.svg?v=20260908-logo-v4'
 ];
 
+const REQUIRED_SHELL = [
+  '/',
+  '/index.html?v=20261007-seo-v1'
+];
+
 self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE)
-      .then(cache => cache.addAll(APP_SHELL))
-      .catch(() => {})
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    const results = await Promise.all(APP_SHELL.map(async asset => {
+      try {
+        const response = await fetch(new Request(asset, { cache: 'no-cache' }));
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        await cache.put(asset, response.clone());
+        return true;
+      } catch (error) {
+        console.error('FreshWay service worker shell asset failed:', asset, error);
+        return false;
+      }
+    }));
+    if (!REQUIRED_SHELL.every(asset => results[APP_SHELL.indexOf(asset)])) {
+      throw new Error('FreshWay critical app shell could not be cached.');
+    }
+  })());
   self.skipWaiting();
 });
 
