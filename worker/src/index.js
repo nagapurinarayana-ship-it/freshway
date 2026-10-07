@@ -176,8 +176,8 @@ async function adminOrders(env,url){
   if(payment&&payment!=='all')add('o.payment_status=?',payment);
   if(plan&&plan!=='all')add('o.delivery_plan=?',plan);
   if(customer)add('(o.customer_id LIKE ? OR o.customer_name LIKE ? OR o.customer_phone LIKE ?)',`%${customer}%`,`%${customer}%`,`%${customer}%`);
-  if(/^\\d{4}-\\d{2}-\\d{2}$/.test(from))add("o.created_at>=?",`${from} 00:00:00`);
-  if(/^\\d{4}-\\d{2}-\\d{2}$/.test(to))add("o.created_at<=?",`${to} 23:59:59`);
+  if(/^\d{4}-\d{2}-\d{2}$/.test(from))add("o.created_at>=?",`${from} 00:00:00`);
+  if(/^\d{4}-\d{2}-\d{2}$/.test(to))add("o.created_at<=?",`${to} 23:59:59`);
   if(Number.isFinite(minAmount)&&minAmount>=0)add('o.total>=?',Math.round(minAmount));
   if(Number.isFinite(maxAmount)&&maxAmount>=0)add('o.total<=?',Math.round(maxAmount));
   const clause=where.length?` WHERE ${where.join(' AND ')}`:'';
@@ -218,9 +218,9 @@ async function updateOrder(env,id,payload){
   if(!result.meta?.changes)throw new Error('Order changed by another admin. Refresh and try again.');
   if((status&&status!==current.delivery_status)||(payment&&payment!==current.payment_status)||(deliveryPlan&&deliveryPlan!==current.delivery_plan)){
     let text;
-    if(status&&status!==current.delivery_status)text=status==='Processing'?\`Order \${id} is now being prepared.\`:status==='Ready'?\`Order \${id} is ready for delivery.\`:status==='Out for Delivery'?\`Order \${id} is out for delivery.\`:status==='Delivered'?\`Order \${id} has been delivered.\`:status==='Cancelled'?\`Order \${id} has been cancelled.\`:status==='Confirmed'?\`Order \${id} has been confirmed.\`:\`Order \${id} status is \${status}.\`;
-    else if(payment&&payment!==current.payment_status)text=payment==='Collected'?\`Payment for order \${id} has been collected.\`:payment==='Refunded'?\`Payment for order \${id} has been refunded.\`:\`Payment for order \${id} is \${payment.toLowerCase()}.\`;
-    else text=\`Delivery plan for order \${id} is now \${deliveryPlan}.\`;
+    if(status&&status!==current.delivery_status)text=status==='Processing'?`Order ${id} is now being prepared.`:status==='Ready'?`Order ${id} is ready for delivery.`:status==='Out for Delivery'?`Order ${id} is out for delivery.`:status==='Delivered'?`Order ${id} has been delivered.`:status==='Cancelled'?`Order ${id} has been cancelled.`:status==='Confirmed'?`Order ${id} has been confirmed.`:`Order ${id} status is ${status}.`;
+    else if(payment&&payment!==current.payment_status)text=payment==='Collected'?`Payment for order ${id} has been collected.`:payment==='Refunded'?`Payment for order ${id} has been refunded.`:`Payment for order ${id} is ${payment.toLowerCase()}.`;
+    else text=`Delivery plan for order ${id} is now ${deliveryPlan}.`;
     try{await sendCustomerPush(env,current.customer_id,'FreshWay order update',text)}catch(_){}
   }
   return {ok:true,status:status||current.delivery_status,payment:payment||current.payment_status,deliveryPlan:deliveryPlan||current.delivery_plan};
