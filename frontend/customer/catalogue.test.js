@@ -31,8 +31,7 @@ assert.match(freshness,/checkout/);
 assert.match(ordersData,/customerId\(\)!==id/);
 assert.match(ordersData,/state\.orders=\[\]/);
 assert.match(app,/customerOrderData\.load\(\)\}/);
-assert.doesNotMatch(app,/customerOrderData\.start\(\)/);
-assert.doesNotMatch(app,/customerOrderData\.stop\(\)/);
+assert.match(app,/customerOrderData\.stop\(\)/);
 
 console.log('catalogue server-authority/error-boundary OK');
 
