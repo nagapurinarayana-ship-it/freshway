@@ -59,9 +59,9 @@ function renderOrders(list=customerOrders.normalize(state.orders)){customerOrder
 function latestOrder(){return customerOrders.latest(state.orders)}
 function prefillCheckout(){const last=latestOrder(),saved=state.profile?.checkout||{},a=customerProfile.savedAddress(state.profile,last);const fields=[['#customerName',saved.name||last?.customer?.name||''],['#customerPhone',saved.phone||last?.customer?.phone||'']];fields.forEach(([sel,val])=>{const el=$(sel);if(el&&!el.value)el.value=val});customerAddressFlow.fill(document,a,{onlyEmpty:true})}
 function renderProfile(){const last=latestOrder(),name=$('#profileName'),phone=$('#profilePhone'),addr=$('#profileAddressText'),home=$('#homeAddress');if(name)name.textContent=customerProfile.name(state.profile,last);if(phone)phone.textContent=customerProfile.phone(state.profile,last);if(addr)addr.textContent=customerProfile.displayAddress(state.profile);if(home)home.textContent=customerProfile.homeAddress(state.profile)}
-const customerOrderData=customerOrdersDataModule.create({api,customerId,readState:()=>state,save,renderOrders,renderProfile,toast,document});
+const customerOrderData=customerOrdersDataModule.create({api,customerId,readState:()=>state,save,renderOrders,renderProfile,toast,document,intervalMs:0});
 let customerFreshness=null;
-function handleView(name){if(name==='orders'){renderOrders();customerOrderData.load()}if(name==='cart')renderCart();if(name==='checkout'){prefillCheckout();updateCartBar()}if(name==='profile')renderProfile();customerFreshness?.onView(name)}
+function handleView(name){if(name==='orders'){renderOrders();customerOrderData.load();customerOrderData.start()}else customerOrderData.stop();if(name==='cart')renderCart();if(name==='checkout'){prefillCheckout();updateCartBar()}if(name==='profile')renderProfile();customerFreshness?.onView(name)}
 const navigation=customerNavigation.create({document,onView:handleView,afterView:name=>window.FreshWaySeo?.setView(name)});
 customerFreshness=customerStateFreshness?.create({document,getView:()=>document.querySelector('.view.active-view')?.id?.replace(/View$/,'')||'home',refreshCatalogue:()=>window.freshWayCustomerCatalogueRefresh?.(),refreshOrders:()=>customerOrderData.load(),renderProfile});
 function setView(name,options){navigation.setView(name,options)}
