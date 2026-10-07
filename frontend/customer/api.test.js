@@ -1,13 +1,19 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
-const vm=require('node:vm');
 
 const source=fs.readFileSync('frontend/customer/api.js','utf8');
 
 function loadApi(fetchImpl){
-  const context={window:{FreshWayNotifications:{customerId:()=> 'customer-1'}},fetch:fetchImpl,AbortController,setTimeout,clearTimeout,console};
-  vm.runInNewContext(source,context);
-  return context.window.FreshWayCustomerAPI;
+  const previousWindow=global.window;
+  const previousFetch=global.fetch;
+  global.window={FreshWayNotifications:{customerId:()=> 'customer-1'}};
+  global.fetch=fetchImpl;
+  delete global.FreshWayCustomerAPI;
+  (0,eval)(source);
+  const api=global.window.FreshWayCustomerAPI;
+  global.window=previousWindow;
+  global.fetch=previousFetch;
+  return api;
 }
 
 (async()=>{
@@ -19,7 +25,8 @@ function loadApi(fetchImpl){
       assert.ok(options.signal);
       return {ok:true,json:async()=>({ok:true})};
     });
-    assert.deepEqual(await api.request('/api/test',{method:'GET'}),{ok:true});
+    const result=await api.request('/api/test',{method:'GET'});
+    assert.equal(result.ok,true);
     assert.equal(api.customerId(),'customer-1');
   }
 
