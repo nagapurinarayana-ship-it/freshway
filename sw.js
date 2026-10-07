@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v19';
+const CACHE = 'freshway-v20';
 const APP_SHELL = [
   '/',
   '/index.html?v=20260909-cart-v14',
@@ -8,9 +8,10 @@ const APP_SHELL = [
   '/notifications.js?v=20260907-auth-v2',
   '/address-fix.js?v=20260908-address-hotfix-v2',
   '/address-system-final.js?v=20260908-address-final-v4',
-  '/manifest.webmanifest?v=20261007-install-v1',
-  '/frontend/customer/pwa-install.css?v=20261007-install-v1',
-  '/frontend/customer/pwa-install.js?v=20261007-install-v1',
+  '/manifest.webmanifest?v=20261007-install-v2',
+  '/frontend/customer/pwa-install.css?v=20261007-install-v2',
+  '/frontend/customer/seo.js?v=20261007-seo-v1',
+  '/frontend/customer/pwa-install.js?v=20261007-install-v2',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/icons/icon-192-maskable.png',
