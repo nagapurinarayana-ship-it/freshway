@@ -91,3 +91,7 @@ button,input,textarea{touch-action:manipulation}
   .product-action-control>.qty-control button{flex:0 0 auto}
   .product-action-control>.qty-control span{flex:0 0 30px}
 }
+
+/* Floating cart bar must never cover the last order/product on small screens. */
+html.fw-cart-bar-visible main{padding-bottom:184px}
+@media(min-width:600px){html.fw-cart-bar-visible main{padding-bottom:170px}}
