@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS addresses (
   place_id TEXT,
   location_updated_at TEXT,
   is_default INTEGER NOT NULL DEFAULT 0,
+  deleted_at TEXT,
   FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS orders (
