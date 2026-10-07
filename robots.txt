@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+Disallow: /admin.html
+Disallow: /admin
+
+Sitemap: https://freshway-f32.pages.dev/sitemap.xml
