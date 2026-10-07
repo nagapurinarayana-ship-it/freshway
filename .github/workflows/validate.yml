@@ -57,7 +57,7 @@ jobs:
             if (!index.includes(required)) throw new Error('index.html is missing ' + required);
           }
           const sw = fs.readFileSync('sw.js', 'utf8');
-          if (!/const CACHE = 'freshway-v\\d+'/.test(sw)) throw new Error('Service worker cache version missing');
+          if (!/const CACHE = 'freshway-v[0-9]+'/.test(sw)) throw new Error('Service worker cache version missing');
           if (!sw.includes('/icons/icon-192.svg') || !sw.includes('/icons/icon-512.svg')) throw new Error('PWA icons are not cached');
           console.log('PWA direct-install contract OK');
           NODE
