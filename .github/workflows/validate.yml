@@ -38,6 +38,7 @@ jobs:
           node frontend/customer/cart-actions.test.js
           node frontend/customer/cart-bar.test.js
           node frontend/customer/checkout-submit.test.js
+          node frontend/customer/api.test.js
       - name: Check PWA direct-install contract
         run: |
           node <<'NODE'
