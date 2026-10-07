@@ -86,3 +86,11 @@ button,input,textarea,select{touch-action:manipulation}
   .order-toolbar>#clearOrders{grid-column:auto}
   .order-advanced-filters .filter-extra{grid-template-columns:1fr}
 }
+
+/* Customer address text must stay compact inside Owner customer cards. */
+.customer-card .address{font-size:12px;line-height:1.35;color:var(--muted);margin:8px 0;overflow-wrap:anywhere;word-break:break-word}
+.customer-card .address::first-letter{font-size:inherit}
+@media(max-width:480px){
+  .customer-card{padding:13px}
+  .customer-card .address{font-size:11px;line-height:1.35}
+}

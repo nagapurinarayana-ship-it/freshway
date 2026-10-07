@@ -13,7 +13,7 @@
     if(item)item.textContent=`${n} ${n===1?'item':'items'}`;
     if(totalEl)totalEl.textContent=money(value);
     if(badge){badge.textContent=n;if(typeof badge.setAttribute==='function')badge.setAttribute('aria-label',`${n} ${n===1?'item':'items'} in cart`);badge.classList.toggle('hidden',!n)}
-    if(bar)bar.classList.toggle('hidden',!n);
+    if(bar){bar.classList.toggle('hidden',!n);document.documentElement.classList.toggle('fw-cart-bar-visible',n>0)}
     if(checkoutTotal)checkoutTotal.textContent=money(value);
   };
   window.FreshWayCustomerCartBar=Object.freeze({update});
