@@ -24,7 +24,7 @@
       const saved=sessionStorage.getItem(VIEW_KEY);
       if(saved&&typeof window.setView==='function'){
         if(saved==='confirmation'&&typeof window.showConfirmation==='function'&&window.state?.orders?.[0])window.showConfirmation(window.state.orders[0]);
-        else window.setView(saved);
+        else window.setView(saved,{history:'replace'});
       }
     };
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',restore,{once:true});
