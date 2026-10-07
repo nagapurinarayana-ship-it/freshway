@@ -31,6 +31,7 @@
     };
     const start=()=>{
       if(timer!==null)clearInterval(timer);
+      if(Number(intervalMs)<=0)return;
       timer=setInterval(()=>{
         if(document.querySelector('#ordersView')?.classList.contains('active-view'))load()
       },intervalMs);
