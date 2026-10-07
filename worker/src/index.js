@@ -28,7 +28,7 @@ const stockStatus=(managed,quantity,threshold)=>!managed?'not_tracked':Number(qu
 
 async function products(env, includeInactive = false) {
   const query = includeInactive ? 'SELECT id,name,unit,price,emoji,active,stock_managed,stock_quantity,low_stock_threshold FROM products ORDER BY name' : 'SELECT id,name,unit,price,emoji,active,stock_managed,stock_quantity,low_stock_threshold FROM products WHERE active=1 ORDER BY name';
-  const { results } = await env.DB.prepare(query).all(); return (results || []).map(p => ({ ...p, stock_status: stockStatus(p.stock_managed,p.stock_quantity,p.low_stock_threshold) }));
+  const { results } = await env.DB.prepare(query).all(); const mapped=(results||[]).map(p=>({...p,stock_status:stockStatus(p.stock_managed,p.stock_quantity,p.low_stock_threshold)})); if(includeInactive)return mapped; return mapped.map(({stock_managed,stock_quantity,low_stock_threshold,...p})=>p);
 }
 
 async function registerCustomer(env, payload) {
