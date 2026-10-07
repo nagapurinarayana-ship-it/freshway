@@ -1,7 +1,7 @@
 const CACHE = 'freshway-v20';
 const APP_SHELL = [
   '/',
-  '/index.html?v=20260909-cart-v14',
+  '/index.html?v=20261007-seo-v1',
   '/styles.css?v=20260907-layout-v2',
   '/address-system.css?v=20260907-address-v2',
   '/app.js?v=20260909-cart-v14',
