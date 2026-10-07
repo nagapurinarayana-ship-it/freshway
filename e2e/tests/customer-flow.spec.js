@@ -16,6 +16,23 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.clear();
     sessionStorage.clear();
+    localStorage.setItem('freshway-address-v2', JSON.stringify({
+      label: 'Home',
+      recipientName: 'E2E Customer',
+      deliveryPhone: '9876543210',
+      houseFlat: '12',
+      area: 'Test Street',
+      city: 'Hyderabad',
+      pincode: '500001',
+      landmark: '',
+      note: '',
+      latitude: 17.385044,
+      longitude: 78.486671,
+      accuracyMeters: 10,
+      locationSource: 'E2E fixture',
+      placeId: 'e2e-location',
+      locationUpdatedAt: '2026-10-07T10:00:00.000Z'
+    }));
   });
 
   await page.route('**/api/**', async route => {
