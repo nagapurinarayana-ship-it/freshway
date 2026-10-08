@@ -101,8 +101,19 @@ jobs:
             if (!sw.includes(icon)) throw new Error('PWA icon is not cached: ' + icon);
           }
           if (sw.includes(".catch(() => {})")) throw new Error('Service worker install failures must not be silently swallowed');
-          for (const file of ['freshway-logo.svg','freshway-logo-clean.svg','freshway-brand.svg','icon.svg','icons/icon-192.svg','icons/icon-512.svg']) {
-            if (fs.readFileSync(file, 'utf8') !== fs.readFileSync('freshway-logo.svg', 'utf8')) throw new Error('Brand asset artwork drifted: ' + file);
+          const canonical = fs.readFileSync('freshway-logo.svg', 'utf8');
+          const canonicalJpeg = canonical.match(/data:image\/jpeg;base64,([^"]+)/)?.[1];
+          if (!canonicalJpeg) throw new Error('Canonical FreshWay artwork is missing embedded JPEG');
+          for (const file of ['freshway-logo-clean.svg','freshway-brand.svg']) {
+            if (!fs.readFileSync(file, 'utf8').includes(canonicalJpeg)) throw new Error('Brand asset artwork drifted: ' + file);
+          }
+          const display = fs.readFileSync('freshway-logo-display.svg', 'utf8');
+          if (!display.includes(canonicalJpeg) || !display.includes('viewBox="320 155 320 155"')) throw new Error('Display logo artwork/crop contract failed');
+          const favicon = fs.readFileSync('icon.svg', 'utf8');
+          if (!favicon.includes(canonicalJpeg) || !favicon.includes('viewBox="320 155 320 155"')) throw new Error('Favicon logo artwork/crop contract failed');
+          for (const file of ['icons/icon-192.svg','icons/icon-512.svg']) {
+            const icon = fs.readFileSync(file, 'utf8');
+            if (!icon.includes(canonicalJpeg) || !icon.includes('viewBox="0 0 512 512"') || !icon.includes('width="420" height="204"')) throw new Error('Square app icon artwork/geometry contract failed: ' + file);
           }
           const displayLogo = fs.readFileSync('freshway-logo-display.svg', 'utf8');
           if (!displayLogo.includes('data:image/jpeg;base64,')) throw new Error('Display logo must be self-contained for reliable browser rendering');
