@@ -11,3 +11,12 @@ assert.match(app,/navigation\.goBack\(\)/);
 const viewState=fs.readFileSync('frontend/customer/view-state.js','utf8');
 assert.match(viewState,/history:'replace'/);
 console.log('customer navigation history isolation OK');
+
+assert.match(source,/visibleModal/);
+assert.match(source,/restoreAfterModalBack/);
+assert.match(source,/closeVisibleModal/);
+assert.match(source,/passcodeModal/);
+assert.match(source,/history\.pushState\(\{\[HISTORY_FLAG\]:true,view\}/);
+const storeInfo=fs.readFileSync('frontend/customer/store-info.js','utf8');
+assert.match(storeInfo,/api\('\/api\/store-profile'\)/);
+console.log('customer navigation modal-back and store profile route contracts OK');
