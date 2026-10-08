@@ -12,4 +12,11 @@ api.render(document,[{id:'FW-1',status:'New',createdAt:'2026-09-08',items:[{name
 assert.match(el.innerHTML,/FW-1/);
 assert.match(el.innerHTML,/Apple/);
 assert.match(el.innerHTML,/₹240/);
+
+const delivered={id:'FW-2',status:'Delivered',createdAt:'2026-09-08',items:[],total:240,address:{house:'1',area:'A',city:'C',pincode:'123456'},deliveryPlan:'Tomorrow',payment:'Collected'};
+api.render(document,[delivered],{esc:String,formatDate:String,money:n=>`₹${n}`,statusLabel:String,planText:String});
+assert.match(el.innerHTML,/🚚 Delivery/);
+assert.match(el.innerHTML,/Delivered/);
+assert.doesNotMatch(el.innerHTML,/Tomorrow/);
+
 console.log('customer orders-view helpers OK');
