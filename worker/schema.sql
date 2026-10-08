@@ -28,6 +28,17 @@ CREATE TABLE IF NOT EXISTS products (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS home_promotions (
+  id TEXT PRIMARY KEY,
+  image_data TEXT NOT NULL,
+  image_mime_type TEXT NOT NULL,
+  alt_text TEXT NOT NULL DEFAULT '',
+  display_order INTEGER NOT NULL DEFAULT 999,
+  active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS customers (
   id TEXT PRIMARY KEY,
   name TEXT,
@@ -146,6 +157,7 @@ CREATE TABLE IF NOT EXISTS auth_rate_limits (
   count INTEGER NOT NULL CHECK(count >= 0),
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_home_promotions_active_order ON home_promotions(active, display_order, id);
 CREATE INDEX IF NOT EXISTS idx_categories_active_order ON categories(active, display_order, name);
 CREATE INDEX IF NOT EXISTS idx_products_category_active ON products(category_id, active, name);
 CREATE INDEX IF NOT EXISTS idx_products_stock ON products(stock_managed,stock_quantity,active);
