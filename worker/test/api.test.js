@@ -210,15 +210,15 @@ test('customer checkout address UI keeps map attribution inside the map and avoi
 test('checkout delivery mobile preserves 10 digits and trims only a 91 prefix', () => {
   const checkout = readFileSync(fileURLToPath(new URL('../../frontend/customer/checkout.js', import.meta.url)), 'utf8');
   const html = readFileSync(fileURLToPath(new URL('../../index.html', import.meta.url)), 'utf8');
-  assert.match(checkout, /digits\\.length===10\\)return digits/);
-  assert.match(checkout, /digits\\.length===12&&digits\\.startsWith\\('91'\\)return digits\\.slice\\(2\\)/);
-  assert.match(html, /pattern="\\(\\?:\\[0-9\\]\\{10\\}\\|\\\\\\+\\?91\\[\\\\s-\\]\\?\\[0-9\\]\\{10\\}\\)"/);
+  assert.ok(checkout.includes("if(digits.length===10)return digits"));
+  assert.ok(checkout.includes("if(digits.length===12&&digits.startsWith('91'))return digits.slice(2)"));
+  assert.ok(html.includes('pattern="(?:[0-9]{10}|\\+?91[\\s-]?[0-9]{10})"'));
 });
 
 test('saved-address API accepts plain 10-digit and +91 delivery mobiles', () => {
   const addressApi = readFileSync(fileURLToPath(new URL('../src/address-api.js', import.meta.url)), 'utf8');
-  assert.match(addressApi, /digits\\.length === 10\\) return/);
-  assert.match(addressApi, /digits\\.length === 12 && digits\\.startsWith\\('91'\\) return digits/);
+  assert.ok(addressApi.includes("if (digits.length === 10) return"));
+  assert.ok(addressApi.includes("if (digits.length === 12 && digits.startsWith('91')) return digits"));
 });
 
 test('saved-address deletion soft-deletes rows so order foreign keys remain valid', async () => {
