@@ -185,6 +185,26 @@ test('customer auth UI uses mobile, name for registration, plus 6-digit passcode
 });
 
 
+test('customer auth UI trims +91 to the remaining 10 digits and keeps passcode-only auth', () => {
+  const root = fileURLToPath(new URL('../../notifications.js', import.meta.url));
+  const notifications = readFileSync(root, 'utf8');
+  assert.match(notifications, /normalizeAuthPhone=value=>/);
+  assert.match(notifications, /digits\.length===12&&digits\.startsWith\('91'\)/);
+  assert.match(notifications, /maxlength="15" pattern="\[0-9\]\{10\}" autocomplete="tel"/);
+  assert.match(notifications, /phoneEl\.addEventListener\('blur'/);
+  assert.doesNotMatch(notifications, /otp\/start|otp\/verify|Twilio|one-time password/i);
+});
+
+test('customer checkout address UI keeps map attribution inside the map and avoids duplicate phone helper markup', () => {
+  const html = readFileSync(fileURLToPath(new URL('../../index.html', import.meta.url)), 'utf8');
+  const styles = readFileSync(fileURLToPath(new URL('../../styles.css', import.meta.url)), 'utf8');
+  const helper = 'Can be different from your registered mobile number.';
+  const phoneSection = html.match(/<label>Delivery contact number[\s\S]*?<\/label>/)?.[0] || '';
+  assert.equal(phoneSection.includes(helper), false);
+  assert.match(styles, /\.address-map\{position:relative;z-index:0;isolation:isolate\}/);
+  assert.match(styles, /\.whatsapp-opt\{display:grid!important;grid-template-columns:24px 28px minmax\(0,1fr\)/);
+});
+
 test('saved-address deletion soft-deletes rows so order foreign keys remain valid', async () => {
   const queries = [];
   const deleteEnv = {
