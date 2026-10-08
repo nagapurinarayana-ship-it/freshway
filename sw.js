@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v29';
+const CACHE = 'freshway-v30';
 
 const APP_SHELL = [
   '/',
@@ -18,14 +18,14 @@ const APP_SHELL = [
   '/icons/icon-512.png',
   '/icons/icon-192-maskable.png',
   '/icons/icon-512-maskable.png',
-  '/icon.svg?v=20260907-logo-v2',
+  '/icon.svg?v=20261008-brand-v1',
   '/admin.html',
   '/admin.css?v=20261008-mobile-visual-v1',
   '/admin.js?v=20261008-mobile-visual-v1',
   '/frontend/admin/catalogue.js?v=20261008-product-images-v1',
   '/owner-lifecycle.js?v=20260909-refresh-v3',
   '/owner-address-final.js?v=20260909-address-final-v6',
-  '/freshway-logo-clean.svg?v=20260908-logo-v4'
+  '/freshway-logo-clean.svg?v=20261008-brand-v1'
 ];
 
 const REQUIRED_SHELL = [
