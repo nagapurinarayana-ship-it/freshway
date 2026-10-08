@@ -4,5 +4,13 @@
   X-Frame-Options: SAMEORIGIN
   Permissions-Policy: camera=(), microphone=()
 
+/manifest.webmanifest
+  Content-Type: application/manifest+json
+  Cache-Control: public, max-age=0, must-revalidate
+
+/sw.js
+  Content-Type: application/javascript; charset=utf-8
+  Service-Worker-Allowed: /
+
 /admin.html
   X-Robots-Tag: noindex, nofollow
