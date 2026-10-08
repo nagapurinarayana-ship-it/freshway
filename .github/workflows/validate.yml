@@ -50,6 +50,7 @@ jobs:
 
       - name: Run customer boundary tests
         run: |
+          node frontend/phone-display.test.js
           node frontend/customer/view-state.test.js
           node frontend/customer/navigation.test.js
           node admin-navigation.test.js
@@ -87,7 +88,7 @@ jobs:
           if (!manifest.icons.some(icon => icon.type === 'image/svg+xml' && icon.sizes === 'any' && icon.src.includes('icon-192.svg'))) throw new Error('Exact SVG 192 app icon is missing');
           if (!manifest.icons.some(icon => icon.type === 'image/svg+xml' && icon.sizes === 'any' && icon.src.includes('icon-512.svg'))) throw new Error('Exact SVG 512 app icon is missing');
           
-          for (const file of ['frontend/customer/pwa-install.js','frontend/customer/pwa-install.css','frontend/customer/promotions.js','icons/icon-192.png','icons/icon-512.png','icons/icon-192-maskable.png','icons/icon-512-maskable.png','sw.js']) {
+          for (const file of ['frontend/phone-display.js','frontend/customer/pwa-install.js','frontend/customer/pwa-install.css','frontend/customer/promotions.js','icons/icon-192.png','icons/icon-512.png','icons/icon-192-maskable.png','icons/icon-512-maskable.png','sw.js']) {
             if (!fs.existsSync(file)) throw new Error('Missing PWA asset ' + file);
           }
           const index = fs.readFileSync('index.html', 'utf8');
