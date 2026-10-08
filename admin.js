@@ -65,4 +65,4 @@ window.addEventListener('popstate',event=>{
   navigateAdminScreen('overview',{historyMode:'none'})
 });
 function initOwnerHistory(){const screen=location.hash.slice(1)||'overview';if(!history.state?.__freshwayOwner){const state={__freshwayOwner:true,screen};history.replaceState(state,'',location.href);history.pushState(state,'',location.href)}}
-bind();initOwnerHistory();if(session())bootstrap();else auth(false);
+bind();initOwnerHistory();if(session()){auth(true);setAdminScreenVisual(location.hash.slice(1)||'overview');bootstrap()}else auth(false);
