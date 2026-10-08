@@ -13,19 +13,21 @@ const APP_SHELL = [
   '/frontend/customer/pwa-install.css?v=20261007-install-v2',
   '/frontend/customer/seo.js?v=20261007-seo-v1',
   '/frontend/customer/promotions.js?v=20261008-home-promotions-v1',
+  '/icons/icon-192.svg?v=20261008-brand-v1',
+  '/icons/icon-512.svg?v=20261008-brand-v1',
   '/frontend/customer/pwa-install.js?v=20261007-install-v2',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/icons/icon-192-maskable.png',
   '/icons/icon-512-maskable.png',
-  '/icon.svg?v=20260907-logo-v2',
+  '/icon.svg?v=20261008-brand-v1',
   '/admin.html',
   '/admin.css?v=20261008-mobile-visual-v1',
   '/admin.js?v=20261008-mobile-visual-v1',
   '/frontend/admin/catalogue.js?v=20261008-product-images-v1',
   '/owner-lifecycle.js?v=20260909-refresh-v3',
   '/owner-address-final.js?v=20260909-address-final-v6',
-  '/freshway-logo-clean.svg?v=20260908-logo-v4'
+  '/freshway-logo-clean.svg?v=20261008-brand-v1'
 ];
 
 const REQUIRED_SHELL = [
