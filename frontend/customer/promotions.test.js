@@ -8,6 +8,6 @@ assert.match(source,/pointerup/);
 assert.match(source,/translate3d/);
 assert.match(source,/object-fit:contain/);
 assert.match(source,/promotions\.length<2/);
-assert.match(source,/api\?\.request/);
+assert.match(source,/FreshWayCustomerAPI\?\.request/);
 assert.match(index,/frontend\/customer\/promotions\.js/);
 console.log('customer promotion carousel contract OK');
