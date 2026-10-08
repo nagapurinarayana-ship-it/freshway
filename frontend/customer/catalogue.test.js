@@ -35,7 +35,7 @@ assert.match(app,/customerOrderData\.stop\(\)/);
 
 const serviceWorker=fs.readFileSync('sw.js','utf8');
 assert.match(serviceWorker,/const CACHE = 'freshway-v28'/);
-assert.match(serviceWorker,/const REQUIRED_SHELL = \[\s*'\\/',\s*'\\/index\\.html'\s*\]/);
+assert.match(serviceWorker,/const REQUIRED_SHELL = \\[\\s*'\\/',\\s*'\\/index\\.html'\\s*\\]/);
 assert.doesNotMatch(serviceWorker,/index\.html\?v=20261007-seo-v1/);
 console.log('PWA service worker install contract OK');
 
