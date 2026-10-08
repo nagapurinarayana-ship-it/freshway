@@ -303,6 +303,9 @@ jobs:
           test -s migrations/0017_home_promotions.sql
           test -s migrations/0018_store_profile.sql
           test -s migrations/0019_admin_query_indexes.sql
+          test -s migrations/0020_remove_obsolete_catalogue_products.sql
+          grep -q "'apple','banana','grapes','guava'" migrations/0020_remove_obsolete_catalogue_products.sql
+          grep -q 'NOT EXISTS' migrations/0020_remove_obsolete_catalogue_products.sql
           grep -q 'store_profile' schema.sql
           grep -q 'share_title' migrations/0018_store_profile.sql
           grep -q 'share_description' migrations/0018_store_profile.sql
