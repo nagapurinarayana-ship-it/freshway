@@ -22,7 +22,7 @@ async function loadShareMetadata(context) {
 
 function replaceMeta(html, property, content) {
   const escaped = escapeAttribute(content);
-  const pattern = new RegExp("<meta\\s+property=[\\"']" + property + "[\\"']\\s+content=[\\"'][^\\"']*[\\"']\\s*/?>", "i");
+  const pattern = new RegExp(`<meta\\s+property=["']${property}["']\\s+content=["'][^"']*["']\\s*/?>`, 'i');
   return html.replace(pattern, '<meta property="' + property + '" content="' + escaped + '">');
 }
 
