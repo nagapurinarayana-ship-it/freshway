@@ -8,7 +8,7 @@ const enc = value => new TextEncoder().encode(String(value));
 const hex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
 const bytesFromHex = value => { const out = new Uint8Array(value.length / 2); for (let i = 0; i < out.length; i++) out[i] = parseInt(value.slice(i * 2, i * 2 + 2), 16); return out; };
 const corsOrigin = env => { const value = String(env.APP_ORIGIN || '').trim(); return value && value !== 'https://YOUR-FRESHWAY-DOMAIN' ? value : 'null'; };
-const cleanPhone = value => { const digits = String(value || '').replace(/\D/g, ''); return digits.length === 10 ? digits : ''; };
+const cleanPhone = value => { const digits = String(value || '').replace(/\D/g, ''); if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2); return digits.length === 10 ? digits : ''; };
 const normalizedPhone = value => { const phone = cleanPhone(value); return phone ? `91${phone}` : ''; };
 const clientIp = request => String(request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown').split(',')[0].trim().slice(0, 80) || 'unknown';
 function response(data, status, env, extra = {}) { return new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env), 'access-control-allow-credentials': 'true', 'cache-control': 'private, no-store', ...extra } }); }
