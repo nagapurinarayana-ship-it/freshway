@@ -301,6 +301,7 @@ jobs:
           test -s migrations/0013_inventory_stock.sql
           test -s migrations/0017_home_promotions.sql
           test -s migrations/0018_store_profile.sql
+          test -s migrations/0019_admin_query_indexes.sql
           grep -q 'store_profile' schema.sql
           grep -q 'share_title' migrations/0018_store_profile.sql
           grep -q 'share_description' migrations/0018_store_profile.sql
