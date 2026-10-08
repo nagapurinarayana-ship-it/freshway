@@ -53,6 +53,11 @@ for (const path of ['/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-1
   assert.ok((await response.arrayBuffer()).byteLength > 100, path);
 }
 
+const logoResponse = await fetchWithRetry(`${base}/freshway-logo-master.webp?v=20261008-master-v1`);
+assert.equal(logoResponse.status, 200);
+assert.match(logoResponse.headers.get('content-type') || '', /^image\\/webp/i, 'master FreshWay logo must be served as WebP');
+assert.ok((await logoResponse.arrayBuffer()).byteLength > 100, 'master FreshWay logo must contain image data');
+
 const swResponse = await fetchWithRetry(`${base}/sw.js`);
 assert.equal(swResponse.status, 200);
 assert.match(swResponse.headers.get('content-type') || '', /javascript/i, 'service worker must be JavaScript');
