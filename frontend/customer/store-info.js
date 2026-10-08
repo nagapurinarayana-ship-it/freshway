@@ -70,7 +70,7 @@
     if(!root.children.length)root.appendChild(card('Contact Us','Contact information will appear here once the store profile is completed.','☎️'));
   }
   async function show(name,{api}){
-    const data=await api('/store-profile');
+    const data=await api('/api/store-profile');
     const profile=data?.storeProfile||{};
     lastProfile=profile;
     renderProfileSummary(profile);
