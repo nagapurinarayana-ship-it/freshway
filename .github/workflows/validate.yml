@@ -97,7 +97,7 @@ jobs:
             if (!index.includes(required)) throw new Error('index.html is missing ' + required);
           }
           const sw = fs.readFileSync('sw.js', 'utf8');
-          if (!/const CACHE = 'freshway-v31'/.test(sw)) throw new Error('Service worker cache version missing');
+          if (!/const CACHE = 'freshway-v32'/.test(sw)) throw new Error('Service worker cache version missing');
           for (const icon of ['/icons/icon-192.png','/icons/icon-512.png','/icons/icon-192-maskable.png','/icons/icon-512-maskable.png','/icons/icon-192.svg?v=20261008-brand-v1','/icons/icon-512.svg?v=20261008-brand-v1','/icon.svg?v=20261008-brand-v1','/freshway-logo-clean.svg?v=20261008-brand-v1','/freshway-logo-master.webp?v=20261008-master-v1']) {
             if (!sw.includes(icon)) throw new Error('PWA icon is not cached: ' + icon);
           }
@@ -141,6 +141,8 @@ jobs:
           grep -qF 'api/store-profile' functions/index.js
           grep -qF 'og:title' functions/index.js
           grep -qF 'og:description' functions/index.js
+          grep -qF 'twitter:title' functions/index.js
+          grep -qF 'twitter:description' functions/index.js
           grep -qF 'twitter:image' index.html
           grep -qF '<title>FreshWay | Fresh Groceries & Everyday Essentials Delivered Locally</title>' index.html
           test -s frontend/customer/seo.js
@@ -205,6 +207,7 @@ jobs:
           grep -qF 'FreshWayCustomerOrdersData' app.js
           grep -qF 'FreshWayCustomerStoreInfo' app.js
           grep -qF 'frontend/customer/store-info.js' index.html
+          grep -qF "api('/api/store-profile')" frontend/customer/store-info.js
           grep -qF 'FreshWayCustomerCheckoutSubmit' app.js
           grep -qF 'checkoutSubmit.bind()' app.js
           grep -qF 'frontend/customer/checkout-submit.js' index.html
