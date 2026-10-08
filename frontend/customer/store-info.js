@@ -51,7 +51,6 @@
     root.replaceChildren();
     const name=clean(profile.storeName)||'FreshWay';
     text('aboutTitle','About '+name);
-    intro(root,'OUR STORE',name,'Everything customers need to know before placing an order.');
     brandHero(root,name);
 
     root.appendChild(
@@ -86,15 +85,15 @@
     root.replaceChildren();
     const name=clean(profile.storeName)||'FreshWay';
     text('contactTitle','Contact Us');
-    intro(root,'GET IN TOUCH','Contact FreshWay','Choose the quickest way to reach us.');
+    intro(root,'GET IN TOUCH','Reach FreshWay','Choose the quickest way to get in touch.');
     const actions=document.createElement('div');actions.className='store-action-grid store-contact-actions';
     [['Call',profile.phone,telHref(profile.phone),'☎️'],['WhatsApp',profile.whatsapp||profile.phone,waHref(profile.whatsapp||profile.phone),'💬'],['Email',profile.email,mailHref(profile.email),'✉️']].forEach(x=>{
       const a=action(x[0],x[1],x[2],x[3]);if(a)actions.appendChild(a);
     });
     if(actions.children.length)root.appendChild(actions);
-    const hint=document.createElement('div');hint.className='store-contact-note';
-    hint.innerHTML='<strong>Business details</strong><p>Address, hours and delivery information are available on <button type="button">About FreshWay</button>.</p>';
-    hint.querySelector('button').onclick=()=>window.setView?.('about');
+    const hint=document.createElement('a');hint.className='store-contact-note';hint.href='#';
+    hint.innerHTML='<strong>Need store details?</strong><p>View the address, business hours and delivery information.</p><span>About FreshWay →</span>';
+    hint.onclick=e=>{e.preventDefault();window.setView?.('about');};
     root.appendChild(hint);
     if(!actions.children.length)root.appendChild(infoSection('CONTACT','Contact information will appear here once the store profile is completed.','☎️'));
   }
