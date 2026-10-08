@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v37';
+const CACHE = 'freshway-v38';
 
 const APP_SHELL = [
   '/',
@@ -6,6 +6,7 @@ const APP_SHELL = [
   '/styles.css?v=20261009-store-profile-v5',
   '/address-system.css?v=20260907-address-v2',
   '/app.js?v=20261009-store-profile-v3',
+  '/frontend/phone-display.js?v=20261009-phone-display-v1',
   '/frontend/customer/product-view.js?v=20261008-mobile-visual-v1',
   '/notifications.js?v=20260907-auth-v2',
   '/address-fix.js?v=20261008-address-hotfix-v4',
@@ -14,6 +15,7 @@ const APP_SHELL = [
   '/frontend/customer/seo.js?v=20261007-seo-v1',
   '/frontend/customer/promotions.js?v=20261008-home-promotions-v1',
   '/frontend/customer/store-info.js?v=20261009-store-profile-v5',
+  '/frontend/customer/profile.js?v=20261009-customer-profile-v2',
   '/icons/icon-192.svg?v=20261008-brand-v1',
   '/icons/icon-512.svg?v=20261008-brand-v1',
   '/frontend/customer/pwa-install.js?v=20261007-install-v2',
@@ -24,9 +26,9 @@ const APP_SHELL = [
   '/icon.svg?v=20261008-brand-v1',
   '/admin.html',
   '/admin.css?v=20261008-mobile-visual-v1',
-  '/admin.js?v=20261009-performance-v2',
-  '/frontend/admin/catalogue.js?v=20261008-product-images-v1',
-  '/owner-lifecycle.js?v=20260909-refresh-v3',
+  '/admin.js?v=20261009-performance-v3',
+  '/frontend/admin/catalogue.js?v=20261009-image-fit-v2',
+  '/owner-lifecycle.js?v=20261009-phone-display-v1',
   '/owner-address-final.js?v=20260909-address-final-v6',
   '/freshway-logo-master.webp?v=20261008-master-v1',
   '/freshway-logo-clean.svg?v=20261008-brand-v1'
