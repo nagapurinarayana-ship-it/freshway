@@ -33,6 +33,12 @@ assert.match(ordersData,/state\.orders=\[\]/);
 assert.match(app,/customerOrderData\.load\(\)/);
 assert.match(app,/customerOrderData\.stop\(\)/);
 
+const serviceWorker=fs.readFileSync('sw.js','utf8');
+assert.match(serviceWorker,/const CACHE = 'freshway-v28'/);
+assert.ok(serviceWorker.includes("const REQUIRED_SHELL = [\n  '/',\n  '/index.html'\n]"));
+assert.doesNotMatch(serviceWorker,/index\.html\?v=20261007-seo-v1/);
+console.log('PWA service worker install contract OK');
+
 console.log('catalogue server-authority/error-boundary OK');
 
 const cartView=fs.readFileSync('frontend/customer/cart-view.js','utf8');
