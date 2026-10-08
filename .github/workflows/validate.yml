@@ -53,6 +53,7 @@ jobs:
           node frontend/customer/view-state.test.js
           node frontend/customer/navigation.test.js
           node admin-navigation.test.js
+          node admin-performance.test.js
           node admin-orders.test.js
           node frontend/customer/search.test.js
           node frontend/customer/orders-view.test.js
