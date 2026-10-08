@@ -102,7 +102,7 @@ jobs:
           }
           if (sw.includes(".catch(() => {})")) throw new Error('Service worker install failures must not be silently swallowed');
           const canonical = fs.readFileSync('freshway-logo.svg', 'utf8');
-          const canonicalJpeg = canonical.match(/data:image\\/jpeg;base64,([^"]+)/)?.[1];
+          const canonicalJpeg = canonical.match(/data:image\/jpeg;base64,([^"]+)/)?.[1];
           if (!canonicalJpeg) throw new Error('Canonical FreshWay artwork is missing embedded JPEG');
           for (const file of ['freshway-logo-clean.svg','freshway-brand.svg']) {
             if (!fs.readFileSync(file, 'utf8').includes(canonicalJpeg)) throw new Error('Brand asset artwork drifted: ' + file);
