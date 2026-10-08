@@ -123,7 +123,7 @@ test('customer logout clears the cross-site session cookie securely', async () =
   assert.match(cookie, /Max-Age=0/);
   assert.match(cookie, /HttpOnly/);
   assert.match(cookie, /Secure/);
-  assert.match(cookie, /SameSite=None/);
+  assert.match(cookie, /SameSite=Lax/);
 });
 
 test('customer order POST is rejected without a matching signed session', async () => {
@@ -147,14 +147,14 @@ test('admin login rejects an incorrect token', async () => {
   assert.equal(response.status, 401);
 });
 
-test('admin login issues an expiring cross-site HttpOnly session cookie', async () => {
+test('admin login issues an expiring HttpOnly same-site session cookie', async () => {
   const response = await request('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: 'fixture-admin' }) }, adminHandler, adminEnv);
   assert.equal(response.status, 200);
   const cookie = response.headers.get('set-cookie') || '';
   assert.match(cookie, /freshway-admin-session=/);
   assert.match(cookie, /HttpOnly/);
   assert.match(cookie, /Max-Age=28800/);
-  assert.match(cookie, /SameSite=None/);
+  assert.match(cookie, /SameSite=Lax/);
   assert.match(cookie, /Secure/);
 });
 
@@ -162,7 +162,7 @@ test('admin logout clears the session cookie', async () => {
   const response = await request('/api/admin/logout', { method: 'POST' }, adminHandler, adminEnv);
   assert.equal(response.status, 200);
   assert.match(response.headers.get('set-cookie') || '', /Max-Age=0/);
-  assert.match(response.headers.get('set-cookie') || '', /SameSite=None/);
+  assert.match(response.headers.get('set-cookie') || '', /SameSite=Lax/);
 });
 
 test('admin session cookie rejects extra token segments', async () => {
