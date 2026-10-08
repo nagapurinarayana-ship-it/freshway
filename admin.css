@@ -94,3 +94,17 @@ button,input,textarea,select{touch-action:manipulation}
   .customer-card{padding:13px}
   .customer-card .address{font-size:11px;line-height:1.35}
 }
+
+/* Store profile settings: one owner-managed business profile with a separate share-preview section. */
+.settings-store-panel{grid-column:1/-1}
+.settings-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.settings-field{display:grid;gap:6px;min-width:0}
+.settings-field.full{grid-column:1/-1}
+.settings-field>span{font-size:9px;color:var(--muted);font-weight:900}
+.settings-field input,.settings-field textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px;background:#fff;color:var(--ink);font:inherit;font-size:10px;outline:0;resize:vertical}
+.settings-field input{min-height:42px}
+.settings-field textarea{line-height:1.45}
+.settings-field input:focus,.settings-field textarea:focus{border-color:var(--g);box-shadow:0 0 0 2px var(--mint)}
+.settings-actions{display:flex;align-items:center;gap:10px;margin:0 0 16px}
+.settings-actions #storeProfileStatus{font-size:9px;color:var(--muted);font-weight:800}
+@media(max-width:800px){.settings-form-grid{grid-template-columns:1fr}.settings-field.full{grid-column:auto}.settings-store-panel{grid-column:auto}}
