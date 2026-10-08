@@ -1,9 +1,9 @@
-const CACHE = 'freshway-v40';
+const CACHE = 'freshway-v41';
 
 const APP_SHELL = [
   '/',
   '/index.html',
-  '/styles.css?v=20261009-store-profile-v5',
+  '/styles.css?v=20261009-image-fit-v6',
   '/address-system.css?v=20260907-address-v2',
   '/app.js?v=20261009-store-profile-v3',
   '/frontend/phone-display.js?v=20261009-phone-display-v1',
