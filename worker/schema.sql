@@ -181,6 +181,9 @@ CREATE INDEX IF NOT EXISTS idx_order_items_stock_reserved ON order_items(product
 CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
 CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(delivery_status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_payment_created ON orders(payment_status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_plan_status_created ON orders(delivery_plan, delivery_status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_plan ON orders(delivery_plan, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_client_order_id ON orders(client_order_id);
 CREATE INDEX IF NOT EXISTS idx_addresses_customer ON addresses(customer_id, id DESC);
