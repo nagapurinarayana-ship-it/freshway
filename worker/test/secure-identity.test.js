@@ -63,6 +63,12 @@ test('customer can log in again with mobile number and passcode', async () => {
   assert.equal((await response.json()).customerId, 'customer-1');
 });
 
+test('customer can log in with +91-prefixed mobile number after normalization', async () => {
+  const response = await request('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '+91 9876543210', passcode: '246810' }) });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).customerId, 'customer-1');
+});
+
 test('wrong passcode is rejected', async () => {
   const response = await request('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '9876543210', passcode: '000000' }) });
   assert.equal(response.status, 401);
