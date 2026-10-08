@@ -160,3 +160,18 @@ html.fw-cart-bar-visible main{padding-bottom:184px}
 .store-contact-note button{border:0;background:none;padding:0;color:var(--green);font:inherit;font-weight:900;text-decoration:underline}
 .store-contact-actions{margin-bottom:2px}
 @media(max-width:380px){.store-about-logo{width:66px;flex-basis:66px}.store-about-hero{padding:13px}.store-about-hero h2{font-size:20px}}
+
+
+/* Final customer information-page hierarchy: one page title, no duplicated marketing copy. */
+.info-page{padding-bottom:92px}
+.store-page-intro{padding:0 4px 2px}
+.store-page-intro .eyebrow{margin-bottom:3px}
+.store-page-intro h1{font-size:29px;line-height:1.08;margin:2px 0 5px}
+.store-page-intro p{font-size:12px;line-height:1.45}
+.store-about-hero{margin-top:2px}
+.store-contact-actions{grid-template-columns:1fr}
+.store-contact-note{display:block;text-decoration:none;color:var(--ink);padding:15px 16px;background:#f1f7f3;border:1px solid rgba(15,122,75,.14);border-radius:16px}
+.store-contact-note strong{display:block;font-size:12px}
+.store-contact-note p{margin:4px 0 8px;font-size:11px;line-height:1.45;color:var(--muted)}
+.store-contact-note span{font-size:11px;font-weight:900;color:var(--green)}
+.store-info-about{margin-top:0}
