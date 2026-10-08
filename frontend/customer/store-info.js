@@ -39,6 +39,16 @@
       const extra=card(item[0],item[1],item[2]);if(extra)root.appendChild(extra);
     }
   }
+  function renderProfileSummary(profile){
+    const root=q('customerStoreProfileSummary');if(!root)return;
+    root.replaceChildren();
+    const title=document.createElement('h2');title.textContent=profile.storeName||'FreshWay';
+    root.appendChild(title);
+    const lines=[['About',profile.about],['Phone',profile.phone],['WhatsApp',profile.whatsapp],['Email',profile.email],['Address',profile.address],['Business hours',profile.businessHours],['Delivery',profile.deliveryInfo]];
+    for(const [label,value] of lines){if(!String(value||'').trim())continue;const row=document.createElement('div');row.className='store-profile-summary-row';const b=document.createElement('strong');b.textContent=label;const span=document.createElement('span');span.textContent=String(value).trim();row.append(b,span);root.appendChild(row);}
+    root.classList.toggle('hidden',root.children.length===0);
+  }
+
   function renderContact(profile){
     const root=q('contactContent');if(!root)return;
     root.replaceChildren();
@@ -63,9 +73,10 @@
     const data=await api('/store-profile');
     const profile=data?.storeProfile||{};
     lastProfile=profile;
+    renderProfileSummary(profile);
     if(name==='about')renderAbout(profile);
     if(name==='contact')renderContact(profile);
     return profile;
   }
-  window.FreshWayCustomerStoreInfo=Object.freeze({show,renderAbout,renderContact,get lastProfile(){return lastProfile;}});
+  window.FreshWayCustomerStoreInfo=Object.freeze({show,renderAbout,renderContact,renderProfileSummary,get lastProfile(){return lastProfile;}});
 })();
