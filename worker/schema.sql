@@ -151,6 +151,22 @@ CREATE TABLE IF NOT EXISTS notification_log (
   failure_count INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS store_profile (
+  id INTEGER PRIMARY KEY CHECK(id = 1),
+  store_name TEXT NOT NULL DEFAULT 'FreshWay',
+  about TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  whatsapp TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  address TEXT NOT NULL DEFAULT '',
+  business_hours TEXT NOT NULL DEFAULT '',
+  delivery_info TEXT NOT NULL DEFAULT '',
+  share_title TEXT NOT NULL DEFAULT 'FreshWay | Fresh Groceries & Everyday Essentials Delivered Locally',
+  share_description TEXT NOT NULL DEFAULT 'Shop fresh fruits, groceries and everyday essentials from FreshWay. Order online for local delivery with convenient cash payment.',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS auth_rate_limits (
   key TEXT PRIMARY KEY,
   window_start INTEGER NOT NULL,
@@ -173,6 +189,7 @@ CREATE INDEX IF NOT EXISTS idx_addresses_customer_label ON addresses(customer_id
 CREATE INDEX IF NOT EXISTS idx_order_address_snapshots_location ON order_address_snapshots(latitude,longitude);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_auth_rate_limits_window ON auth_rate_limits(window_start);
+INSERT OR IGNORE INTO store_profile (id) VALUES (1);
 -- INSERT OR IGNORE INTO products is intentionally omitted: the V1 catalogue is admin-managed.
 INSERT OR IGNORE INTO categories (id,name,slug,icon,description,display_order,active) VALUES
 ('cat-oils','Oils','oils','🫒','Cooking and everyday oils',1,1),
