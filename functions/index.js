@@ -25,6 +25,11 @@ function replaceMeta(html, property, content) {
   const pattern = new RegExp(`<meta\\s+property=["']${property}["']\\s+content=["'][^"']*["']\\s*/?>`, 'i');
   return html.replace(pattern, '<meta property="' + property + '" content="' + escaped + '">');
 }
+function replaceNameMeta(html, name, content) {
+  const escaped = escapeAttribute(content);
+  const pattern = new RegExp(`<meta\\s+name=["']${name}["']\\s+content=["'][^"']*["']\\s*/?>`, 'i');
+  return html.replace(pattern, '<meta name="' + name + '" content="' + escaped + '">');
+}
 
 export async function onRequest(context) {
   if (!['GET', 'HEAD'].includes(context.request.method)) return context.next();
@@ -40,7 +45,9 @@ export async function onRequest(context) {
 
   let html = await assetResponse.text();
   html = replaceMeta(html, 'og:title', metadata.title);
+  html = replaceNameMeta(html, 'twitter:title', metadata.title);
   html = replaceMeta(html, 'og:description', metadata.description);
+  html = replaceNameMeta(html, 'twitter:description', metadata.description);
 
   const headers = new Headers(assetResponse.headers);
   headers.delete('content-length');
