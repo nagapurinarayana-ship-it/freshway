@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
@@ -76,7 +77,14 @@ test('wrong passcode is rejected', async () => {
 
 test('passcode must be exactly six digits', async () => {
   const response = await request('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Test Customer', phone: '9123456789', passcode: '12345' }) });
-  assert.equal(response.status, 400);
+  atest('customer checkout forwards a plain 10-digit delivery mobile unchanged', () => {
+  const source = readFileSource();
+  assert.ok(source.includes("const deliveryPhone = cleanPhone(payload.customer?.phone)"));
+  assert.ok(source.includes("phone: deliveryPhone }"));
+  assert.equal(source.includes("phone: deliveryPhone.slice(2)"), false);
+});
+
+ssert.equal(response.status, 400);
 });
 
 test('customer checkout keeps delivery mobile separate from registered mobile', async () => {
