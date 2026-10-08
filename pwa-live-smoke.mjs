@@ -55,7 +55,7 @@ for (const path of ['/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-1
 
 const logoResponse = await fetchWithRetry(`${base}/freshway-logo-master.webp?v=20261008-master-v1`);
 assert.equal(logoResponse.status, 200);
-assert.match(logoResponse.headers.get('content-type') || '', /^image\\/webp/i, 'master FreshWay logo must be served as WebP');
+assert.match(logoResponse.headers.get('content-type') || '', /^image\/webp/i, 'master FreshWay logo must be served as WebP');
 assert.ok((await logoResponse.arrayBuffer()).byteLength > 100, 'master FreshWay logo must contain image data');
 
 const swResponse = await fetchWithRetry(`${base}/sw.js`);
