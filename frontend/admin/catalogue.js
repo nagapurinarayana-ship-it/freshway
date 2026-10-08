@@ -109,7 +109,13 @@
   // admin.js may already have rendered its legacy catalogue before this module loads.
   // Re-hydrate the dedicated catalogue module so direct reload and in-app navigation
   // always use the same current /api/admin/catalogue data source.
-  if (location.hash === '#catalogue' && session()) {
+  function ownerAuthHint(){
+    try{return sessionStorage.getItem('freshway-admin-auth')==='1'||localStorage.getItem('freshway-admin-auth')==='1'}catch(_){return false}
+  }
+
+  if (location.hash === '#catalogue' && ownerAuthHint()) {
+    // Direct reload on #catalogue: replace the legacy screen immediately, then
+    // fetch the same current catalogue endpoint used by in-app navigation.
     shell();
     load();
   }
