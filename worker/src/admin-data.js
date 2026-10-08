@@ -3,6 +3,7 @@ import { orders, updateOrder } from './admin-orders.js';
 import { customers, customer } from './admin-customers.js';
 import { summary, reports } from './admin-reports.js';
 import { deleteProduct } from './admin-products.js';
+import { getStoreProfile, updateStoreProfile } from './store-profile.js';
 
 // Route table is intentionally kept small: authentication/routing lives in admin-auth.js;
 // domain behavior lives in one feature module per resource.
@@ -13,7 +14,9 @@ const routes = [
   { match: (u,m) => u.pathname.startsWith('/api/admin/orders/') && m === 'PATCH', run: async (r,e,u) => updateOrder(e,decodeURIComponent(u.pathname.split('/').pop()),await r.json()) },
   { match: (u,m) => u.pathname === '/api/admin/customers' && m === 'GET', run: (r,e,u) => customers(e,u) },
   { match: (u,m) => u.pathname.startsWith('/api/admin/customers/') && m === 'GET', run: (r,e,u) => customer(e,decodeURIComponent(u.pathname.split('/').pop())) },
-  { match: (u,m) => u.pathname.startsWith('/api/admin/products/') && m === 'DELETE', run: (r,e,u) => deleteProduct(e,decodeURIComponent(u.pathname.split('/').pop())) }
+  { match: (u,m) => u.pathname.startsWith('/api/admin/products/') && m === 'DELETE', run: (r,e,u) => deleteProduct(e,decodeURIComponent(u.pathname.split('/').pop())) },
+  { match: (u,m) => u.pathname === '/api/admin/store-profile' && m === 'GET', run: async (r,e,u) => ({storeProfile:await getStoreProfile(e)}) },
+  { match: (u,m) => u.pathname === '/api/admin/store-profile' && m === 'PATCH', run: async (r,e,u) => ({storeProfile:await updateStoreProfile(e,await r.json())}) }
 ];
 
 export async function handleAdminData(request,env){const u=new URL(request.url);try{const route=routes.find(x=>x.match(u,request.method));return route?json(await route.run(request,env,u)):null}catch(e){return json({error:e?.message||'Admin data request failed.'},400)}}
