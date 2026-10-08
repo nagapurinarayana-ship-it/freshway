@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v36';
+const CACHE = 'freshway-v37';
 
 const APP_SHELL = [
   '/',
@@ -89,6 +89,25 @@ self.addEventListener('fetch', event => {
         : event.request;
 
     const cache = await caches.open(CACHE);
+
+    // Owner login is a separate application surface. Never let a stale customer
+    // shell or a broken cached document hide /admin.html. Prefer the live Owner
+    // document, then fall back to its own cached copy during a transient outage.
+    if (isNavigation && url.pathname === '/admin.html') {
+      try {
+        const response = await fetch(new Request(event.request, { cache: 'no-store' }));
+        if (response.ok) {
+          cache.put('/admin.html', response.clone()).catch(error =>
+            console.error('FreshWay Owner document cache update failed:', error)
+          );
+        }
+        return response;
+      } catch (error) {
+        console.error('FreshWay Owner document fetch failed:', event.request.url, error);
+        return (await cache.match('/admin.html')) || Response.error();
+      }
+    }
+
     const cached = await cache.match(event.request);
 
     const update = fetch(request).then(response => {
@@ -103,8 +122,8 @@ self.addEventListener('fetch', event => {
       throw error;
     });
 
-    // The customer/owner shells and versioned assets are app-shell resources:
-    // return the cached copy immediately and refresh it in the background.
+    // Customer shell and versioned assets can use stale-while-revalidate for fast
+    // repeat loads without taking the Owner document path with them.
     if (cached) {
       event.waitUntil(update.catch(() => undefined));
       return cached;
