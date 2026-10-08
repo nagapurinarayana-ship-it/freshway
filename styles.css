@@ -110,10 +110,10 @@ html.fw-cart-bar-visible main{padding-bottom:184px}
 .whatsapp-opt:focus-within{border-color:var(--green);box-shadow:0 0 0 3px rgba(15,122,75,.08)}
 
 /* Customer business information pages — product-level mobile UX. */
-.info-page{display:grid;gap:14px;padding:2px 0 24px}
-.store-page-intro{padding:2px 4px 4px}
-.store-page-intro h1{font-size:27px;line-height:1.08;letter-spacing:-.7px;margin:5px 0 6px}
-.store-page-intro p{font-size:12px;line-height:1.5;color:var(--muted);margin:0;max-width:420px}
+.info-page{display:grid;gap:14px;padding:2px 0 92px}
+.store-page-intro{padding:0 4px 2px}
+.store-page-intro h1{font-size:29px;line-height:1.08;letter-spacing:-.7px;margin:2px 0 5px}
+.store-page-intro p{font-size:12px;line-height:1.45;color:var(--muted);margin:0;max-width:420px}
 .store-action-grid{display:grid;gap:10px}
 .store-action{display:flex;align-items:center;gap:12px;min-height:68px;padding:12px 14px;background:#fff;border:1px solid var(--line);border-radius:17px;color:var(--ink);text-decoration:none;box-shadow:0 7px 22px rgba(20,70,45,.05)}
 .store-action:active{transform:scale(.99)}
@@ -131,47 +131,23 @@ html.fw-cart-bar-visible main{padding-bottom:184px}
 .store-info-about{padding:18px}
 .store-info-about p{font-size:14px;line-height:1.65;color:var(--ink)}
 .store-info-grid{display:grid;gap:10px}
-.store-summary-details{display:grid;gap:8px;margin-top:10px}
 .store-info-address .store-map-action{margin-top:13px}
 .store-map-action{min-height:52px}
-.store-contact-actions{margin-bottom:2px}
-.store-profile-summary{margin:10px 0 16px;padding:16px;border:1px solid var(--line);border-radius:20px;background:#fff;box-shadow:0 10px 28px rgba(20,70,45,.06)}
-.store-summary-header{display:flex;align-items:center;gap:12px;padding:2px 2px 14px}
-.store-summary-mark{width:48px;height:48px;border-radius:15px;background:var(--green);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:900;letter-spacing:.04em;flex:0 0 48px}
-.store-summary-header h2{margin:3px 0 2px;font-size:20px;letter-spacing:-.3px}
-.store-summary-header p{margin:0;color:var(--muted);font-size:10px}
-.store-profile-summary .store-action-grid{margin-top:2px}
-.store-profile-summary .store-action{min-height:58px;padding:9px 11px}
-.store-profile-summary .store-action-icon{width:34px;height:34px;border-radius:11px;flex-basis:34px;font-size:16px}
-.store-profile-summary .store-action-copy strong{font-size:11px}
-.store-profile-summary .store-action-copy small{font-size:10px}
-@media(min-width:460px){.store-action-grid{grid-template-columns:1fr 1fr}.store-action-grid .store-action:only-child{grid-column:1/-1}.store-info-grid{grid-template-columns:1fr 1fr}.store-info-grid .store-info-section:only-child{grid-column:1/-1}}
+.store-contact-actions{margin-bottom:2px;grid-template-columns:1fr}
+@media(min-width:460px){.store-action-grid:not(.store-contact-actions){grid-template-columns:1fr 1fr}.store-action-grid .store-action:only-child{grid-column:1/-1}.store-info-grid{grid-template-columns:1fr 1fr}.store-info-grid .store-info-section:only-child{grid-column:1/-1}}
 
 
 /* Store Profile IA: business information belongs to About; Contact is action-focused. */
-.store-about-hero{display:flex;align-items:center;gap:14px;padding:15px 16px;background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow)}
+.store-about-hero{margin-top:2px;display:flex;align-items:center;gap:14px;padding:15px 16px;background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow)}
 .store-about-logo{width:78px;height:58px;object-fit:contain;object-position:left center;flex:0 0 78px}
 .store-about-hero h2{margin:3px 0 2px;font-size:22px;letter-spacing:-.5px}
 .store-about-hero p{margin:0;color:var(--muted);font-size:11px}
 .store-contact-cta{display:flex;justify-content:center;align-items:center;min-height:52px;padding:12px 14px;border-radius:15px;background:var(--green);color:#fff;text-decoration:none;font-size:12px;font-weight:900;box-shadow:0 10px 24px rgba(15,122,75,.16)}
-.store-contact-note{padding:14px 15px;background:#f1f7f3;border:1px solid rgba(15,122,75,.12);border-radius:15px}
-.store-contact-note strong{display:block;font-size:12px}
-.store-contact-note p{margin:4px 0 0;font-size:11px;line-height:1.5;color:var(--muted)}
-.store-contact-note button{border:0;background:none;padding:0;color:var(--green);font:inherit;font-weight:900;text-decoration:underline}
-.store-contact-actions{margin-bottom:2px}
-@media(max-width:380px){.store-about-logo{width:66px;flex-basis:66px}.store-about-hero{padding:13px}.store-about-hero h2{font-size:20px}}
-
-
-/* Final customer information-page hierarchy: one page title, no duplicated marketing copy. */
-.info-page{padding-bottom:92px}
-.store-page-intro{padding:0 4px 2px}
-.store-page-intro .eyebrow{margin-bottom:3px}
-.store-page-intro h1{font-size:29px;line-height:1.08;margin:2px 0 5px}
-.store-page-intro p{font-size:12px;line-height:1.45}
-.store-about-hero{margin-top:2px}
-.store-contact-actions{grid-template-columns:1fr}
 .store-contact-note{display:block;text-decoration:none;color:var(--ink);padding:15px 16px;background:#f1f7f3;border:1px solid rgba(15,122,75,.14);border-radius:16px}
 .store-contact-note strong{display:block;font-size:12px}
 .store-contact-note p{margin:4px 0 8px;font-size:11px;line-height:1.45;color:var(--muted)}
+@media(max-width:380px){.store-about-logo{width:66px;flex-basis:66px}.store-about-hero{padding:13px}.store-about-hero h2{font-size:20px}}
+
+
 .store-contact-note span{font-size:11px;font-weight:900;color:var(--green)}
 .store-info-about{margin-top:0}
