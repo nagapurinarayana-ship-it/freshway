@@ -60,17 +60,14 @@ export async function onRequest(context) {
   if (binding && typeof binding.fetch === 'function') {
     try {
       const primaryResponse = await binding.fetch(buildRequest(targetUrl.toString()));
-      if (isAddressApi && !isJsonResponse(primaryResponse)) {
-        // Fall through to the direct Worker endpoint.
-      } else if (isStoreProfileApi && isJsonResponse(primaryResponse)) {
+      if (!isAddressApi || isJsonResponse(primaryResponse)) {
+        if (!isStoreProfileApi) return primaryResponse;
         const cloned = primaryResponse.clone();
         const data = await cloned.json().catch(() => null);
         const profile = data?.storeProfile;
         const hasProfileData = profile && [profile.storeName, profile.about, profile.phone, profile.whatsapp, profile.email, profile.address, profile.businessHours, profile.deliveryInfo].some(value => String(value || '').trim());
         if (hasProfileData) return primaryResponse;
         // A stale/empty service binding must not hide the current production Store Profile.
-      } else {
-        return primaryResponse;
       }
     } catch (_) {
       if (!isAddressApi && !isStoreProfileApi) throw _;
