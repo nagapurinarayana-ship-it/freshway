@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v30';
+const CACHE = 'freshway-v31';
 
 const APP_SHELL = [
   '/',
@@ -27,7 +27,7 @@ const APP_SHELL = [
   '/frontend/admin/catalogue.js?v=20261008-product-images-v1',
   '/owner-lifecycle.js?v=20260909-refresh-v3',
   '/owner-address-final.js?v=20260909-address-final-v6',
-  '/freshway-logo-display.svg?v=20261008-brand-v3',
+  '/freshway-logo-master.webp?v=20261008-master-v1',
   '/freshway-logo-clean.svg?v=20261008-brand-v1'
 ];
 
