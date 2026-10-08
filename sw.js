@@ -106,7 +106,7 @@ self.addEventListener('fetch', event => {
     // The customer/owner shells and versioned assets are app-shell resources:
     // return the cached copy immediately and refresh it in the background.
     if (cached) {
-      event.waitUntil(update.catch(() => {}));
+      event.waitUntil(update.catch(() => undefined));
       return cached;
     }
 
