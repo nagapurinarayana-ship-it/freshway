@@ -52,6 +52,7 @@ Customer app
    +-- checkout
    +-- orders
    +-- profile/session
+   +-- store profile / About / Contact
 
 Owner app
   admin.js
@@ -82,3 +83,10 @@ Before changing code:
 ## Deployment safety
 
 Changes are committed in small, reviewable commits. Production deployment is not treated as part of a code refactor unless explicitly requested. The service worker cache is changed only when browser assets actually need invalidation.
+
+
+### Store profile and sharing boundary
+
+Store Profile is business content managed by the Owner and persisted in D1. The customer app reads it through a public read-only API for About FreshWay and Contact Us. WhatsApp/social share title and description are managed as dedicated Store Profile fields and are injected into Open Graph metadata at the Pages edge. The existing FreshWay logo remains the fixed `og:image`.
+
+SEO remains technical, backend/code-controlled metadata and is not exposed through the Owner Admin. SEO fields must not reuse Store Profile or WhatsApp sharing fields.
