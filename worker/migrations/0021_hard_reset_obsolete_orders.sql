@@ -2,7 +2,9 @@
 -- The current FreshWay catalogue (Oils/Rice and its current products) is untouched.
 -- Orders containing the obsolete demo products are intentionally removed at the
 -- user's request. Their dependent order_items and order_address_snapshots cascade.
-BEGIN;
+--
+-- D1 migrations are executed atomically by the migration system, so do not wrap
+-- this migration in explicit BEGIN/COMMIT statements.
 
 DELETE FROM orders
 WHERE id IN (
@@ -14,5 +16,3 @@ WHERE id IN (
 
 DELETE FROM products
 WHERE lower(trim(name)) IN ('apple','banana','grapes','guava');
-
-COMMIT;
