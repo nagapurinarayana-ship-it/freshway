@@ -146,3 +146,17 @@ html.fw-cart-bar-visible main{padding-bottom:184px}
 .store-profile-summary .store-action-copy strong{font-size:11px}
 .store-profile-summary .store-action-copy small{font-size:10px}
 @media(min-width:460px){.store-action-grid{grid-template-columns:1fr 1fr}.store-action-grid .store-action:only-child{grid-column:1/-1}.store-info-grid{grid-template-columns:1fr 1fr}.store-info-grid .store-info-section:only-child{grid-column:1/-1}}
+
+
+/* Store Profile IA: business information belongs to About; Contact is action-focused. */
+.store-about-hero{display:flex;align-items:center;gap:14px;padding:15px 16px;background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow)}
+.store-about-logo{width:78px;height:58px;object-fit:contain;object-position:left center;flex:0 0 78px}
+.store-about-hero h2{margin:3px 0 2px;font-size:22px;letter-spacing:-.5px}
+.store-about-hero p{margin:0;color:var(--muted);font-size:11px}
+.store-contact-cta{display:flex;justify-content:center;align-items:center;min-height:52px;padding:12px 14px;border-radius:15px;background:var(--green);color:#fff;text-decoration:none;font-size:12px;font-weight:900;box-shadow:0 10px 24px rgba(15,122,75,.16)}
+.store-contact-note{padding:14px 15px;background:#f1f7f3;border:1px solid rgba(15,122,75,.12);border-radius:15px}
+.store-contact-note strong{display:block;font-size:12px}
+.store-contact-note p{margin:4px 0 0;font-size:11px;line-height:1.5;color:var(--muted)}
+.store-contact-note button{border:0;background:none;padding:0;color:var(--green);font:inherit;font-weight:900;text-decoration:underline}
+.store-contact-actions{margin-bottom:2px}
+@media(max-width:380px){.store-about-logo{width:66px;flex-basis:66px}.store-about-hero{padding:13px}.store-about-hero h2{font-size:20px}}
