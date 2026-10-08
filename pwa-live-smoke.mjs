@@ -63,7 +63,7 @@ assert.equal(swResponse.status, 200);
 assert.match(swResponse.headers.get('content-type') || '', /javascript/i, 'service worker must be JavaScript');
 assert.equal(swResponse.headers.get('service-worker-allowed'), '/', 'service worker must explicitly allow root scope');
 const sw = await swResponse.text();
-assert.match(sw, /const CACHE = 'freshway-v40'/);
+assert.match(sw, /const CACHE = 'freshway-v41'/);
 assert.match(sw, /const REQUIRED_SHELL = \[\s*'\/',\s*'\/index\.html'\s*\]/);
 
 console.log('Live PWA smoke OK');
