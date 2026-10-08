@@ -12,7 +12,7 @@ assert.match(production, /const addressBody = isAddressApi && needsBody/);
 assert.match(production, /typeof body === 'string' \? new TextEncoder\(\)\.encode\(body\)\.buffer/);
 assert.match(production, /const isJsonResponse = response =>/);
 assert.match(production, /if \(!isAddressApi \|\| isJsonResponse\(primaryResponse\)\)/);
-assert.match(production, /if \(isStoreProfileApi && isJsonResponse\(primaryResponse\)\)/);
+assert.match(production, /const isStoreProfileApi = targetPath === '\/api\/store-profile'/);
 assert.match(production, /const fallbackResponse = await fetch\(buildRequest\(target\.toString\(\)\)\)/);
 assert.match(production, /Address service returned an unexpected response\./);
 assert.match(production, /Address service is temporarily unavailable/);
