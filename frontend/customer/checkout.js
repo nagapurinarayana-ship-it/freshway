@@ -1,9 +1,10 @@
 // Customer checkout boundary.
 // Pure checkout validation/payload/idempotency helpers; DOM and network remain in app.js.
 (function(){
+  const normalizePhone=value=>{const digits=String(value||'').replace(/\D/g,'');if(digits.length===10)return digits;if(digits.length===12&&digits.startsWith('91'))return digits.slice(2);return String(value||'').trim()};
   const validate=(name,phone,address)=>{
     if(String(name||'').trim().length<2)return 'Enter your full name';
-    if(!/^\d{10}$/.test(String(phone||'').trim()))return 'Enter a valid 10-digit mobile number';
+    if(!/^\d{10}$/.test(normalizePhone(phone)))return 'Enter a valid 10-digit mobile number';
     if(!address?.house||!address?.area||!address?.city)return 'Complete your delivery address';
     if(!/^\d{6}$/.test(String(address?.pincode||'').trim()))return 'Enter a valid 6-digit PIN code';
     return '';
@@ -16,5 +17,5 @@
     const key=(globalThis.crypto?.randomUUID?.()||`fw-${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g,'').slice(0,100);
     return {key,fingerprint};
   };
-  window.FreshWayCustomerCheckout=Object.freeze({validate,payload,clientOrderId});
+  window.FreshWayCustomerCheckout=Object.freeze({normalizePhone,validate,payload,clientOrderId});
 })();
