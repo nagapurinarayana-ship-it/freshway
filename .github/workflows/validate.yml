@@ -97,7 +97,7 @@ jobs:
           }
           const sw = fs.readFileSync('sw.js', 'utf8');
           if (!/const CACHE = 'freshway-v29'/.test(sw)) throw new Error('Service worker cache version missing');
-          for (const icon of ['/icons/icon-192.png','/icons/icon-512.png','/icons/icon-192-maskable.png','/icons/icon-512-maskable.png','/icons/icon-192.svg?v=20261008-brand-v1','/icons/icon-512.svg?v=20261008-brand-v1','/icon.svg?v=20261008-brand-v1','/freshway-logo-clean.svg?v=20261008-brand-v1']) {
+          for (const icon of ['/icons/icon-192.png','/icons/icon-512.png','/icons/icon-192-maskable.png','/icons/icon-512-maskable.png','/icons/icon-192.svg?v=20261008-brand-v1','/icons/icon-512.svg?v=20261008-brand-v1','/icon.svg?v=20261008-brand-v1','/freshway-logo-clean.svg?v=20261008-brand-v1','/freshway-logo-display.svg?v=20261008-brand-v2']) {
             if (!sw.includes(icon)) throw new Error('PWA icon is not cached: ' + icon);
           }
           if (sw.includes(".catch(() => {})")) throw new Error('Service worker install failures must not be silently swallowed');
