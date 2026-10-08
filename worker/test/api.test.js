@@ -123,7 +123,7 @@ test('customer logout clears the cross-site session cookie securely', async () =
   assert.match(cookie, /Max-Age=0/);
   assert.match(cookie, /HttpOnly/);
   assert.match(cookie, /Secure/);
-  assert.match(cookie, /SameSite=Lax/);
+  assert.match(cookie, /SameSite=None/);
 });
 
 test('customer order POST is rejected without a matching signed session', async () => {
