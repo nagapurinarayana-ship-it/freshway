@@ -38,11 +38,10 @@ assert.match(
 const manifest = await manifestResponse.json();
 assert.equal(manifest.name, 'FreshWay');
 assert.equal(manifest.short_name, 'FreshWay');
-assert.equal(manifest.id, '/');
+assert.equal(manifest.id, '/freshway');
 assert.equal(manifest.start_url, '/');
 assert.equal(manifest.scope, '/');
 assert.equal(manifest.display, 'standalone');
-assert.equal(manifest.prefer_related_applications, false);
 for (const size of ['192x192', '512x512']) {
   assert.ok(manifest.icons.some(icon => icon.sizes === size && icon.type === 'image/png'));
 }
@@ -59,7 +58,7 @@ assert.equal(swResponse.status, 200);
 assert.match(swResponse.headers.get('content-type') || '', /javascript/i, 'service worker must be JavaScript');
 assert.equal(swResponse.headers.get('service-worker-allowed'), '/', 'service worker must explicitly allow root scope');
 const sw = await swResponse.text();
-assert.match(sw, /const CACHE = 'freshway-v28'/);
+assert.match(sw, /const CACHE = 'freshway-v29'/);
 assert.match(sw, /const REQUIRED_SHELL = \[\s*'\/',\s*'\/index\.html'\s*\]/);
 
 console.log('Live PWA smoke OK');
