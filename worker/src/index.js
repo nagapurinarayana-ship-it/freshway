@@ -94,9 +94,14 @@ async function createOrder(env, payload) {
   if (existing) return existing;
   const { items, total } = await validateOrderItems(env, rawItems);
   const phone = cleanPhone(customer.phone), customerName = String(customer.name).trim().slice(0, 100);
+  const existingCustomer = await env.DB.prepare('SELECT phone FROM customers WHERE id=? LIMIT 1').bind(customerId).first();
+  const registeredPhone = cleanPhone(existingCustomer?.phone);
+  const customerPhoneForProfile = /^91\d{10}$/.test(registeredPhone) ? registeredPhone : phone;
+  // The account mobile is identity data. Checkout's delivery phone is order data and
+  // must never overwrite the customer's registered mobile number.
   await env.DB.prepare(`INSERT INTO customers (id,name,phone,whatsapp_opt_in,updated_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)
-    ON CONFLICT(id) DO UPDATE SET name=excluded.name, phone=excluded.phone, whatsapp_opt_in=excluded.whatsapp_opt_in, updated_at=CURRENT_TIMESTAMP`)
-    .bind(customerId, customerName, phone, payload.whatsappOptIn ? 1 : 0).run();
+    ON CONFLICT(id) DO UPDATE SET name=excluded.name, whatsapp_opt_in=excluded.whatsapp_opt_in, updated_at=CURRENT_TIMESTAMP`)
+    .bind(customerId, customerName, customerPhoneForProfile, payload.whatsappOptIn ? 1 : 0).run();
   const addressResult = await env.DB.prepare(`INSERT INTO addresses (customer_id,house,area,city,pincode,landmark,note) VALUES (?,?,?,?,?,?,?)`)
     .bind(customerId, String(address.house).trim().slice(0, 200), String(address.area).trim().slice(0, 200), String(address.city).trim().slice(0, 100), String(address.pincode), String(address.landmark || '').trim().slice(0, 200), String(address.note || '').trim().slice(0, 500)).run();
   const addressId = addressResult?.meta?.last_row_id; if (!addressId) throw new Error('Could not save delivery address.');
