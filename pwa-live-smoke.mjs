@@ -1,4 +1,4 @@
-const assert = require('node:assert/strict');
+import assert from 'node:assert/strict';
 
 const BASE_URL = process.env.BASE_URL || 'https://freshway-f32.pages.dev';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
