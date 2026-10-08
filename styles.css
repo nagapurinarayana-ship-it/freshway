@@ -120,3 +120,5 @@ html.fw-cart-bar-visible main{padding-bottom:184px}
 .info-action:hover{border-color:#c5d7cb;background:var(--mint)}
 .info-card-link{display:inline-block;margin-top:10px;color:var(--g);font-size:10px;font-weight:900;text-decoration:none}
 @media(max-width:480px){.info-actions{grid-template-columns:1fr}.info-card{padding:14px}.info-card-primary{padding:16px}}
+
+.store-profile-summary{margin:12px 0 16px;padding:18px;border:1px solid var(--line);border-radius:18px;background:#fff;box-shadow:0 4px 18px rgba(20,70,45,.05)}.store-profile-summary h2{margin:0 0 12px;font-size:20px}.store-profile-summary-row{display:flex;flex-direction:column;gap:3px;padding:9px 0;border-top:1px solid var(--line)}.store-profile-summary-row strong{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}.store-profile-summary-row span{font-size:14px;color:var(--text);white-space:pre-wrap;word-break:break-word}
