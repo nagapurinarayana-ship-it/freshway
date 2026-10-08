@@ -2,6 +2,13 @@ const FreshWayPromotions=(()=>{
   const INTERVAL=5000;
   let promotions=[],index=0,timer=0,paused=false,pointerStartX=null;
   const $=s=>document.querySelector(s);
+  const installStyles=()=>{
+    if(document.getElementById('fwPromoStyles'))return;
+    const style=document.createElement('style');
+    style.id='fwPromoStyles';
+    style.textContent='.fw-promo-carousel{position:relative;padding:0!important;min-height:138px;height:clamp(138px,28vw,176px);background:#0f7a4b;touch-action:pan-y;overflow:hidden}.fw-promo-viewport{width:100%;height:100%;overflow:hidden}.fw-promo-track{height:100%;display:flex;transition:transform .35s ease;will-change:transform}.fw-promo-slide{width:100%;height:100%;min-width:100%;flex:0 0 100%;display:grid;place-items:center;background:#f1f7f3;overflow:hidden}.fw-promo-slide img{width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;object-position:center;display:block;user-select:none}.fw-promo-controls{position:absolute;left:0;right:0;bottom:8px;display:flex;align-items:center;justify-content:center;gap:8px;pointer-events:none}.fw-promo-dots{display:flex;gap:5px;align-items:center;justify-content:center;padding:5px 7px;border-radius:999px;background:rgba(9,29,20,.38);backdrop-filter:blur(5px);pointer-events:auto}.fw-promo-dot{width:7px;height:7px;border:0;padding:0;border-radius:50%;background:rgba(255,255,255,.55);cursor:pointer}.fw-promo-dot.active{width:18px;border-radius:999px;background:#fff}.fw-promo-hint{font-size:8px;font-weight:800;color:#fff;background:rgba(9,29,20,.38);padding:5px 7px;border-radius:999px;pointer-events:none}.fw-promo-slide[aria-hidden="true"] img{pointer-events:none}@media(prefers-reduced-motion:reduce){.fw-promo-track{transition:none}}';
+    document.head.appendChild(style);
+  };
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const fallbackHtml=()=>{
     const hero=$('.hero-banner');
@@ -74,7 +81,7 @@ const FreshWayPromotions=(()=>{
       fallbackHtml();
     }
   };
-  const init=()=>{fallbackHtml();load()};
+  const init=()=>{installStyles();fallbackHtml();load()};
   return Object.freeze({init,refresh:load});
 })();
 window.FreshWayPromotions=FreshWayPromotions;
