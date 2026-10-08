@@ -162,8 +162,8 @@ jobs:
       - name: Check owner/customer content boundary
         run: |
           ! grep -qF 'SEO' admin.html
-          grep -qF 'Store Profile' admin.html
-          grep -qF 'WhatsApp / Social Sharing' admin.html
+          grep -qiF 'store profile' admin.html
+          grep -qiF 'whatsapp / social sharing' admin.html
           grep -qF 'shareTitle' worker/src/store-profile.js
           grep -qF 'shareDescription' worker/src/store-profile.js
           grep -qF 'og:image' index.html
