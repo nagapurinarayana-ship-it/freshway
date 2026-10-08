@@ -16,7 +16,7 @@
       if(!cartItems().length){toast('Your cart is empty');setView('home');return}
       const form=e.target;
       const name=$('#customerName')?.value.trim()||'';
-      const phone=$('#customerPhone')?.value.trim()||'';
+      const phone=customerCheckout.normalizePhone?customerCheckout.normalizePhone($('#customerPhone')?.value||''):($('#customerPhone')?.value.trim()||'');
       const address=customerAddress.normalize(customerAddressFlow.read(document,customerAddress));
       const validationError=customerCheckout.validate(name,phone,address);
       if(validationError)return toast(validationError);
