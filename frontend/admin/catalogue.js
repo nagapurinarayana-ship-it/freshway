@@ -104,5 +104,15 @@
     document.addEventListener('submit',e=>{if(e.target.id==='fwPromotionForm'){const pid=e.target.dataset.promotionId||'';savePromotion(e,data.promotions.find(x=>String(x.id)===String(pid))||null);return}if(e.target.id==='fwCategoryForm'){const cid=e.target.dataset.categoryId||'';saveCategory(e,data.categories.find(x=>String(x.id)===String(cid))||null)}if(e.target.id==='fwProductForm'){const pid=e.target.dataset.productId||'';saveProduct(e,data.products.find(x=>String(x.id)===String(pid))||null)}},true);
   }
   install();
+
+  // When Owner is opened directly on #catalogue (including a full browser reload),
+  // admin.js may already have rendered its legacy catalogue before this module loads.
+  // Re-hydrate the dedicated catalogue module so direct reload and in-app navigation
+  // always use the same current /api/admin/catalogue data source.
+  if (location.hash === '#catalogue' && session()) {
+    shell();
+    load();
+  }
+
   const pushLoader=document.createElement('script');pushLoader.src='frontend/admin/push.js?v=20260908-push-v1';pushLoader.async=false;document.head.appendChild(pushLoader);
 })();
