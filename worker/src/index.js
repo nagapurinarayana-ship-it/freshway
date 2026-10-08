@@ -22,7 +22,7 @@ const auth = (request, env) => {
 };
 const body = async request => { try { return await request.json(); } catch (_) { return {}; } };
 const now = () => new Date().toISOString();
-const cleanPhone = value => { const digits = String(value || '').replace(/\D/g, ''); return digits.length === 10 ? `91${digits}` : digits; };
+const cleanPhone = value => { const digits = String(value || '').replace(/\D/g, ''); if (digits.length === 10) return `91${digits}`; if (digits.length === 12 && digits.startsWith('91')) return digits; return digits; };
 const orderId = () => `FW-${Date.now().toString().slice(-8)}-${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
 const validPlans = ['Today','Tomorrow','Later','Unscheduled'];
 const stockStatus=(managed,quantity,threshold)=>!managed?'not_tracked':Number(quantity)<=0?'out_of_stock':Number(quantity)<=Number(threshold||0)?'low_stock':'in_stock';
