@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v35';
+const CACHE = 'freshway-v36';
 
 const APP_SHELL = [
   '/',
@@ -24,7 +24,7 @@ const APP_SHELL = [
   '/icon.svg?v=20261008-brand-v1',
   '/admin.html',
   '/admin.css?v=20261008-mobile-visual-v1',
-  '/admin.js?v=20261008-mobile-visual-v1',
+  '/admin.js?v=20261009-performance-v2',
   '/frontend/admin/catalogue.js?v=20261008-product-images-v1',
   '/owner-lifecycle.js?v=20260909-refresh-v3',
   '/owner-address-final.js?v=20260909-address-final-v6',
@@ -73,28 +73,50 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
 
-  event.respondWith((async () => {
-    try {
-      const url = new URL(event.request.url);
-      const isLogo = url.pathname === '/freshway-logo-clean.svg';
-      const isOwnerLifecycle = url.pathname === '/owner-lifecycle.js';
-      const request = isLogo
-        ? new Request(event.request, { cache: 'reload' })
-        : isOwnerLifecycle
-          ? new Request(`${url.origin}/owner-lifecycle.js?v=20260909-refresh-v3`, event.request)
-          : event.request;
+  const destination = event.request.destination;
+  const isNavigation = event.request.mode === 'navigate' || destination === 'document';
+  const isStaticAsset = ['script','style','image','font','manifest'].includes(destination);
+  if (!isNavigation && !isStaticAsset) return;
 
-      const response = await fetch(request);
-      if (response.ok && ['document', 'script', 'style', 'image', 'manifest'].includes(event.request.destination)) {
-        const cache = await caches.open(CACHE);
-        cache.put(event.request, response.clone());
+  event.respondWith((async () => {
+    const url = new URL(event.request.url);
+    const isLogo = url.pathname === '/freshway-logo-clean.svg';
+    const isOwnerLifecycle = url.pathname === '/owner-lifecycle.js';
+    const request = isLogo
+      ? new Request(event.request, { cache: 'reload' })
+      : isOwnerLifecycle
+        ? new Request(`${url.origin}/owner-lifecycle.js?v=20260909-refresh-v3`, event.request)
+        : event.request;
+
+    const cache = await caches.open(CACHE);
+    const cached = await cache.match(event.request);
+
+    const update = fetch(request).then(response => {
+      if (response.ok) {
+        cache.put(event.request, response.clone()).catch(error =>
+          console.error('FreshWay cache update failed:', event.request.url, error)
+        );
       }
       return response;
+    }).catch(error => {
+      console.error('FreshWay asset fetch failed:', event.request.url, error);
+      throw error;
+    });
+
+    // The customer/owner shells and versioned assets are app-shell resources:
+    // return the cached copy immediately and refresh it in the background.
+    if (cached) {
+      event.waitUntil(update.catch(() => {}));
+      return cached;
+    }
+
+    try {
+      return await update;
     } catch (_) {
-      const cached = await caches.match(event.request);
-      return cached || (event.request.mode === 'navigate'
-        ? caches.match('/index.html')
-        : Response.error());
+      if (isNavigation) {
+        return (await cache.match('/index.html')) || Response.error();
+      }
+      return Response.error();
     }
   })());
 });
