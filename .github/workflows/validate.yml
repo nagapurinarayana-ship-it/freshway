@@ -104,6 +104,9 @@ jobs:
           for (const file of ['freshway-logo.svg','freshway-logo-clean.svg','freshway-brand.svg','icon.svg','icons/icon-192.svg','icons/icon-512.svg']) {
             if (fs.readFileSync(file, 'utf8') !== fs.readFileSync('freshway-logo.svg', 'utf8')) throw new Error('Brand asset artwork drifted: ' + file);
           }
+          const displayLogo = fs.readFileSync('freshway-logo-display.svg', 'utf8');
+          if (!displayLogo.includes('data:image/jpeg;base64,')) throw new Error('Display logo must be self-contained for reliable browser rendering');
+          if (!displayLogo.includes('viewBox="320 155 320 155"')) throw new Error('Display logo crop contract missing');
           if (!sw.includes('const REQUIRED_SHELL')) throw new Error('Service worker critical shell contract missing');
           console.log('PWA direct-install contract OK');
           NODE
