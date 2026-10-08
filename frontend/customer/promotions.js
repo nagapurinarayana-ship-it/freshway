@@ -23,13 +23,9 @@ const FreshWayPromotions=(()=>{
     if(promotions.length<2||paused)return;
     timer=setInterval(()=>{if(!paused)goTo((index+1)%promotions.length)},INTERVAL);
   };
-  const render=()=>{
-    const hero=$('.hero-banner');
-    if(!hero)return;
-    if(!promotions.length){hero.classList.remove('fw-promo-carousel');fallbackHtml();return}
-    hero.classList.add('fw-promo-carousel');
-    hero.dataset.fwPromoDefault='';
-    hero.innerHTML='<div class="fw-promo-viewport"><div class="fw-promo-track">'+promotions.map((p,i)=>'<article class="fw-promo-slide" role="group" aria-roledescription="slide" aria-label="'+(i+1)+' of '+promotions.length+'"><img src="data:'+esc(p.image_mime_type)+';base64,'+esc(p.image_data)+'" alt="'+esc(p.alt_text||'FreshWay promotion')+'" draggable="false" decoding="async"></article>').join('')+'</div></div><div class="fw-promo-controls" aria-label="Promotion controls"><div class="fw-promo-dots">'+promotions.map((p,i)=>'<button type="button" class="fw-promo-dot" data-fw-promo-dot="'+i+'" aria-label="Show promotion '+(i+1)+'"></button>').join('')+'</div><span class="fw-promo-hint">'+(promotions.length>1?'Swipe':'Promotion')+'</span></div>';
+  const bindHero=(hero)=>{
+    if(hero.dataset.fwPromoBound==='1')return;
+    hero.dataset.fwPromoBound='1';
     hero.addEventListener('pointerdown',onPointerDown,{passive:true});
     hero.addEventListener('pointerup',onPointerUp,{passive:true});
     hero.addEventListener('pointercancel',onPointerCancel,{passive:true});
@@ -37,8 +33,15 @@ const FreshWayPromotions=(()=>{
     hero.addEventListener('mouseleave',()=>{paused=false;start()});
     hero.addEventListener('focusin',()=>{paused=true;stop()});
     hero.addEventListener('focusout',()=>{paused=false;start()});
-    hero.addEventListener('touchstart',()=>{paused=true;stop()},{passive:true});
-    hero.addEventListener('touchend',()=>{paused=false;start()},{passive:true});
+  };
+  const render=()=>{
+    const hero=$('.hero-banner');
+    if(!hero)return;
+    if(!promotions.length){hero.classList.remove('fw-promo-carousel');stop();fallbackHtml();return}
+    hero.classList.add('fw-promo-carousel');
+    hero.dataset.fwPromoDefault='';
+    hero.innerHTML='<div class="fw-promo-viewport"><div class="fw-promo-track">'+promotions.map((p,i)=>'<article class="fw-promo-slide" role="group" aria-roledescription="slide" aria-label="'+(i+1)+' of '+promotions.length+'"><img src="data:'+esc(p.image_mime_type)+';base64,'+esc(p.image_data)+'" alt="'+esc(p.alt_text||'FreshWay promotion')+'" draggable="false" decoding="async"></article>').join('')+'</div></div><div class="fw-promo-controls" aria-label="Promotion controls"><div class="fw-promo-dots">'+promotions.map((p,i)=>'<button type="button" class="fw-promo-dot" data-fw-promo-dot="'+i+'" aria-label="Show promotion '+(i+1)+'"></button>').join('')+'</div><span class="fw-promo-hint">'+(promotions.length>1?'Swipe':'Promotion')+'</span></div>';
+    bindHero(hero);
     const dots=hero.querySelectorAll('[data-fw-promo-dot]');
     dots.forEach(dot=>dot.addEventListener('click',()=>{goTo(Number(dot.dataset.fwPromoDot));paused=false;start()}));
     goTo(0);
