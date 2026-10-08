@@ -16,4 +16,13 @@ assert.match(sw,/freshway-v27/);
 assert.doesNotMatch(sw,/admin\.css\?v=20260907-owner-v2/);
 assert.doesNotMatch(sw,/app\.js\?v=20261007-catalogue-a1/);
 
+const admin=fs.readFileSync('admin.js','utf8');
+const lifecycle=fs.readFileSync('owner-lifecycle.js','utf8');
+const adminHtml=fs.readFileSync('admin.html','utf8');
+assert.match(admin,/function openOwnerOverlay/);
+assert.match(admin,/__freshwayOwnerOverlay/);
+assert.match(admin,/if\(ownerOverlayElement\(\)\)\{closeOwnerOverlayNow\(\);return\}/);
+assert.match(lifecycle,/openOwnerOverlay\(\$\('#modal'\)\)/);
+assert.match(adminHtml,/openOwnerOverlay\(m\)/);
+assert.match(adminHtml,/closeOwnerOverlay\(m\)/);
 console.log('mobile visual and PWA freshness contract OK');
