@@ -59,6 +59,7 @@ jobs:
           node frontend/customer/keyboard.test.js
           node frontend/customer/cart-actions.test.js
           node frontend/customer/cart-bar.test.js
+          node worker/test/store-profile.test.js
           node mobile-visual.test.js
           node frontend/customer/checkout-submit.test.js
           node frontend/customer/catalogue.test.js
@@ -136,6 +137,10 @@ jobs:
           grep -qF 'property="og:image:alt"' index.html
           grep -qF 'twitter:card' index.html
           grep -qF 'og:image' index.html
+          test -s functions/index.js
+          grep -qF 'api/store-profile' functions/index.js
+          grep -qF 'og:title' functions/index.js
+          grep -qF 'og:description' functions/index.js
           grep -qF 'twitter:image' index.html
           grep -qF '<title>FreshWay | Fresh Groceries & Everyday Essentials Delivered Locally</title>' index.html
           test -s frontend/customer/seo.js
@@ -153,6 +158,17 @@ jobs:
           if (!/<lastmod>2026-10-08<\/lastmod>/.test(fs.readFileSync('sitemap.xml','utf8'))) throw new Error('Homepage sitemap lastmod is missing');
           console.log('SEO and public crawler contract OK');
           NODE
+
+      - name: Check owner/customer content boundary
+        run: |
+          ! grep -qF 'SEO' admin.html
+          grep -qF 'Store Profile' admin.html
+          grep -qF 'WhatsApp / Social Sharing' admin.html
+          grep -qF 'shareTitle' worker/src/store-profile.js
+          grep -qF 'shareDescription' worker/src/store-profile.js
+          grep -qF 'og:image' index.html
+          grep -qF 'freshway-f32.pages.dev/icons/icon-512.png' index.html
+          echo 'Owner/customer content boundary OK'
 
       - name: Check security and accessibility baseline
         run: |
@@ -180,13 +196,15 @@ jobs:
 
       - name: Check customer module wiring
         run: |
-          for module in api storage catalogue-cart orders orders-data orders-view checkout checkout-submit profile address address-flow confirmation order-display cart-view feedback product-view navigation modal account-actions view-state search keyboard cart-actions cart-bar; do
+          for module in api storage catalogue-cart orders orders-data orders-view checkout checkout-submit profile address address-flow confirmation order-display cart-view feedback product-view navigation modal account-actions view-state search keyboard cart-actions cart-bar store-info; do
             test -s "frontend/customer/$module.js"
           done
           grep -qF 'FreshWayCustomerAPI' app.js
           grep -qF 'FreshWayCustomerStorage' app.js
           grep -qF 'FreshWayCatalogueCart' app.js
           grep -qF 'FreshWayCustomerOrdersData' app.js
+          grep -qF 'FreshWayCustomerStoreInfo' app.js
+          grep -qF 'frontend/customer/store-info.js' index.html
           grep -qF 'FreshWayCustomerCheckoutSubmit' app.js
           grep -qF 'checkoutSubmit.bind()' app.js
           grep -qF 'frontend/customer/checkout-submit.js' index.html
@@ -200,6 +218,9 @@ jobs:
           grep -qF "from './admin-products.js'" worker/src/admin-data.js
           grep -qF "from './admin-notifications.js'" worker/src/admin-auth.js
           grep -qF "from './promotions-api.js'" worker/src/admin-auth.js
+          grep -qF "from './store-profile.js'" worker/src/admin-data.js
+          grep -qF "from './store-profile.js'" worker/src/index.js
+          test -s frontend/admin/store-profile.js
           grep -qF "from './promotions-api.js'" worker/src/admin-auth.js
           grep -qF "from './admin-response.js'" worker/src/admin-auth.js
           grep -qF 'export async function notifyOrderChange' worker/src/admin-notifications.js
@@ -275,6 +296,10 @@ jobs:
           test -s migrations/0012_catalogue_categories.sql
           test -s migrations/0013_inventory_stock.sql
           test -s migrations/0017_home_promotions.sql
+          test -s migrations/0018_store_profile.sql
+          grep -q 'store_profile' schema.sql
+          grep -q 'share_title' migrations/0018_store_profile.sql
+          grep -q 'share_description' migrations/0018_store_profile.sql
           grep -q 'home_promotions' schema.sql
           grep -q 'stock_managed' schema.sql
           grep -q 'stock_quantity' schema.sql
