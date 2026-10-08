@@ -108,7 +108,11 @@ jobs:
           grep -qF 'meta name="robots" content="index,follow' index.html
           grep -qF 'property="og:title"' index.html
           grep -qF 'property="og:description"' index.html
+          grep -qF 'property="og:image"' index.html
+          grep -qF 'property="og:image:alt"' index.html
           grep -qF 'twitter:card' index.html
+          grep -qF 'twitter:image' index.html
+          grep -qF '<title>FreshWay | Fresh Groceries & Everyday Essentials Delivered Locally</title>' index.html
           test -s frontend/customer/seo.js
           grep -qF "FreshWaySeo" frontend/customer/seo.js
           grep -qF "afterView:name=>window.FreshWaySeo?.setView(name)" app.js
@@ -118,9 +122,10 @@ jobs:
           const schema = html.includes('application/ld+json');
           if (!schema) throw new Error('Homepage JSON-LD bootstrap is missing');
           const seo = fs.readFileSync('frontend/customer/seo.js','utf8');
-          for (const required of ["'@type':'Organization'","'@type':'WebSite'","noindex,follow","index,follow"]) {
+          for (const required of ["'@type':'Organization'","'@type':'WebSite'","'@type':'WebPage'","noindex,follow","index,follow","publicImage","twitter:image"]) {
             if (!seo.includes(required)) throw new Error('SEO boundary is missing ' + required);
           }
+          if (!/<lastmod>2026-10-08<\/lastmod>/.test(fs.readFileSync('sitemap.xml','utf8'))) throw new Error('Homepage sitemap lastmod is missing');
           console.log('SEO and public crawler contract OK');
           NODE
 
