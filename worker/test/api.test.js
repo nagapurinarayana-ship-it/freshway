@@ -151,7 +151,7 @@ test('admin login issues an expiring HttpOnly same-site session cookie', async (
   const response = await request('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: 'fixture-admin' }) }, adminHandler, adminEnv);
   assert.equal(response.status, 200);
   const cookie = response.headers.get('set-cookie') || '';
-  assert.match(cookie, /freshway-admin-session=/);
+  assert.match(cookie, /__Host-freshway-admin-session=/);
   assert.match(cookie, /HttpOnly/);
   assert.match(cookie, /Max-Age=28800/);
   assert.match(cookie, /SameSite=Lax/);
