@@ -28,6 +28,7 @@ export async function onRequest(context) {
   targetUrl.pathname = targetPath;
   targetUrl.search = incoming.search;
   const isAddressApi = /^\/api\/addresses(?:\/|$)/.test(targetPath);
+  const isStoreProfileApi = targetPath === '/api/store-profile' && method === 'GET';
   const needsBody = !['GET', 'HEAD', 'DELETE'].includes(method);
   const addressBody = isAddressApi && needsBody
     ? (typeof body === 'string' ? new TextEncoder().encode(body).buffer : await context.request.clone().arrayBuffer())
@@ -59,10 +60,20 @@ export async function onRequest(context) {
   if (binding && typeof binding.fetch === 'function') {
     try {
       const primaryResponse = await binding.fetch(buildRequest(targetUrl.toString()));
-      if (!isAddressApi || isJsonResponse(primaryResponse)) return primaryResponse;
+      if (isAddressApi && !isJsonResponse(primaryResponse)) {
+        // Fall through to the direct Worker endpoint.
+      } else if (isStoreProfileApi && isJsonResponse(primaryResponse)) {
+        const cloned = primaryResponse.clone();
+        const data = await cloned.json().catch(() => null);
+        const profile = data?.storeProfile;
+        const hasProfileData = profile && [profile.storeName, profile.about, profile.phone, profile.whatsapp, profile.email, profile.address, profile.businessHours, profile.deliveryInfo].some(value => String(value || '').trim());
+        if (hasProfileData) return primaryResponse;
+        // A stale/empty service binding must not hide the current production Store Profile.
+      } else {
+        return primaryResponse;
+      }
     } catch (_) {
-      // Fall through to the direct Worker endpoint for address requests.
-      if (!isAddressApi) throw _;
+      if (!isAddressApi && !isStoreProfileApi) throw _;
     }
   }
 
@@ -70,13 +81,13 @@ export async function onRequest(context) {
   target.protocol = 'https:';
   target.host = new URL(fallbackOrigin).host;
 
-  if (isAddressApi) {
+  if (isAddressApi || isStoreProfileApi) {
     try {
       const fallbackResponse = await fetch(buildRequest(target.toString()));
       if (isJsonResponse(fallbackResponse)) return fallbackResponse;
-      return jsonError('Address service returned an unexpected response.');
+      return jsonError(isStoreProfileApi ? 'Store profile service returned an unexpected response.' : 'Address service returned an unexpected response.');
     } catch (_) {
-      return jsonError('Address service is temporarily unavailable. Please refresh and try again.');
+      return jsonError(isStoreProfileApi ? 'Store profile service is temporarily unavailable. Please refresh and try again.' : 'Address service is temporarily unavailable. Please refresh and try again.');
     }
   }
 
