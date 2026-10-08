@@ -12,6 +12,7 @@ const APP_SHELL = [
   '/address-system-final.js?v=20261008-address-final-v6',
   '/frontend/customer/pwa-install.css?v=20261007-install-v2',
   '/frontend/customer/seo.js?v=20261007-seo-v1',
+  '/frontend/customer/promotions.js?v=20261008-home-promotions-v1',
   '/frontend/customer/pwa-install.js?v=20261007-install-v2',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
