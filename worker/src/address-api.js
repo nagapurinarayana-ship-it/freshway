@@ -1,4 +1,4 @@
-const cleanPhone = value => { const digits = String(value || '').replace(/\D/g, ''); return digits.length === 10 ? `91${digits}` : ''; };
+const cleanPhone = value => { const digits = String(value || '').replace(/\D/g, ''); if (digits.length === 10) return `91${digits}`; if (digits.length === 12 && digits.startsWith('91')) return digits; return ''; };
 const text = (v, max = 200) => String(v ?? '').trim().slice(0, max);
 const validCoords = (lat, lon) => Number.isFinite(Number(lat)) && Number.isFinite(Number(lon)) && Number(lat) >= -90 && Number(lat) <= 90 && Number(lon) >= -180 && Number(lon) <= 180 && !(Number(lat) === 0 && Number(lon) === 0);
 const normalized = (payload = {}) => ({
