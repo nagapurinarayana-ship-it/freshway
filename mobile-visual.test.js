@@ -12,7 +12,7 @@ assert.match(css,/\.product-action-info/);
 assert.match(css,/\.product-action-control/);
 assert.match(css,/fw-cart-bar-visible main/);
 assert.match(adminCss,/\.customer-card \.address/);
-assert.match(sw,/freshway-v41/);
+assert.match(sw,/freshway-v42/);
 assert.doesNotMatch(sw,/admin\.css\?v=20260907-owner-v2/);
 assert.doesNotMatch(sw,/app\.js\?v=20261007-catalogue-a1/);
 
