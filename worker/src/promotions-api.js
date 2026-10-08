@@ -37,7 +37,7 @@ async function promotions(env,includeHidden=false){
     `SELECT id,image_data,image_mime_type,alt_text,display_order,active,created_at,updated_at
      FROM home_promotions${where}
      ORDER BY display_order ASC,id ASC
-     LIMIT 20`
+     LIMIT ${includeHidden?20:8}`
   ).all();
   return{promotions:results||[]};
 }
