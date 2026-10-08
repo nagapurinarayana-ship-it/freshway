@@ -1,4 +1,5 @@
-const CACHE = 'freshway-v27';
+const CACHE = 'freshway-v28';
+
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -29,7 +30,7 @@ const APP_SHELL = [
 
 const REQUIRED_SHELL = [
   '/',
-  '/index.html?v=20261007-seo-v1'
+  '/index.html'
 ];
 
 self.addEventListener('install', event => {
@@ -46,10 +47,12 @@ self.addEventListener('install', event => {
         return false;
       }
     }));
+
     if (!REQUIRED_SHELL.every(asset => results[APP_SHELL.indexOf(asset)])) {
       throw new Error('FreshWay critical app shell could not be cached.');
     }
   })());
+
   self.skipWaiting();
 });
 
@@ -86,7 +89,7 @@ self.addEventListener('fetch', event => {
     } catch (_) {
       const cached = await caches.match(event.request);
       return cached || (event.request.mode === 'navigate'
-        ? caches.match('/index.html?v=20261007-seo-v1')
+        ? caches.match('/index.html')
         : Response.error());
     }
   })());
