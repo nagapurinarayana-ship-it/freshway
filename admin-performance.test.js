@@ -15,7 +15,7 @@ assert.doesNotMatch(admin,/sessionStorage\.setItem\(['"]freshway-admin-session['
 assert.match(admin,/AUTH_HINT='freshway-admin-auth'/);
 assert.match(html,/admin\.js\?v=20261009-performance-v2/);
 
-assert.match(sw,/const CACHE = 'freshway-v41'/);
+assert.match(sw,/const CACHE = 'freshway-v42'/);
 assert.match(sw,/const cached = await cache\.match\(event\.request\)/);
 assert.match(sw,/event\.waitUntil\(update\.catch\(\(\) => undefined\)\)/);\nassert.match(sw,/url\.pathname === '\/admin\.html'/);\nassert.match(sw,/cache\.match\('\/admin\.html'\)/);\nassert.match(sw,/cache: 'no-store'/);
 assert.doesNotMatch(sw,/\.catch\(\(\) => \{\}\)/);
@@ -27,3 +27,5 @@ assert.match(auth,/SameSite=Lax/);
 assert.match(response,/SameSite=Lax/);
 
 console.log('Owner reload, cache, performance and session-storage audit contracts OK');
+
+assert.ok(require('node:fs').readFileSync('worker/migrations/0021_hard_reset_obsolete_orders.sql','utf8').includes("'apple','banana','grapes','guava'"));
