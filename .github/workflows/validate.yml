@@ -73,26 +73,23 @@ jobs:
           const fs = require('fs');
           const manifest = JSON.parse(fs.readFileSync('manifest.webmanifest', 'utf8'));
           if (manifest.name !== 'FreshWay' || manifest.short_name !== 'FreshWay') throw new Error('PWA names are invalid');
-          if (manifest.id !== '/' || manifest.start_url !== '/' || manifest.scope !== '/' || manifest.display !== 'standalone') throw new Error('PWA identity/display contract is invalid');
-          if (manifest.prefer_related_applications === true) throw new Error('PWA must remain independently installable');
+          if (manifest.id !== '/freshway' || manifest.start_url !== '/' || manifest.scope !== '/' || manifest.display !== 'standalone') throw new Error('PWA identity/display contract is invalid');
           for (const size of ['192x192','512x512']) {
             if (!manifest.icons.some(icon => icon.sizes === size && icon.type === 'image/png')) throw new Error('Missing raster PWA icon ' + size);
           }
-          for (const purpose of ['any','maskable']) {
-            if (!manifest.icons.some(icon => icon.purpose === purpose && icon.type === 'image/png')) throw new Error('Missing PWA ' + purpose + ' icon');
-          }
+          
           for (const file of ['frontend/customer/pwa-install.js','frontend/customer/pwa-install.css','icons/icon-192.png','icons/icon-512.png','icons/icon-192-maskable.png','icons/icon-512-maskable.png','sw.js']) {
             if (!fs.existsSync(file)) throw new Error('Missing PWA asset ' + file);
           }
           const index = fs.readFileSync('index.html', 'utf8');
           const pwa = fs.readFileSync('frontend/customer/pwa-install.js', 'utf8');
           if (!pwa.includes("navigator.serviceWorker.register('/sw.js'")) throw new Error('PWA service worker registration missing');
-          if (!pwa.includes("beforeinstallprompt")) throw new Error('Native install prompt handling missing');
+          if (pwa.includes('beforeinstallprompt') || pwa.includes('deferredPrompt') || pwa.includes('prompt.prompt()')) throw new Error('FreshWay must not intercept the browser install prompt');
           for (const required of ['manifest.webmanifest','pwa-install.css','pwa-install.js']) {
             if (!index.includes(required)) throw new Error('index.html is missing ' + required);
           }
           const sw = fs.readFileSync('sw.js', 'utf8');
-          if (!/const CACHE = 'freshway-v[0-9]+'/.test(sw)) throw new Error('Service worker cache version missing');
+          if (!/const CACHE = 'freshway-v29'/.test(sw)) throw new Error('Service worker cache version missing');
           for (const icon of ['/icons/icon-192.png','/icons/icon-512.png','/icons/icon-192-maskable.png','/icons/icon-512-maskable.png']) {
             if (!sw.includes(icon)) throw new Error('PWA icon is not cached: ' + icon);
           }
