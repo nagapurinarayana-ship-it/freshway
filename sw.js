@@ -13,6 +13,8 @@ const APP_SHELL = [
   '/frontend/customer/pwa-install.css?v=20261007-install-v2',
   '/frontend/customer/seo.js?v=20261007-seo-v1',
   '/frontend/customer/promotions.js?v=20261008-home-promotions-v1',
+  '/icons/icon-192.svg?v=20261008-brand-v1',
+  '/icons/icon-512.svg?v=20261008-brand-v1',
   '/frontend/customer/pwa-install.js?v=20261007-install-v2',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
