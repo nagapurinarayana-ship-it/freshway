@@ -1,0 +1,13 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const source=fs.readFileSync('frontend/customer/promotions.js','utf8');
+const index=fs.readFileSync('index.html','utf8');
+assert.match(source,/INTERVAL=5000/);
+assert.match(source,/pointerdown/);
+assert.match(source,/pointerup/);
+assert.match(source,/translate3d/);
+assert.match(source,/object-fit:contain/);
+assert.match(source,/promotions\.length<2/);
+assert.match(source,/FreshWayCustomerAPI\?\.request/);
+assert.match(index,/frontend\/customer\/promotions\.js/);
+console.log('customer promotion carousel contract OK');

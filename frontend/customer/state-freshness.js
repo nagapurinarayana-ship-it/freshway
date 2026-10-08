@@ -2,7 +2,7 @@
 // Keeps server-owned catalogue and order data fresh when the user returns to the app,
 // switches views, restores a PWA/browser page, or resumes after backgrounding.
 (function(){
-  const create=({document,getView,refreshCatalogue,refreshOrders,renderProfile,intervalMs=30000}={})=>{
+  const create=({document,getView,refreshCatalogue,refreshOrders,refreshPromotions,renderProfile,intervalMs=30000}={})=>{
     let timer=null;
     let stopped=false;
     let catalogueAt=0;
@@ -34,11 +34,13 @@
     const refreshCurrent=async(force=false)=>{
       const name=view();
       if(catalogueView(name))await runCatalogue(force);
+      if(force&&typeof refreshPromotions==='function'&&visible())await refreshPromotions();
       if(name==='orders')await runOrders(force);
       if(name==='profile'&&typeof renderProfile==='function')renderProfile();
     };
     const onView=name=>{
       if(catalogueView(name))runCatalogue(true);
+      if(catalogueView(name)&&typeof refreshPromotions==='function')refreshPromotions();
       if(name==='orders')runOrders(true);
       if(name==='profile'&&typeof renderProfile==='function')renderProfile();
     };

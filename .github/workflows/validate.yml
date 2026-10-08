@@ -66,6 +66,11 @@ jobs:
           node functions/api-addresses.test.mjs
       - name: Run customer API resilience test
         run: node frontend/customer/api.test.js
+        
+      - name: Run promotion boundary tests
+        run: |
+          node frontend/customer/promotions.test.js
+          node home-promotions.test.js
 
       - name: Check PWA direct-install contract
         run: |
@@ -78,7 +83,7 @@ jobs:
             if (!manifest.icons.some(icon => icon.sizes === size && icon.type === 'image/png')) throw new Error('Missing raster PWA icon ' + size);
           }
           
-          for (const file of ['frontend/customer/pwa-install.js','frontend/customer/pwa-install.css','icons/icon-192.png','icons/icon-512.png','icons/icon-192-maskable.png','icons/icon-512-maskable.png','sw.js']) {
+          for (const file of ['frontend/customer/pwa-install.js','frontend/customer/pwa-install.css','frontend/customer/promotions.js','icons/icon-192.png','icons/icon-512.png','icons/icon-192-maskable.png','icons/icon-512-maskable.png','sw.js']) {
             if (!fs.existsSync(file)) throw new Error('Missing PWA asset ' + file);
           }
           const index = fs.readFileSync('index.html', 'utf8');
@@ -111,6 +116,7 @@ jobs:
           grep -qF 'property="og:image"' index.html
           grep -qF 'property="og:image:alt"' index.html
           grep -qF 'twitter:card' index.html
+          grep -qF 'og:image' index.html
           grep -qF 'twitter:image' index.html
           grep -qF '<title>FreshWay | Fresh Groceries & Everyday Essentials Delivered Locally</title>' index.html
           test -s frontend/customer/seo.js
@@ -165,6 +171,8 @@ jobs:
           grep -qF 'FreshWayCustomerCheckoutSubmit' app.js
           grep -qF 'checkoutSubmit.bind()' app.js
           grep -qF 'frontend/customer/checkout-submit.js' index.html
+          grep -qF 'frontend/customer/promotions.js' index.html
+          grep -qF 'frontend/customer/promotions.js' index.html
       - name: Check backend feature boundaries
         run: |
           grep -qF "from './admin-orders.js'" worker/src/admin-data.js
@@ -172,6 +180,8 @@ jobs:
           grep -qF "from './admin-customers.js'" worker/src/admin-data.js
           grep -qF "from './admin-products.js'" worker/src/admin-data.js
           grep -qF "from './admin-notifications.js'" worker/src/admin-auth.js
+          grep -qF "from './promotions-api.js'" worker/src/admin-auth.js
+          grep -qF "from './promotions-api.js'" worker/src/admin-auth.js
           grep -qF "from './admin-response.js'" worker/src/admin-auth.js
           grep -qF 'export async function notifyOrderChange' worker/src/admin-notifications.js
           grep -qF 'export async function normalizeOwnerResponse' worker/src/admin-response.js
@@ -245,6 +255,8 @@ jobs:
           test -s migrations/0011_order_payment_statuses.sql
           test -s migrations/0012_catalogue_categories.sql
           test -s migrations/0013_inventory_stock.sql
+          test -s migrations/0017_home_promotions.sql
+          grep -q 'home_promotions' schema.sql
           grep -q 'stock_managed' schema.sql
           grep -q 'stock_quantity' schema.sql
           grep -q 'stock_reserved_qty' schema.sql
