@@ -14,15 +14,19 @@ function makeContext(method = 'GET') {
     env: {
       ASSETS: {
         fetch: async request => {
-          assert.equal(new URL(request.url).pathname, '/', 'ASSETS fetch must use the canonical root path for index.html');
+          assert.equal(
+            new URL(request.url).pathname,
+            '/',
+            'ASSETS fetch must use the canonical root path for index.html'
+          );
           return new Response(html, {
-          status: 200,
-          headers: {
-            'content-type': 'text/html; charset=UTF-8',
-            'cache-control': 'no-store, max-age=0, must-revalidate',
-            etag: '"asset-etag"'
-          }
-        });
+            status: 200,
+            headers: {
+              'content-type': 'text/html; charset=UTF-8',
+              'cache-control': 'no-store, max-age=0, must-revalidate',
+              etag: '"asset-etag"'
+            }
+          });
         }
       },
       FRESHWAY_API: {
