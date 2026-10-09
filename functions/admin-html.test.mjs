@@ -18,7 +18,7 @@ function makeContext({
       ASSETS: {
         fetch: async request => {
           assetRequestCount++;
-          assert.equal(new URL(request.url).pathname, '/admin.html');
+          assert.equal(new URL(request.url).pathname, '/admin', 'ASSETS fetch must use the canonical pretty path for admin.html');
           assert.equal(new URL(request.url).search, '');
           assert.equal(request.method, 'GET');
           assert.equal(request.headers.has('if-none-match'), false);
