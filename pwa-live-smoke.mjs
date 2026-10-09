@@ -18,6 +18,24 @@ async function fetchWithRetry(url, options = {}) {
   throw lastError;
 }
 
+function assertCurrentScriptReference(html, pageUrl, expectedPath, label) {
+  const expected = new URL(expectedPath, pageUrl);
+  const references = [...html.matchAll(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi)]
+    .map(([, src]) => new URL(src, pageUrl))
+    .filter(url => url.pathname === expected.pathname);
+
+  assert.equal(
+    references.length,
+    1,
+    `${label} must reference ${expected.pathname} exactly once`
+  );
+  assert.equal(
+    references[0].search,
+    expected.search,
+    `${label} must reference the current version of ${expected.pathname}`
+  );
+}
+
 async function waitForFullImageFitAssets(base) {
   const promotionPath = '/frontend/customer/promotions.js?v=20261009-full-image-fit-v1';
   const cataloguePath = '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1';
@@ -47,8 +65,8 @@ async function waitForFullImageFitAssets(base) {
       const [indexHtml, adminHtml, sw] = await Promise.all([
         indexResponse.text(), adminResponse.text(), swResponse.text()
       ]);
-      assert.ok(indexHtml.includes(promotionPath), 'production home still references the old promotion script');
-      assert.ok(adminHtml.includes(cataloguePath), 'production Owner still references the old catalogue script');
+      assertCurrentScriptReference(indexHtml, indexResponse.url, promotionPath, 'production home');
+      assertCurrentScriptReference(adminHtml, adminResponse.url, cataloguePath, 'production Owner');
       assert.ok(sw.includes(promotionPath), 'service worker does not cache the current promotion script');
       assert.ok(sw.includes(cataloguePath), 'service worker does not cache the current catalogue script');
 
