@@ -106,8 +106,9 @@ test('owner lifecycle script cache-busting version matches the service-worker sh
 
 test('service worker loads online documents and executable code from the network first, with cache fallback', () => {
   assert.match(serviceWorkerSource, /if \(isNavigation && \['\/', '\/index\.html', '\/admin\.html'\]\.includes\(url\.pathname\)\)/);
-  assert.match(serviceWorkerSource, /if \(destination === 'script' \|\| destination === 'style'\)/);
-  assert.match(serviceWorkerSource, /fetch\(new Request\(event\.request, \{ cache: 'no-store' \}\)\)/);
+  assert.match(serviceWorkerSource, /const freshCode = \['script','style'\]\.includes\(destination\)/);
+  assert.match(serviceWorkerSource, /freshCode \? new Request\(event\.request, \{ cache: 'no-store' \}\)/);
+  assert.match(serviceWorkerSource, /const cached = freshCode \? null : await cache\.match\(event\.request\)/);
   assert.match(serviceWorkerSource, /return \(await cache\.match\(event\.request\)\) \|\| Response\.error\(\)/);
   assert.match(serviceWorkerSource, /const CACHE = 'freshway-v46'/);
 });
