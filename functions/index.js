@@ -53,7 +53,7 @@ export async function onRequest(context) {
   headers.delete('content-length');
   headers.delete('etag');
   headers.set('content-type', 'text/html; charset=UTF-8');
-  headers.set('cache-control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=60');
+  headers.set('cache-control', 'no-store, max-age=0, must-revalidate');
   return new Response(context.request.method === 'HEAD' ? null : html, {
     status: assetResponse.status,
     statusText: assetResponse.statusText,
