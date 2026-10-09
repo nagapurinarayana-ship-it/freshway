@@ -20,7 +20,8 @@ assert.match(sw,/const cached = await cache\.match\(event\.request\)/);
 assert.match(sw,/event\.waitUntil\(update\.catch\(\(\) => undefined\)\)/);
 assert.match(sw,/url\.pathname === '\/admin\.html'/);
 assert.match(sw,/const key = url\.pathname === '\/admin\.html'/);
-assert.match(sw,/cache\.match\(key\)/);\nassert.match(sw,/if \(cached && !freshCode\)/);
+assert.match(sw,/cache\.match\(key\)/);
+assert.match(sw,/if \(cached && !freshCode\)/);
 assert.match(sw,/cache: 'no-store'/);
 assert.doesNotMatch(sw,/\.catch\(\(\) => \{\}\)/);
 
