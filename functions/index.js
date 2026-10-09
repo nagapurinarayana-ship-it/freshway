@@ -33,7 +33,7 @@ function replaceNameMeta(html, name, content) {
 
 export async function onRequest(context) {
   if (!['GET', 'HEAD'].includes(context.request.method)) return context.next();
-  const assetUrl = new URL('/index.html', context.request.url);
+  const assetUrl = new URL('/', context.request.url);
   const assetResponse = await context.env.ASSETS.fetch(new Request(assetUrl.toString(), { method: 'GET' }));
   if (!assetResponse.ok) return assetResponse;
 
