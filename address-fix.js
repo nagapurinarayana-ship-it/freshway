@@ -22,11 +22,16 @@
     // A stale cached UI can still have a mutation endpoint that the Pages
     // shell does not know. Never let its HTML response become a JSON parse
     // exception; the current API route is the source of truth.
-    if(match && !response.ok && response.status===404 && (init?.method||'GET')==='DELETE'){
+    // A DELETE 404 is only an idempotent success when the requested address
+    // is confirmed absent from the authoritative address list.
+    if(match && match[1] && !response.ok && response.status===404 && String(init?.method||'GET').toUpperCase()==='DELETE'){
       try{
         const list=await base('/api/addresses',{credentials:'include',cache:'no-store'});
         const data=await list.json();
-        if(list.ok&&Array.isArray(data.addresses))return jsonResponse({ok:true,alreadyDeleted:true,addresses:data.addresses},200);
+        const addressesAreKnown=list.ok&&Array.isArray(data.addresses);
+        const requestedId=String(match[1]);
+        const requestedAddressIsAbsent=addressesAreKnown&&!data.addresses.some(address=>String(address?.id)===requestedId);
+        if(requestedAddressIsAbsent)return jsonResponse({ok:true,alreadyDeleted:true,addresses:data.addresses},200);
       }catch(_){ }
     }
     return response;
