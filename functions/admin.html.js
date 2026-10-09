@@ -11,6 +11,7 @@ export async function onRequest(context) {
 
   const headers = new Headers(assetResponse.headers);
   headers.set('cache-control', 'no-store, max-age=0, must-revalidate');
+  headers.set('x-robots-tag', 'noindex, nofollow');
 
   return new Response(method === 'HEAD' ? null : assetResponse.body, {
     status: assetResponse.status,
