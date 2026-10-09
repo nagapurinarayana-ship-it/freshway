@@ -18,11 +18,62 @@ async function fetchWithRetry(url, options = {}) {
   throw lastError;
 }
 
+async function waitForFullImageFitAssets(base) {
+  const promotionPath = '/frontend/customer/promotions.js?v=20261009-full-image-fit-v1';
+  const cataloguePath = '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1';
+  let lastError;
+
+  // Static deployments can lag the main-branch push; retry stale 200 responses too.
+  for (let attempt = 1; attempt <= 12; attempt++) {
+    try {
+      const [indexResponse, adminResponse, swResponse] = await Promise.all([
+        fetch(`${base}/`, { cache: 'no-store', redirect: 'follow' }),
+        fetch(`${base}/admin.html`, { cache: 'no-store', redirect: 'follow' }),
+        fetch(`${base}/sw.js`, { cache: 'no-store', redirect: 'follow' })
+      ]);
+      for (const [label, response] of [['home', indexResponse], ['Owner', adminResponse], ['service worker', swResponse]]) {
+        assert.equal(response.status, 200, `production ${label} returned HTTP ${response.status}`);
+      }
+
+      const [indexHtml, adminHtml, sw] = await Promise.all([
+        indexResponse.text(), adminResponse.text(), swResponse.text()
+      ]);
+      assert.ok(indexHtml.includes(promotionPath), 'production home still references the old promotion script');
+      assert.ok(adminHtml.includes(cataloguePath), 'production Owner still references the old catalogue script');
+      assert.ok(sw.includes(promotionPath), 'service worker does not cache the current promotion script');
+      assert.ok(sw.includes(cataloguePath), 'service worker does not cache the current catalogue script');
+
+      const [promotionResponse, catalogueResponse] = await Promise.all([
+        fetch(`${base}${promotionPath}`, { cache: 'no-store', redirect: 'follow' }),
+        fetch(`${base}${cataloguePath}`, { cache: 'no-store', redirect: 'follow' })
+      ]);
+      assert.equal(promotionResponse.status, 200, 'current customer promotion script must load');
+      assert.equal(catalogueResponse.status, 200, 'current Owner catalogue script must load');
+
+      const [promotionSource, catalogueSource] = await Promise.all([
+        promotionResponse.text(), catalogueResponse.text()
+      ]);
+      assert.match(promotionSource, /\.fw-promo-carousel\{[^}]*height:auto;aspect-ratio:16\/7/);
+      assert.match(promotionSource, /object-fit:contain/);
+      assert.match(catalogueSource, /\.fw-promo-preview\{[^}]*height:auto;min-height:0;aspect-ratio:auto/);
+      assert.match(catalogueSource, /\.fw-promo-preview img\{[^}]*max-width:100%;max-height:320px;width:auto;height:auto;object-fit:contain/);
+      assert.match(catalogueSource, /\.fw-product-icon\{height:auto;min-height:100px;aspect-ratio:4\/3/);
+
+      return { indexResponse, indexHtml, adminResponse, adminHtml, swResponse, sw };
+    } catch (error) {
+      lastError = error;
+      if (attempt < 12) await sleep(5000);
+    }
+  }
+
+  throw lastError;
+}
+
 const base = BASE_URL.replace(/\/$/, '');
 
-const indexResponse = await fetchWithRetry(`${base}/`);
+const { indexResponse, indexHtml, adminResponse, adminHtml, swResponse, sw } =
+  await waitForFullImageFitAssets(base);
 assert.equal(indexResponse.url, `${base}/`);
-const indexHtml = await indexResponse.text();
 assert.equal(indexResponse.status, 200);
 assert.match(indexHtml, /<link rel="manifest" href="\/manifest\.webmanifest">/);
 
@@ -58,12 +109,11 @@ assert.equal(logoResponse.status, 200);
 assert.match(logoResponse.headers.get('content-type') || '', /^image\/webp/i, 'master FreshWay logo must be served as WebP');
 assert.ok((await logoResponse.arrayBuffer()).byteLength > 100, 'master FreshWay logo must contain image data');
 
-const swResponse = await fetchWithRetry(`${base}/sw.js`);
-assert.equal(swResponse.status, 200);
+assert.equal(adminResponse.url, `${base}/admin.html`);
+assert.equal(adminResponse.status, 200);
 assert.match(swResponse.headers.get('content-type') || '', /javascript/i, 'service worker must be JavaScript');
 assert.equal(swResponse.headers.get('service-worker-allowed'), '/', 'service worker must explicitly allow root scope');
-const sw = await swResponse.text();
-assert.match(sw, /const CACHE = 'freshway-v42'/);
+assert.match(sw, /const CACHE = 'freshway-v\\d+'/);
 assert.match(sw, /const REQUIRED_SHELL = \[\s*'\/',\s*'\/index\.html'\s*\]/);
 
 console.log('Live PWA smoke OK');
