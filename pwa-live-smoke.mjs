@@ -24,15 +24,24 @@ async function waitForFullImageFitAssets(base) {
   let lastError;
 
   // Static deployments can lag the main-branch push; retry stale 200 responses too.
-  for (let attempt = 1; attempt <= 12; attempt++) {
+  for (let attempt = 1; attempt <= 60; attempt++) {
     try {
+      const probe = `__freshway_deploy_probe=${Date.now()}-${attempt}`;
       const [indexResponse, adminResponse, swResponse] = await Promise.all([
-        fetch(`${base}/`, { cache: 'no-store', redirect: 'follow' }),
-        fetch(`${base}/admin.html`, { cache: 'no-store', redirect: 'follow' }),
-        fetch(`${base}/sw.js`, { cache: 'no-store', redirect: 'follow' })
+        fetch(`${base}/?${probe}`, { cache: 'no-store', redirect: 'follow' }),
+        fetch(`${base}/admin.html?${probe}`, { cache: 'no-store', redirect: 'follow' }),
+        fetch(`${base}/sw.js?${probe}`, { cache: 'no-store', redirect: 'follow' })
       ]);
       for (const [label, response] of [['home', indexResponse], ['Owner', adminResponse], ['service worker', swResponse]]) {
         assert.equal(response.status, 200, `production ${label} returned HTTP ${response.status}`);
+      }
+
+      for (const [label, response] of [['home', indexResponse], ['Owner', adminResponse], ['service worker', swResponse]]) {
+        assert.match(
+          response.headers.get('cache-control') || '',
+          /no-store|no-cache/i,
+          `production ${label} must not reuse stale app shell responses`
+        );
       }
 
       const [indexHtml, adminHtml, sw] = await Promise.all([
@@ -62,7 +71,7 @@ async function waitForFullImageFitAssets(base) {
       return { indexResponse, indexHtml, adminResponse, adminHtml, swResponse, sw };
     } catch (error) {
       lastError = error;
-      if (attempt < 12) await sleep(5000);
+      if (attempt < 60) await sleep(5000);
     }
   }
 
@@ -73,7 +82,7 @@ const base = BASE_URL.replace(/\/$/, '');
 
 const { indexResponse, indexHtml, adminResponse, adminHtml, swResponse, sw } =
   await waitForFullImageFitAssets(base);
-assert.equal(indexResponse.url, `${base}/`);
+assert.equal(new URL(indexResponse.url).pathname, '/');
 assert.equal(indexResponse.status, 200);
 assert.match(indexHtml, /<link rel="manifest" href="\/manifest\.webmanifest">/);
 
@@ -109,7 +118,7 @@ assert.equal(logoResponse.status, 200);
 assert.match(logoResponse.headers.get('content-type') || '', /^image\/webp/i, 'master FreshWay logo must be served as WebP');
 assert.ok((await logoResponse.arrayBuffer()).byteLength > 100, 'master FreshWay logo must contain image data');
 
-assert.equal(adminResponse.url, `${base}/admin.html`);
+assert.equal(new URL(adminResponse.url).pathname, '/admin.html');
 assert.equal(adminResponse.status, 200);
 assert.match(swResponse.headers.get('content-type') || '', /javascript/i, 'service worker must be JavaScript');
 assert.equal(swResponse.headers.get('service-worker-allowed'), '/', 'service worker must explicitly allow root scope');
