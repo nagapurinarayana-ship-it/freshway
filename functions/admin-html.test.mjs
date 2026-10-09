@@ -29,7 +29,6 @@ function makeContext({
             headers: {
               'content-type': 'text/html; charset=UTF-8',
               'cache-control': 'public, max-age=0, must-revalidate',
-              'x-robots-tag': 'noindex, nofollow'
             }
           });
         }
