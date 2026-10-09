@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v44';
+const CACHE = 'freshway-v45';
 
 const APP_SHELL = [
   '/',
@@ -13,7 +13,7 @@ const APP_SHELL = [
   '/address-system-final.js?v=20261008-address-final-v6',
   '/frontend/customer/pwa-install.css?v=20261007-install-v2',
   '/frontend/customer/seo.js?v=20261007-seo-v1',
-  '/frontend/customer/promotions.js?v=20261008-home-promotions-v1',
+  '/frontend/customer/promotions.js?v=20261009-full-image-fit-v1',
   '/frontend/customer/store-info.js?v=20261009-store-profile-v5',
   '/frontend/customer/profile.js?v=20261009-customer-profile-v2',
   '/icons/icon-192.svg?v=20261008-brand-v1',
@@ -27,7 +27,7 @@ const APP_SHELL = [
   '/admin.html',
   '/admin.css?v=20261008-mobile-visual-v1',
   '/admin.js?v=20261009-performance-v5',
-  '/frontend/admin/catalogue.js?v=20261009-image-fit-v5',
+  '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1',
   '/owner-lifecycle.js?v=20261009-phone-display-v1',
   '/owner-address-final.js?v=20260909-address-final-v6',
   '/freshway-logo-master.webp?v=20261008-master-v1',
@@ -92,9 +92,7 @@ self.addEventListener('fetch', event => {
 
     const cache = await caches.open(CACHE);
 
-    // Owner login is a separate application surface. Never let a stale customer
-    // shell or a broken cached document hide /admin.html. Prefer the live Owner
-    // document, then fall back to its own cached copy during a transient outage.
+    // Prefer live Owner HTML; use its cached copy only when offline.
     if (isNavigation && url.pathname === '/admin.html') {
       try {
         const response = await fetch(new Request(event.request, { cache: 'no-store' }));
@@ -124,8 +122,7 @@ self.addEventListener('fetch', event => {
       throw error;
     });
 
-    // Customer shell and versioned assets can use stale-while-revalidate for fast
-    // repeat loads without taking the Owner document path with them.
+    // Customer assets use stale-while-revalidate.
     if (cached) {
       event.waitUntil(update.catch(() => undefined));
       return cached;

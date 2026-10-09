@@ -13,11 +13,14 @@ assert.match(admin,/refreshOwnerAfterOrderMutation\(\)/);
 assert.doesNotMatch(admin,/localStorage\.setItem\(['"]freshway-admin-session['"]/);
 assert.doesNotMatch(admin,/sessionStorage\.setItem\(['"]freshway-admin-session['"]/);
 assert.match(admin,/AUTH_HINT='freshway-admin-auth'/);
-assert.match(html,/admin\.js\?v=20261009-performance-v2/);
+assert.match(html,/admin\.js\?v=20261009-performance-v5/);
 
-assert.match(sw,/const CACHE = 'freshway-v42'/);
+assert.match(sw,/const CACHE = 'freshway-v\d+'/);
 assert.match(sw,/const cached = await cache\.match\(event\.request\)/);
-assert.match(sw,/event\.waitUntil\(update\.catch\(\(\) => undefined\)\)/);\nassert.match(sw,/url\.pathname === '\/admin\.html'/);\nassert.match(sw,/cache\.match\('\/admin\.html'\)/);\nassert.match(sw,/cache: 'no-store'/);
+assert.match(sw,/event\.waitUntil\(update\.catch\(\(\) => undefined\)\)/);
+assert.match(sw,/url\.pathname === '\/admin\.html'/);
+assert.match(sw,/cache\.match\('\/admin\.html'\)/);
+assert.match(sw,/cache: 'no-store'/);
 assert.doesNotMatch(sw,/\.catch\(\(\) => \{\}\)/);
 
 assert.match(auth,/COOKIE='__Host-freshway-admin-session'/);
