@@ -92,9 +92,7 @@ self.addEventListener('fetch', event => {
 
     const cache = await caches.open(CACHE);
 
-    // Owner login is a separate application surface. Never let a stale customer
-    // shell or a broken cached document hide /admin.html. Prefer the live Owner
-    // document, then fall back to its own cached copy during a transient outage.
+    // Prefer live Owner HTML; use its cached copy only when offline.
     if (isNavigation && url.pathname === '/admin.html') {
       try {
         const response = await fetch(new Request(event.request, { cache: 'no-store' }));
@@ -124,8 +122,7 @@ self.addEventListener('fetch', event => {
       throw error;
     });
 
-    // Customer shell and versioned assets can use stale-while-revalidate for fast
-    // repeat loads without taking the Owner document path with them.
+    // Customer assets use stale-while-revalidate.
     if (cached) {
       event.waitUntil(update.catch(() => undefined));
       return cached;
