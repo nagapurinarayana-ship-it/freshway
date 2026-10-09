@@ -83,46 +83,25 @@ self.addEventListener('fetch', event => {
   event.respondWith((async () => {
     const url = new URL(event.request.url);
     const isLogo = url.pathname === '/freshway-logo-clean.svg';
-    const request = isLogo ? new Request(event.request, { cache: 'reload' }) : event.request;
+    const freshCode = ['script','style'].includes(destination);
+    const request = isLogo ? new Request(event.request, { cache: 'reload' }) : freshCode ? new Request(event.request, { cache: 'no-store' }) : event.request;
 
     const cache = await caches.open(CACHE);
 
-    // Prefer current app/Owner documents while online; use cached documents only offline.
+    // Live app/Owner documents online, cached copies offline.
     if (isNavigation && ['/', '/index.html', '/admin.html'].includes(url.pathname)) {
-      const cacheKey = url.pathname === '/admin.html' ? '/admin.html' : url.pathname === '/' ? '/' : '/index.html';
+      const key = url.pathname === '/admin.html' ? '/admin.html' : url.pathname === '/index.html' ? '/index.html' : '/';
       try {
         const response = await fetch(new Request(event.request, { cache: 'no-store' }));
-        if (response.ok) {
-          cache.put(cacheKey, response.clone()).catch(error =>
-            console.error('FreshWay document cache update failed:', cacheKey, error)
-          );
-        }
+        if (response.ok) cache.put(key, response.clone()).catch(error => console.error('FreshWay document cache update failed:', error));
         return response;
       } catch (error) {
         console.error('FreshWay document fetch failed:', event.request.url, error);
-        const cachedDocument = await cache.match(cacheKey) || (url.pathname === '/' ? await cache.match('/index.html') : null);
-        return cachedDocument || Response.error();
+        return (await cache.match(key)) || (key === '/' ? await cache.match('/index.html') : null) || Response.error();
       }
     }
 
-    // Executable code and styles should be fresh online. The exact requested
-    // URL is preserved; cached responses remain an offline/network-error fallback.
-    if (destination === 'script' || destination === 'style') {
-      try {
-        const response = await fetch(new Request(event.request, { cache: 'no-store' }));
-        if (response.ok) {
-          cache.put(event.request, response.clone()).catch(error =>
-            console.error('FreshWay code asset cache update failed:', event.request.url, error)
-          );
-        }
-        return response;
-      } catch (error) {
-        console.error('FreshWay code asset fetch failed:', event.request.url, error);
-        return (await cache.match(event.request)) || Response.error();
-      }
-    }
-
-    const cached = await cache.match(event.request);
+    const cached = freshCode ? null : await cache.match(event.request);
 
     const update = fetch(request).then(response => {
       if (response.ok) {
@@ -145,10 +124,8 @@ self.addEventListener('fetch', event => {
     try {
       return await update;
     } catch (_) {
-      if (isNavigation) {
-        return (await cache.match('/index.html')) || Response.error();
-      }
-      return Response.error();
+      if (isNavigation) return (await cache.match('/index.html')) || Response.error();
+      return (await cache.match(event.request)) || Response.error();
     }
   })());
 });
