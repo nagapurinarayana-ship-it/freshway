@@ -3,16 +3,29 @@ import { onRequest } from './admin.html.js';
 
 const html = '<!doctype html><html><head><title>FreshWay — Owner</title></head><body>Owner dashboard</body></html>';
 
-function makeContext(method = 'GET') {
-  return {
-    request: new Request('https://freshway-f32.pages.dev/admin.html', { method }),
+function makeContext({
+  method = 'GET',
+  assetStatus = 200,
+  requestHeaders = {}
+} = {}) {
+  let assetRequestCount = 0;
+  const context = {
+    request: new Request('https://freshway-f32.pages.dev/admin.html?ignored=1', {
+      method,
+      headers: requestHeaders
+    }),
     env: {
       ASSETS: {
         fetch: async request => {
+          assetRequestCount++;
           assert.equal(new URL(request.url).pathname, '/admin.html');
+          assert.equal(new URL(request.url).search, '');
           assert.equal(request.method, 'GET');
-          return new Response(html, {
-            status: 200,
+          assert.equal(request.headers.has('if-none-match'), false);
+          assert.equal(request.headers.has('if-modified-since'), false);
+          assert.equal(request.headers.has('cache-control'), false);
+          return new Response(assetStatus === 200 ? html : 'Owner asset unavailable', {
+            status: assetStatus,
             headers: {
               'content-type': 'text/html; charset=UTF-8',
               'cache-control': 'public, max-age=0, must-revalidate',
@@ -24,10 +37,19 @@ function makeContext(method = 'GET') {
     },
     next: async () => new Response('next')
   };
+  return { context, getAssetRequestCount: () => assetRequestCount };
 }
 
 for (const method of ['GET', 'HEAD']) {
-  const response = await onRequest(makeContext(method));
+  const { context } = makeContext({
+    method,
+    requestHeaders: {
+      'if-none-match': '"stale-validator"',
+      'if-modified-since': 'Wed, 21 Oct 2015 07:28:00 GMT',
+      'cache-control': 'max-age=86400'
+    }
+  });
+  const response = await onRequest(context);
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('cache-control'), 'no-store, max-age=0, must-revalidate');
   assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
@@ -39,4 +61,19 @@ for (const method of ['GET', 'HEAD']) {
   }
 }
 
-console.log('Owner HTML no-store cache policy regression contract OK');
+{
+  const { context } = makeContext({ assetStatus: 404 });
+  const response = await onRequest(context);
+  assert.equal(response.status, 404);
+  assert.equal(response.headers.get('cache-control'), 'no-store, max-age=0, must-revalidate');
+  assert.match(await response.text(), /Owner asset unavailable/);
+}
+
+{
+  const { context, getAssetRequestCount } = makeContext({ method: 'POST' });
+  const response = await onRequest(context);
+  assert.equal(await response.text(), 'next');
+  assert.equal(getAssetRequestCount(), 0, 'unsupported methods must pass through without fetching the asset');
+}
+
+console.log('Owner HTML cache policy, conditional-request, method and error-response tests passed');
