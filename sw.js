@@ -88,7 +88,6 @@ self.addEventListener('fetch', event => {
 
     const cache = await caches.open(CACHE);
 
-    // Live app/Owner documents online, cached copies offline.
     if (isNavigation && ['/', '/index.html', '/admin.html'].includes(url.pathname)) {
       const key = url.pathname === '/admin.html' ? '/admin.html' : url.pathname === '/index.html' ? '/index.html' : '/';
       try {
@@ -115,7 +114,6 @@ self.addEventListener('fetch', event => {
       throw error;
     });
 
-    // Customer assets use stale-while-revalidate.
     if (cached) {
       event.waitUntil(update.catch(() => undefined));
       return cached;
