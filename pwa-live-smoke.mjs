@@ -20,7 +20,7 @@ async function fetchWithRetry(url, options = {}) {
 
 function assertCurrentScriptReference(html, pageUrl, expectedPath, label) {
   const expected = new URL(expectedPath, pageUrl);
-  const references = [...html.matchAll(/<script\\b[^>]*\\bsrc\\s*=\\s*[\"']([^\"']+)[\"'][^>]*>/gi)]
+  const references = [...html.matchAll(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["'][^>]*>/gi)]
     .map(([, src]) => new URL(src, pageUrl))
     .filter(url => url.pathname === expected.pathname);
 
