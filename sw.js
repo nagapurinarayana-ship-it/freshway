@@ -100,7 +100,7 @@ self.addEventListener('fetch', event => {
       }
     }
 
-    const cached = freshCode ? null : await cache.match(event.request);
+    const cached = await cache.match(event.request);
 
     const update = fetch(request).then(response => {
       if (response.ok) {
@@ -114,7 +114,7 @@ self.addEventListener('fetch', event => {
       throw error;
     });
 
-    if (cached) {
+    if (cached && !freshCode) {
       event.waitUntil(update.catch(() => undefined));
       return cached;
     }
