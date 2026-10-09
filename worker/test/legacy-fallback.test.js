@@ -110,5 +110,5 @@ test('service worker loads online documents and executable code from the network
   assert.match(serviceWorkerSource, /freshCode \? new Request\(event\.request, \{ cache: 'no-store' \}\)/);
   assert.match(serviceWorkerSource, /const cached = freshCode \? null : await cache\.match\(event\.request\)/);
   assert.match(serviceWorkerSource, /return \(await cache\.match\(event\.request\)\) \|\| Response\.error\(\)/);
-  assert.match(serviceWorkerSource, /const CACHE = 'freshway-v46'/);
+  assert.match(serviceWorkerSource, /const CACHE = 'freshway-v45'/);
 });
