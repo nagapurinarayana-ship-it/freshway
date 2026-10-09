@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v45';
+const CACHE = 'freshway-v46';
 
 const APP_SHELL = [
   '/',
@@ -9,7 +9,7 @@ const APP_SHELL = [
   '/frontend/phone-display.js?v=20261009-phone-display-v1',
   '/frontend/customer/product-view.js?v=20261008-mobile-visual-v1',
   '/notifications.js?v=20260907-auth-v2',
-  '/address-fix.js?v=20261008-address-hotfix-v4',
+  '/address-fix.js?v=20261009-address-fallback-safety-v5',
   '/address-system-final.js?v=20261008-address-final-v6',
   '/frontend/customer/pwa-install.css?v=20261007-install-v2',
   '/frontend/customer/seo.js?v=20261007-seo-v1',
@@ -83,28 +83,42 @@ self.addEventListener('fetch', event => {
   event.respondWith((async () => {
     const url = new URL(event.request.url);
     const isLogo = url.pathname === '/freshway-logo-clean.svg';
-    const isOwnerLifecycle = url.pathname === '/owner-lifecycle.js';
-    const request = isLogo
-      ? new Request(event.request, { cache: 'reload' })
-      : isOwnerLifecycle
-        ? new Request(`${url.origin}/owner-lifecycle.js?v=20260909-refresh-v3`, event.request)
-        : event.request;
+    const request = isLogo ? new Request(event.request, { cache: 'reload' }) : event.request;
 
     const cache = await caches.open(CACHE);
 
-    // Prefer live Owner HTML; use its cached copy only when offline.
-    if (isNavigation && url.pathname === '/admin.html') {
+    // Prefer current app/Owner documents while online; use cached documents only offline.
+    if (isNavigation && ['/', '/index.html', '/admin.html'].includes(url.pathname)) {
+      const cacheKey = url.pathname === '/admin.html' ? '/admin.html' : url.pathname === '/' ? '/' : '/index.html';
       try {
         const response = await fetch(new Request(event.request, { cache: 'no-store' }));
         if (response.ok) {
-          cache.put('/admin.html', response.clone()).catch(error =>
-            console.error('FreshWay Owner document cache update failed:', error)
+          cache.put(cacheKey, response.clone()).catch(error =>
+            console.error('FreshWay document cache update failed:', cacheKey, error)
           );
         }
         return response;
       } catch (error) {
-        console.error('FreshWay Owner document fetch failed:', event.request.url, error);
-        return (await cache.match('/admin.html')) || Response.error();
+        console.error('FreshWay document fetch failed:', event.request.url, error);
+        const cachedDocument = await cache.match(cacheKey) || (url.pathname === '/' ? await cache.match('/index.html') : null);
+        return cachedDocument || Response.error();
+      }
+    }
+
+    // Executable code and styles should be fresh online. The exact requested
+    // URL is preserved; cached responses remain an offline/network-error fallback.
+    if (destination === 'script' || destination === 'style') {
+      try {
+        const response = await fetch(new Request(event.request, { cache: 'no-store' }));
+        if (response.ok) {
+          cache.put(event.request, response.clone()).catch(error =>
+            console.error('FreshWay code asset cache update failed:', event.request.url, error)
+          );
+        }
+        return response;
+      } catch (error) {
+        console.error('FreshWay code asset fetch failed:', event.request.url, error);
+        return (await cache.match(event.request)) || Response.error();
       }
     }
 
