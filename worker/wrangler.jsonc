@@ -7,7 +7,8 @@
     {"binding": "DB", "database_name": "freshway", "database_id": "4b645f26-12ad-4805-bf22-12186122ad3a"}
   ],
   "vars": {
-    "APP_ORIGIN": "https://freshway-f32.pages.dev"
+    "APP_ORIGIN": "https://fwcoldpressed.in",
+    "APP_ORIGINS": "https://fwcoldpressed.in,https://freshway-f32.pages.dev"
   },
   "secrets": {
     "required": [
