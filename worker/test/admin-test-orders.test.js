@@ -27,6 +27,14 @@ test('owner Test Orders query selects only classified test orders',async()=>{
   assert.ok(calls.some(c=>c.sql.includes('o.is_test_order=1')));
 });
 
+test('normal delivery status updates remain unchanged when no test flag is sent',async()=>{
+  const {env}=fixture();
+  const result=await updateOrder(env,'FW-TEST-1',{status:'Confirmed'});
+  assert.equal(result.status,'Confirmed');
+  assert.equal(result.isTestOrder,0);
+  assert.equal(result.testClassificationChanged,false);
+});
+
 test('owner can mark and unmark a test order without changing delivery/payment status',async()=>{
   const {env,calls}=fixture();
   const result=await updateOrder(env,'FW-TEST-1',{isTestOrder:true});
