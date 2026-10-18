@@ -89,6 +89,50 @@ From `worker/`:
 
 Do **not** commit secrets to GitHub.
 
+## Development and production isolation
+
+Production and development have separate configuration and must never share customer/order data.
+
+- Production remains `https://fwcoldpressed.in` and uses `worker/wrangler.jsonc`, the production Worker `freshway-api`, and production D1 `freshway`.
+- Local development uses `worker/wrangler.dev.jsonc`, the local Worker name `freshway-api-dev`, and a separate local D1 store named `freshway-development`. Its placeholder database ID is for local simulation only; **do not deploy this config to Cloudflare as-is**.
+- `main` remains the production release branch. Work on a feature branch, test locally, open a pull request, wait for checks, then merge to `main` to trigger the production release.
+- Cloudflare Pages branch previews must set `FRESHWAY_ENVIRONMENT=development` and bind `FRESHWAY_API` to a dedicated development Worker backed by a dedicated development D1 database. If that development binding is absent, the preview API returns HTTP 503 instead of falling back to production.
+- Production Worker CORS continues to reject branch-preview origins. Only the development Worker config permits `*.freshway-f32.pages.dev` origins.
+
+### Run FreshWay locally
+
+1. In the repository root, install the Worker dependencies:
+
+   ```bash
+   cd worker
+   npm install
+   ```
+
+2. Create `worker/.dev.vars` with **local-only dummy values** (never copy production secrets into this file):
+
+   ```dotenv
+   ADMIN_TOKEN="local-only-admin-token"
+   CUSTOMER_SESSION_SECRET="local-only-customer-session-secret"
+   ADMIN_SESSION_SECRET="local-only-admin-session-secret"
+   ```
+
+3. Initialize the isolated local D1 database from the current schema and start the local API in terminal 1:
+
+   ```bash
+   npx wrangler d1 execute freshway-development --local --file=./schema.sql --config=./wrangler.dev.jsonc
+   npx wrangler dev --local --config=./wrangler.dev.jsonc --port 8787
+   ```
+
+4. In terminal 2, still inside `worker/`, start the Pages app with its service binding connected to the local Worker:
+
+   ```bash
+   npx wrangler pages dev .. --service FRESHWAY_API=freshway-api-dev --binding FRESHWAY_ENVIRONMENT=development --port 8788
+   ```
+
+5. Open `http://localhost:8788`. Use only test customer details and test orders here. The data is local and does not appear on the production website.
+
+The local D1 schema is bootstrapped from `worker/schema.sql`, which must stay aligned with the current schema. When developing a new database migration, apply that specific new migration to the local D1 for testing; do not apply the entire historical migration folder on top of the schema baseline.
+
 ## Production data note
 
 Orders created before the D1 backend was deployed remain only in the browser that created them. They are not silently migrated. All new orders after deployment are centrally visible to the owner dashboard.
