@@ -1,13 +1,21 @@
 const escapeAttribute = value => String(value ?? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
 
 async function loadShareMetadata(context) {
+  const incoming = new URL(context.request.url);
+  const productionHosts = new Set(['fwcoldpressed.in', 'www.fwcoldpressed.in', 'freshway-f32.pages.dev']);
+  const isProductionHost = productionHosts.has(incoming.hostname.toLowerCase());
+  const environment = String(context.env.FRESHWAY_ENVIRONMENT || '').trim().toLowerCase();
+  if (!isProductionHost && environment !== 'development') return null;
+
   const binding = context.env.FRESHWAY_API;
   if (!binding || typeof binding.fetch !== 'function') return null;
   try {
     const target = new URL('/api/store-profile', context.request.url);
+    const headers = new Headers({ Accept: 'application/json' });
+    if (environment) headers.set('X-Freshway-Environment', environment);
     const response = await binding.fetch(new Request(target.toString(), {
       method: 'GET',
-      headers: { Accept: 'application/json' }
+      headers
     }));
     if (!response.ok) return null;
     const data = await response.json();
