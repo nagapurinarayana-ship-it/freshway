@@ -8,7 +8,7 @@ const enc = value => new TextEncoder().encode(String(value));
 const hex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
 const bytesFromHex = value => { const out = new Uint8Array(value.length / 2); for (let i = 0; i < out.length; i++) out[i] = parseInt(value.slice(i * 2, i * 2 + 2), 16); return out; };
 const corsOrigins = env => [...new Set([env.APP_ORIGINS, env.APP_ORIGIN].flatMap(value => String(value || '').split(',').map(origin => origin.trim())).filter(value => value && value !== 'https://YOUR-FRESHWAY-DOMAIN' && value !== 'null'))];
-const allowedOriginSuffixes = env => String(env.APP_ORIGIN_SUFFIXES || '').split(',').map(value => value.trim().toLowerCase()).filter(value => /^\\.[a-z0-9.-]+$/.test(value));
+const allowedOriginSuffixes = env => String(env.APP_ORIGIN_SUFFIXES || '').split(',').map(value => value.trim().toLowerCase()).filter(value => /^\.[a-z0-9.-]+$/.test(value));
 const isAllowedOrigin = (env, origin) => {
   if (corsOrigins(env).includes(origin)) return true;
   try {
