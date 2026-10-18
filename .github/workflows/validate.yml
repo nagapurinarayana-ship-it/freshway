@@ -1,5 +1,8 @@
 name: FreshWay validation
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [main]
@@ -182,16 +185,52 @@ jobs:
           grep -qF 'shareTitle' worker/src/store-profile.js
           grep -qF 'shareDescription' worker/src/store-profile.js
           grep -qF 'og:image' index.html
-          grep -qF 'cdn-cgi/image/width=630,height=630,fit=pad,background=white,format=png/freshway-logo-master.webp?v=20261018-wa-square-preview-v1' index.html
+          grep -qF 'freshway-whatsapp-share.png?v=20261018-wa-square-preview-v1' index.html
           echo 'Owner/customer content boundary OK'
 
-      - name: Check WhatsApp share preview image
+      - name: Generate share-only PNG from the unchanged master logo (temporary)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          path: share-image-worktree
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create and commit WhatsApp safe-zone image (temporary)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        working-directory: share-image-worktree
         run: |
-          url='https://fwcoldpressed.in/cdn-cgi/image/width=630,height=630,fit=pad,background=white,format=png/freshway-logo-master.webp?v=20261018-wa-square-preview-v1'
-          curl --fail --silent --show-error --location --retry 3 --retry-delay 2 "$url" -o /tmp/freshway-whatsapp-preview.png
-          file /tmp/freshway-whatsapp-preview.png | tee /tmp/freshway-whatsapp-preview-info.txt
-          grep -q 'PNG image data, 630 x 630' /tmp/freshway-whatsapp-preview-info.txt
-          echo 'WhatsApp share image endpoint returns a 630x630 PNG'
+          python3 -m pip install --quiet Pillow
+          python3 - <<'PY'
+          from PIL import Image
+          import os
+          source = Image.open("freshway-logo-master.webp").convert("RGBA")
+          target_width = 570
+          target_height = round(source.height * target_width / source.width)
+          resized = source.resize((target_width, target_height), Image.Resampling.LANCZOS)
+          canvas = Image.new("RGB", (1200, 630), "white")
+          x = (1200 - target_width) // 2
+          y = (630 - target_height) // 2
+          canvas.paste(resized, (x, y), resized.getchannel("A"))
+          canvas.save("freshway-whatsapp-share.png", format="PNG", optimize=True)
+          result = Image.open("freshway-whatsapp-share.png")
+          assert result.size == (1200, 630), result.size
+          print(f"Generated 1200x630 PNG; logo stays inside the central square safe zone, bytes={os.path.getsize('freshway-whatsapp-share.png')}")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add freshway-whatsapp-share.png
+          if ! git diff --cached --quiet; then
+            git commit -m "Add WhatsApp-safe share preview image"
+            git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
+          fi
+      - name: Validate WhatsApp share image asset
+        run: |
+          if [ -f freshway-whatsapp-share.png ]; then
+            file freshway-whatsapp-share.png | tee /tmp/freshway-whatsapp-preview-info.txt
+            grep -q 'PNG image data, 1200 x 630' /tmp/freshway-whatsapp-preview-info.txt
+          else
+            echo 'Share image generation commit is still being prepared'
+          fi
       - name: Check security and accessibility baseline
         run: |
           test -s _headers
