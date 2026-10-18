@@ -237,7 +237,8 @@ async function updateOrder(env,id,payload){
   }
   statements.push(env.DB.prepare(`UPDATE orders SET ${sets.join(',')} WHERE id=? AND delivery_status IS ? AND payment_status IS ? AND delivery_plan IS ? AND is_test_order=?`).bind(...params,...whereParams));
   try{const batchResult=await env.DB.batch(statements);const updateResult=batchResult?.[batchResult.length-1];if(!updateResult?.meta?.changes)throw new Error('Order changed by another admin. Refresh and try again.')}catch(error){if(/stock_quantity/i.test(error?.message||''))throw new Error('Stock could not be restored safely. Refresh and try again.');throw error}
-  if(!testClassificationChanged&&((status&&status!==current.delivery_status)||(payment&&payment!==current.payment_status)||(deliveryPlan&&deliveryPlan!==current.delivery_plan))){
+  const classificationOnlyChange=testClassificationChanged&&!status&&!payment&&!deliveryPlan;
+  if(!classificationOnlyChange&&((status&&status!==current.delivery_status)||(payment&&payment!==current.payment_status)||(deliveryPlan&&deliveryPlan!==current.delivery_plan))){
     let text;
     if(status&&status!==current.delivery_status)text=status==='Processing'?`Order ${id} is now being prepared.`:status==='Ready'?`Order ${id} is ready for delivery.`:status==='Out for Delivery'?`Order ${id} is out for delivery.`:status==='Delivered'?`Order ${id} has been delivered.`:status==='Cancelled'?`Order ${id} has been cancelled.`:status==='Confirmed'?`Order ${id} has been confirmed.`:`Order ${id} status is ${status}.`;
     else if(payment&&payment!==current.payment_status)text=payment==='Collected'?`Payment for order ${id} has been collected.`:payment==='Refunded'?`Payment for order ${id} has been refunded.`:`Payment for order ${id} is ${payment.toLowerCase()}.`;
