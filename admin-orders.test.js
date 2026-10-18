@@ -20,7 +20,7 @@ assert.match(css,/\.order-advanced-filters/);
 assert.match(css,/grid-template-columns:1fr 1fr/);
 assert.match(css,/@media\(max-width:480px\)/);
 
-assert.match(js,/function orderFilterState/);
+assert.match(html,/id="liveOrdersTab"/);assert.match(html,/id="testOrdersTab"/);assert.match(js,/testOrders:testOrderMode/);assert.match(js,/data-test-order-toggle/);assert.match(js,/function orderFilterState/);
 assert.match(js,/function validateOrderFilters/);
 assert.match(js,/orderAdvancedFilters/);
 assert.match(js,/orderAdvancedCount/);
