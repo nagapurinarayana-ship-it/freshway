@@ -9,8 +9,8 @@ const env = {
   APP_ORIGIN: ROOT,
   APP_ORIGINS: `${ROOT},${PAGES}`,
   ADMIN_TOKEN: 'fixture-admin',
-  CUSTOMER_SESSION_SECRET: 'fixture-customer-session',
-  ADMIN_SESSION_SECRET: 'fixture-admin-session',
+  CUSTOMER_SESSION_SECRET: 'test-customer',
+  ADMIN_SESSION_SECRET: 'test-admin',
   DB: { prepare() { throw new Error('DB must not be touched by origin/CORS tests'); } }
 };
 
