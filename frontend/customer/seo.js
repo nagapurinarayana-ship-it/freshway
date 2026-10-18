@@ -3,7 +3,7 @@ const FreshWaySeo=(()=>{
   const publicTitle='FreshWay | Fresh Groceries & Everyday Essentials Delivered Locally';
   const publicDescription='Shop fresh fruits, groceries and everyday essentials from FreshWay. Order online for local delivery with convenient cash payment.';
   const brandLogo=siteUrl+'freshway-logo-master.webp?v=20261008-master-v1';
-  const publicImage=siteUrl+'cdn-cgi/image/width=630,height=630,fit=pad,background=white,format=png/freshway-logo-master.webp?v=20261018-wa-square-preview-v1';
+  const publicImage=siteUrl+'freshway-whatsapp-share.png?v=20261018-wa-square-preview-v1';
   const privateViews=new Set(['cart','checkout','orders','profile']);
 
   const upsert=(selector,attributes)=>{
