@@ -143,6 +143,67 @@ assert.equal(swResponse.headers.get('service-worker-allowed'), '/', 'service wor
 assert.match(sw, /const CACHE = 'freshway-v\d+'/);
 assert.match(sw, /const REQUIRED_SHELL = \[\s*'\/',\s*'\/index\.html'\s*\]/);
 
+
+async function verifyCustomDomain() {
+  const customBase = (process.env.CUSTOM_DOMAIN_URL || 'https://fwcoldpressed.in').replace(/\/$/, '');
+  const probe = \`__freshway_custom_domain_probe=\${Date.now()}\`;
+  const [homeResponse, adminResponse, swResponse] = await Promise.all([
+    fetchWithRetry(\`\${customBase}/?\${probe}\`, { cache: 'no-store' }),
+    fetchWithRetry(\`\${customBase}/admin.html?\${probe}\`, { cache: 'no-store' }),
+    fetchWithRetry(\`\${customBase}/sw.js?\${probe}\`, { cache: 'no-store' })
+  ]);
+
+  for (const [label, response] of [['custom-domain home', homeResponse], ['custom-domain Owner', adminResponse], ['custom-domain service worker', swResponse]]) {
+    assert.equal(response.status, 200, \`\${label} must return HTTP 200\`);
+    assert.match(response.headers.get('cache-control') || '', /no-store|no-cache/i, \`\${label} must not reuse a stale app shell\`);
+  }
+
+  const [homeHtml, adminHtml, sw] = await Promise.all([
+    homeResponse.text(), adminResponse.text(), swResponse.text()
+  ]);
+  assert.equal(new URL(homeResponse.url).origin, customBase, 'home must remain on the custom domain');
+  assert.match(homeHtml, /<link rel="canonical" href="https:\/\/fwcoldpressed\.in\/">/, 'custom-domain canonical URL must use the production domain');
+  assert.match(homeHtml, /property="og:url" content="https:\/\/fwcoldpressed\.in\//, 'Open Graph URL must use the production domain');
+  assert.match(homeHtml, /property="og:image" content="https:\/\/fwcoldpressed\.in\/freshway-whatsapp-share\.png\?v=[^"]+"/, 'WhatsApp share image must use the versioned custom-domain image');
+  assert.match(homeHtml, /name="twitter:image" content="https:\/\/fwcoldpressed\.in\/freshway-whatsapp-share\.png\?v=[^"]+"/, 'Twitter share image must use the same versioned custom-domain image');
+  assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/promotions.js?v=20261009-full-image-fit-v1', 'custom-domain home');
+  assertCurrentScriptReference(adminHtml, adminResponse.url, '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1', 'custom-domain Owner');
+  assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261009-full-image-fit-v1'), 'custom-domain service worker must cache the current promotion script');
+  assert.ok(sw.includes('/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1'), 'custom-domain service worker must cache the current Owner catalogue script');
+
+  const shareMatch = homeHtml.match(/property="og:image" content="([^"]+)"/);
+  assert.ok(shareMatch, 'custom-domain Open Graph image URL must exist');
+  const shareImageUrl = new URL(shareMatch[1], customBase);
+  assert.equal(shareImageUrl.origin, customBase, 'share image must not point to a different host');
+  const [shareImageResponse, healthResponse, productsResponse, categoriesResponse] = await Promise.all([
+    fetchWithRetry(shareImageUrl.href, { cache: 'no-store' }),
+    fetchWithRetry(\`\${customBase}/api/health\`, { cache: 'no-store' }),
+    fetchWithRetry(\`\${customBase}/api/products\`, { cache: 'no-store' }),
+    fetchWithRetry(\`\${customBase}/api/categories\`, { cache: 'no-store' })
+  ]);
+  assert.match(shareImageResponse.headers.get('content-type') || '', /^image\/png/i, 'WhatsApp share image must be served as PNG');
+  assert.ok((await shareImageResponse.arrayBuffer()).byteLength > 100, 'WhatsApp share image must contain image data');
+
+  const health = await healthResponse.json();
+  assert.equal(health.ok, true, 'custom-domain API health check must report ok');
+  assert.equal(health.service, 'freshway-api', 'custom-domain API must reach the FreshWay Worker');
+  const products = await productsResponse.json();
+  const categories = await categoriesResponse.json();
+  assert.ok(Array.isArray(products.products), 'custom-domain products API must return a products array');
+  assert.ok(Array.isArray(categories.categories), 'custom-domain categories API must return a categories array');
+
+  console.log('Custom production domain smoke OK');
+  console.log(JSON.stringify({
+    customBase,
+    apiHealth: health,
+    productsReturned: products.products.length,
+    categoriesReturned: categories.categories.length,
+    shareImage: shareImageUrl.pathname + shareImageUrl.search,
+    homeCacheControl: homeResponse.headers.get('cache-control'),
+    serviceWorkerCacheControl: swResponse.headers.get('cache-control')
+  }, null, 2));
+}
+
 await verifyCustomDomain();
 
 console.log('Live PWA smoke OK');
