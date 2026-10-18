@@ -165,7 +165,7 @@ jobs:
             'property="og:image:type" content="image/png"',
             'property="og:image:width" content="630"',
             'property="og:image:height" content="630"',
-            'property="og:image" content="https://fwcoldpressed.in/cdn-cgi/image/width=630,height=630,fit=pad,background=white,format=png/'
+            'property="og:image" content="https://fwcoldpressed.in/freshway-whatsapp-share.png?v=20261018-wa-square-preview-v1"'
           ]) {
             if (!html.includes(expected)) throw new Error('WhatsApp share image contract missing ' + expected);
           }
