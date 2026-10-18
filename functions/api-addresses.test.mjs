@@ -62,6 +62,7 @@ const boundResponse = await apiOnRequest({
     FRESHWAY_API: {
       fetch: async request => {
         assert.equal(new URL(request.url).hostname, 'feature-branch.freshway-f32.pages.dev');
+        assert.equal(request.headers.get('X-Freshway-Environment'), 'development');
         return Response.json({ ok: true, source: 'development-test-binding' });
       }
     }
