@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS customers (
   id TEXT PRIMARY KEY,
   name TEXT,
   phone TEXT,
+  passcode_salt TEXT,
+  passcode_hash TEXT,
   whatsapp_opt_in INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -179,6 +181,8 @@ CREATE INDEX IF NOT EXISTS idx_products_category_active ON products(category_id,
 CREATE INDEX IF NOT EXISTS idx_products_stock ON products(stock_managed,stock_quantity,active);
 CREATE INDEX IF NOT EXISTS idx_order_items_stock_reserved ON order_items(product_id,stock_reserved_qty);
 CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
+CREATE INDEX IF NOT EXISTS idx_customers_phone_passcode ON customers(phone);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_phone_unique ON customers(phone) WHERE phone IS NOT NULL AND phone <> '';
 CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(delivery_status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
