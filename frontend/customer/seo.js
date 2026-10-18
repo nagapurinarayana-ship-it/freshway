@@ -71,7 +71,7 @@ const FreshWaySeo=(()=>{
     upsert('meta[property="og:image"]',{property:'og:image',content:publicImage});
     upsert('meta[property="og:image:alt"]',{property:'og:image:alt',content:'FreshWay — Fresh groceries and everyday essentials delivered locally.'});
     upsert('meta[property="og:image:type"]',{property:'og:image:type',content:'image/png'});
-    upsert('meta[property="og:image:width"]',{property:'og:image:width',content:'630'});
+    upsert('meta[property="og:image:width"]',{property:'og:image:width',content:'1200'});
     upsert('meta[property="og:image:height"]',{property:'og:image:height',content:'630'});
     upsert('meta[property="og:locale"]',{property:'og:locale',content:'en_IN'});
     upsert('meta[name="twitter:card"]',{name:'twitter:card',content:'summary_large_image'});
