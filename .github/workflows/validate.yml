@@ -132,9 +132,9 @@ jobs:
         run: |
           test -s robots.txt
           test -s sitemap.xml
-          grep -qF 'Sitemap: https://freshway-f32.pages.dev/sitemap.xml' robots.txt
-          grep -qF '<loc>https://freshway-f32.pages.dev/</loc>' sitemap.xml
-          grep -qF 'rel="canonical" href="https://freshway-f32.pages.dev/"' index.html
+          grep -qF 'Sitemap: https://fwcoldpressed.in/sitemap.xml' robots.txt
+          grep -qF '<loc>https://fwcoldpressed.in/</loc>' sitemap.xml
+          grep -qF 'rel="canonical" href="https://fwcoldpressed.in/"' index.html
           grep -qF 'meta name="robots" content="index,follow' index.html
           grep -qF 'property="og:title"' index.html
           grep -qF 'property="og:description"' index.html
@@ -162,7 +162,7 @@ jobs:
           for (const required of ["'@type':'Organization'","'@type':'WebSite'","'@type':'WebPage'","noindex,follow","index,follow","publicImage","twitter:image"]) {
             if (!seo.includes(required)) throw new Error('SEO boundary is missing ' + required);
           }
-          if (!/<lastmod>2026-10-08<\/lastmod>/.test(fs.readFileSync('sitemap.xml','utf8'))) throw new Error('Homepage sitemap lastmod is missing');
+          if (!/<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/.test(fs.readFileSync('sitemap.xml','utf8'))) throw new Error('Homepage sitemap lastmod is missing');
           console.log('SEO and public crawler contract OK');
           NODE
 
@@ -174,7 +174,7 @@ jobs:
           grep -qF 'shareTitle' worker/src/store-profile.js
           grep -qF 'shareDescription' worker/src/store-profile.js
           grep -qF 'og:image' index.html
-          grep -qF 'freshway-f32.pages.dev/icons/icon-512.png' index.html
+          grep -qF 'freshway-logo-master.webp?v=20261018-wa-brand-preview-v1' index.html
           echo 'Owner/customer content boundary OK'
 
       - name: Check security and accessibility baseline
