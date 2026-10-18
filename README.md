@@ -96,7 +96,7 @@ Production and development have separate configuration and must never share cust
 - Production remains `https://fwcoldpressed.in` and uses `worker/wrangler.jsonc`, the production Worker `freshway-api`, and production D1 `freshway`.
 - Local development uses `worker/wrangler.dev.jsonc`, the local Worker name `freshway-api-dev`, and a separate local D1 store named `freshway-development`. Its placeholder database ID is for local simulation only; **do not deploy this config to Cloudflare as-is**.
 - `main` remains the production release branch. Work on a feature branch, test locally, open a pull request, wait for checks, then merge to `main` to trigger the production release.
-- Cloudflare Pages branch previews must set `FRESHWAY_ENVIRONMENT=development` and bind `FRESHWAY_API` to a dedicated development Worker backed by a dedicated development D1 database. If that development binding is absent, the preview API returns HTTP 503 instead of falling back to production.
+- In Cloudflare Pages settings, set the **Production** environment variable `FRESHWAY_ENVIRONMENT=production`; keep its existing `FRESHWAY_API` binding connected to `freshway-api`. Set the **Preview** environment variable `FRESHWAY_ENVIRONMENT=development` and bind `FRESHWAY_API` to a dedicated development Worker backed by a dedicated development D1 database. If a preview binding is missing, the preview API returns HTTP 503. If it is accidentally pointed at production, the environment marker causes production Worker requests to be rejected.
 - Production Worker CORS continues to reject branch-preview origins. Only the development Worker config permits `*.freshway-f32.pages.dev` origins.
 
 ### Run FreshWay locally
