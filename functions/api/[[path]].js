@@ -37,6 +37,7 @@ export async function onRequest(context) {
     ? (typeof body === 'string' ? new TextEncoder().encode(body).buffer : await context.request.clone().arrayBuffer())
     : null;
   const headers = new Headers(context.request.headers);
+  if (environment) headers.set('X-Freshway-Environment', environment);
   if (isAddressApi) headers.set('Accept', 'application/json');
 
   const buildRequest = target => new Request(target, {
