@@ -1,0 +1,26 @@
+{
+  "name": "freshway-api-dev",
+  "main": "src/admin-auth.js",
+  "compatibility_date": "2026-09-06",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "freshway-development",
+      "database_id": "00000000-0000-4000-8000-000000000001"
+    }
+  ],
+  "vars": {
+    "FRESHWAY_ENVIRONMENT": "development",
+    "APP_ORIGIN": "http://localhost:8788",
+    "APP_ORIGINS": "http://localhost:8788,http://127.0.0.1:8788,http://localhost:8787,http://127.0.0.1:8787",
+    "APP_ORIGIN_SUFFIXES": ".freshway-f32.pages.dev"
+  },
+  "secrets": {
+    "required": [
+      "ADMIN_TOKEN",
+      "CUSTOMER_SESSION_SECRET",
+      "ADMIN_SESSION_SECRET"
+    ]
+  }
+}

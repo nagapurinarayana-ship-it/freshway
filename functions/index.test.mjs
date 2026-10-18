@@ -8,10 +8,11 @@ const html = `<!doctype html><html><head>
 <meta name="twitter:description" content="Fresh groceries">
 </head><body>FreshWay</body></html>`;
 
-function makeContext(method = 'GET') {
+function makeContext(method = 'GET', hostname = 'freshway-f32.pages.dev', environment = '') {
   return {
-    request: new Request('https://freshway-f32.pages.dev/', { method }),
+    request: new Request(`https://${hostname}/`, { method }),
     env: {
+      ...(environment ? { FRESHWAY_ENVIRONMENT: environment } : {}),
       ASSETS: {
         fetch: async request => {
           assert.equal(
@@ -32,6 +33,7 @@ function makeContext(method = 'GET') {
       FRESHWAY_API: {
         fetch: async request => {
           assert.equal(new URL(request.url).pathname, '/api/store-profile');
+          if (environment) assert.equal(request.headers.get('X-Freshway-Environment'), environment);
           return new Response(JSON.stringify({
             storeProfile: {
               shareTitle: 'FreshWay store sharing title',
@@ -67,3 +69,12 @@ for (const method of ['GET', 'HEAD']) {
 }
 
 console.log('Homepage dynamic metadata cache policy regression contract OK');
+
+const unconfiguredPreview = await onRequest(makeContext('GET', 'feature-branch.freshway-f32.pages.dev'));
+assert.equal(unconfiguredPreview.status, 200);
+assert.doesNotMatch(await unconfiguredPreview.text(), /FreshWay store sharing title/);
+
+const developmentPreview = await onRequest(makeContext('GET', 'feature-branch.freshway-f32.pages.dev', 'development'));
+assert.equal(developmentPreview.status, 200);
+assert.match(await developmentPreview.text(), /FreshWay store sharing title/);
+console.log('development preview metadata stays on its bound environment');

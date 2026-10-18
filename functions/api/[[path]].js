@@ -1,6 +1,7 @@
 export async function onRequest(context) {
   const binding = context.env.FRESHWAY_API;
   const fallbackOrigin = 'https://freshway-api.all-in-one-all.workers.dev';
+  const productionHosts = new Set(['fwcoldpressed.in', 'www.fwcoldpressed.in', 'freshway-f32.pages.dev']);
 
   // Keep the same request path while supporting both the configured Pages
   // service binding and the production Worker URL as a safe fallback.
@@ -8,6 +9,8 @@ export async function onRequest(context) {
   // browser so cached clients cannot receive the Pages HTML shell and then
   // fail with "Unexpected token '<'" while parsing the response as JSON.
   const incoming = new URL(context.request.url);
+  const isProductionHost = productionHosts.has(incoming.hostname.toLowerCase());
+  const environment = String(context.env.FRESHWAY_ENVIRONMENT || '').trim().toLowerCase();
   let targetPath = incoming.pathname;
   let method = context.request.method;
   let body = context.request.body;
@@ -34,6 +37,7 @@ export async function onRequest(context) {
     ? (typeof body === 'string' ? new TextEncoder().encode(body).buffer : await context.request.clone().arrayBuffer())
     : null;
   const headers = new Headers(context.request.headers);
+  if (environment) headers.set('X-Freshway-Environment', environment);
   if (isAddressApi) headers.set('Accept', 'application/json');
 
   const buildRequest = target => new Request(target, {
@@ -57,6 +61,15 @@ export async function onRequest(context) {
     }
   });
 
+  // Preview and local deployments must explicitly opt into the development environment.
+  // Never infer a production API target from a missing service binding.
+  if (!isProductionHost && environment !== 'development') {
+    return jsonError('This preview environment is not configured for development API access.', 503);
+  }
+  if (!isProductionHost && (!binding || typeof binding.fetch !== 'function')) {
+    return jsonError('The development API service binding is not configured.', 503);
+  }
+
   if (binding && typeof binding.fetch === 'function') {
     try {
       const primaryResponse = await binding.fetch(buildRequest(targetUrl.toString()));
@@ -72,6 +85,12 @@ export async function onRequest(context) {
     } catch (_) {
       if (!isAddressApi && !isStoreProfileApi) throw _;
     }
+  }
+
+  // Fail closed on every non-production host, including when a development binding
+  // fails or returns an unexpected response. Do not fall back to live customer data.
+  if (!isProductionHost) {
+    return jsonError('Development API unavailable; production fallback is disabled for this host.', 503);
   }
 
   const target = new URL(targetUrl.toString());
