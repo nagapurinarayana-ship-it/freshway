@@ -146,16 +146,16 @@ assert.match(sw, /const REQUIRED_SHELL = \[\s*'\/',\s*'\/index\.html'\s*\]/);
 
 async function verifyCustomDomain() {
   const customBase = (process.env.CUSTOM_DOMAIN_URL || 'https://fwcoldpressed.in').replace(/\/$/, '');
-  const probe = \`__freshway_custom_domain_probe=\${Date.now()}\`;
+  const probe = `__freshway_custom_domain_probe=${Date.now()}`;
   const [homeResponse, adminResponse, swResponse] = await Promise.all([
-    fetchWithRetry(\`\${customBase}/?\${probe}\`, { cache: 'no-store' }),
-    fetchWithRetry(\`\${customBase}/admin.html?\${probe}\`, { cache: 'no-store' }),
-    fetchWithRetry(\`\${customBase}/sw.js?\${probe}\`, { cache: 'no-store' })
+    fetchWithRetry(`${customBase}/?${probe}`, { cache: 'no-store' }),
+    fetchWithRetry(`${customBase}/admin.html?${probe}`, { cache: 'no-store' }),
+    fetchWithRetry(`${customBase}/sw.js?${probe}`, { cache: 'no-store' })
   ]);
 
   for (const [label, response] of [['custom-domain home', homeResponse], ['custom-domain Owner', adminResponse], ['custom-domain service worker', swResponse]]) {
-    assert.equal(response.status, 200, \`\${label} must return HTTP 200\`);
-    assert.match(response.headers.get('cache-control') || '', /no-store|no-cache/i, \`\${label} must not reuse a stale app shell\`);
+    assert.equal(response.status, 200, `${label} must return HTTP 200`);
+    assert.match(response.headers.get('cache-control') || '', /no-store|no-cache/i, `${label} must not reuse a stale app shell`);
   }
 
   const [homeHtml, adminHtml, sw] = await Promise.all([
@@ -177,9 +177,9 @@ async function verifyCustomDomain() {
   assert.equal(shareImageUrl.origin, customBase, 'share image must not point to a different host');
   const [shareImageResponse, healthResponse, productsResponse, categoriesResponse] = await Promise.all([
     fetchWithRetry(shareImageUrl.href, { cache: 'no-store' }),
-    fetchWithRetry(\`\${customBase}/api/health\`, { cache: 'no-store' }),
-    fetchWithRetry(\`\${customBase}/api/products\`, { cache: 'no-store' }),
-    fetchWithRetry(\`\${customBase}/api/categories\`, { cache: 'no-store' })
+    fetchWithRetry(`${customBase}/api/health`, { cache: 'no-store' }),
+    fetchWithRetry(`${customBase}/api/products`, { cache: 'no-store' }),
+    fetchWithRetry(`${customBase}/api/categories`, { cache: 'no-store' })
   ]);
   assert.match(shareImageResponse.headers.get('content-type') || '', /^image\/png/i, 'WhatsApp share image must be served as PNG');
   assert.ok((await shareImageResponse.arrayBuffer()).byteLength > 100, 'WhatsApp share image must contain image data');
