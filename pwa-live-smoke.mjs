@@ -143,6 +143,8 @@ assert.equal(swResponse.headers.get('service-worker-allowed'), '/', 'service wor
 assert.match(sw, /const CACHE = 'freshway-v\d+'/);
 assert.match(sw, /const REQUIRED_SHELL = \[\s*'\/',\s*'\/index\.html'\s*\]/);
 
+await verifyCustomDomain();
+
 console.log('Live PWA smoke OK');
 console.log(JSON.stringify({
   base,
