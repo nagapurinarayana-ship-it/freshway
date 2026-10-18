@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { onRequest as apiOnRequest } from './api/[[path]].js';
 
 const productionPath = fileURLToPath(new URL('./api/[[path]].js', import.meta.url));
 const production = readFileSync(productionPath, 'utf8');
@@ -29,6 +30,60 @@ assert.match(addressUi, /Address service returned invalid data/);
 assert.equal((addressUi.match(/await readJsonResponse\(r\)/g) || []).length, 4);
 
 console.log('address API JSON-boundary regression contract OK');
+
+assert.match(production, /const productionHosts = new Set/);
+assert.match(production, /environment !== 'development'/);
+assert.match(production, /production fallback is disabled for this host/);
+
+// Preview deployments must fail closed without ever choosing the production API fallback.
+const previewRequest = new Request('https://feature-branch.freshway-f32.pages.dev/api/health');
+const missingEnvironment = await apiOnRequest({
+  request: previewRequest,
+  env: {},
+  next: async () => new Response('next')
+});
+assert.equal(missingEnvironment.status, 503);
+assert.match((await missingEnvironment.json()).error, /not configured for development/i);
+
+// Even after opting into development, a missing service binding is an error, not a production fallback.
+const missingBinding = await apiOnRequest({
+  request: previewRequest,
+  env: { FRESHWAY_ENVIRONMENT: 'development' },
+  next: async () => new Response('next')
+});
+assert.equal(missingBinding.status, 503);
+assert.match((await missingBinding.json()).error, /development API service binding/i);
+
+// A configured binding is the only upstream used by a preview.
+const boundResponse = await apiOnRequest({
+  request: previewRequest,
+  env: {
+    FRESHWAY_ENVIRONMENT: 'development',
+    FRESHWAY_API: {
+      fetch: async request => {
+        assert.equal(new URL(request.url).hostname, 'feature-branch.freshway-f32.pages.dev');
+        return Response.json({ ok: true, source: 'development-test-binding' });
+      }
+    }
+  },
+  next: async () => new Response('next')
+});
+assert.equal(boundResponse.status, 200);
+assert.deepEqual(await boundResponse.json(), { ok: true, source: 'development-test-binding' });
+
+// If the development binding returns a non-JSON address response, it still must not hit production.
+const badBoundResponse = await apiOnRequest({
+  request: new Request('https://feature-branch.freshway-f32.pages.dev/api/addresses', { method: 'GET' }),
+  env: {
+    FRESHWAY_ENVIRONMENT: 'development',
+    FRESHWAY_API: { fetch: async () => new Response('<html>wrong upstream</html>', { headers: { 'content-type': 'text/html' } }) }
+  },
+  next: async () => new Response('next')
+});
+assert.equal(badBoundResponse.status, 503);
+
+console.log('preview-to-production API isolation contract OK');
+
 
 assert.match(workerAuth, /addressMatch/);
 assert.match(production, /deleteAlias/);
