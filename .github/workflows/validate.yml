@@ -158,6 +158,14 @@ jobs:
           const html = fs.readFileSync('index.html','utf8');
           const schema = html.includes('application/ld+json');
           if (!schema) throw new Error('Homepage JSON-LD bootstrap is missing');
+          for (const expected of [
+            'property="og:image:type" content="image/png"',
+            'property="og:image:width" content="1200"',
+            'property="og:image:height" content="630"',
+            'property="og:image" content="https://fwcoldpressed.in/freshway-whatsapp-share.png?v=20261018-wa-square-preview-v1"'
+          ]) {
+            if (!html.includes(expected)) throw new Error('WhatsApp share image contract missing ' + expected);
+          }
           const seo = fs.readFileSync('frontend/customer/seo.js','utf8');
           for (const required of ["'@type':'Organization'","'@type':'WebSite'","'@type':'WebPage'","noindex,follow","index,follow","publicImage","twitter:image"]) {
             if (!seo.includes(required)) throw new Error('SEO boundary is missing ' + required);
@@ -174,9 +182,14 @@ jobs:
           grep -qF 'shareTitle' worker/src/store-profile.js
           grep -qF 'shareDescription' worker/src/store-profile.js
           grep -qF 'og:image' index.html
-          grep -qF 'freshway-logo-master.webp?v=20261018-wa-brand-preview-v1' index.html
+          grep -qF 'freshway-whatsapp-share.png?v=20261018-wa-square-preview-v1' index.html
           echo 'Owner/customer content boundary OK'
 
+      - name: Validate WhatsApp share image asset
+        run: |
+          test -s freshway-whatsapp-share.png
+          file freshway-whatsapp-share.png | tee /tmp/freshway-whatsapp-preview-info.txt
+          grep -q 'PNG image data, 1200 x 630' /tmp/freshway-whatsapp-preview-info.txt
       - name: Check security and accessibility baseline
         run: |
           test -s _headers
