@@ -3,6 +3,8 @@ name: FreshWay live PWA smoke
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -15,4 +17,5 @@ jobs:
       - name: Wait for production deployment
         env:
           BASE_URL: https://freshway-f32.pages.dev
+          CUSTOM_DOMAIN_URL: https://fwcoldpressed.in
         run: node pwa-live-smoke.mjs
