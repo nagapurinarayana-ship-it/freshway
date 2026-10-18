@@ -1,8 +1,8 @@
 const FreshWaySeo=(()=>{
-  const siteUrl='https://freshway-f32.pages.dev/';
+  const siteUrl='https://fwcoldpressed.in/';
   const publicTitle='FreshWay | Fresh Groceries & Everyday Essentials Delivered Locally';
   const publicDescription='Shop fresh fruits, groceries and everyday essentials from FreshWay. Order online for local delivery with convenient cash payment.';
-  const publicImage=siteUrl+'icons/icon-512.png';
+  const publicImage=siteUrl+'freshway-logo-master.webp?v=20261018-wa-brand-preview-v1';
   const privateViews=new Set(['cart','checkout','orders','profile']);
 
   const upsert=(selector,attributes)=>{
