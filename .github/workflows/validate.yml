@@ -328,6 +328,28 @@ jobs:
       - name: Check Worker configuration
         working-directory: worker
         run: node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); const required=['ADMIN_TOKEN','CUSTOMER_SESSION_SECRET','ADMIN_SESSION_SECRET']; if(!x.name||!x.main||!x.d1_databases?.[0]?.binding||x.main!=='src/admin-auth.js'||required.some(s=>!x.secrets?.required?.includes(s))||x.vars?.OTP_PROVIDER||x.secrets?.optional?.length) process.exit(1); console.log('wrangler configuration OK')"
+      - name: Check development and production isolation
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const prod = JSON.parse(fs.readFileSync('worker/wrangler.jsonc', 'utf8'));
+          const dev = JSON.parse(fs.readFileSync('worker/wrangler.dev.jsonc', 'utf8'));
+          const fail = message => { console.error(message); process.exit(1); };
+          if (dev.name !== 'freshway-api-dev' || dev.name === prod.name) fail('Development Worker name must be separate from production.');
+          if (dev.d1_databases?.[0]?.binding !== 'DB' || dev.d1_databases[0].database_name !== 'freshway-development') fail('Development D1 must use the separate freshway-development name.');
+          if (dev.d1_databases[0].database_id === prod.d1_databases?.[0]?.database_id || dev.d1_databases[0].database_id === '4b645f26-12ad-4805-bf22-12186122ad3a' ) fail('Development config must never reference production D1.');
+          if (dev.vars?.FRESHWAY_ENVIRONMENT !== 'development') fail('Development environment marker is missing.');
+          if (!String(dev.vars?.APP_ORIGIN_SUFFIXES || '').includes('.freshway-f32.pages.dev')) fail('Development preview origin suffix is missing.');
+          if (prod.vars?.APP_ORIGIN_SUFFIXES) fail('Production Worker must not permit preview origin suffixes.');
+          const proxy = fs.readFileSync('functions/api/[[path]].js', 'utf8');
+          if (!proxy.includes('if (!isProductionHost && environment !== \'development\')')) fail('Preview environment must opt into development explicitly.');
+          if (!proxy.includes('if (!isProductionHost && (!binding || typeof binding.fetch !== \'function\'))')) fail('Preview API must fail closed when its development binding is missing.');
+          if (!proxy.includes('if (!isProductionHost) {')) fail('Preview API must not use the production fallback.');
+          const schema = fs.readFileSync('worker/schema.sql', 'utf8');
+          if (!schema.includes('passcode_salt TEXT') || !schema.includes('passcode_hash TEXT') || !schema.includes('idx_customers_phone_unique')) fail('Development schema baseline is behind customer authentication.');
+          console.log('Development/production isolation contract OK');
+          NODE
+
       - name: Check for committed secret values
         run: |
           ! grep -RInE '(WHATSAPP_ACCESS_TOKEN|VAPID_PRIVATE_KEY|ADMIN_TOKEN|CUSTOMER_SESSION_SECRET|ADMIN_SESSION_SECRET|TWILIO_ACCOUNT_SID|TWILIO_AUTH_TOKEN|TWILIO_VERIFY_SERVICE_SID)[[:space:]]*[:=][[:space:]]*[^$\"\047[:space:]]{20,}' --exclude-dir=.git --exclude='api.test.js' --exclude='secure-identity.test.js' .
