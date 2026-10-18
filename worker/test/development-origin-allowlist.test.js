@@ -5,6 +5,7 @@ import production from '../src/admin-auth.js';
 
 const PREVIEW = 'https://feature-branch.freshway-f32.pages.dev';
 const DEV_ENV = {
+  FRESHWAY_ENVIRONMENT: 'development',
   APP_ORIGIN: 'http://localhost:8788',
   APP_ORIGINS: 'http://localhost:8788,http://127.0.0.1:8788,http://localhost:8787,http://127.0.0.1:8787',
   APP_ORIGIN_SUFFIXES: '.freshway-f32.pages.dev',
