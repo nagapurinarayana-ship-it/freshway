@@ -46,6 +46,26 @@ test('preview suffix matching rejects lookalike, bare production and non-HTTPS o
   }
 });
 
+test('production Worker rejects an explicit development environment marker even without an Origin header', async () => {
+  const productionEnv = { ...DEV_ENV, FRESHWAY_ENVIRONMENT: 'production' };
+  delete productionEnv.APP_ORIGIN_SUFFIXES;
+  const request = new Request('https://freshway-api.all-in-one-all.workers.dev/api/health', {
+    headers: { 'X-Freshway-Environment': 'development' }
+  });
+  const response = await production.fetch(request, productionEnv, {});
+  assert.equal(response.status, 403);
+  assert.match((await response.json()).error, /environment mismatch/i);
+});
+
+test('development Worker rejects a production environment marker', async () => {
+  const request = new Request('https://freshway-api-dev.workers.dev/api/health', {
+    headers: { 'X-Freshway-Environment': 'production' }
+  });
+  const response = await production.fetch(request, DEV_ENV, {});
+  assert.equal(response.status, 403);
+  assert.match((await response.json()).error, /environment mismatch/i);
+});
+
 test('production Worker still rejects branch-preview origins', async () => {
   const productionEnv = {
     ...DEV_ENV,
