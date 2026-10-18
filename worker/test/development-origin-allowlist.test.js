@@ -10,8 +10,8 @@ const DEV_ENV = {
   APP_ORIGINS: 'http://localhost:8788,http://127.0.0.1:8788,http://localhost:8787,http://127.0.0.1:8787',
   APP_ORIGIN_SUFFIXES: '.freshway-f32.pages.dev',
   ADMIN_TOKEN: 'fixture-admin',
-  CUSTOMER_SESSION_SECRET: 'fixture-customer-session',
-  ADMIN_SESSION_SECRET: 'fixture-admin-session',
+  CUSTOMER_SESSION_SECRET: 'test-customer',
+  ADMIN_SESSION_SECRET: 'test-admin',
   DB: { prepare() { throw new Error('Database must not be touched by origin/CORS tests'); } }
 };
 
