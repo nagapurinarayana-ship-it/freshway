@@ -70,6 +70,10 @@ for (const method of ['GET', 'HEAD']) {
 
 console.log('Homepage dynamic metadata cache policy regression contract OK');
 
+const unconfiguredPreview = await onRequest(makeContext('GET', 'feature-branch.freshway-f32.pages.dev'));
+assert.equal(unconfiguredPreview.status, 200);
+assert.doesNotMatch(await unconfiguredPreview.text(), /FreshWay store sharing title/);
+
 const developmentPreview = await onRequest(makeContext('GET', 'feature-branch.freshway-f32.pages.dev', 'development'));
 assert.equal(developmentPreview.status, 200);
 assert.match(await developmentPreview.text(), /FreshWay store sharing title/);
