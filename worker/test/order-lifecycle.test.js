@@ -87,4 +87,15 @@ test('owner order endpoint applies pagination and legacy payment filter normaliz
   assert.equal(data.pagination.total,2);
   assert.equal(data.orders[0].payment,'Not Collected');
   assert.ok(calls.some(sql=>sql.includes('payment_status=?')));
+  assert.ok(calls.some(sql=>sql.includes('o.is_test_order=0')));
+
+  const testResponse=await handler.fetch(
+    new Request('https://api.example.test/api/admin/orders?page=1&limit=1&testOrders=1',{
+      headers:{'X-Freshway-Admin-Token':'fixture-admin'}
+    }),
+    env,
+    {}
+  );
+  assert.equal(testResponse.status,200);
+  assert.ok(calls.some(sql=>sql.includes('o.is_test_order=1')));
 });

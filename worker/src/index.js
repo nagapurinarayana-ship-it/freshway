@@ -179,6 +179,8 @@ async function adminOrders(env,url){
   const sort=String(url?.searchParams.get('sort')||'newest').trim();
   const where=[],binds=[];
   const add=(sql,...values)=>{where.push(sql);binds.push(...values)};
+  const testOrders=url?.searchParams.get('testOrders')==='1';
+  add(testOrders?'o.is_test_order=1':'o.is_test_order=0');
   if(search){
     const like=`%${search}%`;
     add('(o.id LIKE ? OR o.customer_name LIKE ? OR o.customer_phone LIKE ? OR a.house LIKE ? OR a.area LIKE ? OR a.city LIKE ? OR a.pincode LIKE ?)',like,like,like,like,like,like,like);
@@ -202,44 +204,48 @@ async function adminOrders(env,url){
   const totalRow=await env.DB.prepare(`SELECT COUNT(*) total FROM orders o JOIN addresses a ON a.id=o.address_id${clause}`).bind(...binds).first();
   const total=Number(totalRow?.total||0);
   const offset=(page-1)*limit;
-  const {results:orderRows}=await env.DB.prepare(`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.payment_collected_at,a.house,a.area,a.city,a.pincode,a.landmark,a.note FROM orders o JOIN addresses a ON a.id=o.address_id${clause} ORDER BY ${sortSql} LIMIT ? OFFSET ?`).bind(...binds,limit,offset).all();
+  const {results:orderRows}=await env.DB.prepare(`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.is_test_order,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.payment_collected_at,a.house,a.area,a.city,a.pincode,a.landmark,a.note FROM orders o JOIN addresses a ON a.id=o.address_id${clause} ORDER BY ${sortSql} LIMIT ? OFFSET ?`).bind(...binds,limit,offset).all();
   const rows=orderRows||[];
   if(!rows.length)return {orders:[],pagination:{page,limit,total,pages:Math.ceil(total/limit)}};
   const ids=rows.map(x=>x.id),placeholders=ids.map(()=>'?').join(',');
   const {results:itemRows}=await env.DB.prepare(`SELECT order_id,product_id,name,unit,qty,price,line_total FROM order_items WHERE order_id IN (${placeholders}) ORDER BY order_id,id ASC`).bind(...ids).all();
   const itemMap=new Map(ids.map(id=>[id,[]]));
   for(const item of itemRows||[])itemMap.get(item.order_id)?.push({id:item.product_id,name:item.name,unit:item.unit,qty:item.qty,price:item.price,lineTotal:item.line_total});
-  const orders=rows.map(r=>({id:r.id,customer:{name:r.customer_name,phone:r.customer_phone},address:{house:r.house,area:r.area,city:r.city,pincode:r.pincode,landmark:r.landmark,note:r.note},items:itemMap.get(r.id)||[],total:r.total,payment:r.payment_status,status:r.delivery_status,deliveryPlan:r.delivery_plan,createdAt:r.created_at,updatedAt:r.updated_at,paymentCollectedAt:r.payment_collected_at}));
+  const orders=rows.map(r=>({id:r.id,isTestOrder:Number(r.is_test_order)===1,customer:{name:r.customer_name,phone:r.customer_phone},address:{house:r.house,area:r.area,city:r.city,pincode:r.pincode,landmark:r.landmark,note:r.note},items:itemMap.get(r.id)||[],total:r.total,payment:r.payment_status,status:r.delivery_status,deliveryPlan:r.delivery_plan,createdAt:r.created_at,updatedAt:r.updated_at,paymentCollectedAt:r.payment_collected_at}));
   return {orders,pagination:{page,limit,total,pages:Math.ceil(total/limit)}};
 }
-
 async function updateOrder(env,id,payload){
-  const {results}=await env.DB.prepare('SELECT delivery_status,payment_status,delivery_plan,customer_id FROM orders WHERE id=?').bind(id).all();
+  const {results}=await env.DB.prepare('SELECT delivery_status,payment_status,delivery_plan,customer_id,is_test_order FROM orders WHERE id=?').bind(id).all();
   const current=results?.[0];
   if(!current)throw new Error('Order not found.');
   const {status,payment,deliveryPlan}=validateOrderPatch(current,payload);
+  const hasTestFlag=typeof payload.isTestOrder==='boolean';
+  const nextTestFlag=hasTestFlag?(payload.isTestOrder?1:0):Number(current.is_test_order||0);
+  const testClassificationChanged=hasTestFlag&&nextTestFlag!==Number(current.is_test_order||0);
   const sets=[],params=[];
   if(status){sets.push('delivery_status=?');params.push(status)}
   if(payment){sets.push('payment_status=?');params.push(payment);if(payment==='Collected')sets.push('payment_collected_at=CURRENT_TIMESTAMP')}
   if(deliveryPlan){sets.push('delivery_plan=?');params.push(deliveryPlan)}
+  if(testClassificationChanged){sets.push('is_test_order=?');params.push(nextTestFlag)}
   if(!sets.length)throw new Error('No order change supplied.');
   sets.push('updated_at=CURRENT_TIMESTAMP');
-  const whereParams=[id,current.delivery_status,current.payment_status,current.delivery_plan];
+  const whereParams=[id,current.delivery_status,current.payment_status,current.delivery_plan,Number(current.is_test_order||0)];
   const statements=[];
   if(status==='Cancelled'&&status!==current.delivery_status){
     const {results:reserved}=await env.DB.prepare('SELECT product_id,SUM(stock_reserved_qty) stock_reserved_qty FROM order_items WHERE order_id=? AND stock_reserved_qty>0 GROUP BY product_id').bind(id).all();
     statements.push(...(reserved||[]).map(item=>env.DB.prepare('UPDATE products SET stock_quantity=stock_quantity+? WHERE id=?').bind(Number(item.stock_reserved_qty),item.product_id)));
   }
-  statements.push(env.DB.prepare(`UPDATE orders SET ${sets.join(',')} WHERE id=? AND delivery_status=? AND payment_status=? AND delivery_plan=?`).bind(...params,...whereParams));
+  statements.push(env.DB.prepare(`UPDATE orders SET ${sets.join(',')} WHERE id=? AND delivery_status IS ? AND payment_status IS ? AND delivery_plan IS ? AND is_test_order=?`).bind(...params,...whereParams));
   try{const batchResult=await env.DB.batch(statements);const updateResult=batchResult?.[batchResult.length-1];if(!updateResult?.meta?.changes)throw new Error('Order changed by another admin. Refresh and try again.')}catch(error){if(/stock_quantity/i.test(error?.message||''))throw new Error('Stock could not be restored safely. Refresh and try again.');throw error}
-  if((status&&status!==current.delivery_status)||(payment&&payment!==current.payment_status)||(deliveryPlan&&deliveryPlan!==current.delivery_plan)){
+  const classificationOnlyChange=testClassificationChanged&&!status&&!payment&&!deliveryPlan;
+  if(!classificationOnlyChange&&((status&&status!==current.delivery_status)||(payment&&payment!==current.payment_status)||(deliveryPlan&&deliveryPlan!==current.delivery_plan))){
     let text;
     if(status&&status!==current.delivery_status)text=status==='Processing'?`Order ${id} is now being prepared.`:status==='Ready'?`Order ${id} is ready for delivery.`:status==='Out for Delivery'?`Order ${id} is out for delivery.`:status==='Delivered'?`Order ${id} has been delivered.`:status==='Cancelled'?`Order ${id} has been cancelled.`:status==='Confirmed'?`Order ${id} has been confirmed.`:`Order ${id} status is ${status}.`;
     else if(payment&&payment!==current.payment_status)text=payment==='Collected'?`Payment for order ${id} has been collected.`:payment==='Refunded'?`Payment for order ${id} has been refunded.`:`Payment for order ${id} is ${payment.toLowerCase()}.`;
     else text=`Delivery plan for order ${id} is now ${deliveryPlan}.`;
     try{await sendCustomerPush(env,current.customer_id,'FreshWay order update',text)}catch(_){ }
   }
-  return {ok:true,status:status||current.delivery_status,payment:payment||current.payment_status,deliveryPlan:deliveryPlan||current.delivery_plan};
+  return {ok:true,status:status||current.delivery_status,payment:payment||current.payment_status,deliveryPlan:deliveryPlan||current.delivery_plan,isTestOrder:nextTestFlag,testClassificationChanged};
 }
 
 async function addProduct(env,payload){
