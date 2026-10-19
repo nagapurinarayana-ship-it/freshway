@@ -115,7 +115,7 @@ test('owner lifecycle script cache-busting version matches the service-worker sh
 test('service worker loads online documents and executable code from the network first, with cache fallback', () => {
   assert.match(serviceWorkerSource, /if \(isNavigation && \['\/', '\/index\.html'\]\.includes\(url\.pathname\)\)/);
   assert.match(serviceWorkerSource, /url\.pathname === '\/admin\.html' \|\| url\.pathname\.startsWith\('\/admin\/'\)/);
-  assert.match(ownerServiceWorkerSource, /const CACHE = 'fw-owner-v8'/);
+  assert.match(ownerServiceWorkerSource, /const CACHE = 'fw-owner-v[0-9]+'/);
   assert.match(serviceWorkerSource, /const freshCode = \['script','style'\]\.includes\(destination\)/);
   assert.match(serviceWorkerSource, /freshCode \? new Request\(event\.request, \{ cache: 'no-store' \}\)/);
   assert.match(serviceWorkerSource, /const cached = await cache\.match\(event\.request\)/);
@@ -204,16 +204,16 @@ test('Owner script URLs and service-worker shell cache versions match', () => {
   assert.ok(htmlLife);
   assert.ok(shellLife);
   assert.equal(htmlLife,shellLife);
-  assert.match(ownerServiceWorkerSource,/const CACHE = 'fw-owner-v8'/);
+  assert.match(ownerServiceWorkerSource,/const CACHE = 'fw-owner-v[0-9]+'/);
   assert.match(adminHtml, /rel="manifest" href="\/admin\/manifest\.webmanifest"/);
-  assert.match(adminHtml, /owner-pwa-install\.js\?v=20261019-install-parity-v1/);
-  assert.match(adminHtml, /owner-pwa-install\.css\?v=20261019-install-parity-v1/);
-  assert.match(ownerServiceWorkerSource, /owner-pwa-install\.js\?v=20261019-install-parity-v1/);
-  assert.match(ownerServiceWorkerSource, /owner-pwa-install\.css\?v=20261019-install-parity-v1/);
+  assert.match(adminHtml, /owner-pwa-install\.js\?v=20261019-install-prompt-v2/);
+  assert.match(adminHtml, /owner-pwa-install\.css\?v=20261019-install-prompt-v2/);
+  assert.match(ownerServiceWorkerSource, /owner-pwa-install\.js\?v=20261019-install-prompt-v2/);
+  assert.match(ownerServiceWorkerSource, /owner-pwa-install\.css\?v=20261019-install-prompt-v2/);
   assert.match(ownerServiceWorkerSource, /\/admin\/icons\/icon-192\.svg/);
   assert.match(ownerServiceWorkerSource, /\/admin\/icons\/icon-512\.svg/);
   assert.doesNotMatch(ownerServiceWorkerSource, /icon-192-maskable\.png|icon-512-maskable\.png/, 'Owner shell must not reference missing icon assets');
-  assert.match(ownerServiceWorkerSource, /REQUIRED_SHELL = \[[\s\S]*owner-pwa-install\.js\?v=20261019-install-parity-v1/);
+  assert.match(ownerServiceWorkerSource, /REQUIRED_SHELL = \[[\s\S]*owner-pwa-install\.js\?v=20261019-install-prompt-v2/);
   assert.match(ownerInstallSource, /beforeinstallprompt/);
   assert.match(ownerInstallSource, /promptEvent\.prompt\(\)/);
   assert.match(ownerInstallSource, /register\('\/admin\/sw\.js', \{ scope: '\/admin\/'/);

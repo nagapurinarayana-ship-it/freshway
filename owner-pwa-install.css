@@ -1,1 +1,4 @@
 .owner-install-button[hidden]{display:none!important}.owner-install-status{margin:8px 0 0;color:var(--muted);font-size:12px;line-height:1.4}.owner-install-button:disabled{opacity:.65;cursor:wait}@media(max-width:560px){.top-actions .owner-install-button{font-size:12px;padding:8px 10px}}
+
+/* Keep the native Owner install action visible in the mobile dashboard, outside the compact header. */
+.owner-install-hero{margin-top:10px;min-height:44px;white-space:normal}.owner-install-hero[hidden]{display:none!important}
