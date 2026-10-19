@@ -157,7 +157,7 @@ for (const asset of requiredOwnerAssets) {
   ];
   const urls = [...ownerWorkerSource.matchAll(/'([^']+)'/g)].map(([, value]) => value);
   for (const path of shell) {
-    assert.ok(ownerWorkerSource.includes("'" + path + "'") || path === '/admin/', 'Owner service worker must cache in-scope asset ' + path);
+    assert.ok(ownerWorkerSource.includes("'" + path + "'") || ownerWorkerSource.includes("'" + path + "?") || path === '/admin/', 'Owner service worker must cache in-scope asset ' + path);
   }
   assert.match(ownerWorkerSource, /const CACHE = 'fw-owner-v\d+'/);
   assert.match(ownerWorkerSource, /key\.startsWith\('fw-owner-'\)/);
