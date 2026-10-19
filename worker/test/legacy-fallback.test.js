@@ -147,8 +147,8 @@ test('Owner status/payment and classification saves share a queue', () => {
 
 test('Owner Live/Test switching queues a fresh load and ignores stale responses', () => {
   assert.match(adminJsSource, /let orderLoadSequence=0,orderLoadPending=false/);
-  assert.match(adminJsSource, /if\\(requestId!==orderLoadSequence\\|\\|modeAtStart!==testOrderMode\\)return/);
-  assert.match(adminJsSource, /if\\(orderLoadPending\\|\\|requestId!==orderLoadSequence\\)\\{orderLoadPending=false;void loadOrders\\(true\\)\\}/);
+  assert.ok(adminJsSource.includes('if(requestId!==orderLoadSequence||modeAtStart!==testOrderMode)return'));
+  assert.ok(adminJsSource.includes('if(orderLoadPending||requestId!==orderLoadSequence){orderLoadPending=false;void loadOrders(true)}'));
 });
 
 test('legacy Owner API permits any supported status and payment selection', () => {
@@ -201,5 +201,5 @@ test('Owner script URLs and service-worker shell cache versions match', () => {
   assert.ok(htmlLife);
   assert.ok(shellLife);
   assert.equal(htmlLife,shellLife);
-  assert.match(ownerServiceWorkerSource,/const CACHE = 'fw-owner-v6'/);
+  assert.match(ownerServiceWorkerSource,/const CACHE = 'fw-owner-v7'/);
 });
