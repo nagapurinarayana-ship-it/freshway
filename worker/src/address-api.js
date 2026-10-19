@@ -83,7 +83,6 @@ export async function handleAddress(request, env, customerId, action) {
       await ensureDefault(env, customerId);
       return response({ ok:true, addresses:await list(env,customerId), id:duplicate.id, deduplicated:true }, 200, env);
     }
-    if (a.is_default) await env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=?').bind(customerId).run();
     const statements = [];
     if (a.is_default) statements.push(env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=? AND is_saved=1 AND deleted_at IS NULL').bind(customerId));
     statements.push(env.DB.prepare(`INSERT INTO addresses (customer_id,house,area,city,pincode,landmark,note,label,recipient_name,delivery_phone,building,floor,street,locality,district,state,latitude,longitude,accuracy_meters,location_source,place_id,location_updated_at,is_default,is_saved) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`)
