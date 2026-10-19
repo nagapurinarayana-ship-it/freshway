@@ -113,7 +113,7 @@ test('owner lifecycle script cache-busting version matches the service-worker sh
 test('service worker loads online documents and executable code from the network first, with cache fallback', () => {
   assert.match(serviceWorkerSource, /if \(isNavigation && \['\/', '\/index\.html'\]\.includes\(url\.pathname\)\)/);
   assert.match(serviceWorkerSource, /url\.pathname === '\/admin\.html' \|\| url\.pathname\.startsWith\('\/admin\/'\)/);
-  assert.match(ownerServiceWorkerSource, /const CACHE = 'fw-owner-v6'/);
+  assert.match(ownerServiceWorkerSource, /const CACHE = 'fw-owner-v7'/);
   assert.match(serviceWorkerSource, /const freshCode = \['script','style'\]\.includes\(destination\)/);
   assert.match(serviceWorkerSource, /freshCode \? new Request\(event\.request, \{ cache: 'no-store' \}\)/);
   assert.match(serviceWorkerSource, /const cached = await cache\.match\(event\.request\)/);
@@ -134,6 +134,8 @@ test('owner order UI distinguishes failed writes from post-save refresh failures
 
   assert.match(ownerLifecycleSource, /Could not save order classification:/);
   assert.match(ownerLifecycleSource, /The API accepted the change, but the order list did not confirm it/);
+  assert.match(ownerLifecycleSource, /Read both classification partitions before reporting failure/);
+  assert.match(ownerLifecycleSource, /The database confirms this order is in Test orders/);
 });
 
 
@@ -141,6 +143,19 @@ test('owner order UI distinguishes failed writes from post-save refresh failures
 test('Owner status/payment and classification saves share a queue', () => {
   assert.ok(ownerLifecycleSource.includes('state.queue=state.queue.then(task)'));
   assert.ok(ownerLifecycleSource.includes('Queue classification writes behind pending status/payment auto-saves'));
+});
+
+test('Owner Live/Test switching queues a fresh load and ignores stale responses', () => {
+  assert.match(adminJsSource, /let orderLoadSequence=0,orderLoadPending=false/);
+  assert.match(adminJsSource, /if\\(requestId!==orderLoadSequence\\|\\|modeAtStart!==testOrderMode\\)return/);
+  assert.match(adminJsSource, /if\\(orderLoadPending\\|\\|requestId!==orderLoadSequence\\)\\{orderLoadPending=false;void loadOrders\\(true\\)\\}/);
+});
+
+test('legacy Owner API permits any supported status and payment selection', () => {
+  assert.doesNotMatch(workerIndexSource, /ORDER_STATUS_TRANSITIONS/);
+  assert.doesNotMatch(workerIndexSource, /Cash can be marked collected only after delivery/);
+  assert.doesNotMatch(workerIndexSource, /Only collected payments can be refunded/);
+  assert.doesNotMatch(workerIndexSource, /Payment can be cancelled only for a cancelled order/);
 });
 
 test('legacy API uses field-scoped order concurrency guards and returns HTTP 409 on conflicts', () => {
