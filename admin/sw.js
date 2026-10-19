@@ -1,28 +1,54 @@
-const CACHE = 'fw-owner-v1';
+const CACHE = 'fw-owner-v2';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
-  '/admin.css?v=20261008-mobile-visual-v1',
-  '/admin.js?v=20261018-test-orders-v2',
-  '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1',
-  '/owner-lifecycle.js?v=20261009-phone-display-v1',
-  '/owner-address-final.js?v=20260909-address-final-v6',
-  '/freshway-logo-master.webp?v=20261008-master-v1',
-  '/freshway-logo-clean.svg?v=20261008-brand-v1'
+  '/admin/admin.css?v=20261008-mobile-visual-v1',
+  '/admin/admin.js?v=20261018-test-orders-v2',
+  '/admin/frontend/phone-display.js?v=20261009-phone-display-v1',
+  '/admin/frontend/admin/store-profile.js?v=20261008-store-profile-v1',
+  '/admin/frontend/catalogue-media.js?v=20261008-ui-media-v1',
+  '/admin/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1',
+  '/admin/frontend/admin/owner-lifecycle-autosave.js?v=20260909-owner-lifecycle-v1',
+  '/admin/frontend/admin/push.js?v=20260908-push-v1',
+  '/admin/owner-lifecycle.js?v=20261009-phone-display-v1',
+  '/admin/owner-address-final.js?v=20260909-address-final-v6',
+  '/admin/freshway-logo-master.webp?v=20261008-master-v1',
+  '/admin/freshway-logo-clean.svg?v=20261008-brand-v1',
+  '/admin/frontend/media/catalogue/groundnut-oil.svg',
+  '/admin/frontend/media/catalogue/sunflower-oil.svg',
+  '/admin/frontend/media/catalogue/hmt-rice.svg',
+  '/admin/frontend/media/catalogue/sona-masuri.svg',
+  '/admin/icons/icon-192.png',
+  '/admin/icons/icon-512.png',
+  '/admin/icons/icon-192-maskable.png',
+  '/admin/icons/icon-512-maskable.png'
+];
+const REQUIRED_SHELL = [
+  '/admin/',
+  '/admin/manifest.webmanifest',
+  '/admin/admin.css?v=20261008-mobile-visual-v1',
+  '/admin/admin.js?v=20261018-test-orders-v2',
+  '/admin/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1'
 ];
 
 self.addEventListener('install', event => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
-    await Promise.all(SHELL.map(async path => {
+    const results = await Promise.all(SHELL.map(async asset => {
       try {
-        const response = await fetch(new Request(path, { cache: 'no-store' }));
-        if (response.ok) await cache.put(path, response.clone());
+        const response = await fetch(new Request(asset, { cache: 'no-store' }));
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        await cache.put(asset, response.clone());
+        return true;
       } catch (error) {
-        console.warn('FreshWay Owner shell asset unavailable:', path, error);
+        console.error('FreshWay Owner service-worker shell asset failed:', asset, error);
+        return false;
       }
     }));
-    if (!await cache.match('/admin/')) throw new Error('Owner app shell could not be cached');
+
+    if (!REQUIRED_SHELL.every(asset => results[SHELL.indexOf(asset)])) {
+      throw new Error('FreshWay Owner critical app shell could not be cached.');
+    }
   })());
   self.skipWaiting();
 });
@@ -38,35 +64,40 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
+
   const url = new URL(request.url);
-  if (!url.pathname.startsWith('/admin/') && !SHELL.some(path => new URL(path, self.location.origin).pathname === url.pathname)) return;
-  if (url.pathname.startsWith('/api/')) return;
+  // A path-scoped service worker must never handle customer pages or API writes.
+  if (!url.pathname.startsWith('/admin/')) return;
   const isDocument = request.mode === 'navigate' || request.destination === 'document';
   const isCode = ['script', 'style'].includes(request.destination);
+
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const key = url.pathname === '/admin/' || url.pathname === '/admin/index.html' ? '/admin/' : request;
+
     try {
       const response = await fetch(new Request(request, { cache: 'no-store' }));
       if (response.ok && (isDocument || ['script','style','image','font','manifest'].includes(request.destination))) {
-        cache.put(key, response.clone()).catch(error => console.warn('Owner cache update failed:', error));
+        cache.put(key, response.clone()).catch(error => console.error('Owner cache update failed:', request.url, error));
       }
       return response;
     } catch (error) {
+      console.error('FreshWay Owner request failed:', request.url, error);
       const cached = await cache.match(key) || await cache.match(request);
-      if (cached && !isCode) return cached;
+      if (cached) return cached;
       if (isDocument) return await cache.match('/admin/') || Response.error();
-      return cached || Response.error();
+      return Response.error();
     }
   })());
 });
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const target = event.notification.data?.url || '/admin/';
+  const targetUrl = new URL(event.notification.data?.url || '/admin/', self.location.origin);
+  const target = targetUrl.pathname.startsWith('/admin/') ? targetUrl.pathname + targetUrl.search : '/admin/';
   event.waitUntil((async () => {
     const pages = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-    const same = pages.find(client => new URL(client.url).pathname.startsWith('/admin'));
+    const same = pages.find(client => new URL(client.url).pathname.startsWith('/admin/'));
     if (same) {
       await same.focus();
       if ('navigate' in same) await same.navigate(target);
