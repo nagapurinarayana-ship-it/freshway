@@ -700,11 +700,11 @@
     }
   }
 
-  async function deleteAddress(id) {
+  async function deleteAddress(button) {
+    const id = button.dataset.fwDelete;
     if (!window.confirm('Delete this saved address?')) return;
     try {
-      const r = await fetch(`/api/addresses/${id}/delete`, {
-        method:'POST',
+      const r = await fetch(`/api/addresses/${button.dataset.fwDelete}/delete`,{method:'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -791,7 +791,7 @@
       }
       const deleteButton = target.closest('[data-fw-delete]');
       if (deleteButton) {
-        await deleteAddress(deleteButton.dataset.fwDelete);
+        await deleteAddress(deleteButton);
         return;
       }
       if (target.closest('#fwAddressManagerNew')) {
