@@ -34,7 +34,7 @@ function duplicateKey(r) {
   return [r.label,r.recipient_name,r.delivery_phone,r.house_flat,r.building,r.floor,r.street,r.area,r.locality,r.city,r.district,r.state,r.pincode,r.landmark,r.note,r.latitude,r.longitude].map(v => String(v ?? '')).join('\u001f');
 }
 async function list(env, customerId) {
-  const { results } = await env.DB.prepare('SELECT * FROM addresses WHERE customer_id=? AND deleted_at IS NULL ORDER BY is_default DESC,id DESC').bind(customerId).all();
+  const { results } = await env.DB.prepare('SELECT * FROM addresses WHERE customer_id=? AND is_saved=1 AND deleted_at IS NULL ORDER BY is_default DESC,id DESC').bind(customerId).all();
   const seen = new Set();
   const rows = [];
   for (const row of (results || [])) {
@@ -55,13 +55,13 @@ function validate(a) {
   return '';
 }
 async function findDuplicate(env, customerId, a) {
-  return env.DB.prepare(`SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL AND label=? AND recipient_name=? AND delivery_phone=? AND house=? AND building=? AND floor=? AND street=? AND area=? AND locality=? AND city=? AND district=? AND state=? AND pincode=? AND landmark=? AND note=? AND ((latitude=? AND longitude=?) OR (latitude IS NULL AND longitude IS NULL)) LIMIT 1`)
+  return env.DB.prepare(`SELECT id FROM addresses WHERE customer_id=? AND is_saved=1 AND deleted_at IS NULL AND label=? AND recipient_name=? AND delivery_phone=? AND house=? AND building=? AND floor=? AND street=? AND area=? AND locality=? AND city=? AND district=? AND state=? AND pincode=? AND landmark=? AND note=? AND ((latitude=? AND longitude=?) OR (latitude IS NULL AND longitude IS NULL)) LIMIT 1`)
     .bind(customerId,a.label,a.recipient_name,a.delivery_phone,a.house_flat,a.building,a.floor,a.street,a.area,a.locality,a.city,a.district,a.state,a.pincode,a.landmark,a.note,a.latitude,a.longitude).first();
 }
 async function ensureDefault(env, customerId) {
-  const current = await env.DB.prepare('SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL AND is_default=1 ORDER BY id DESC LIMIT 1').bind(customerId).first();
+  const current = await env.DB.prepare('SELECT id FROM addresses WHERE customer_id=? AND is_saved=1 AND deleted_at IS NULL AND is_default=1 ORDER BY id DESC LIMIT 1').bind(customerId).first();
   if (current) return current.id;
-  const next = await env.DB.prepare('SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1').bind(customerId).first();
+  const next = await env.DB.prepare('SELECT id FROM addresses WHERE customer_id=? AND is_saved=1 AND deleted_at IS NULL ORDER BY id DESC LIMIT 1').bind(customerId).first();
   if (next) await env.DB.prepare('UPDATE addresses SET is_default=1 WHERE id=? AND customer_id=?').bind(next.id, customerId).run();
   return next?.id || null;
 }
@@ -76,37 +76,48 @@ export async function handleAddress(request, env, customerId, action) {
     if (error) return response({ error }, 400, env);
     const duplicate = await findDuplicate(env, customerId, a);
     if (duplicate) {
-      if (a.is_default) await env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=?').bind(customerId).run();
-      await env.DB.prepare('UPDATE addresses SET is_default=1 WHERE id=? AND customer_id=?').bind(duplicate.id, customerId).run();
+      if (a.is_default) await env.DB.batch([
+        env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=? AND is_saved=1 AND deleted_at IS NULL').bind(customerId),
+        env.DB.prepare('UPDATE addresses SET is_default=1 WHERE id=? AND customer_id=? AND is_saved=1 AND deleted_at IS NULL').bind(duplicate.id, customerId)
+      ]);
+      await ensureDefault(env, customerId);
       return response({ ok:true, addresses:await list(env,customerId), id:duplicate.id, deduplicated:true }, 200, env);
     }
     if (a.is_default) await env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=?').bind(customerId).run();
-    const r = await env.DB.prepare(`INSERT INTO addresses (customer_id,house,area,city,pincode,landmark,note,label,recipient_name,delivery_phone,building,floor,street,locality,district,state,latitude,longitude,accuracy_meters,location_source,place_id,location_updated_at,is_default) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .bind(customerId,a.house_flat,a.area,a.city,a.pincode,a.landmark,a.note,a.label,a.recipient_name,a.delivery_phone,a.building,a.floor,a.street,a.locality,a.district,a.state,a.latitude,a.longitude,a.accuracy_meters,a.location_source,a.place_id,a.location_updated_at,a.is_default).run();
+    const statements = [];
+    if (a.is_default) statements.push(env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=? AND is_saved=1 AND deleted_at IS NULL').bind(customerId));
+    statements.push(env.DB.prepare(`INSERT INTO addresses (customer_id,house,area,city,pincode,landmark,note,label,recipient_name,delivery_phone,building,floor,street,locality,district,state,latitude,longitude,accuracy_meters,location_source,place_id,location_updated_at,is_default,is_saved) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`)
+      .bind(customerId,a.house_flat,a.area,a.city,a.pincode,a.landmark,a.note,a.label,a.recipient_name,a.delivery_phone,a.building,a.floor,a.street,a.locality,a.district,a.state,a.latitude,a.longitude,a.accuracy_meters,a.location_source,a.place_id,a.location_updated_at,a.is_default));
+    const results = await env.DB.batch(statements);
+    const r = results?.[results.length-1];
     await ensureDefault(env, customerId);
     return response({ ok:true, addresses:await list(env,customerId), id:r.meta?.last_row_id }, 201, env);
   }
-  const owned = await env.DB.prepare('SELECT * FROM addresses WHERE id=? AND customer_id=? AND deleted_at IS NULL').bind(id,customerId).first();
+  const owned = await env.DB.prepare('SELECT * FROM addresses WHERE id=? AND customer_id=? AND is_saved=1 AND deleted_at IS NULL').bind(id,customerId).first();
   // DELETE is intentionally idempotent. A stale UI copy must never surface a false
   // "Address not found" error after the address has already been removed elsewhere.
   if (action === 'delete' && request.method === 'DELETE') {
     if (!owned) return response({ ok:true, alreadyDeleted:true, addresses:await list(env,customerId) }, 200, env);
-    await env.DB.prepare('UPDATE addresses SET is_default=0,deleted_at=CURRENT_TIMESTAMP WHERE id=? AND customer_id=? AND deleted_at IS NULL').bind(id,customerId).run();
+    await env.DB.prepare('UPDATE addresses SET is_default=0,deleted_at=CURRENT_TIMESTAMP WHERE id=? AND customer_id=? AND is_saved=1 AND deleted_at IS NULL').bind(id,customerId).run();
     await ensureDefault(env, customerId);
     return response({ ok:true, addresses:await list(env,customerId) }, 200, env);
   }
   if (!owned) return response({ error:'Address not found.' }, 404, env);
   if (action === 'update' && request.method === 'PATCH') {
     if (payload.default === true || (payload.isDefault === true && payload.recipientName === undefined)) {
-      await env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=?').bind(customerId).run();
-      await env.DB.prepare('UPDATE addresses SET is_default=1 WHERE id=? AND customer_id=?').bind(id,customerId).run();
+      await env.DB.batch([
+        env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=? AND is_saved=1 AND deleted_at IS NULL').bind(customerId),
+        env.DB.prepare('UPDATE addresses SET is_default=1 WHERE id=? AND customer_id=? AND is_saved=1 AND deleted_at IS NULL').bind(id,customerId)
+      ]);
       return response({ ok:true, addresses:await list(env,customerId) }, 200, env);
     }
     const a = normalized(payload), error = validate(a);
     if (error) return response({ error }, 400, env);
-    if (a.is_default) await env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=?').bind(customerId).run();
-    await env.DB.prepare(`UPDATE addresses SET label=?,recipient_name=?,delivery_phone=?,house=?,building=?,floor=?,street=?,area=?,locality=?,city=?,district=?,state=?,pincode=?,landmark=?,note=?,latitude=?,longitude=?,accuracy_meters=?,location_source=?,place_id=?,location_updated_at=?,is_default=? WHERE id=? AND customer_id=?`)
-      .bind(a.label,a.recipient_name,a.delivery_phone,a.house_flat,a.building,a.floor,a.street,a.area,a.locality,a.city,a.district,a.state,a.pincode,a.landmark,a.note,a.latitude,a.longitude,a.accuracy_meters,a.location_source,a.place_id,a.location_updated_at,a.is_default,id,customerId).run();
+    const statements = [];
+    if (a.is_default) statements.push(env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=? AND is_saved=1 AND deleted_at IS NULL').bind(customerId));
+    statements.push(env.DB.prepare(`UPDATE addresses SET label=?,recipient_name=?,delivery_phone=?,house=?,building=?,floor=?,street=?,area=?,locality=?,city=?,district=?,state=?,pincode=?,landmark=?,note=?,latitude=?,longitude=?,accuracy_meters=?,location_source=?,place_id=?,location_updated_at=?,is_default=? WHERE id=? AND customer_id=? AND is_saved=1 AND deleted_at IS NULL`)
+      .bind(a.label,a.recipient_name,a.delivery_phone,a.house_flat,a.building,a.floor,a.street,a.area,a.locality,a.city,a.district,a.state,a.pincode,a.landmark,a.note,a.latitude,a.longitude,a.accuracy_meters,a.location_source,a.place_id,a.location_updated_at,a.is_default,id,customerId));
+    await env.DB.batch(statements);
     await ensureDefault(env, customerId);
     return response({ ok:true, addresses:await list(env,customerId) }, 200, env);
   }
