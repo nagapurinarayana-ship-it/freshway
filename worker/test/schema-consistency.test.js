@@ -41,3 +41,31 @@ test('legacy database migration stays aligned with the fresh schema', () => {
     'schema.sql and migration 0022 must both support Owner live/test-order filtering'
   );
 });
+
+const snapshotTable = schema.match(
+  /CREATE TABLE IF NOT EXISTS order_address_snapshots \\(([\\s\\S]*?)\\n\\);/
+)?.[1];
+
+test('fresh database address snapshot schema matches the production migration and API insert', () => {
+  assert.ok(snapshotTable, 'schema.sql must define the order-address snapshot table');
+  for (const column of [
+    'customer_id TEXT',
+    'address_id INTEGER',
+    'recipient_name TEXT NOT NULL',
+    'delivery_phone TEXT NOT NULL',
+    'house_flat TEXT NOT NULL',
+    'delivery_note TEXT',
+    'place_name TEXT',
+    'place_id TEXT'
+  ]) {
+    assert.ok(snapshotTable.includes(column), `snapshot schema must include ${column}`);
+  }
+  assert.match(snapshotTable, /FOREIGN KEY\\(address_id\\) REFERENCES addresses\\(id\\) ON DELETE SET NULL/);
+  assert.match(schema, /CREATE INDEX IF NOT EXISTS idx_order_address_snapshots_customer ON order_address_snapshots\\(customer_id,created_at DESC\\);/);
+  const addressApi = readFileSync(new URL('../src/address-api.js', import.meta.url), 'utf8');
+  const insert = addressApi.match(/INSERT OR IGNORE INTO order_address_snapshots \\(([^)]+)\\)/)?.[1];
+  assert.ok(insert, 'address API must keep an explicit snapshot insert column list');
+  for (const column of insert.split(',').map(value => value.trim())) {
+    assert.ok(snapshotTable.includes(column + ' ') || snapshotTable.includes(column + '\\n'), `snapshot API column ${column} must exist in fresh schema`);
+  }
+});
