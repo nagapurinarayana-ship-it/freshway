@@ -58,6 +58,7 @@ test('cancelling an order saves the cancellation before conditional stock restor
           bind(...args){
             call.binds=args;
             return {
+              sql,binds:args,
               async all(){
                 if(sql.includes('SELECT oi.product_id,SUM'))return {results:[{product_id:'p1',stock_reserved_qty:2,product_exists:'p1'}]};
                 return {results:[]};
