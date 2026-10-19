@@ -110,7 +110,9 @@ export async function handleAddress(request, env, customerId, action) {
       ]);
       return response({ ok:true, addresses:await list(env,customerId) }, 200, env);
     }
-    const a = normalized(payload), error = validate(a);
+    const a = normalized(payload);
+    if (payload.isDefault === undefined && payload.is_default === undefined) a.is_default = Number(owned.is_default) === 1 ? 1 : 0;
+    const error = validate(a);
     if (error) return response({ error }, 400, env);
     const statements = [];
     if (a.is_default) statements.push(env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=? AND is_saved=1 AND deleted_at IS NULL').bind(customerId));
