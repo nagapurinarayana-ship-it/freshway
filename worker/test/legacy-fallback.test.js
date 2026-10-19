@@ -109,7 +109,7 @@ test('owner lifecycle script cache-busting version matches the service-worker sh
 test('service worker loads online documents and executable code from the network first, with cache fallback', () => {
   assert.match(serviceWorkerSource, /if \(isNavigation && \['\/', '\/index\.html'\]\.includes\(url\.pathname\)\)/);
   assert.match(serviceWorkerSource, /url\.pathname === '\/admin\.html' \|\| url\.pathname\.startsWith\('\/admin\/'\)/);
-  assert.match(ownerServiceWorkerSource, /const CACHE = 'fw-owner-v3'/);
+  assert.match(ownerServiceWorkerSource, /const CACHE = 'fw-owner-v4'/);
   assert.match(serviceWorkerSource, /const freshCode = \['script','style'\]\.includes\(destination\)/);
   assert.match(serviceWorkerSource, /freshCode \? new Request\(event\.request, \{ cache: 'no-store' \}\)/);
   assert.match(serviceWorkerSource, /const cached = await cache\.match\(event\.request\)/);
@@ -124,9 +124,9 @@ test('owner order UI distinguishes failed writes from post-save refresh failures
   const queueEnd = ownerLifecycleSource.indexOf('async function openLifecycle(', queueStart);
   assert.ok(queueStart >= 0 && queueEnd > queueStart, 'queueSave should be present');
   const queue = ownerLifecycleSource.slice(queueStart, queueEnd);
-  assert.match(queue, /Could not save order \+field\+:/);
+  assert.match(queue, /Could not save order '\+field\+':/);
   assert.match(queue, /Order change was saved, but some details or dashboard totals failed to refresh/);
-  assert.doesNotMatch(queue, /catch\\(e\\)\\{if\\(state\\.id===id\\)\\{control\\.value=previous;setSaveState\\('Save failed','error'\\)\\}toast\\(e\\.message\\|\\|'Update failed'\\)\\}/);
+  assert.doesNotMatch(queue, /control\.value=previous;setSaveState\('Save failed','error'\)\}toast\(e\.message\|\|'Update failed'\)/);
 
   assert.match(ownerLifecycleSource, /Could not save order classification:/);
   assert.match(ownerLifecycleSource, /The API accepted the change, but the order list did not confirm it/);
