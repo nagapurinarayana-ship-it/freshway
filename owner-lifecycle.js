@@ -115,8 +115,8 @@
           // The database state cannot be verified. Keep the failure visible and do not claim success.
         }
         if(!refreshed&&state.id===id)control.value=previous;
-        if(!recovered&&state.id===id)setSaveState('Save failed · verify','error');
-        if(!recovered)toast('Could not verify the saved order after '+field+' failed. Refresh the order before retrying. '+(e.message||'Request failed'));
+        if(!recovered&&state.id===id)setSaveState(refreshed?'Save failed · refreshed':'Save failed · verify','error');
+        if(!recovered&&!refreshed)toast('Could not verify the saved order after '+field+' failed. Refresh the order before retrying. '+(e.message||'Request failed'));
         control.disabled=false;
         return;
       }
