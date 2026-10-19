@@ -110,6 +110,8 @@ CREATE TABLE IF NOT EXISTS order_items (
 );
 CREATE TABLE IF NOT EXISTS order_address_snapshots (
   order_id TEXT PRIMARY KEY,
+  customer_id TEXT,
+  address_id INTEGER,
   recipient_name TEXT NOT NULL,
   delivery_phone TEXT NOT NULL,
   house_flat TEXT NOT NULL,
@@ -128,10 +130,12 @@ CREATE TABLE IF NOT EXISTS order_address_snapshots (
   longitude REAL,
   accuracy_meters REAL,
   location_source TEXT,
+  place_name TEXT,
   place_id TEXT,
   location_updated_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
+  FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE,
+  FOREIGN KEY(address_id) REFERENCES addresses(id) ON DELETE SET NULL
 );
 CREATE TABLE IF NOT EXISTS push_subscriptions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -195,6 +199,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_test_created ON orders(is_test_order, crea
 CREATE INDEX IF NOT EXISTS idx_addresses_customer ON addresses(customer_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_addresses_customer_default ON addresses(customer_id,is_default DESC,id DESC);
 CREATE INDEX IF NOT EXISTS idx_addresses_customer_label ON addresses(customer_id,label);
+CREATE INDEX IF NOT EXISTS idx_order_address_snapshots_customer ON order_address_snapshots(customer_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_order_address_snapshots_location ON order_address_snapshots(latitude,longitude);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_auth_rate_limits_window ON auth_rate_limits(window_start);
