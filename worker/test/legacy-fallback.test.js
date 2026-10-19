@@ -6,6 +6,8 @@ import vm from 'node:vm';
 const addressFixSource = readFileSync(new URL('../../address-fix.js', import.meta.url), 'utf8');
 const serviceWorkerSource = readFileSync(new URL('../../sw.js', import.meta.url), 'utf8');
 const ownerServiceWorkerSource = readFileSync(new URL('../../admin/sw.js', import.meta.url), 'utf8');
+const ownerInstallSource = readFileSync(new URL('../../admin/owner-pwa-install.js', import.meta.url), 'utf8');
+const ownerManifest = JSON.parse(readFileSync(new URL('../../admin/manifest.webmanifest', import.meta.url), 'utf8'));
 const indexHtml = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
 const adminHtml = readFileSync(new URL('../../admin.html', import.meta.url), 'utf8');
 const adminJsSource = readFileSync(new URL('../../admin.js', import.meta.url), 'utf8');
@@ -113,7 +115,7 @@ test('owner lifecycle script cache-busting version matches the service-worker sh
 test('service worker loads online documents and executable code from the network first, with cache fallback', () => {
   assert.match(serviceWorkerSource, /if \(isNavigation && \['\/', '\/index\.html'\]\.includes\(url\.pathname\)\)/);
   assert.match(serviceWorkerSource, /url\.pathname === '\/admin\.html' \|\| url\.pathname\.startsWith\('\/admin\/'\)/);
-  assert.match(ownerServiceWorkerSource, /const CACHE = 'fw-owner-v7'/);
+  assert.match(ownerServiceWorkerSource, /const CACHE = 'fw-owner-v8'/);
   assert.match(serviceWorkerSource, /const freshCode = \['script','style'\]\.includes\(destination\)/);
   assert.match(serviceWorkerSource, /freshCode \? new Request\(event\.request, \{ cache: 'no-store' \}\)/);
   assert.match(serviceWorkerSource, /const cached = await cache\.match\(event\.request\)/);
@@ -202,5 +204,17 @@ test('Owner script URLs and service-worker shell cache versions match', () => {
   assert.ok(htmlLife);
   assert.ok(shellLife);
   assert.equal(htmlLife,shellLife);
-  assert.match(ownerServiceWorkerSource,/const CACHE = 'fw-owner-v7'/);
+  assert.match(ownerServiceWorkerSource,/const CACHE = 'fw-owner-v8'/);
+  assert.match(adminHtml, /rel="manifest" href="\/admin\/manifest\.webmanifest"/);
+  assert.match(adminHtml, /owner-pwa-install\.js\?v=20261019-install-parity-v1/);
+  assert.match(adminHtml, /owner-pwa-install\.css\?v=20261019-install-parity-v1/);
+  assert.match(ownerServiceWorkerSource, /owner-pwa-install\.js\?v=20261019-install-parity-v1/);
+  assert.match(ownerServiceWorkerSource, /owner-pwa-install\.css\?v=20261019-install-parity-v1/);
+  assert.match(ownerInstallSource, /beforeinstallprompt/);
+  assert.match(ownerInstallSource, /promptEvent\.prompt\(\)/);
+  assert.match(ownerInstallSource, /register\('\/admin\/sw\.js', \{ scope: '\/admin\/'/);
+  assert.equal(ownerManifest.scope, '/admin/');
+  assert.equal(ownerManifest.start_url, '/admin/');
+  assert.ok(ownerManifest.icons.some(icon => icon.sizes === '192x192' && icon.type === 'image/png'));
+  assert.ok(ownerManifest.icons.some(icon => icon.sizes === '512x512' && icon.type === 'image/png'));
 });
