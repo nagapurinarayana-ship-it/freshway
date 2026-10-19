@@ -12,6 +12,8 @@ const ownerWorkerSource = readRepoFile('admin/sw.js').toString('utf8');
 const requiredOwnerAssets = [
   'admin.css',
   'admin.js',
+  'owner-pwa-install.js',
+  'owner-pwa-install.css',
   'freshway-logo-master.webp',
   'freshway-logo-clean.svg',
   'frontend/phone-display.js',
@@ -26,10 +28,8 @@ const requiredOwnerAssets = [
   'frontend/media/catalogue/sunflower-oil.svg',
   'frontend/media/catalogue/hmt-rice.svg',
   'frontend/media/catalogue/sona-masuri.svg',
-  'icons/icon-192.png',
-  'icons/icon-512.png',
-  'icons/icon-192-maskable.png',
-  'icons/icon-512-maskable.png'
+  'icons/icon-192.svg',
+  'icons/icon-512.svg'
 ];
 
 function makeContext(path, method = 'GET') {
