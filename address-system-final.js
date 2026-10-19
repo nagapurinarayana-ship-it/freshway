@@ -222,6 +222,16 @@
     const summary = $('#fwCheckoutAddressSummary');
     if (!summary) return;
     const address = activeAddress || defaultAddress();
+    checkoutIds.forEach(function (id) {
+      const field = document.getElementById(id);
+      const label = field && field.closest('label');
+      if (!field) return;
+      if (field.dataset.fwInitialRequired === undefined) field.dataset.fwInitialRequired = field.required ? 'true' : 'false';
+      field.required = address ? field.dataset.fwInitialRequired === 'true' : false;
+      if (label) label.hidden = true;
+    });
+    const extra = $('.address-extra-fields');
+    if (extra) extra.hidden = true;
     if (address) {
       if (!activeAddress) activeAddress = normalizeAddress(address);
       setCheckoutFields(address);
@@ -231,28 +241,13 @@
         '<p>' + esc(fullAddress(address)) + '</p><small>' + esc(address.recipientName) +
         (normalizePhone(address.deliveryPhone) ? ' · ' + esc(normalizePhone(address.deliveryPhone)) : '') + '</small></div>' +
         '<button type="button" class="secondary-btn fw-change-address" id="fwCheckoutChangeAddress">Change</button>';
-      summary.hidden = false;
-      checkoutIds.forEach(function (id) {
-        const field = document.getElementById(id);
-        const label = field && field.closest('label');
-        if (label) label.hidden = true;
-      });
-      const extra = $('.address-extra-fields');
-      if (extra) extra.hidden = true;
     } else {
       summary.innerHTML =
         '<div class="fw-checkout-address-copy"><span class="eyebrow">DELIVERY ADDRESS</span>' +
-        '<strong>No saved address yet</strong><p>Add an address once to use it automatically on future orders.</p></div>' +
+        '<strong>No saved address yet</strong><p>Add an address once. It will become your default automatically.</p></div>' +
         '<button type="button" class="primary-btn fw-change-address" id="fwCheckoutAddAddress">+ Add address</button>';
-      summary.hidden = false;
-      checkoutIds.forEach(function (id) {
-        const field = document.getElementById(id);
-        const label = field && field.closest('label');
-        if (label) label.hidden = false;
-      });
-      const extra = $('.address-extra-fields');
-      if (extra) extra.hidden = false;
     }
+    summary.hidden = false;
   }
 
   function modal() {
@@ -736,6 +731,16 @@
   }
 
   function bindEvents() {
+    // Keep a missing address from falling through into order submission. The
+    // first-time customer is guided to the same address form used by Profile.
+    document.addEventListener('submit', function (event) {
+      if (!event.target || event.target.id !== 'checkoutForm') return;
+      if (activeAddress || defaultAddress()) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      toast('Add and save a delivery address before placing your order.');
+      openCheckoutAddressManager();
+    }, true);
     document.addEventListener('click', async function (event) {
       const target = event.target;
       if (!(target instanceof Element)) return;
