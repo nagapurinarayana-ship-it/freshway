@@ -4,6 +4,7 @@ const fs=require('node:fs');
 const html=fs.readFileSync('admin.html','utf8');
 const css=fs.readFileSync('admin.css','utf8');
 const js=fs.readFileSync('admin.js','utf8');
+const lifecycle=fs.readFileSync('owner-lifecycle.js','utf8');
 
 assert.match(html,/class="toolbar order-toolbar"/);
 assert.match(html,/id="orderAdvancedFilters" class="order-advanced-filters"/);
@@ -21,6 +22,11 @@ assert.match(css,/grid-template-columns:1fr 1fr/);
 assert.match(css,/@media\(max-width:480px\)/);
 
 assert.match(html,/id="liveOrdersTab"/);assert.match(html,/id="testOrdersTab"/);assert.match(js,/testOrders:testOrderMode/);assert.match(js,/data-test-order-toggle/);assert.match(js,/function orderFilterState/);
+assert.ok(js.includes("$('#liveOrdersTab').onclick=()=>{if(!testOrderMode)return;"),'Live orders tab must switch back from Test orders mode');
+assert.match(lifecycle,/function isTestModeActive\(\)/);
+assert.match(lifecycle,/testOrders:testOrders\?'1':'0'/);
+assert.match(lifecycle,/data-life-test-toggle=/);
+assert.match(lifecycle,/data-is-test=/);
 assert.match(js,/function validateOrderFilters/);
 assert.match(js,/orderAdvancedFilters/);
 assert.match(js,/orderAdvancedCount/);
