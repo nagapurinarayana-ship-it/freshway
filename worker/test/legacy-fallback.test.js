@@ -176,9 +176,9 @@ test('unexpected admin database errors are logged with a reference and returned 
 });
 
 test('Owner script URLs and service-worker shell cache versions match', () => {
-  const htmlAdmin = adminHtml.match(/src="admin\\.js\\?v=([^"]+)"/)?.[1];
+  const htmlAdmin = adminHtml.match(/src="admin\.js\?v=([^"]+)"/)?.[1];
   const shellAdmin = ownerServiceWorkerSource.match(/admin\.js\?v=([^'"]+)/)?.[1];
-  const htmlLife = adminHtml.match(/src="owner-lifecycle\\.js\\?v=([^"]+)"/)?.[1];
+  const htmlLife = adminHtml.match(/src="owner-lifecycle\.js\?v=([^"]+)"/)?.[1];
   const shellLife = ownerServiceWorkerSource.match(/owner-lifecycle\.js\?v=([^'"]+)/)?.[1];
   assert.ok(htmlAdmin);
   assert.ok(shellAdmin);
