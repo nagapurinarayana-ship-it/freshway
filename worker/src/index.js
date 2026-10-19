@@ -1,5 +1,7 @@
 import webpush from 'web-push';
 import { getStoreProfile } from './store-profile.js';
+import { normalizePaymentFilter, validateOrderPatch } from './admin-shared.js';
+import { updateOrder as updateAdminOrder } from './admin-orders.js';
 
 const json = (data, status = 200, origin = '*') => new Response(JSON.stringify(data), {
   status,
@@ -128,40 +130,6 @@ async function customerOrders(env, customerId) {
 }
 function groupOrders(rows) { const map = new Map(); for (const r of rows) { if (!map.has(r.id)) map.set(r.id,{id:r.id,customer:{name:r.customer_name,phone:r.customer_phone},address:{house:r.house,area:r.area,city:r.city,pincode:r.pincode,landmark:r.landmark,note:r.note},items:[],total:r.total,payment:r.payment_status,status:r.delivery_status,deliveryPlan:r.delivery_plan,createdAt:r.created_at,updatedAt:r.updated_at,paymentCollectedAt:r.payment_collected_at}); map.get(r.id).items.push({id:r.product_id,name:r.name,unit:r.unit,qty:r.qty,price:r.price,lineTotal:r.line_total}); } return [...map.values()]; }
 
-const ORDER_STATUSES=['New','Confirmed','Processing','Ready','Out for Delivery','Delivered','Cancelled'];
-const ORDER_PAYMENTS=['Not Collected','Collected','Refunded','Cancelled'];
-const ORDER_STATUS_TRANSITIONS={
-  New:['Confirmed','Cancelled'],
-  Confirmed:['Processing','Cancelled'],
-  Processing:['Ready','Cancelled'],
-  Ready:['Out for Delivery','Cancelled'],
-  'Out for Delivery':['Delivered','Cancelled'],
-  Delivered:[],
-  Cancelled:[]
-};
-const normalizePaymentFilter=value=>value==='Pending'?'Not Collected':value;
-
-function validateOrderPatch(current,payload={}){
-  const status=payload.status, payment=payload.payment, deliveryPlan=payload.deliveryPlan;
-  if(status&&!ORDER_STATUSES.includes(status))throw new Error('Invalid delivery status.');
-  if(payment&&!ORDER_PAYMENTS.includes(payment))throw new Error('Invalid payment status.');
-  if(deliveryPlan&&!validPlans.includes(deliveryPlan))throw new Error('Invalid delivery plan.');
-  if(status&&status!==current.delivery_status&&!ORDER_STATUS_TRANSITIONS[current.delivery_status]?.includes(status)){
-    throw new Error(`Cannot change ${current.delivery_status} order to ${status}.`);
-  }
-  const nextStatus=status||current.delivery_status;
-  if(deliveryPlan&&(current.delivery_status==='Delivered'||current.delivery_status==='Cancelled'||nextStatus==='Delivered'||nextStatus==='Cancelled')){
-    throw new Error('Delivery plan cannot be changed after an order is completed or cancelled.');
-  }
-  if(payment==='Collected'&&nextStatus!=='Delivered')throw new Error('Cash can be marked collected only after delivery.');
-  if(payment==='Refunded'&&current.payment_status!=='Collected')throw new Error('Only collected payments can be refunded.');
-  if(payment==='Cancelled'&&nextStatus!=='Cancelled')throw new Error('Payment can be cancelled only for a cancelled order.');
-  if(current.payment_status==='Collected'&&payment&&payment!=='Collected'&&payment!=='Refunded'){
-    throw new Error('Collected cash cannot be changed to an unpaid or cancelled payment.');
-  }
-  return {status,payment,deliveryPlan};
-}
-
 async function adminOrders(env,url){
   const page=Math.max(1,Math.min(100,Number.parseInt(url?.searchParams.get('page')||'1',10)||1));
   const limit=Math.max(1,Math.min(100,Number.parseInt(url?.searchParams.get('limit')||'25',10)||25));
@@ -214,43 +182,7 @@ async function adminOrders(env,url){
   const orders=rows.map(r=>({id:r.id,isTestOrder:Number(r.is_test_order)===1,customer:{name:r.customer_name,phone:r.customer_phone},address:{house:r.house,area:r.area,city:r.city,pincode:r.pincode,landmark:r.landmark,note:r.note},items:itemMap.get(r.id)||[],total:r.total,payment:r.payment_status,status:r.delivery_status,deliveryPlan:r.delivery_plan,createdAt:r.created_at,updatedAt:r.updated_at,paymentCollectedAt:r.payment_collected_at}));
   return {orders,pagination:{page,limit,total,pages:Math.ceil(total/limit)}};
 }
-async function updateOrder(env,id,payload){
-  const {results}=await env.DB.prepare('SELECT delivery_status,payment_status,delivery_plan,customer_id,is_test_order FROM orders WHERE id=?').bind(id).all();
-  const current=results?.[0];
-  if(!current)throw new Error('Order not found.');
-  const {status,payment,deliveryPlan}=validateOrderPatch(current,payload);
-  const hasTestFlag=typeof payload.isTestOrder==='boolean';
-  const nextTestFlag=hasTestFlag?(payload.isTestOrder?1:0):Number(current.is_test_order||0);
-  const testClassificationChanged=hasTestFlag&&nextTestFlag!==Number(current.is_test_order||0);
-  const sets=[],params=[];
-  if(status){sets.push('delivery_status=?');params.push(status)}
-  if(payment){sets.push('payment_status=?');params.push(payment);if(payment==='Collected')sets.push('payment_collected_at=CURRENT_TIMESTAMP')}
-  if(deliveryPlan){sets.push('delivery_plan=?');params.push(deliveryPlan)}
-  if(testClassificationChanged){sets.push('is_test_order=?');params.push(nextTestFlag)}
-  if(!sets.length)throw new Error('No order change supplied.');
-  sets.push('updated_at=CURRENT_TIMESTAMP');
-  const guards=['id=?'],whereParams=[id];
-  if(status){guards.push('delivery_status IS ?');whereParams.push(current.delivery_status)}
-  if(payment){guards.push('payment_status IS ?');whereParams.push(current.payment_status)}
-  if(deliveryPlan){guards.push('delivery_plan IS ?');whereParams.push(current.delivery_plan)}
-  if(hasTestFlag){guards.push('is_test_order IS ?');whereParams.push(Number(current.is_test_order||0))}
-  const statements=[];
-  if(status==='Cancelled'&&status!==current.delivery_status){
-    const {results:reserved}=await env.DB.prepare('SELECT product_id,SUM(stock_reserved_qty) stock_reserved_qty FROM order_items WHERE order_id=? AND stock_reserved_qty>0 GROUP BY product_id').bind(id).all();
-    statements.push(...(reserved||[]).map(item=>env.DB.prepare('UPDATE products SET stock_quantity=stock_quantity+? WHERE id=?').bind(Number(item.stock_reserved_qty),item.product_id)));
-  }
-  statements.push(env.DB.prepare(`UPDATE orders SET ${sets.join(',')} WHERE ${guards.join(' AND ')}`).bind(...params,...whereParams));
-  try{const batchResult=await env.DB.batch(statements);const updateResult=batchResult?.[batchResult.length-1];if(!updateResult?.meta?.changes)throw new Error('ORDER_CONFLICT: This order changed while you were saving. Refresh the order and try again.')}catch(error){if(/stock_quantity/i.test(error?.message||''))throw new Error('Stock could not be restored safely. Refresh and try again.');throw error}
-  const classificationOnlyChange=testClassificationChanged&&!status&&!payment&&!deliveryPlan;
-  if(!classificationOnlyChange&&((status&&status!==current.delivery_status)||(payment&&payment!==current.payment_status)||(deliveryPlan&&deliveryPlan!==current.delivery_plan))){
-    let text;
-    if(status&&status!==current.delivery_status)text=status==='Processing'?`Order ${id} is now being prepared.`:status==='Ready'?`Order ${id} is ready for delivery.`:status==='Out for Delivery'?`Order ${id} is out for delivery.`:status==='Delivered'?`Order ${id} has been delivered.`:status==='Cancelled'?`Order ${id} has been cancelled.`:status==='Confirmed'?`Order ${id} has been confirmed.`:`Order ${id} status is ${status}.`;
-    else if(payment&&payment!==current.payment_status)text=payment==='Collected'?`Payment for order ${id} has been collected.`:payment==='Refunded'?`Payment for order ${id} has been refunded.`:`Payment for order ${id} is ${payment.toLowerCase()}.`;
-    else text=`Delivery plan for order ${id} is now ${deliveryPlan}.`;
-    try{await sendCustomerPush(env,current.customer_id,'FreshWay order update',text)}catch(_){ }
-  }
-  return {ok:true,status:status||current.delivery_status,payment:payment||current.payment_status,deliveryPlan:deliveryPlan||current.delivery_plan,isTestOrder:nextTestFlag,testClassificationChanged};
-}
+async function updateOrder(env,id,payload){return updateAdminOrder(env,id,payload)}
 
 async function addProduct(env,payload){
   const id=String(payload.id||`p-${Date.now()}-${Math.random().toString(36).slice(2,6)}`).trim().slice(0,100),name=String(payload.name||'').trim().slice(0,100),unit=String(payload.unit||'').trim().slice(0,30),price=Number(payload.price),emoji=String(payload.emoji||'🛒').slice(0,8),stockManaged=payload.stockManaged===true,stockQuantity=Number(payload.stockQuantity??0),lowStockThreshold=Number(payload.lowStockThreshold??5);
