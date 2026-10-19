@@ -210,7 +210,9 @@ test('Owner script URLs and service-worker shell cache versions match', () => {
   assert.match(adminHtml, /owner-pwa-install\.css\?v=20261019-install-parity-v1/);
   assert.match(ownerServiceWorkerSource, /owner-pwa-install\.js\?v=20261019-install-parity-v1/);
   assert.match(ownerServiceWorkerSource, /owner-pwa-install\.css\?v=20261019-install-parity-v1/);
-  assert.doesNotMatch(ownerServiceWorkerSource, /\/admin\/icons\//, 'Owner shell must not cache nonexistent admin icon files');
+  assert.match(ownerServiceWorkerSource, /\/admin\/icons\/icon-192\.svg/);
+  assert.match(ownerServiceWorkerSource, /\/admin\/icons\/icon-512\.svg/);
+  assert.doesNotMatch(ownerServiceWorkerSource, /icon-192-maskable\.png|icon-512-maskable\.png/, 'Owner shell must not reference missing icon assets');
   assert.match(ownerServiceWorkerSource, /REQUIRED_SHELL = \[[\s\S]*owner-pwa-install\.js\?v=20261019-install-parity-v1/);
   assert.match(ownerInstallSource, /beforeinstallprompt/);
   assert.match(ownerInstallSource, /promptEvent\.prompt\(\)/);
