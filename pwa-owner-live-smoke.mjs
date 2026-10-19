@@ -26,7 +26,7 @@ function assertFreshResponse(response, label) {
   assert.match(response.headers.get('x-robots-tag') || '', /noindex/i, `${label} must be excluded from search indexing`);
 }
 
-const pageResponse = await fetchPreviewRoute('/admin/');
+const pageResponse = await fetchOwnerRoute('/admin/');
 const html = await pageResponse.text();
 console.log('Owner deployment route diagnostics:', JSON.stringify({ url: pageResponse.url, status: pageResponse.status, contentType: pageResponse.headers.get('content-type'), cacheControl: pageResponse.headers.get('cache-control'), robots: pageResponse.headers.get('x-robots-tag'), bodyStart: html.slice(0, 180) }));
 assertFreshResponse(pageResponse, 'Owner app shell');
@@ -42,7 +42,7 @@ for (const [, value] of html.matchAll(/\b(?:src|href)=["']([^"']+)["']/gi)) {
   assert.ok(url.pathname.startsWith('/admin/'), `Owner HTML resource/link escaped the /admin/ scope: ${value}`);
 }
 
-const manifestResponse = await fetchPreviewRoute('/admin/manifest.webmanifest');
+const manifestResponse = await fetchOwnerRoute('/admin/manifest.webmanifest');
 assertFreshResponse(manifestResponse, 'Owner manifest');
 assert.match(manifestResponse.headers.get('content-type') || '', /application\/manifest\+json/i);
 const manifest = await manifestResponse.json();
@@ -54,7 +54,7 @@ assert.equal(manifest.display, 'standalone');
 assert.ok(manifest.icons.length >= 2);
 assert.ok(manifest.icons.every(icon => icon.src.startsWith('/admin/')), 'Owner installation icons must remain under /admin/');
 
-const workerResponse = await fetchPreviewRoute('/admin/sw.js');
+const workerResponse = await fetchOwnerRoute('/admin/sw.js');
 assertFreshResponse(workerResponse, 'Owner service worker');
 assert.match(workerResponse.headers.get('content-type') || '', /javascript/i);
 assert.equal(workerResponse.headers.get('service-worker-allowed'), '/admin/');
