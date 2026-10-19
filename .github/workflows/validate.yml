@@ -108,7 +108,7 @@ jobs:
           if (ownerManifest.id === manifest.id) throw new Error('Customer and Owner PWAs must have distinct manifest identities');
           if (!ownerManifest.icons.length || ownerManifest.icons.some(icon => !icon.src.startsWith('/admin/'))) throw new Error('Owner install icons must be served inside /admin/');
           const ownerSw = fs.readFileSync('admin/sw.js', 'utf8');
-          if (!/const CACHE = 'fw-owner-v\\d+'/.test(ownerSw)) throw new Error('Owner service worker cache version missing');
+          if (!/const CACHE = 'fw-owner-v[0-9]+'/.test(ownerSw)) throw new Error('Owner service worker cache version missing');
           if (!ownerSw.includes("if (!url.pathname.startsWith('/admin/')) return;")) throw new Error('Owner service worker is not limited to its route scope');
           if (ownerSw.includes("'/admin.css") || ownerSw.includes("'/admin.js") || ownerSw.includes("'/frontend/")) throw new Error('Owner service-worker shell contains out-of-scope root assets');
           const sw = fs.readFileSync('sw.js', 'utf8');
