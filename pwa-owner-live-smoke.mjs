@@ -33,7 +33,11 @@ assertFreshResponse(pageResponse, 'Owner app shell');
 assert.equal(new URL(pageResponse.url).pathname, '/admin/', 'Owner app canonical route must have a trailing slash');
 assert.match(pageResponse.headers.get('content-type') || '', /text\/html/i);
 assert.match(html, /<link rel="manifest" href="\/admin\/manifest\.webmanifest">/);
-assert.match(html, /navigator\.serviceWorker\.register\("\/admin\/sw\.js",\{scope:"\/admin\/",updateViaCache:"none"\}\)/);
+const installScriptMatch = html.match(/<script\b[^>]*\bsrc=["']([^"']*\/admin\/owner-pwa-install\.js(?:\?[^"']*)?)["'][^>]*>/i);
+assert.ok(installScriptMatch, 'Owner app must load the install and service-worker bootstrap script');
+const installScriptUrl = new URL(installScriptMatch[1], pageResponse.url);
+assert.equal(installScriptUrl.origin, new URL(pageResponse.url).origin, 'Owner bootstrap must remain same-origin');
+assert.ok(installScriptUrl.pathname.startsWith('/admin/'), 'Owner bootstrap must stay inside the /admin/ scope');
 assert.match(html, /FreshWay — Owner/);
 
 for (const [, value] of html.matchAll(/\b(?:src|href)=["']([^"']+)["']/gi)) {
@@ -59,6 +63,11 @@ assertFreshResponse(workerResponse, 'Owner service worker');
 assert.match(workerResponse.headers.get('content-type') || '', /javascript/i);
 assert.equal(workerResponse.headers.get('service-worker-allowed'), '/admin/');
 const worker = await workerResponse.text();
+const installScriptResponse = await fetchOwnerRoute(installScriptUrl.pathname + installScriptUrl.search);
+assertFreshResponse(installScriptResponse, 'Owner install/bootstrap script');
+assert.match(installScriptResponse.headers.get('content-type') || '', /javascript/i);
+const installScript = await installScriptResponse.text();
+assert.match(installScript, /navigator\.serviceWorker\.register\(\s*['"]\/admin\/sw\.js['"]\s*,\s*\{\s*scope:\s*['"]\/admin\/['"]\s*,\s*updateViaCache:\s*['"]none['"]\s*\}\s*\)/, 'Owner bootstrap must register the scoped service worker with cache bypass');
 assert.match(worker, /const CACHE = 'fw-owner-v[0-9]+'/);
 assert.match(worker, /if \(!url\.pathname\.startsWith\('\/admin\/'\)\) return;/);
 
