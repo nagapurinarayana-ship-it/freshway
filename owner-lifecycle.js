@@ -96,10 +96,11 @@
       try{
         result=await api('/admin/orders/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({[field]:value})});
       }catch(e){
-        let recovered=false;
+        let recovered=false,refreshed=false;
         try{
           const fresh=await getOrder(id);
           if(fresh){
+            refreshed=true;
             if(state.id===id)renderLifecycle(fresh);
             if(fresh[key]===value){
               recovered=true;
@@ -113,7 +114,7 @@
         }catch(_){
           // The database state cannot be verified. Keep the failure visible and do not claim success.
         }
-        if(!recovered&&!state.order?.id){if(state.id===id)control.value=previous}
+        if(!refreshed&&state.id===id)control.value=previous;
         if(!recovered&&state.id===id)setSaveState('Save failed · verify','error');
         if(!recovered)toast('Could not verify the saved order after '+field+' failed. Refresh the order before retrying. '+(e.message||'Request failed'));
         control.disabled=false;
