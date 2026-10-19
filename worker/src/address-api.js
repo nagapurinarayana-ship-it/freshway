@@ -44,11 +44,13 @@ async function list(env, customerId) {
   }
   return rows.map(publicAddress);
 }
+export function validateAddressPayload(payload = {}) { return validate(normalized(payload)); }
 function validate(a) {
   if (!a.recipient_name || a.recipient_name.length < 2) return 'Enter the recipient name.';
   if (!/^91\d{10}$/.test(a.delivery_phone)) return 'Enter a valid 10-digit delivery contact number.';
   if (!a.house_flat || !a.area || !a.city) return 'Complete the delivery address.';
   if (!/^\d{6}$/.test(a.pincode)) return 'Enter a valid 6-digit PIN code.';
+  if (a.latitude == null || a.longitude == null) return 'Select the exact delivery location using GPS, search, or the map pin.';
   if ((a.latitude == null) !== (a.longitude == null)) return 'Location coordinates are incomplete.';
   if (a.latitude != null && !validCoords(a.latitude, a.longitude)) return 'Selected map location is invalid. Please use GPS, search, or choose the pin on the map.';
   if (a.accuracy_meters != null && (!Number.isFinite(a.accuracy_meters) || a.accuracy_meters < 0 || a.accuracy_meters > 100000)) return 'Location accuracy is invalid.';
