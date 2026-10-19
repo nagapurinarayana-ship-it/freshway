@@ -34,6 +34,8 @@ assert.ok(addressUi.includes('data-fw-location-candidate'), 'location search mus
 assert.ok(!addressUi.includes("prompt('Search delivery location')"), 'mobile location search must not depend on a blocking browser prompt');
 assert.ok(!addressUi.includes('||current?.building'), 'clearing an optional address field must not restore stale saved text');
 assert.ok(addressUi.includes('window.FreshWayAddressSummary={ready:true,text}'), 'address summary must follow the actual editable form values');
+assert.ok(addressUi.includes("cache:'no-store'"), 'saved address hydration must bypass stale browser cache');
+assert.ok(addressUi.includes('savedAddressesError=true'), 'saved address failure must not masquerade as an empty address book');
 const customerAppPath = fileURLToPath(new URL('../app.js', import.meta.url));
 const customerApp = readFileSync(customerAppPath, 'utf8');
 assert.ok(customerApp.includes('addressSummary=window.FreshWayAddressSummary'), 'profile and checkout must share one address summary source');
