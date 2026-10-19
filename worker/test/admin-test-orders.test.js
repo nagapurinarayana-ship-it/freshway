@@ -44,5 +44,6 @@ test('owner can mark and unmark a test order without changing delivery/payment s
   assert.ok(update);
   assert.ok(update.sql.includes('is_test_order=?'));
   assert.deepEqual(update.binds.slice(0,1),[1]);
-  assert.match(update.sql,/^UPDATE orders SET is_test_order=\?,updated_at=CURRENT_TIMESTAMP WHERE id=\?/);
+  assert.match(update.sql,/^UPDATE orders SET is_test_order=\?,updated_at=CURRENT_TIMESTAMP WHERE id=\? AND delivery_status IS \? AND payment_status IS \? AND delivery_plan IS \? AND is_test_order IS \?$/);
+  assert.deepEqual(update.binds,[1,'FW-TEST-1','New','Not Collected','Tomorrow',0]);
 });
