@@ -239,6 +239,8 @@ test('customer can browse, add a product, checkout, and receive confirmation', a
   // editor; the checkout fields are not exposed as a second address form.
   await expect(page.locator('#fwCheckoutAddAddress')).toBeVisible();
   await page.locator('#fwCheckoutAddAddress').click();
+  await expect(page.locator('#fwAddressManagerNew')).toBeVisible();
+  await page.locator('#fwAddressManagerNew').click();
   await expect(page.locator('#fwAddrName')).toBeVisible();
   await page.locator('#fwAddrName').fill('E2E Customer');
   await page.locator('#fwAddrPhone').fill('9876543210');
