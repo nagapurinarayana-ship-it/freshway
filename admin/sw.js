@@ -2,6 +2,8 @@ const CACHE = 'fw-owner-v8';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
+  '/admin/icons/icon-192.svg',
+  '/admin/icons/icon-512.svg',
   '/admin/owner-pwa-install.js?v=20261019-install-parity-v1',
   '/admin/owner-pwa-install.css?v=20261019-install-parity-v1',
   '/admin/admin.css?v=20261008-mobile-visual-v1',
