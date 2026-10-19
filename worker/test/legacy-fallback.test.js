@@ -147,6 +147,7 @@ test('Owner status/payment and classification saves share a queue', () => {
 
 test('Owner Live/Test switching queues a fresh load and ignores stale responses', () => {
   assert.match(adminJsSource, /let orderLoadSequence=0,orderLoadPending=false/);
+  assert.ok(adminJsSource.includes("if(!validateOrderFilters()){orders=[];$('#ordersMeta').textContent='Filters need attention'"));
   assert.ok(adminJsSource.includes('if(requestId!==orderLoadSequence||modeAtStart!==testOrderMode)return'));
   assert.ok(adminJsSource.includes('if(orderLoadPending||requestId!==orderLoadSequence){orderLoadPending=false;void loadOrders(true)}'));
 });
