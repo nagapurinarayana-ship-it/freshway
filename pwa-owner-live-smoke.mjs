@@ -62,6 +62,16 @@ const worker = await workerResponse.text();
 assert.match(worker, /const CACHE = 'fw-owner-v[0-9]+'/);
 assert.match(worker, /if \(!url\.pathname\.startsWith\('\/admin\/'\)\) return;/);
 
+// This read-only, unauthenticated status endpoint verifies that the deployed
+// Owner PWA's same-origin API route reaches the real Worker without exercising
+// login, changing data, or using production credentials.
+const ownerApiStatusResponse = await fetchOwnerRoute('/api/admin/status');
+assert.match(ownerApiStatusResponse.headers.get('content-type') || '', /application\\/json/i);
+assert.match(ownerApiStatusResponse.headers.get('cache-control') || '', /no-store/i);
+const ownerApiStatus = await ownerApiStatusResponse.json();
+assert.equal(ownerApiStatus.ok, true, 'Owner API status must report success');
+assert.ok(typeof ownerApiStatus.version === 'string' && ownerApiStatus.version.length > 0, 'Owner API auth/version endpoint must be reachable');
+
 const shellMatch = worker.match(/const SHELL = \[([\s\S]*?)\];/);
 assert.ok(shellMatch, 'Owner service-worker shell list must exist');
 const shellPaths = [...shellMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map(([, path]) => path);
@@ -89,6 +99,7 @@ console.log(JSON.stringify({
   appRoute: pageResponse.url,
   manifest: { id: manifest.id, start_url: manifest.start_url, scope: manifest.scope, iconCount: manifest.icons.length },
   serviceWorkerAllowed: workerResponse.headers.get('service-worker-allowed'),
+  ownerApiStatus: { ok: ownerApiStatus.ok, version: ownerApiStatus.version },
   checkedAssetCount: assetResponses.length,
   assets: assetResponses
 }, null, 2));
