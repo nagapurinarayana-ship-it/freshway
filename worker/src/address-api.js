@@ -69,8 +69,6 @@ export async function handleAddress(request, env, customerId, action) {
   if (request.method === 'GET' && action === 'list') return response({ addresses: await list(env, customerId) }, 200, env);
   let payload = {};
   try { payload = await request.json(); } catch (_) { if (request.method !== 'DELETE') return response({ error:'Invalid address data.' }, 400, env); }
-  const id = Number(payload.id || new URL(request.url).pathname.split('/').pop());
-  if (!Number.isInteger(id) || id < 1) return response({ error:'Invalid address.' }, 400, env);
   if (action === 'create' && request.method === 'POST') {
     const a = normalized(payload), error = validate(a);
     if (error) return response({ error }, 400, env);
@@ -92,6 +90,8 @@ export async function handleAddress(request, env, customerId, action) {
     await ensureDefault(env, customerId);
     return response({ ok:true, addresses:await list(env,customerId), id:r.meta?.last_row_id }, 201, env);
   }
+  const id = Number(payload.id || new URL(request.url).pathname.split('/').pop());
+  if (!Number.isInteger(id) || id < 1) return response({ error:'Invalid address.' }, 400, env);
   const owned = await env.DB.prepare('SELECT * FROM addresses WHERE id=? AND customer_id=? AND is_saved=1 AND deleted_at IS NULL').bind(id,customerId).first();
   // DELETE is intentionally idempotent. A stale UI copy must never surface a false
   // "Address not found" error after the address has already been removed elsewhere.
