@@ -35,16 +35,41 @@
       const message=nextTest?'Move this order to Test orders? It will be excluded from live lists, customer order history, cash totals and business reports.':'Move this order back to Live orders? It will be included in customer history and live business calculations.';
       if(!confirm(message))return;
       classification.disabled=true;
+      let result;
       try{
-        await api(`/admin/orders/${encodeURIComponent(o.id)}`,{method:'PATCH',body:JSON.stringify({isTestOrder:nextTest})});
-        const destination=document.getElementById(nextTest?'testOrdersTab':'liveOrdersTab');
-        if(destination&&destination.getAttribute('aria-selected')!=='true')destination.click();
-        if(typeof refreshOwnerAfterOrderMutation==='function')await refreshOwnerAfterOrderMutation();
+        result=await api('/admin/orders/'+encodeURIComponent(o.id),{method:'PATCH',body:JSON.stringify({isTestOrder:nextTest})});
+      }catch(error){
+        setSaveState('Save failed','error');
+        toast('Could not save order classification: '+(error.message||'Request failed'));
+        classification.disabled=false;
+        return;
+      }
+      // A successful PATCH is the save boundary. Render its returned state before
+      // unrelated dashboard refreshes so a refresh failure cannot mask the save.
+      const saved={...o,isTestOrder:Number(result?.isTestOrder??(nextTest?1:0))===1};
+      if(state.id===o.id)renderLifecycle(saved);
+      const destination=document.getElementById(nextTest?'testOrdersTab':'liveOrdersTab');
+      if(destination&&destination.getAttribute('aria-selected')!=='true')destination.click();
+      let refreshFailed=false,verified=false;
+      try{
         const fresh=await getOrder(o.id,nextTest);
-        if(!fresh)throw Error('Order classification was saved, but the order could not be reloaded in its destination list. Refresh the page.');
+        if(!fresh||Boolean(fresh.isTestOrder)!==nextTest)throw Error('The order list did not confirm the requested classification.');
+        verified=true;
         if(state.id===o.id)renderLifecycle(fresh);
+      }catch(_){refreshFailed=true}
+      try{
+        if(typeof refreshOwnerAfterOrderMutation==='function')await refreshOwnerAfterOrderMutation();
+      }catch(_){refreshFailed=true}
+      if(!verified){
+        setSaveState('Saved · verify order','error');
+        toast('The API accepted the change, but the order list did not confirm it. Refresh and verify before trying again.');
+      }else if(refreshFailed){
+        setSaveState('Saved · refresh needed','error');
+        toast(nextTest?'Order is classified as a Test Order, but some lists failed to refresh. Tap Refresh to verify.':'Order is back in Live orders, but some lists failed to refresh. Tap Refresh to verify.');
+      }else{
         toast(nextTest?'Order moved to Test orders':'Order moved to Live orders');
-      }catch(error){toast(error.message||'Could not change order classification')}finally{classification.disabled=false}
+      }
+      classification.disabled=false;
     });
     status?.addEventListener('change',()=>queueSave(o.id,'status',status.value,status));
     payment?.addEventListener('change',()=>queueSave(o.id,'payment',payment.value,payment));
@@ -57,15 +82,39 @@
   function queueSave(id,field,value,control){
     state.queue=state.queue.then(async()=>{
       if(state.id!==id)return;
-      const previous=state.order?.[field==='status'?'status':'payment'];
+      const key=field==='status'?'status':'payment';
+      const previous=state.order?.[key];
       if(previous===value)return;
       control.disabled=true;setSaveState('Saving…','saving');
+      let result;
       try{
-        await api(`/admin/orders/${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify({[field]:value})});
-        const fresh=await getOrder(id);if(!fresh)throw Error('Order could not be refreshed.');
-        if(typeof refreshOwnerAfterOrderMutation==='function')await refreshOwnerAfterOrderMutation();
+        result=await api('/admin/orders/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({[field]:value})});
+      }catch(e){
+        if(state.id===id){control.value=previous;setSaveState('Save failed','error')}
+        toast('Could not save order '+field+': '+(e.message||'Request failed'));
+        control.disabled=false;
+        return;
+      }
+      // Render the confirmed write immediately. Order re-fetches and summary/report
+      // refreshes are secondary and must not mislabel a successful PATCH as failed.
+      const saved={...(state.order||{}),[key]:result?.[key]??value};
+      if(state.id===id)renderLifecycle(saved);
+      let refreshFailed=false;
+      try{
+        const fresh=await getOrder(id);
+        if(!fresh)throw Error('Order details were not returned.');
         if(state.id===id)renderLifecycle(fresh);
-      }catch(e){if(state.id===id){control.value=previous;setSaveState('Save failed','error')}toast(e.message||'Update failed')}finally{control.disabled=false}
+      }catch(_){refreshFailed=true}
+      try{
+        if(typeof refreshOwnerAfterOrderMutation==='function')await refreshOwnerAfterOrderMutation();
+      }catch(_){refreshFailed=true}
+      if(refreshFailed){
+        if(state.id===id)setSaveState('Saved · refresh needed','error');
+        toast('Order change was saved, but some details or dashboard totals failed to refresh. Tap Refresh to verify.');
+      }else if(state.id===id){
+        setSaveState('Saved');
+      }
+      control.disabled=false;
     });
     return state.queue;
   }
