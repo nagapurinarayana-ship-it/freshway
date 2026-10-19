@@ -43,11 +43,11 @@ function ownerHtml(source) {
   // control those requests. Relative navigation fragments and "/" links stay
   // unchanged; relative asset paths become /admin/<asset-path>.
   const html = source.replace(
-    /(\\b(?:src|href)=["'])(?![\\/#]|[a-z][a-z0-9+.-]*:)([^"']+)(["'])/gi,
+    /(\b(?:src|href)=["'])(?![\/#]|[a-z][a-z0-9+.-]*:)([^"']+)(["'])/gi,
     '$1/admin/$2$3'
   );
   return html.replace(
-    /<\\/head>/i,
+    /<\/head>/i,
     '<link rel="manifest" href="/admin/manifest.webmanifest"><meta name="robots" content="noindex,nofollow"><script>if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/admin/sw.js",{scope:"/admin/",updateViaCache:"none"}).catch(error=>console.error("Owner service worker registration failed",error)),{once:true})}</script></head>'
   );
 }
