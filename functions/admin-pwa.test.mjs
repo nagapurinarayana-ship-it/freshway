@@ -4,6 +4,9 @@ import { onRequest } from './admin/[[path]].js';
 
 const readRepoFile = path => readFileSync(new URL('../' + path.replace(/^\//, ''), import.meta.url));
 const sourceHtml = readRepoFile('admin.html').toString('utf8');
+const customerHtml = readRepoFile('index.html').toString('utf8');
+assert.doesNotMatch(customerHtml, /href=["']\/admin(?:\.html|\/?)['"]/i, 'customer app must not expose an Owner dashboard link');
+assert.doesNotMatch(customerHtml, /class=["'][^"']*\badmin-link\b/i, 'customer profile must not render an Owner dashboard shortcut');
 const ownerManifestSource = readRepoFile('admin/manifest.webmanifest').toString('utf8');
 const ownerWorkerSource = readRepoFile('admin/sw.js').toString('utf8');
 const requiredOwnerAssets = [
