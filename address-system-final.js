@@ -161,7 +161,7 @@
     renderDisplays();
   }
 
-  async function readJson(response) {
+  async function readJsonResponse(response) {
     const type = String(response.headers.get('content-type') || '').toLowerCase();
     if (!type.includes('json')) throw new Error('The address service returned an unexpected response. Please try again.');
     try { return await response.json(); }
@@ -172,9 +172,9 @@
     const preserveSelection = !options || options.preserveSelection !== false;
     const previousId = preserveSelection && activeAddress ? activeAddress.id : null;
     try {
-      const response = await fetch('/api/addresses', { credentials: 'include', cache: 'no-store' });
-      if (!response.ok) {
-        if (response.status === 401) {
+      const r = await fetch('/api/addresses', { credentials: 'include', cache: 'no-store' });
+      if (!r.ok) {
+        if (r.status === 401) {
           addresses = [];
           activeAddress = null;
           renderDisplays();
@@ -182,7 +182,7 @@
         }
         throw new Error('Could not load your saved addresses.');
       }
-      const data = await readJson(response);
+      const data = await readJsonResponse(r);
       addresses = uniqueAddresses(data.addresses || []);
       activeAddress = addresses.find(function (address) { return Number(address.id) === Number(previousId); }) || defaultAddress();
       renderDisplays();
@@ -471,7 +471,7 @@
       toast('Please choose a valid delivery location.');
       return;
     }
-    const requestId = ++locationRequestId;
+    const requestId=++locationRequestId;
     editorCoordinates = {
       latitude: Number(latitude), longitude: Number(longitude),
       accuracyMeters: accuracy == null ? null : Number(accuracy),
@@ -591,7 +591,7 @@
         box.innerHTML = '<p role="status">No results found. Try a more specific area or landmark.</p>';
         return;
       }
-      box.innerHTML = '<p class="fw-address-search-hint">Choose the exact location.</p>' +
+      box.innerHTML = '<p class="fw-address-search-hint">Choose the exact match. Nothing is selected until you tap a result.</p>' +
         searchResults.map(function (item, index) {
           return '<button type="button" class="secondary-btn full" data-fw-search-index="' + index + '">' +
             esc(item.display_name || ('Location result ' + (index + 1))) + '</button>';
@@ -649,14 +649,14 @@
     const payload = Object.assign({}, address, { isDefault: editingAddress ? !!editingAddress.isDefault : addresses.length === 0 });
     const url = editingAddress ? '/api/addresses/' + encodeURIComponent(editingAddress.id) : '/api/addresses';
     try {
-      const response = await fetch(url, {
+      const r = await fetch(url, {
         method: editingAddress ? 'PATCH' : 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      const data = await readJson(response);
-      if (!response.ok) throw new Error(data.error || 'Could not save your address.');
+      const data = await readJsonResponse(r);
+      if (!r.ok) throw new Error(data.error || 'Could not save your address.');
       addresses = uniqueAddresses(data.addresses || []);
       const returnedAddress = addresses.find(function (item) { return Number(item.id) === Number(data.id); }) ||
         addresses.find(function (item) { return Number(item.id) === Number(editingAddress && editingAddress.id); }) || null;
@@ -682,14 +682,14 @@
 
   async function setDefault(id) {
     try {
-      const response = await fetch('/api/addresses/' + encodeURIComponent(id), {
+      const r = await fetch('/api/addresses/' + encodeURIComponent(id), {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ default: true })
       });
-      const data = await readJson(response);
-      if (!response.ok) throw new Error(data.error || 'Could not change the default address.');
+      const data = await readJsonResponse(r);
+      if (!r.ok) throw new Error(data.error || 'Could not change the default address.');
       addresses = uniqueAddresses(data.addresses || []);
       activeAddress = addresses.find(function (address) { return Number(address.id) === Number(id); }) || defaultAddress();
       renderDisplays();
@@ -703,13 +703,13 @@
   async function deleteAddress(id) {
     if (!window.confirm('Delete this saved address?')) return;
     try {
-      const response = await fetch('/api/addresses/' + encodeURIComponent(id), {
-        method: 'DELETE',
+      const r = await fetch(`/api/addresses/${id}/delete`, {
+        method:'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' }
       });
-      const data = await readJson(response);
-      if (!response.ok) throw new Error(data.error || 'Could not delete this address.');
+      const data = await readJsonResponse(r);
+      if (!r.ok) throw new Error(data.error || 'Could not delete this address.');
       const previousActiveId = activeAddress && activeAddress.id;
       addresses = uniqueAddresses(data.addresses || []);
       activeAddress = addresses.find(function (address) { return Number(address.id) === Number(previousActiveId); }) || defaultAddress();
