@@ -56,8 +56,8 @@ jobs:
           if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "Cloudflare deployment credentials are not configured; validation passed and deployment is intentionally skipped."
+            echo "Cloudflare deployment credentials are missing. Refusing to report a production release as successful without applying D1 migrations and deploying the Worker."
+            exit 1
           fi
       - name: Apply D1 migrations
         if: steps.cloudflare.outputs.available == 'true'
