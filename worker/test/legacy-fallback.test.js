@@ -135,22 +135,23 @@ test('owner order UI distinguishes failed writes from post-save refresh failures
 });
 
 
+
 test('Owner status/payment and classification saves share a queue', () => {
-  assert.match(ownerLifecycleSource, /state\\.queue=state\\.queue\\.then\\(task\\)/);
-  assert.match(ownerLifecycleSource, /Queue classification writes behind pending status\\/payment auto-saves/);
+  assert.ok(ownerLifecycleSource.includes('state.queue=state.queue.then(task)'));
+  assert.ok(ownerLifecycleSource.includes('Queue classification writes behind pending status/payment auto-saves'));
 });
 
 test('legacy API uses field-scoped order concurrency guards and returns HTTP 409 on conflicts', () => {
-  assert.match(workerIndexSource, /const guards=\\['id=\\?'\\],whereParams=\\[id\\]/);
-  assert.match(workerIndexSource, /guards\\.push\\('delivery_status IS \\?'\\)/);
-  assert.match(workerIndexSource, /guards\\.push\\('is_test_order IS \\?'\\)/);
-  assert.match(workerIndexSource, /\\^ORDER_CONFLICT:/);
-  assert.match(workerIndexSource, /\\?409:/);
+  assert.ok(workerIndexSource.includes("const guards=['id=?'],whereParams=[id]"));
+  assert.ok(workerIndexSource.includes("guards.push('delivery_status IS ?')"));
+  assert.ok(workerIndexSource.includes("guards.push('is_test_order IS ?')"));
+  assert.ok(workerIndexSource.includes('ORDER_CONFLICT:'));
+  assert.ok(workerIndexSource.includes('?409:'));
 });
 
 test('modular API does not compare untouched order fields during a write', () => {
-  assert.match(adminOrdersSource, /const sets=\\[\\],params=\\[\\],guards=\\['id=\\?'\\],guardParams=\\[id\\]/);
-  assert.match(adminOrdersSource, /guards\\.push\\('delivery_status IS \\?'\\)/);
-  assert.match(adminOrdersSource, /guards\\.push\\('is_test_order IS \\?'\\)/);
-  assert.doesNotMatch(adminOrdersSource, /WHERE id=\\? AND delivery_status IS \\? AND payment_status IS \\? AND delivery_plan IS \\?/);
+  assert.ok(adminOrdersSource.includes("const sets=[],params=[],guards=['id=?'],guardParams=[id]"));
+  assert.ok(adminOrdersSource.includes("guards.push('delivery_status IS ?')"));
+  assert.ok(adminOrdersSource.includes("guards.push('is_test_order IS ?')"));
+  assert.ok(!adminOrdersSource.includes('WHERE id=? AND delivery_status IS ? AND payment_status IS ? AND delivery_plan IS ? AND is_test_order IS ?'));
 });
