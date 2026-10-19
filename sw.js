@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v45';
+const CACHE = 'freshway-v46';
 
 const APP_SHELL = [
   '/',
