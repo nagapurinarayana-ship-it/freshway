@@ -27,7 +27,6 @@ const REQUIRED_SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
   '/admin/admin.css?v=20261008-mobile-visual-v1',
-  '/admin/admin.js?v=20261019-test-orders-v3',
   '/admin/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1'
 ];
 
