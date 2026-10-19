@@ -1,6 +1,7 @@
 const cleanPhone = value => { const digits = String(value || '').replace(/\D/g, ''); if (digits.length === 10) return `91${digits}`; if (digits.length === 12 && digits.startsWith('91')) return digits; return ''; };
 const text = (v, max = 200) => String(v ?? '').trim().slice(0, max);
 const validCoords = (lat, lon) => Number.isFinite(Number(lat)) && Number.isFinite(Number(lon)) && Number(lat) >= -90 && Number(lat) <= 90 && Number(lon) >= -180 && Number(lon) <= 180 && !(Number(lat) === 0 && Number(lon) === 0);
+const coordinate = value => value == null || String(value).trim() === '' ? null : Number(value);
 const normalized = (payload = {}) => ({
   label: text(payload.label || 'Other', 40) || 'Other',
   recipient_name: text(payload.recipientName || payload.recipient_name, 120),
@@ -10,9 +11,9 @@ const normalized = (payload = {}) => ({
   area: text(payload.area, 200), locality: text(payload.locality, 160), city: text(payload.city, 100),
   district: text(payload.district, 100), state: text(payload.state, 100), pincode: text(payload.pincode, 6),
   landmark: text(payload.landmark, 200), note: text(payload.note || payload.deliveryNote || payload.delivery_note, 500),
-  latitude: payload.latitude === '' || payload.latitude == null ? null : Number(payload.latitude),
-  longitude: payload.longitude === '' || payload.longitude == null ? null : Number(payload.longitude),
-  accuracy_meters: payload.accuracyMeters === '' || payload.accuracyMeters == null ? null : Number(payload.accuracyMeters),
+  latitude: coordinate(payload.latitude),
+  longitude: coordinate(payload.longitude),
+  accuracy_meters: coordinate(payload.accuracyMeters ?? payload.accuracy_meters),
   location_source: text(payload.locationSource || payload.location_source, 30),
   place_id: text(payload.placeId || payload.place_id, 200),
   location_updated_at: text(payload.locationUpdatedAt || payload.location_updated_at, 40),
