@@ -41,3 +41,22 @@ test('legacy database migration stays aligned with the fresh schema', () => {
     'schema.sql and migration 0022 must both support Owner live/test-order filtering'
   );
 });
+
+
+const savedAddressMigration = readFileSync(new URL('../migrations/0023_separate_saved_addresses.sql', import.meta.url), 'utf8');
+const addressesTable = schema.match(/CREATE TABLE IF NOT EXISTS addresses \\(([\\s\\S]*?)\\n\\);/)?.[1];
+
+test('fresh schema separates saved addresses from order-only address rows', () => {
+  assert.ok(addressesTable, 'schema.sql must define the addresses table');
+  assert.match(addressesTable, /is_saved INTEGER NOT NULL DEFAULT 1 CHECK\\(is_saved IN \\(0,1\\)\\)/);
+  assert.match(schema, /idx_addresses_saved_list ON addresses\\(customer_id,is_saved,deleted_at,is_default,id DESC\\)/);
+  assert.match(schema, /idx_addresses_one_active_default[\\s\\S]*WHERE is_saved=1 AND deleted_at IS NULL AND is_default=1/);
+});
+
+test('upgrade migration keeps historical orders and hides order-only address records from saved lists', () => {
+  assert.match(savedAddressMigration, /ALTER TABLE addresses ADD COLUMN is_saved INTEGER NOT NULL DEFAULT 1/);
+  assert.match(savedAddressMigration, /UPDATE addresses[\\s\\S]*SET is_saved=0, is_default=0[\\s\\S]*orders.address_id=addresses.id/);
+  assert.match(savedAddressMigration, /idx_addresses_one_active_default/);
+  assert.match(savedAddressMigration, /NOT EXISTS/);
+  assert.doesNotMatch(savedAddressMigration, /DELETE FROM (addresses|orders)/i, 'migration must not delete address/order history');
+});
