@@ -28,6 +28,15 @@ const addressUi = readFileSync(addressUiPath, 'utf8');
 assert.match(addressUi, /async function readJsonResponse\(response\)/);
 assert.match(addressUi, /Address service returned invalid data/);
 assert.equal((addressUi.match(/await readJsonResponse\(r\)/g) || []).length, 4);
+assert.ok(addressUi.includes('function clearAddressForNew()'), 'starting a new address must clear old address text and coordinates');
+assert.ok(addressUi.includes('selected=addresses.find(a=>a.isDefault)||addresses[0]||null'), 'server default address must win during initial hydration');
+assert.ok(addressUi.includes('data-fw-location-candidate'), 'location search must let customers choose an exact result');
+assert.ok(!addressUi.includes("prompt('Search delivery location')"), 'mobile location search must not depend on a blocking browser prompt');
+assert.ok(!addressUi.includes('||current?.building'), 'clearing an optional address field must not restore stale saved text');
+assert.ok(addressUi.includes('window.FreshWayAddressSummary={ready:true,text}'), 'address summary must follow the actual editable form values');
+const customerAppPath = fileURLToPath(new URL('../app.js', import.meta.url));
+const customerApp = readFileSync(customerAppPath, 'utf8');
+assert.ok(customerApp.includes('addressSummary=window.FreshWayAddressSummary'), 'profile and checkout must share one address summary source');
 
 console.log('address API JSON-boundary regression contract OK');
 
