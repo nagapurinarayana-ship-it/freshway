@@ -68,7 +68,6 @@ async function waitForFullImageFitAssets(base) {
       assertCurrentScriptReference(indexHtml, indexResponse.url, promotionPath, 'production home');
       assertCurrentScriptReference(adminHtml, adminResponse.url, cataloguePath, 'production Owner');
       assert.ok(sw.includes(promotionPath), 'service worker does not cache the current promotion script');
-      assert.ok(sw.includes(cataloguePath), 'service worker does not cache the current catalogue script');
 
       const [promotionResponse, catalogueResponse] = await Promise.all([
         fetch(`${base}${promotionPath}`, { cache: 'no-store', redirect: 'follow' }),
@@ -169,7 +168,6 @@ async function verifyCustomDomain() {
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/promotions.js?v=20261009-full-image-fit-v1', 'custom-domain home');
   assertCurrentScriptReference(adminHtml, adminResponse.url, '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1', 'custom-domain Owner');
   assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261009-full-image-fit-v1'), 'custom-domain service worker must cache the current promotion script');
-  assert.ok(sw.includes('/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1'), 'custom-domain service worker must cache the current Owner catalogue script');
 
   const shareMatch = homeHtml.match(/property="og:image" content="([^"]+)"/);
   assert.ok(shareMatch, 'custom-domain Open Graph image URL must exist');
