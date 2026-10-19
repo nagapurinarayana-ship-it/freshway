@@ -195,6 +195,8 @@ CREATE INDEX IF NOT EXISTS idx_orders_client_order_id ON orders(client_order_id)
 CREATE INDEX IF NOT EXISTS idx_orders_test_created ON orders(is_test_order, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_addresses_customer ON addresses(customer_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_addresses_customer_default ON addresses(customer_id,is_default DESC,id DESC);
+CREATE INDEX IF NOT EXISTS idx_addresses_saved_list ON addresses(customer_id,is_saved,deleted_at,is_default,id DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_addresses_one_active_default ON addresses(customer_id) WHERE is_saved=1 AND deleted_at IS NULL AND is_default=1;
 CREATE INDEX IF NOT EXISTS idx_addresses_customer_label ON addresses(customer_id,label);
 CREATE INDEX IF NOT EXISTS idx_order_address_snapshots_location ON order_address_snapshots(latitude,longitude);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
