@@ -8,6 +8,8 @@ const serviceWorkerSource = readFileSync(new URL('../../sw.js', import.meta.url)
 const ownerServiceWorkerSource = readFileSync(new URL('../../admin/sw.js', import.meta.url), 'utf8');
 const indexHtml = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
 const adminHtml = readFileSync(new URL('../../admin.html', import.meta.url), 'utf8');
+const adminJsSource = readFileSync(new URL('../../admin.js', import.meta.url), 'utf8');
+const adminDataSource = readFileSync(new URL('../src/admin-data.js', import.meta.url), 'utf8');
 const ownerLifecycleSource = readFileSync(new URL('../../owner-lifecycle.js', import.meta.url), 'utf8');
 const workerIndexSource = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
 const adminOrdersSource = readFileSync(new URL('../src/admin-orders.js', import.meta.url), 'utf8');
@@ -111,7 +113,7 @@ test('owner lifecycle script cache-busting version matches the service-worker sh
 test('service worker loads online documents and executable code from the network first, with cache fallback', () => {
   assert.match(serviceWorkerSource, /if \(isNavigation && \['\/', '\/index\.html'\]\.includes\(url\.pathname\)\)/);
   assert.match(serviceWorkerSource, /url\.pathname === '\/admin\.html' \|\| url\.pathname\.startsWith\('\/admin\/'\)/);
-  assert.match(ownerServiceWorkerSource, /const CACHE = 'fw-owner-v5'/);
+  assert.match(ownerServiceWorkerSource, /const CACHE = 'fw-owner-v6'/);
   assert.match(serviceWorkerSource, /const freshCode = \['script','style'\]\.includes\(destination\)/);
   assert.match(serviceWorkerSource, /freshCode \? new Request\(event\.request, \{ cache: 'no-store' \}\)/);
   assert.match(serviceWorkerSource, /const cached = await cache\.match\(event\.request\)/);
@@ -154,4 +156,35 @@ test('modular API does not compare untouched order fields during a write', () =>
   assert.ok(adminOrdersSource.includes("guards.push('delivery_status IS ?')"));
   assert.ok(adminOrdersSource.includes("guards.push('is_test_order IS ?')"));
   assert.ok(!adminOrdersSource.includes('WHERE id=? AND delivery_status IS ? AND payment_status IS ? AND delivery_plan IS ? AND is_test_order IS ?'));
+});
+
+test('Owner failed status/payment saves reconcile from the database before reporting state', () => {
+  assert.ok(ownerLifecycleSource.includes('let recovered=false,refreshed=false'));
+  assert.ok(ownerLifecycleSource.includes('const fresh=await getOrder(id)'));
+  assert.ok(ownerLifecycleSource.includes('The server confirms this change was saved'));
+  assert.ok(ownerLifecycleSource.includes('The order was refreshed to its saved database value'));
+  assert.ok(ownerLifecycleSource.includes('if(!refreshed&&state.id===id)control.value=previous'));
+  assert.ok(adminJsSource.includes('d.errorId?'));
+  assert.ok(adminJsSource.includes('Reference: ${d.errorId}'));
+});
+
+test('unexpected admin database errors are logged with a reference and returned as HTTP 500', () => {
+  assert.ok(adminDataSource.includes("event:'freshway_admin_data_error'"));
+  assert.ok(adminDataSource.includes("code:'INTERNAL_ERROR',errorId"));
+  assert.ok(adminDataSource.includes('},500)'));
+  assert.ok(adminDataSource.includes('},409)'));
+});
+
+test('Owner script URLs and service-worker shell cache versions match', () => {
+  const htmlAdmin = adminHtml.match(/src="admin\\.js\\?v=([^"]+)"/)?.[1];
+  const shellAdmin = ownerServiceWorkerSource.match(/['"]\\/admin\\/admin\\.js\\?v=([^'"]+)['"]/)?.[1];
+  const htmlLife = adminHtml.match(/src="owner-lifecycle\\.js\\?v=([^"]+)"/)?.[1];
+  const shellLife = ownerServiceWorkerSource.match(/['"]\\/admin\\/owner-lifecycle\\.js\\?v=([^'"]+)['"]/)?.[1];
+  assert.ok(htmlAdmin);
+  assert.ok(shellAdmin);
+  assert.equal(htmlAdmin,shellAdmin);
+  assert.ok(htmlLife);
+  assert.ok(shellLife);
+  assert.equal(htmlLife,shellLife);
+  assert.match(ownerServiceWorkerSource,/const CACHE = 'fw-owner-v6'/);
 });
