@@ -70,7 +70,7 @@ jobs:
           node functions/index.test.mjs
           node functions/admin-html.test.mjs
           node functions/admin-pwa.test.mjs
-          node --check pwa-owner-preview-smoke.mjs
+          node --check pwa-owner-live-smoke.mjs
       - name: Run customer API resilience test
         run: node frontend/customer/api.test.js
         
