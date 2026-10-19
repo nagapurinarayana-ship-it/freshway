@@ -101,3 +101,13 @@ assert.match(ownerLifecycle,/await refreshOwnerAfterOrderMutation\(\)/);
 assert.match(adminSource,/async function refreshOwnerAfterOrderMutation/);
 assert.match(adminSource,/if\(id==='overview'\)await Promise\.all\(\[loadSummary\(\),loadBusiness\(\),loadHome\(\)\]\)/);
 assert.match(adminSource,/else if\(id==='orders'\)await Promise\.all\(\[loadSummary\(\),loadBusiness\(\),loadOrders\(true\)\]\)/);
+
+assert.match(source,/All categories/);
+assert.match(source,/heading\.classList\.remove\('fw-category-home-hidden'\)/);
+assert.match(source,/hero\.classList\.add\('fw-category-home-hidden'\)/);
+assert.match(source,/label\.textContent='CATALOGUE'/);
+assert.doesNotMatch(source,/search\.classList\.add\('fw-category-home-hidden'\)/);
+assert.match(productView,/Organic Groundnut Oil/);
+assert.match(productView,/Organic Sunflower Oil/);
+assert.match(productView,/productNameAliases/);
+console.log('premium category selection, navigation and customer-facing product naming contracts OK');
