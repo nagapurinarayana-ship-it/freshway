@@ -19,4 +19,17 @@ const routes = [
   { match: (u,m) => u.pathname === '/api/admin/store-profile' && m === 'PATCH', run: async (r,e,u) => ({storeProfile:await updateStoreProfile(e,await r.json())}) }
 ];
 
-export async function handleAdminData(request,env){const u=new URL(request.url);try{const route=routes.find(x=>x.match(u,request.method));return route?json(await route.run(request,env,u)):null}catch(e){const message=e?.message||'Admin data request failed.';return json({error:message},/^ORDER_CONFLICT:/.test(message)?409:400)}}
+export async function handleAdminData(request,env){
+  const u=new URL(request.url);
+  try{
+    const route=routes.find(x=>x.match(u,request.method));
+    return route?json(await route.run(request,env,u)):null;
+  }catch(e){
+    const message=String(e?.message||'Admin data request failed.');
+    if(/^ORDER_CONFLICT:/.test(message))return json({error:message.replace(/^ORDER_CONFLICT:\s*/,''),code:'ORDER_CONFLICT'},409);
+    if(/^(Invalid |Order not found|No order change|Delivery plan|Payment|Cash can|Only collected|Collected cash|Cannot change)/i.test(message))return json({error:message},400);
+    const errorId=crypto.randomUUID();
+    console.error(JSON.stringify({event:'freshway_admin_data_error',errorId,method:request.method,path:u.pathname,message,stack:e?.stack||''}));
+    return json({error:'The server could not save this change. Refresh the order and verify its saved state before retrying.',code:'INTERNAL_ERROR',errorId},500);
+  }
+}
