@@ -9,6 +9,8 @@ const ownerServiceWorkerSource = readFileSync(new URL('../../admin/sw.js', impor
 const indexHtml = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
 const adminHtml = readFileSync(new URL('../../admin.html', import.meta.url), 'utf8');
 const ownerLifecycleSource = readFileSync(new URL('../../owner-lifecycle.js', import.meta.url), 'utf8');
+const workerIndexSource = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
+const adminOrdersSource = readFileSync(new URL('../src/admin-orders.js', import.meta.url), 'utf8');
 
 const json = (value, status = 200) => new Response(JSON.stringify(value), {
   status,
@@ -109,7 +111,7 @@ test('owner lifecycle script cache-busting version matches the service-worker sh
 test('service worker loads online documents and executable code from the network first, with cache fallback', () => {
   assert.match(serviceWorkerSource, /if \(isNavigation && \['\/', '\/index\.html'\]\.includes\(url\.pathname\)\)/);
   assert.match(serviceWorkerSource, /url\.pathname === '\/admin\.html' \|\| url\.pathname\.startsWith\('\/admin\/'\)/);
-  assert.match(ownerServiceWorkerSource, /const CACHE = 'fw-owner-v4'/);
+  assert.match(ownerServiceWorkerSource, /const CACHE = 'fw-owner-v5'/);
   assert.match(serviceWorkerSource, /const freshCode = \['script','style'\]\.includes\(destination\)/);
   assert.match(serviceWorkerSource, /freshCode \? new Request\(event\.request, \{ cache: 'no-store' \}\)/);
   assert.match(serviceWorkerSource, /const cached = await cache\.match\(event\.request\)/);
@@ -130,4 +132,25 @@ test('owner order UI distinguishes failed writes from post-save refresh failures
 
   assert.match(ownerLifecycleSource, /Could not save order classification:/);
   assert.match(ownerLifecycleSource, /The API accepted the change, but the order list did not confirm it/);
+});
+
+
+test('Owner status/payment and classification saves share a queue', () => {
+  assert.match(ownerLifecycleSource, /state\\.queue=state\\.queue\\.then\\(task\\)/);
+  assert.match(ownerLifecycleSource, /Queue classification writes behind pending status\\/payment auto-saves/);
+});
+
+test('legacy API uses field-scoped order concurrency guards and returns HTTP 409 on conflicts', () => {
+  assert.match(workerIndexSource, /const guards=\\['id=\\?'\\],whereParams=\\[id\\]/);
+  assert.match(workerIndexSource, /guards\\.push\\('delivery_status IS \\?'\\)/);
+  assert.match(workerIndexSource, /guards\\.push\\('is_test_order IS \\?'\\)/);
+  assert.match(workerIndexSource, /\\^ORDER_CONFLICT:/);
+  assert.match(workerIndexSource, /\\?409:/);
+});
+
+test('modular API does not compare untouched order fields during a write', () => {
+  assert.match(adminOrdersSource, /const sets=\\[\\],params=\\[\\],guards=\\['id=\\?'\\],guardParams=\\[id\\]/);
+  assert.match(adminOrdersSource, /guards\\.push\\('delivery_status IS \\?'\\)/);
+  assert.match(adminOrdersSource, /guards\\.push\\('is_test_order IS \\?'\\)/);
+  assert.doesNotMatch(adminOrdersSource, /WHERE id=\\? AND delivery_status IS \\? AND payment_status IS \\? AND delivery_plan IS \\?/);
 });
