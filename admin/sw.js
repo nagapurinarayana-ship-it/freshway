@@ -1,7 +1,8 @@
-const CACHE = 'fw-owner-v7';
+const CACHE = 'fw-owner-v8';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
+  '/admin/owner-pwa-install.js?v=20261019-install-parity-v1',
   '/admin/admin.css?v=20261008-mobile-visual-v1',
   '/admin/admin.js?v=20261019-owner-order-reliability-v1',
   '/admin/frontend/phone-display.js?v=20261009-phone-display-v1',
