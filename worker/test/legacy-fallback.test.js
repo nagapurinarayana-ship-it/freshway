@@ -6,7 +6,7 @@ import vm from 'node:vm';
 const addressFixSource = readFileSync(new URL('../../address-fix.js', import.meta.url), 'utf8');
 const serviceWorkerSource = readFileSync(new URL('../../sw.js', import.meta.url), 'utf8');
 const ownerServiceWorkerSource = readFileSync(new URL('../../admin/sw.js', import.meta.url), 'utf8');
-const ownerInstallSource = readFileSync(new URL('../../admin/owner-pwa-install.js', import.meta.url), 'utf8');
+const ownerInstallSource = readFileSync(new URL('../../owner-pwa-install.js', import.meta.url), 'utf8');
 const ownerManifest = JSON.parse(readFileSync(new URL('../../admin/manifest.webmanifest', import.meta.url), 'utf8'));
 const indexHtml = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
 const adminHtml = readFileSync(new URL('../../admin.html', import.meta.url), 'utf8');
