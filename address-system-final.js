@@ -916,6 +916,8 @@
     getSelectedAddress: function () { return activeAddress || defaultAddress(); }
   });
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
-  else init();
+  // This script is loaded after the address modal markup and before app.js.
+  // Bind the delegated click listener now so Profile/home address clicks are
+  // handled before the generic navigation listener in app.js.
+  init();
 })();
