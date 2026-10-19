@@ -17,7 +17,7 @@ function ownerHtml(source) {
   let html = source;
   // The legacy Owner shell is served at /admin.html. Make its relative assets
   // root-relative before rendering it below /admin/ so paths remain correct.
-  html = html.replace(/(\\b(?:src|href)=["'])(?![\\/#]|[a-z][a-z0-9+.-]*:)([^"']+)(["'])/gi, '$1/$2$3');
+  html = html.replace(/(\b(?:src|href)=["'])(?![\/#]|[a-z][a-z0-9+.-]*:)([^"']+)(["'])/gi, '$1/$2$3');
   html = html.replace('</head>', '<link rel="manifest" href="/admin/manifest.webmanifest"><meta name="robots" content="noindex,nofollow"><script>if("serviceWorker" in navigator){addEventListener("load",()=>navigator.serviceWorker.register("/admin/sw.js",{scope:"/admin/",updateViaCache:"none"}).catch(()=>{}),{once:true})}</script></head>');
   return html;
 }
