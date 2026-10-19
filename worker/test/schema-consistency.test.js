@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const schema = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8');
 const migration = readFileSync(new URL('../migrations/0022_test_order_classification.sql', import.meta.url), 'utf8');
+const stockReleaseMigration = readFileSync(new URL('../migrations/0023_order_stock_release_tracking.sql', import.meta.url), 'utf8');
 
 const ordersTable = schema.match(
   /CREATE TABLE IF NOT EXISTS orders \(([\s\S]*?)\n\);/
@@ -40,4 +41,13 @@ test('legacy database migration stays aligned with the fresh schema', () => {
     true,
     'schema.sql and migration 0022 must both support Owner live/test-order filtering'
   );
+});
+
+
+test('fresh schema and migration track idempotent cancellation stock releases', () => {
+  assert.match(ordersTable || '', /stock_release_token TEXT UNIQUE/);
+  assert.match(ordersTable || '', /stock_released_at TEXT/);
+  assert.match(stockReleaseMigration, /ALTER TABLE orders ADD COLUMN stock_release_token TEXT;/);
+  assert.match(stockReleaseMigration, /ALTER TABLE orders ADD COLUMN stock_released_at TEXT;/);
+  assert.match(stockReleaseMigration, /CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_stock_release_token ON orders\(stock_release_token\) WHERE stock_release_token IS NOT NULL;/);
 });
