@@ -165,7 +165,7 @@
     const type = String(response.headers.get('content-type') || '').toLowerCase();
     if (!type.includes('json')) throw new Error('The address service returned an unexpected response. Please try again.');
     try { return await response.json(); }
-    catch (_) { throw new Error('The address service returned invalid data. Please try again.'); }
+    catch (_) { throw new Error('Address service returned invalid data. Please try again.'); }
   }
 
   async function loadSaved(options) {
@@ -766,6 +766,7 @@
       }
       if (target.closest('[data-close-modal]')) {
         event.preventDefault();
+        event.stopImmediatePropagation();
         hideModal();
         return;
       }
