@@ -8,6 +8,7 @@ const serviceWorkerSource = readFileSync(new URL('../../sw.js', import.meta.url)
 const ownerServiceWorkerSource = readFileSync(new URL('../../admin/sw.js', import.meta.url), 'utf8');
 const indexHtml = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
 const adminHtml = readFileSync(new URL('../../admin.html', import.meta.url), 'utf8');
+const ownerLifecycleSource = readFileSync(new URL('../../owner-lifecycle.js', import.meta.url), 'utf8');
 
 const json = (value, status = 200) => new Response(JSON.stringify(value), {
   status,
@@ -115,4 +116,18 @@ test('service worker loads online documents and executable code from the network
   assert.match(serviceWorkerSource, /if \(cached && !freshCode\)/);
   assert.match(serviceWorkerSource, /return \(await cache\.match\(event\.request\)\) \|\| Response\.error\(\)/);
   assert.match(serviceWorkerSource, /const CACHE = 'freshway-v46'/);
+});
+
+
+test('owner order UI distinguishes failed writes from post-save refresh failures', () => {
+  const queueStart = ownerLifecycleSource.indexOf('function queueSave(');
+  const queueEnd = ownerLifecycleSource.indexOf('async function openLifecycle(', queueStart);
+  assert.ok(queueStart >= 0 && queueEnd > queueStart, 'queueSave should be present');
+  const queue = ownerLifecycleSource.slice(queueStart, queueEnd);
+  assert.match(queue, /Could not save order \+field\+:/);
+  assert.match(queue, /Order change was saved, but some details or dashboard totals failed to refresh/);
+  assert.doesNotMatch(queue, /catch\\(e\\)\\{if\\(state\\.id===id\\)\\{control\\.value=previous;setSaveState\\('Save failed','error'\\)\\}toast\\(e\\.message\\|\\|'Update failed'\\)\\}/);
+
+  assert.match(ownerLifecycleSource, /Could not save order classification:/);
+  assert.match(ownerLifecycleSource, /The API accepted the change, but the order list did not confirm it/);
 });
