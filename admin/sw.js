@@ -1,11 +1,11 @@
-const CACHE = 'fw-owner-v8';
+const CACHE = 'fw-owner-v9';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
   '/admin/icons/icon-192.svg',
   '/admin/icons/icon-512.svg',
-  '/admin/owner-pwa-install.js?v=20261019-install-parity-v1',
-  '/admin/owner-pwa-install.css?v=20261019-install-parity-v1',
+  '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
+  '/admin/owner-pwa-install.css?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261008-mobile-visual-v1',
   '/admin/admin.js?v=20261019-owner-order-reliability-v1',
   '/admin/frontend/phone-display.js?v=20261009-phone-display-v1',
@@ -26,7 +26,7 @@ const SHELL = [
 const REQUIRED_SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
-  '/admin/owner-pwa-install.js?v=20261019-install-parity-v1',
+  '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261008-mobile-visual-v1',
   '/admin/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1'
 ];
