@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v45';
+const CACHE = 'freshway-v46';
 
 const APP_SHELL = [
   '/',
@@ -24,12 +24,6 @@ const APP_SHELL = [
   '/icons/icon-192-maskable.png',
   '/icons/icon-512-maskable.png',
   '/icon.svg?v=20261008-brand-v1',
-  '/admin.html',
-  '/admin.css?v=20261008-mobile-visual-v1',
-  '/admin.js?v=20261009-performance-v5',
-  '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1',
-  '/owner-lifecycle.js?v=20261009-phone-display-v1',
-  '/owner-address-final.js?v=20260909-address-final-v6',
   '/freshway-logo-master.webp?v=20261008-master-v1',
   '/freshway-logo-clean.svg?v=20261008-brand-v1'
 ];
@@ -66,7 +60,7 @@ self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
       .then(keys => Promise.all(
-        keys.filter(key => key !== CACHE).map(key => caches.delete(key))
+        keys.filter(key => key.startsWith('freshway-') && key !== CACHE).map(key => caches.delete(key))
       ))
       .then(() => self.clients.claim())
   );
@@ -75,21 +69,25 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
 
+  const url = new URL(event.request.url);
+  // The Owner PWA owns /admin/ and its own cache lifecycle. The customer worker
+  // must not intercept Owner routes or delete the Owner worker's cache.
+  if (url.pathname === '/admin.html' || url.pathname.startsWith('/admin/')) return;
+
   const destination = event.request.destination;
   const isNavigation = event.request.mode === 'navigate' || destination === 'document';
   const isStaticAsset = ['script','style','image','font','manifest'].includes(destination);
   if (!isNavigation && !isStaticAsset) return;
 
   event.respondWith((async () => {
-    const url = new URL(event.request.url);
     const isLogo = url.pathname === '/freshway-logo-clean.svg';
     const freshCode = ['script','style'].includes(destination);
     const request = isLogo ? new Request(event.request, { cache: 'reload' }) : freshCode ? new Request(event.request, { cache: 'no-store' }) : event.request;
 
     const cache = await caches.open(CACHE);
 
-    if (isNavigation && ['/', '/index.html', '/admin.html'].includes(url.pathname)) {
-      const key = url.pathname === '/admin.html' ? '/admin.html' : url.pathname === '/index.html' ? '/index.html' : '/';
+    if (isNavigation && ['/', '/index.html'].includes(url.pathname)) {
+      const key = url.pathname === '/index.html' ? '/index.html' : '/';
       try {
         const response = await fetch(new Request(event.request, { cache: 'no-store' }));
         if (response.ok) cache.put(key, response.clone()).catch(error => console.error('FreshWay document cache update failed:', error));

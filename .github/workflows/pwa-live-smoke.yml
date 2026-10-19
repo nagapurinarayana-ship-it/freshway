@@ -19,3 +19,17 @@ jobs:
           BASE_URL: https://freshway-f32.pages.dev
           CUSTOM_DOMAIN_URL: https://fwcoldpressed.in
         run: node pwa-live-smoke.mjs
+
+      # Cloudflare Access protects Pages preview hostnames, so unauthenticated
+      # runners cannot smoke-test the branch preview. PR CI validates route/asset
+      # mapping; the public production-domain smoke is a release gate after deploy.
+      - name: Explain deferred Owner PWA deployment smoke
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "::notice title=Owner PWA deployment smoke deferred::Cloudflare Access protects Pages preview hosts. Route and asset mapping are checked by functions/admin-pwa.test.mjs. The live /admin/ smoke runs after a main deployment."
+
+      - name: Verify deployed Owner PWA on custom domain
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        env:
+          OWNER_PWA_BASE_URL: https://fwcoldpressed.in
+        run: node pwa-owner-live-smoke.mjs

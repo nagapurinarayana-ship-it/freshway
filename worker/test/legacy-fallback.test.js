@@ -5,6 +5,7 @@ import vm from 'node:vm';
 
 const addressFixSource = readFileSync(new URL('../../address-fix.js', import.meta.url), 'utf8');
 const serviceWorkerSource = readFileSync(new URL('../../sw.js', import.meta.url), 'utf8');
+const ownerServiceWorkerSource = readFileSync(new URL('../../admin/sw.js', import.meta.url), 'utf8');
 const indexHtml = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
 const adminHtml = readFileSync(new URL('../../admin.html', import.meta.url), 'utf8');
 
@@ -96,20 +97,22 @@ test('address script cache-busting version matches the service-worker shell entr
 
 test('owner lifecycle script cache-busting version matches the service-worker shell entry', () => {
   const htmlVersion = adminHtml.match(/src="owner-lifecycle\.js\?v=([^"]+)"/)?.[1];
-  const shellVersion = serviceWorkerSource.match(/['"]\/owner-lifecycle\.js\?v=([^'"]+)['"]/)?.[1];
+  const shellVersion = ownerServiceWorkerSource.match(/['"]\/admin\/owner-lifecycle\.js\?v=([^'"]+)['"]/)?.[1];
 
   assert.ok(htmlVersion, 'admin.html should version owner-lifecycle.js');
   assert.ok(shellVersion, 'the service-worker shell should cache owner-lifecycle.js');
   assert.equal(htmlVersion, shellVersion);
-  assert.doesNotMatch(serviceWorkerSource, /20260909-refresh-v3/, 'no stale owner-lifecycle URL rewrite should remain');
+  assert.doesNotMatch(ownerServiceWorkerSource, /20260909-refresh-v3/, 'no stale owner-lifecycle URL rewrite should remain');
 });
 
 test('service worker loads online documents and executable code from the network first, with cache fallback', () => {
-  assert.match(serviceWorkerSource, /if \(isNavigation && \['\/', '\/index\.html', '\/admin\.html'\]\.includes\(url\.pathname\)\)/);
+  assert.match(serviceWorkerSource, /if \(isNavigation && \['\/', '\/index\.html'\]\.includes\(url\.pathname\)\)/);
+  assert.match(serviceWorkerSource, /url\.pathname === '\/admin\.html' \|\| url\.pathname\.startsWith\('\/admin\/'\)/);
+  assert.match(ownerServiceWorkerSource, /const CACHE = 'fw-owner-v2'/);
   assert.match(serviceWorkerSource, /const freshCode = \['script','style'\]\.includes\(destination\)/);
   assert.match(serviceWorkerSource, /freshCode \? new Request\(event\.request, \{ cache: 'no-store' \}\)/);
   assert.match(serviceWorkerSource, /const cached = await cache\.match\(event\.request\)/);
   assert.match(serviceWorkerSource, /if \(cached && !freshCode\)/);
   assert.match(serviceWorkerSource, /return \(await cache\.match\(event\.request\)\) \|\| Response\.error\(\)/);
-  assert.match(serviceWorkerSource, /const CACHE = 'freshway-v45'/);
+  assert.match(serviceWorkerSource, /const CACHE = 'freshway-v46'/);
 });
