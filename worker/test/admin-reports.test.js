@@ -22,6 +22,7 @@ test('average order value uses the same eligibility rules as sales', async () =>
   const result=await reports({DB},new URL('https://freshway.test/api/admin/reports?range=today'));
   assert.equal(result.sales,300);
   assert.equal(result.orders,4);
+  assert.equal(result.eligibleOrders,2);
   assert.equal(result.aov,150);
   assert.match(sql[0],/SUM\(CASE WHEN delivery_status!='Cancelled' AND payment_status!='Cancelled' THEN 1 ELSE 0 END\) eligible_count/);
 });
