@@ -91,10 +91,11 @@ function readFileSource() {
   return readFileSync(new URL('../src/passcode-auth.js', import.meta.url), 'utf8');
 }
 
-test('customer checkout keeps delivery mobile separate from registered mobile', async () => {
+test('customer checkout rejects an address without verified map coordinates before creating an order', async () => {
   const registeredPhone = customer.phone;
-  const response = await request('/api/orders', { method: 'POST', headers: { Cookie: sessionCookie(), 'Content-Type': 'application/json' }, body: JSON.stringify({ customerId: 'customer-1', customer: { name: 'Test Customer', phone: '9123456789' }, address: { house: '1', area: 'Main Road', city: 'Hyderabad', pincode: '500001' }, items: [{ id: 'apple', qty: 1 }] }) });
-  assert.notEqual(response.status, 409);
+  const response = await request('/api/orders', { method: 'POST', headers: { Cookie: sessionCookie(), 'Content-Type': 'application/json' }, body: JSON.stringify({ customerId: 'customer-1', customer: { name: 'Test Customer', phone: '9123456789' }, address: { house: '1', area: 'Main Road', city: 'Hyderabad', pincode: '500001', recipientName: 'Test Customer', deliveryPhone: '9123456789' }, items: [{ id: 'apple', qty: 1 }] }) });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /exact delivery location/i);
   assert.equal(customer.phone, registeredPhone);
 });
 
