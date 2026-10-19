@@ -85,6 +85,9 @@ function relativeAssetReferences(html) {
   assert.match(response.headers.get('content-type') || '', /text\/html/i);
   assert.match(body, /href="\/admin\/manifest\.webmanifest"/);
   assert.match(body, /register\("\/admin\/sw\.js",\{scope:"\/admin\/",updateViaCache:"none"\}\)/);
+  assert.match(body, /id="ownerInstallBtn"/, "Owner app must expose an install control");
+  assert.match(body, /beforeinstallprompt/, "Owner install control must use the native install prompt when available");
+  assert.match(body, /appinstalled/, "Owner install control must react when installation completes");
   assert.match(body, /href="\/"/, 'the Customer App link must remain on the public root');
   assert.match(body, /href="#overview"/, 'in-page navigation must remain a fragment');
 
