@@ -105,7 +105,7 @@ test.beforeEach(async ({ page }) => {
       });
     }
 
-    if (/^\\/api\\/addresses\\/\\d+$/.test(url.pathname) && method === 'PATCH') {
+    if (url.pathname.startsWith('/api/addresses/') && url.pathname.split('/').filter(Boolean).length === 3 && method === 'PATCH') {
       const id = Number(url.pathname.split('/').pop());
       const payload = JSON.parse(request.postData() || '{}');
       if (payload.default === true) {
@@ -120,7 +120,7 @@ test.beforeEach(async ({ page }) => {
       });
     }
 
-    if (/^\\/api\\/addresses\\/\\d+\\/delete$/.test(url.pathname) && method === 'POST') {
+    if (url.pathname.startsWith('/api/addresses/') && url.pathname.endsWith('/delete') && method === 'POST') {
       const id = Number(url.pathname.split('/')[3]);
       savedAddresses = savedAddresses.filter(item => Number(item.id) !== id);
       if (savedAddresses.length && !savedAddresses.some(item => item.isDefault)) savedAddresses[0].isDefault = true;
@@ -131,7 +131,7 @@ test.beforeEach(async ({ page }) => {
       });
     }
 
-    if (/^\\/api\\/addresses\\/\\d+$/.test(url.pathname) && method === 'DELETE') {
+    if (url.pathname.startsWith('/api/addresses/') && url.pathname.split('/').filter(Boolean).length === 3 && method === 'DELETE') {
       const id = Number(url.pathname.split('/').pop());
       savedAddresses = savedAddresses.filter(item => Number(item.id) !== id);
       if (savedAddresses.length && !savedAddresses.some(item => item.isDefault)) savedAddresses[0].isDefault = true;
