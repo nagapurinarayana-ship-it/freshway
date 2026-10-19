@@ -19,3 +19,13 @@ jobs:
           BASE_URL: https://freshway-f32.pages.dev
           CUSTOM_DOMAIN_URL: https://fwcoldpressed.in
         run: node pwa-live-smoke.mjs
+
+      - name: Verify Owner PWA preview deployment
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          PREVIEW_BRANCH: ${{ github.head_ref }}
+          PAGES_PROJECT: freshway-f32
+        run: |
+          branch_slug="$(printf '%s' "$PREVIEW_BRANCH" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]+/-/g; s/^-+|-+$//g')"
+          echo "PREVIEW_BASE_URL=https://${branch_slug}.${PAGES_PROJECT}.pages.dev" >> "$GITHUB_ENV"
+          node pwa-owner-preview-smoke.mjs
