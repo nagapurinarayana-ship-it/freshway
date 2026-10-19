@@ -79,7 +79,7 @@ test('cancelling an order saves the cancellation before conditional stock restor
         assert.match(statements[0].sql,/stock_release_token=\?/);
         assert.match(statements[1].sql,/stock_quantity=stock_quantity\+\?/);
         assert.match(statements[1].sql,/stock_release_token=\?/,'stock restoration must be conditional on this cancellation token');
-        assert.match(statements[1].sql,/delivery_status=\\'Cancelled\\'/);
+        assert.ok(statements[1].sql.includes("delivery_status='Cancelled'"));
         assert.equal(statements[1].binds[0],2);
         assert.equal(statements[1].binds[1],'p1');
         return [{meta:{changes:1}},{meta:{changes:1}}];
