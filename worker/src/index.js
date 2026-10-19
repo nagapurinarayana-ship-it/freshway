@@ -130,15 +130,6 @@ function groupOrders(rows) { const map = new Map(); for (const r of rows) { if (
 
 const ORDER_STATUSES=['New','Confirmed','Processing','Ready','Out for Delivery','Delivered','Cancelled'];
 const ORDER_PAYMENTS=['Not Collected','Collected','Refunded','Cancelled'];
-const ORDER_STATUS_TRANSITIONS={
-  New:['Confirmed','Cancelled'],
-  Confirmed:['Processing','Cancelled'],
-  Processing:['Ready','Cancelled'],
-  Ready:['Out for Delivery','Cancelled'],
-  'Out for Delivery':['Delivered','Cancelled'],
-  Delivered:[],
-  Cancelled:[]
-};
 const normalizePaymentFilter=value=>value==='Pending'?'Not Collected':value;
 
 function validateOrderPatch(current,payload={}){
@@ -146,18 +137,9 @@ function validateOrderPatch(current,payload={}){
   if(status&&!ORDER_STATUSES.includes(status))throw new Error('Invalid delivery status.');
   if(payment&&!ORDER_PAYMENTS.includes(payment))throw new Error('Invalid payment status.');
   if(deliveryPlan&&!validPlans.includes(deliveryPlan))throw new Error('Invalid delivery plan.');
-  if(status&&status!==current.delivery_status&&!ORDER_STATUS_TRANSITIONS[current.delivery_status]?.includes(status)){
-    throw new Error(`Cannot change ${current.delivery_status} order to ${status}.`);
-  }
   const nextStatus=status||current.delivery_status;
   if(deliveryPlan&&(current.delivery_status==='Delivered'||current.delivery_status==='Cancelled'||nextStatus==='Delivered'||nextStatus==='Cancelled')){
     throw new Error('Delivery plan cannot be changed after an order is completed or cancelled.');
-  }
-  if(payment==='Collected'&&nextStatus!=='Delivered')throw new Error('Cash can be marked collected only after delivery.');
-  if(payment==='Refunded'&&current.payment_status!=='Collected')throw new Error('Only collected payments can be refunded.');
-  if(payment==='Cancelled'&&nextStatus!=='Cancelled')throw new Error('Payment can be cancelled only for a cancelled order.');
-  if(current.payment_status==='Collected'&&payment&&payment!=='Collected'&&payment!=='Refunded'){
-    throw new Error('Collected cash cannot be changed to an unpaid or cancelled payment.');
   }
   return {status,payment,deliveryPlan};
 }
