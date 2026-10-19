@@ -19,27 +19,14 @@ test('order lifecycle accepts the database status and payment vocabulary',()=>{
   assert.equal(normalizePaymentFilter('Collected'),'Collected');
 });
 
-test('order lifecycle rejects unsafe transitions',()=>{
-  assert.throws(
-    ()=>validateOrderPatch({delivery_status:'New',payment_status:'Not Collected'},{status:'Delivered'}),
-    /Cannot change New order to Delivered/
-  );
-  assert.throws(
-    ()=>validateOrderPatch({delivery_status:'Processing',payment_status:'Not Collected'},{payment:'Collected'}),
-    /only after delivery/i
-  );
-  assert.throws(
-    ()=>validateOrderPatch({delivery_status:'Delivered',payment_status:'Collected'},{payment:'Not Collected'}),
-    /Collected cash cannot/i
-  );
-  assert.throws(
-    ()=>validateOrderPatch({delivery_status:'New',payment_status:'Not Collected'},{payment:'Refunded'}),
-    /Only collected payments/i
-  );
-  assert.throws(
-    ()=>validateOrderPatch({delivery_status:'New',payment_status:'Not Collected'},{payment:'Cancelled'}),
-    /only for a cancelled order/i
-  );
+test('Owner can select any supported delivery and payment status at any time',()=>{
+  const current={delivery_status:'New',payment_status:'Not Collected'};
+  for(const status of ['New','Confirmed','Processing','Ready','Out for Delivery','Delivered','Cancelled']){
+    assert.doesNotThrow(()=>validateOrderPatch(current,{status}),`delivery status ${status} should be selectable`);
+  }
+  for(const payment of ['Not Collected','Collected','Refunded','Cancelled']){
+    assert.doesNotThrow(()=>validateOrderPatch(current,{payment}),`payment status ${payment} should be selectable`);
+  }
 });
 
 test('owner order endpoint applies pagination and legacy payment filter normalization',async()=>{
