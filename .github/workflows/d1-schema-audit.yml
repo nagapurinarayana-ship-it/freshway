@@ -1,0 +1,45 @@
+name: FreshWay production D1 schema audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/d1-schema-audit.yml"
+      - "worker/scripts/audit-production-schema.mjs"
+      - "worker/schema.sql"
+      - "worker/migrations/**"
+      - "worker/src/address-api.js"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Read-only production D1 schema audit
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Install Worker dependencies
+        working-directory: worker
+        run: npm ci
+      - name: Require production credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+      - name: Inspect production D1 schema without writes
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/audit-production-schema.mjs
