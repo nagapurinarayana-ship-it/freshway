@@ -9,6 +9,7 @@ assert.doesNotMatch(customerHtml, /href=["']\/admin(?:\.html|\/?)['"]/i, 'custom
 assert.doesNotMatch(customerHtml, /class=["'][^"']*\badmin-link\b/i, 'customer profile must not render an Owner dashboard shortcut');
 const ownerManifestSource = readRepoFile('admin/manifest.webmanifest').toString('utf8');
 const ownerWorkerSource = readRepoFile('admin/sw.js').toString('utf8');
+const ownerInstallSource = readRepoFile('owner-pwa-install.js').toString('utf8');
 const requiredOwnerAssets = [
   'admin.css',
   'admin.js',
@@ -84,10 +85,11 @@ function relativeAssetReferences(html) {
   assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
   assert.match(response.headers.get('content-type') || '', /text\/html/i);
   assert.match(body, /href="\/admin\/manifest\.webmanifest"/);
-  assert.match(body, /register\("\/admin\/sw\.js",\{scope:"\/admin\/",updateViaCache:"none"\}\)/);
-  assert.match(body, /id="ownerInstallBtn"/, "Owner app must expose an install control");
-  assert.match(body, /beforeinstallprompt/, "Owner install control must use the native install prompt when available");
-  assert.match(body, /appinstalled/, "Owner install control must react when installation completes");
+  assert.match(body, /data-owner-install/, "Owner app must expose install controls");
+  assert.match(body, /src="\\/admin\\/owner-pwa-install\\.js\\?v=20261019-install-parity-v1"/);
+  assert.match(ownerInstallSource, /register\\('\\/admin\\/sw\\.js', \\{ scope: '\\/admin\\/'/);
+  assert.match(ownerInstallSource, /beforeinstallprompt/, "Owner install control must use the native install prompt when available");
+  assert.match(ownerInstallSource, /appinstalled/, "Owner install control must react when installation completes");
   assert.match(body, /href="\/"/, 'the Customer App link must remain on the public root');
   assert.match(body, /href="#overview"/, 'in-page navigation must remain a fragment');
 
