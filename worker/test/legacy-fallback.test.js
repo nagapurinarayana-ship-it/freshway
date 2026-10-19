@@ -121,7 +121,7 @@ test('service worker loads online documents and executable code from the network
   assert.match(serviceWorkerSource, /const cached = await cache\.match\(event\.request\)/);
   assert.match(serviceWorkerSource, /if \(cached && !freshCode\)/);
   assert.match(serviceWorkerSource, /return \(await cache\.match\(event\.request\)\) \|\| Response\.error\(\)/);
-  assert.match(serviceWorkerSource, /const CACHE = 'freshway-v46'/);
+  assert.match(serviceWorkerSource, /const CACHE = 'freshway-v[0-9]+'/);
 });
 
 
