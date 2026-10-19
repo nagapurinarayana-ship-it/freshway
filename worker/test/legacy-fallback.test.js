@@ -97,18 +97,18 @@ test('address script cache-busting version matches the service-worker shell entr
 
 test('owner lifecycle script cache-busting version matches the service-worker shell entry', () => {
   const htmlVersion = adminHtml.match(/src="owner-lifecycle\.js\?v=([^"]+)"/)?.[1];
-  const shellVersion = ownerServiceWorkerSource.match(/['"]\/owner-lifecycle\.js\?v=([^'"]+)['"]/)?.[1];
+  const shellVersion = ownerServiceWorkerSource.match(/['"]\/admin\/owner-lifecycle\.js\?v=([^'"]+)['"]/)?.[1];
 
   assert.ok(htmlVersion, 'admin.html should version owner-lifecycle.js');
   assert.ok(shellVersion, 'the service-worker shell should cache owner-lifecycle.js');
   assert.equal(htmlVersion, shellVersion);
-  assert.doesNotMatch(serviceWorkerSource, /20260909-refresh-v3/, 'no stale owner-lifecycle URL rewrite should remain');
+  assert.doesNotMatch(ownerServiceWorkerSource, /20260909-refresh-v3/, 'no stale owner-lifecycle URL rewrite should remain');
 });
 
 test('service worker loads online documents and executable code from the network first, with cache fallback', () => {
   assert.match(serviceWorkerSource, /if \(isNavigation && \['\/', '\/index\.html'\]\.includes\(url\.pathname\)\)/);
   assert.match(serviceWorkerSource, /url\.pathname === '\/admin\.html' \|\| url\.pathname\.startsWith\('\/admin\/'\)/);
-  assert.match(ownerServiceWorkerSource, /const CACHE = 'fw-owner-v1'/);
+  assert.match(ownerServiceWorkerSource, /const CACHE = 'fw-owner-v2'/);
   assert.match(serviceWorkerSource, /const freshCode = \['script','style'\]\.includes\(destination\)/);
   assert.match(serviceWorkerSource, /freshCode \? new Request\(event\.request, \{ cache: 'no-store' \}\)/);
   assert.match(serviceWorkerSource, /const cached = await cache\.match\(event\.request\)/);
