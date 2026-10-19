@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS orders (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   payment_collected_at TEXT,
   client_order_id TEXT UNIQUE,
+  is_test_order INTEGER NOT NULL DEFAULT 0 CHECK(is_test_order IN (0,1)),
   FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE RESTRICT,
   FOREIGN KEY(address_id) REFERENCES addresses(id) ON DELETE RESTRICT
 );
@@ -190,6 +191,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_payment_created ON orders(payment_status, 
 CREATE INDEX IF NOT EXISTS idx_orders_plan_status_created ON orders(delivery_plan, delivery_status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_plan ON orders(delivery_plan, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_client_order_id ON orders(client_order_id);
+CREATE INDEX IF NOT EXISTS idx_orders_test_created ON orders(is_test_order, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_addresses_customer ON addresses(customer_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_addresses_customer_default ON addresses(customer_id,is_default DESC,id DESC);
 CREATE INDEX IF NOT EXISTS idx_addresses_customer_label ON addresses(customer_id,label);
