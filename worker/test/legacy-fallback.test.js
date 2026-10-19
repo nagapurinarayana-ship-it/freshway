@@ -217,6 +217,6 @@ test('Owner script URLs and service-worker shell cache versions match', () => {
   assert.match(ownerInstallSource, /register\('\/admin\/sw\.js', \{ scope: '\/admin\/'/);
   assert.equal(ownerManifest.scope, '/admin/');
   assert.equal(ownerManifest.start_url, '/admin/');
-  assert.ok(ownerManifest.icons.some(icon => icon.sizes === '192x192' && icon.type === 'image/png'));
-  assert.ok(ownerManifest.icons.some(icon => icon.sizes === '512x512' && icon.type === 'image/png'));
+  assert.ok(ownerManifest.icons.some(icon => icon.src.startsWith('/admin/') && icon.sizes === '192x192' && icon.type === 'image/svg+xml'));
+  assert.ok(ownerManifest.icons.some(icon => icon.src.startsWith('/admin/') && icon.sizes === '512x512' && icon.type === 'image/svg+xml'));
 });
