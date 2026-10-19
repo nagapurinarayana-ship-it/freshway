@@ -20,13 +20,12 @@ jobs:
           CUSTOM_DOMAIN_URL: https://fwcoldpressed.in
         run: node pwa-live-smoke.mjs
 
-      - name: Verify Owner PWA preview deployment
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+      # Cloudflare Access protects Pages preview hostnames, so a public
+      # runner cannot validate them without a service token. Route/asset mapping
+      # is covered by functions/admin-pwa.test.mjs; verify the real deployment
+      # on the public custom domain after a main-branch deployment.
+      - name: Verify deployed Owner PWA on custom domain
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
-          PREVIEW_BRANCH: ${{ github.head_ref }}
-          PAGES_PROJECT: freshway-f32
-        run: |
-          branch_slug="$(printf '%s' "$PREVIEW_BRANCH" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]+/-/g; s/^-+|-+$//g')"
-          export PREVIEW_BASE_URL="https://${branch_slug}.${PAGES_PROJECT}.pages.dev"
-          echo "PREVIEW_BASE_URL=$PREVIEW_BASE_URL" >> "$GITHUB_ENV"
-          node pwa-owner-preview-smoke.mjs
+          PREVIEW_BASE_URL: https://fwcoldpressed.in
+        run: node pwa-owner-preview-smoke.mjs
