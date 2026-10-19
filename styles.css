@@ -164,8 +164,8 @@ html.fw-cart-bar-visible main{padding-bottom:184px}
 body.fw-address-modal-open { overflow: hidden; }
 .address-modal-sheet {
   width: min(560px, 100%);
-  max-height: calc(100dvh - env(safe-area-inset-top) - 8px);
   max-height: calc(100vh - env(safe-area-inset-top) - 8px);
+  max-height: calc(100dvh - env(safe-area-inset-top) - 8px);
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
