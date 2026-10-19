@@ -66,7 +66,7 @@ assert.match(worker, /if \(!url\.pathname\.startsWith\('\/admin\/'\)\) return;/)
 // Owner PWA's same-origin API route reaches the real Worker without exercising
 // login, changing data, or using production credentials.
 const ownerApiStatusResponse = await fetchOwnerRoute('/api/admin/status');
-assert.match(ownerApiStatusResponse.headers.get('content-type') || '', /application\\/json/i);
+assert.ok(String(ownerApiStatusResponse.headers.get('content-type') || '').toLowerCase().includes('application/json'), 'Owner API status must return JSON');
 assert.match(ownerApiStatusResponse.headers.get('cache-control') || '', /no-store/i);
 const ownerApiStatus = await ownerApiStatusResponse.json();
 assert.equal(ownerApiStatus.ok, true, 'Owner API status must report success');
