@@ -96,8 +96,26 @@
       try{
         result=await api('/admin/orders/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({[field]:value})});
       }catch(e){
-        if(state.id===id){control.value=previous;setSaveState('Save failed','error')}
-        toast('Could not save order '+field+': '+(e.message||'Request failed'));
+        let recovered=false;
+        try{
+          const fresh=await getOrder(id);
+          if(fresh){
+            if(state.id===id)renderLifecycle(fresh);
+            if(fresh[key]===value){
+              recovered=true;
+              if(state.id===id)setSaveState('Saved · verified','saved');
+              toast('The server confirms this change was saved. The response failed, so the order was refreshed from the database.');
+            }else{
+              if(state.id===id)setSaveState('Save failed · refreshed','error');
+              toast('Could not save order '+field+': '+(e.message||'Request failed')+'. The order was refreshed to its saved database value.');
+            }
+          }
+        }catch(_){
+          // The database state cannot be verified. Keep the failure visible and do not claim success.
+        }
+        if(!recovered&&!state.order?.id){if(state.id===id)control.value=previous}
+        if(!recovered&&state.id===id)setSaveState('Save failed · verify','error');
+        if(!recovered)toast('Could not verify the saved order after '+field+' failed. Refresh the order before retrying. '+(e.message||'Request failed'));
         control.disabled=false;
         return;
       }
