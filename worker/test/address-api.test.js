@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { handleAddress } from '../src/address-api.js';
+import { handleAddress, validateAddressPayload } from '../src/address-api.js';
 
 const makeAddress = (overrides = {}) => ({
   id: 7, customer_id: 'customer-1', is_saved: 1, deleted_at: null,
@@ -85,6 +85,17 @@ function mockDb({ rows = [], duplicate = null } = {}) {
 }
 
 const env = DB => ({ DB, APP_ORIGIN: 'https://fwcoldpressed.in' });
+
+test('address validation requires valid coordinates and a full delivery contact', () => {
+  const base = {
+    recipientName: 'Customer Name', deliveryPhone: '9876543210',
+    houseFlat: '12', area: 'Boduppal', city: 'Hyderabad', pincode: '500092'
+  };
+  assert.match(validateAddressPayload(base), /exact delivery location/i);
+  assert.match(validateAddressPayload({ ...base, latitude: 17.41, longitude: '' }), /exact delivery location/i);
+  assert.match(validateAddressPayload({ ...base, latitude: 100, longitude: 78.57 }), /invalid/i);
+  assert.equal(validateAddressPayload({ ...base, latitude: 17.41, longitude: 78.57 }), '');
+});
 
 test('saved-address listing excludes order-only address rows', async () => {
   const DB = mockDb({ rows: [
