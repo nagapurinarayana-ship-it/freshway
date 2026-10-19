@@ -21,7 +21,7 @@ assert.match(css,/\.order-advanced-filters/);
 assert.match(css,/grid-template-columns:1fr 1fr/);
 assert.match(css,/@media\(max-width:480px\)/);
 
-assert.match(html,/id="liveOrdersTab"/);assert.match(html,/id="testOrdersTab"/);assert.match(js,/testOrders:testOrderMode/);assert.match(js,/data-test-order-toggle/);assert.match(js,/function orderFilterState/);
+assert.match(html,/id="liveOrdersTab"/);assert.match(html,/id="testOrdersTab"/);assert.match(js,/testOrders:modeAtStart\?'1':'0'/);assert.match(js,/data-test-order-toggle/);assert.match(js,/function orderFilterState/);
 assert.ok(js.includes("$('#liveOrdersTab').onclick=()=>{if(!testOrderMode)return;"),'Live orders tab must switch back from Test orders mode');
 assert.match(lifecycle,/function isTestModeActive\(\)/);
 assert.match(lifecycle,/testOrders:testOrders\?'1':'0'/);

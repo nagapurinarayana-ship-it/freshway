@@ -13,7 +13,7 @@ assert.match(admin,/refreshOwnerAfterOrderMutation\(\)/);
 assert.doesNotMatch(admin,/localStorage\.setItem\(['"]freshway-admin-session['"]/);
 assert.doesNotMatch(admin,/sessionStorage\.setItem\(['"]freshway-admin-session['"]/);
 assert.match(admin,/AUTH_HINT='freshway-admin-auth'/);
-assert.match(html,/admin\.js\?v=20261019-data-integrity-v1/);
+assert.match(html,/admin\.js\?v=20261019-owner-order-reliability-v1/);
 
 assert.match(sw,/const CACHE = 'freshway-v\d+'/);
 assert.match(sw,/const cached = await cache\.match\(event\.request\)/);

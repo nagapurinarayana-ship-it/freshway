@@ -1,16 +1,16 @@
-const CACHE = 'fw-owner-v6';
+const CACHE = 'fw-owner-v7';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
   '/admin/admin.css?v=20261008-mobile-visual-v1',
-  '/admin/admin.js?v=20261019-data-integrity-v1',
+  '/admin/admin.js?v=20261019-owner-order-reliability-v1',
   '/admin/frontend/phone-display.js?v=20261009-phone-display-v1',
   '/admin/frontend/admin/store-profile.js?v=20261008-store-profile-v1',
   '/admin/frontend/catalogue-media.js?v=20261008-ui-media-v1',
   '/admin/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1',
   '/admin/frontend/admin/owner-lifecycle-autosave.js?v=20260909-owner-lifecycle-v1',
   '/admin/frontend/admin/push.js?v=20260908-push-v1',
-  '/admin/owner-lifecycle.js?v=20261019-data-integrity-v1',
+  '/admin/owner-lifecycle.js?v=20261019-owner-order-reliability-v1',
   '/admin/owner-address-final.js?v=20260909-address-final-v6',
   '/admin/freshway-logo-master.webp?v=20261008-master-v1',
   '/admin/freshway-logo-clean.svg?v=20261008-brand-v1',

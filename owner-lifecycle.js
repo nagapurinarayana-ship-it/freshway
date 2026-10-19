@@ -43,8 +43,28 @@
         try{
           result=await api('/admin/orders/'+encodeURIComponent(o.id),{method:'PATCH',body:JSON.stringify({isTestOrder:nextTest})});
         }catch(error){
-          setSaveState('Save failed','error');
-          toast('Could not save order classification: '+(error.message||'Request failed'));
+          // A network/response failure may happen after the database committed the
+          // classification. Read both classification partitions before reporting failure.
+          let fresh=null;
+          try{fresh=await getOrder(o.id,nextTest)}catch(_){}
+          if(!fresh)try{fresh=await getOrder(o.id,!nextTest)}catch(_){}
+          if(fresh){
+            if(state.id===o.id)renderLifecycle(fresh);
+            if(Boolean(fresh.isTestOrder)===nextTest){
+              setSaveState('Saved · verified','saved');
+              const destination=document.getElementById(nextTest?'testOrdersTab':'liveOrdersTab');
+              if(destination&&destination.getAttribute('aria-selected')!=='true')destination.click();
+              let refreshFailed=false;
+              try{if(typeof refreshOwnerAfterOrderMutation==='function')await refreshOwnerAfterOrderMutation()}catch(_){refreshFailed=true}
+              toast(refreshFailed?'The database confirms the classification was saved, but some Owner lists failed to refresh. Refresh before continuing.':(nextTest?'The database confirms this order is in Test orders.':'The database confirms this order is in Live orders.'));
+            }else{
+              setSaveState('Save failed · refreshed','error');
+              toast('Could not save order classification: '+(error.message||'Request failed')+'. The order was refreshed to its saved database value.');
+            }
+          }else{
+            setSaveState('Save failed · verify','error');
+            toast('Could not verify the saved classification. Refresh the order before retrying. '+(error.message||'Request failed'));
+          }
           return;
         }
         // Render the confirmed write before secondary list/dashboard refreshes.
