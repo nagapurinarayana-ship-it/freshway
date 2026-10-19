@@ -27,5 +27,6 @@ jobs:
           PAGES_PROJECT: freshway-f32
         run: |
           branch_slug="$(printf '%s' "$PREVIEW_BRANCH" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]+/-/g; s/^-+|-+$//g')"
-          echo "PREVIEW_BASE_URL=https://${branch_slug}.${PAGES_PROJECT}.pages.dev" >> "$GITHUB_ENV"
+          export PREVIEW_BASE_URL="https://${branch_slug}.${PAGES_PROJECT}.pages.dev"
+          echo "PREVIEW_BASE_URL=$PREVIEW_BASE_URL" >> "$GITHUB_ENV"
           node pwa-owner-preview-smoke.mjs
