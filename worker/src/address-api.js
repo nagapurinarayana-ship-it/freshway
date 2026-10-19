@@ -69,8 +69,10 @@ export async function handleAddress(request, env, customerId, action) {
   if (request.method === 'GET' && action === 'list') return response({ addresses: await list(env, customerId) }, 200, env);
   let payload = {};
   try { payload = await request.json(); } catch (_) { if (request.method !== 'DELETE') return response({ error:'Invalid address data.' }, 400, env); }
-  const id = Number(payload.id || new URL(request.url).pathname.split('/').pop());
-  if (!Number.isInteger(id) || id < 1) return response({ error:'Invalid address.' }, 400, env);
+  // Collection POSTs have no address ID in the URL. Validate IDs only for
+  // item actions; otherwise a valid create request is rejected before INSERT.
+  const id = action === 'create' ? 0 : Number(payload.id || new URL(request.url).pathname.split('/').pop());
+  if (action !== 'create' && (!Number.isInteger(id) || id < 1)) return response({ error:'Invalid address.' }, 400, env);
   if (action === 'create' && request.method === 'POST') {
     const a = normalized(payload), error = validate(a);
     if (error) return response({ error }, 400, env);
@@ -116,14 +118,14 @@ export async function saveOrderSnapshot(env, orderId, address) {
   const a = normalized(address), error = validate(a); if (error) throw new Error(error);
   const order = await env.DB.prepare('SELECT customer_id,address_id FROM orders WHERE id=? LIMIT 1').bind(orderId).first();
   if (!order) throw new Error('Order not found while saving delivery snapshot.');
-  await env.DB.prepare('UPDATE addresses SET label=?,recipient_name=?,delivery_phone=?,building=?,floor=?,street=?,locality=?,district=?,state=?,latitude=?,longitude=?,accuracy_meters=?,location_source=?,place_id=?,location_updated_at=? WHERE id=?')
-    .bind(a.label,a.recipient_name,a.delivery_phone,a.building,a.floor,a.street,a.locality,a.district,a.state,a.latitude,a.longitude,a.accuracy_meters,a.location_source,a.place_id,a.location_updated_at,order.address_id).run();
+  // An order snapshot must never mutate the reusable saved address. Customers
+  // can edit or delete saved addresses later without rewriting delivery history.
   try {
     await env.DB.prepare(`INSERT OR IGNORE INTO order_address_snapshots (order_id,customer_id,address_id,recipient_name,delivery_phone,house_flat,building,floor,street,area,locality,city,district,state,pincode,landmark,delivery_note,latitude,longitude,accuracy_meters,location_source,place_id,location_updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .bind(orderId,order.customer_id,order.address_id,a.recipient_name,a.delivery_phone,a.house_flat,a.building,a.floor,a.street,a.area,a.locality,a.city,a.district,a.state,a.pincode,a.landmark,a.note,a.latitude,a.longitude,a.accuracy_meters,a.location_source,a.place_id,a.location_updated_at).run();
   } catch (error) {
     console.error('FreshWay order address snapshot persistence failed:', error?.message || error);
-    return { ok:true, snapshotSaved:false };
+    throw new Error('Could not save the order delivery-address snapshot. Please retry safely.');
   }
   return { ok:true, snapshotSaved:true };
 }
