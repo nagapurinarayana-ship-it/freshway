@@ -42,10 +42,10 @@ function ownerHtml(source) {
   // Keep Owner assets under /admin/ so only the Owner-scoped service worker
   // controls the dashboard. The install controls and manifest live in admin.html.
   const html = source.replace(
-    /(\\b(?:src|href)=['\"])(?![\\/#]|[a-z][a-z0-9+.-]*:)([^'\"]+)(['\"])/gi,
+    /(\b(?:src|href)=['\"])(?![\/#]|[a-z][a-z0-9+.-]*:)([^'\"]+)(['\"])/gi,
     '$1/admin/$2$3'
   );
-  return html.replace(/<\\/head>/i, '<meta name="robots" content="noindex,nofollow"></head>');
+  return html.replace(/<\/head>/i, '<meta name="robots" content="noindex,nofollow"></head>');
 }
 
 async function fetchAsset(context, url, assetPath, method, options = {}) {
