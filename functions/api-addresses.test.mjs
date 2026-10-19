@@ -93,3 +93,17 @@ assert.match(workerAuth, /new Request\(new URL/);
 assert.match(browserFix, /default\|delete/);
 assert.match(addressUi, /dataset\.fwDelete\}\/delete/);
 assert.match(addressUi, /method:'POST'/);
+
+
+// Quick-commerce address regression guards: a new saved address has no item ID,
+// search results require explicit customer choice, and order snapshots are immutable.
+const addressApiPath = fileURLToPath(new URL('../worker/src/address-api.js', import.meta.url));
+const addressApi = readFileSync(addressApiPath, 'utf8');
+assert.match(addressApi, /const id = action === 'create' \? 0 : Number\(/);
+assert.match(addressApi, /if \(action !== 'create' && \(!Number\.isInteger\(id\) \|\| id < 1\)\)/);
+assert.doesNotMatch(addressApi, /UPDATE addresses SET label=\?,recipient_name=\?,delivery_phone=\?,building=\?,floor=\?,street=\?,locality=\?,district=\?,state=\?,latitude=\?,longitude=\?,accuracy_meters=\?,location_source=\?,place_id=\?,location_updated_at=\? WHERE id=\?/);
+assert.match(addressApi, /Could not save the order delivery-address snapshot/);
+assert.match(addressUi, /Choose the exact match\. Nothing is selected until you tap a result\./);
+assert.match(addressUi, /data-fw-search-index/);
+assert.match(addressUi, /const requestId=\+\+locationRequestId/);
+console.log('quick-commerce address creation, explicit search choice, and immutable snapshot guards OK');
