@@ -19,4 +19,4 @@ const routes = [
   { match: (u,m) => u.pathname === '/api/admin/store-profile' && m === 'PATCH', run: async (r,e,u) => ({storeProfile:await updateStoreProfile(e,await r.json())}) }
 ];
 
-export async function handleAdminData(request,env){const u=new URL(request.url);try{const route=routes.find(x=>x.match(u,request.method));return route?json(await route.run(request,env,u)):null}catch(e){return json({error:e?.message||'Admin data request failed.'},400)}}
+export async function handleAdminData(request,env){const u=new URL(request.url);try{const route=routes.find(x=>x.match(u,request.method));return route?json(await route.run(request,env,u)):null}catch(e){const message=e?.message||'Admin data request failed.';return json({error:message},/^ORDER_CONFLICT:/.test(message)?409:400)}}

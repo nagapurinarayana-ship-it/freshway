@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v4';
+const CACHE = 'fw-owner-v5';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -10,7 +10,7 @@ const SHELL = [
   '/admin/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1',
   '/admin/frontend/admin/owner-lifecycle-autosave.js?v=20260909-owner-lifecycle-v1',
   '/admin/frontend/admin/push.js?v=20260908-push-v1',
-  '/admin/owner-lifecycle.js?v=20261019-save-refresh-v2',
+  '/admin/owner-lifecycle.js?v=20261019-order-queue-v3',
   '/admin/owner-address-final.js?v=20260909-address-final-v6',
   '/admin/freshway-logo-master.webp?v=20261008-master-v1',
   '/admin/freshway-logo-clean.svg?v=20261008-brand-v1',

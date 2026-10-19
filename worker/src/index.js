@@ -229,14 +229,18 @@ async function updateOrder(env,id,payload){
   if(testClassificationChanged){sets.push('is_test_order=?');params.push(nextTestFlag)}
   if(!sets.length)throw new Error('No order change supplied.');
   sets.push('updated_at=CURRENT_TIMESTAMP');
-  const whereParams=[id,current.delivery_status,current.payment_status,current.delivery_plan,Number(current.is_test_order||0)];
+  const guards=['id=?'],whereParams=[id];
+  if(status){guards.push('delivery_status IS ?');whereParams.push(current.delivery_status)}
+  if(payment){guards.push('payment_status IS ?');whereParams.push(current.payment_status)}
+  if(deliveryPlan){guards.push('delivery_plan IS ?');whereParams.push(current.delivery_plan)}
+  if(hasTestFlag){guards.push('is_test_order IS ?');whereParams.push(Number(current.is_test_order||0))}
   const statements=[];
   if(status==='Cancelled'&&status!==current.delivery_status){
     const {results:reserved}=await env.DB.prepare('SELECT product_id,SUM(stock_reserved_qty) stock_reserved_qty FROM order_items WHERE order_id=? AND stock_reserved_qty>0 GROUP BY product_id').bind(id).all();
     statements.push(...(reserved||[]).map(item=>env.DB.prepare('UPDATE products SET stock_quantity=stock_quantity+? WHERE id=?').bind(Number(item.stock_reserved_qty),item.product_id)));
   }
-  statements.push(env.DB.prepare(`UPDATE orders SET ${sets.join(',')} WHERE id=? AND delivery_status IS ? AND payment_status IS ? AND delivery_plan IS ? AND is_test_order=?`).bind(...params,...whereParams));
-  try{const batchResult=await env.DB.batch(statements);const updateResult=batchResult?.[batchResult.length-1];if(!updateResult?.meta?.changes)throw new Error('Order changed by another admin. Refresh and try again.')}catch(error){if(/stock_quantity/i.test(error?.message||''))throw new Error('Stock could not be restored safely. Refresh and try again.');throw error}
+  statements.push(env.DB.prepare(`UPDATE orders SET ${sets.join(',')} WHERE ${guards.join(' AND ')}`).bind(...params,...whereParams));
+  try{const batchResult=await env.DB.batch(statements);const updateResult=batchResult?.[batchResult.length-1];if(!updateResult?.meta?.changes)throw new Error('ORDER_CONFLICT: This order changed while you were saving. Refresh the order and try again.')}catch(error){if(/stock_quantity/i.test(error?.message||''))throw new Error('Stock could not be restored safely. Refresh and try again.');throw error}
   const classificationOnlyChange=testClassificationChanged&&!status&&!payment&&!deliveryPlan;
   if(!classificationOnlyChange&&((status&&status!==current.delivery_status)||(payment&&payment!==current.payment_status)||(deliveryPlan&&deliveryPlan!==current.delivery_plan))){
     let text;
@@ -298,4 +302,4 @@ if(url.pathname.startsWith('/api/admin/products/')&&request.method==='PATCH'){if
 if(url.pathname==='/api/admin/notifications/history'&&request.method==='GET'){if(!auth(request,env))return json({notifications:await notificationHistory(env)},200,cors)}
 if(url.pathname==='/api/notifications/broadcast'&&request.method==='POST'){if(!auth(request,env))return json({error:'Unauthorized'},401,cors);const payload=await body(request),channels=Array.isArray(payload.channels)?payload.channels:[];if(!channels.length)return json({error:'Select at least one notification channel.'},400,cors);if(channels.some(channel=>!['app','whatsapp'].includes(channel)))return json({error:'Invalid notification channel.'},400,cors);const results=[];if(channels.includes('app'))results.push(await broadcastPush(env,payload));if(channels.includes('whatsapp'))results.push(await broadcastWhatsApp(env,payload));return json({results},200,cors)}
 return json({error:'Not found'},404,cors);
-}catch(error){const message=error?.message||'Unexpected server error.';const status=/Unauthorized/i.test(message)?401:/required|invalid|empty|available|maximum|cannot|not found|no order|no product|only after/i.test(message)?400:500;return json({error:message},status,cors)}}};
+}catch(error){const message=error?.message||'Unexpected server error.';const status=/^ORDER_CONFLICT:/.test(message)?409:/Unauthorized/i.test(message)?401:/required|invalid|empty|available|maximum|cannot|not found|no order|no product|only after/i.test(message)?400:500;return json({error:message.replace(/^ORDER_CONFLICT:\s*/, '')},status,cors)}}};

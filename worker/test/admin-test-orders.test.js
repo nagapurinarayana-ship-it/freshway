@@ -27,12 +27,17 @@ test('owner Test Orders query selects only classified test orders',async()=>{
   assert.ok(calls.some(c=>c.sql.includes('o.is_test_order=1')));
 });
 
-test('normal delivery status updates remain unchanged when no test flag is sent',async()=>{
-  const {env}=fixture();
+test('normal delivery status updates guard only the delivery status field',async()=>{
+  const {env,calls}=fixture();
   const result=await updateOrder(env,'FW-TEST-1',{status:'Confirmed'});
   assert.equal(result.status,'Confirmed');
   assert.equal(result.isTestOrder,0);
   assert.equal(result.testClassificationChanged,false);
+  const update=calls.find(c=>c.sql.startsWith('UPDATE orders SET'));
+  assert.ok(update);
+  assert.match(update.sql,/WHERE id=\? AND delivery_status IS \?$/);
+  assert.doesNotMatch(update.sql,/payment_status IS|delivery_plan IS|is_test_order IS/);
+  assert.deepEqual(update.binds,['Confirmed','FW-TEST-1','New']);
 });
 
 test('owner can mark and unmark a test order without changing delivery/payment status',async()=>{
@@ -44,6 +49,7 @@ test('owner can mark and unmark a test order without changing delivery/payment s
   assert.ok(update);
   assert.ok(update.sql.includes('is_test_order=?'));
   assert.deepEqual(update.binds.slice(0,1),[1]);
-  assert.match(update.sql,/^UPDATE orders SET is_test_order=\?,updated_at=CURRENT_TIMESTAMP WHERE id=\? AND delivery_status IS \? AND payment_status IS \? AND delivery_plan IS \? AND is_test_order IS \?$/);
-  assert.deepEqual(update.binds,[1,'FW-TEST-1','New','Not Collected','Tomorrow',0]);
+  assert.match(update.sql,/^UPDATE orders SET is_test_order=\?,updated_at=CURRENT_TIMESTAMP WHERE id=\? AND is_test_order IS \?$/);
+  assert.doesNotMatch(update.sql,/delivery_status IS|payment_status IS|delivery_plan IS/);
+  assert.deepEqual(update.binds,[1,'FW-TEST-1',0]);
 });
