@@ -1,36 +1,924 @@
-// FreshWay final address engine. Coordinates are authoritative; address text remains editable.
-(function(){'use strict';
-const KEY='freshway-address-v2';let current=null,addresses=[],map=null,marker=null,searchResults=[],locationRequestId=0;
-const $=s=>document.querySelector(s),field=id=>$('#'+id),toast=m=>{const t=$('#toast');if(!t)return;t.textContent=m;t.classList.add('show');clearTimeout(window.__fwAddrToast);window.__fwAddrToast=setTimeout(()=>t.classList.remove('show'),3000)},set=(id,v)=>{const e=field(id);if(e&&v!=null){e.value=v;e.dispatchEvent(new Event('input',{bubbles:true}))}};
-const validLocation=(lat,lon)=>Number.isFinite(Number(lat))&&Number.isFinite(Number(lon))&&Number(lat)>=-90&&Number(lat)<=90&&Number(lon)>=-180&&Number(lon)<=180&&!(Number(lat)===0&&Number(lon)===0);const normalizePhone=value=>{const digits=String(value||'').replace(/\D/g,'');if(digits.length===10)return digits;if(digits.length===12&&digits.startsWith('91'))return digits.slice(2);return''};
-function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(current||null))}catch(_){}}function loadLocal(){try{return JSON.parse(localStorage.getItem(KEY)||'null')}catch(_){return null}}
-function esc(v){return String(v??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
-async function readJsonResponse(response){
- const type=String(response.headers.get('content-type')||'').toLowerCase();
- if(!type.includes('json'))throw Error('Address service returned an unexpected response. Please refresh and try again.');
- try{return await response.json()}catch(_){throw Error('Address service returned invalid data. Please refresh and try again.')}
-}
-function fromFields(){return{label:document.querySelector('.address-label.active')?.dataset.fwLabel||current?.label||'Other',recipientName:field('customerName')?.value.trim()||'',deliveryPhone:field('customerPhone')?.value.trim()||'',houseFlat:field('house')?.value.trim()||'',building:field('building')?.value.trim()||current?.building||'',floor:field('floor')?.value.trim()||current?.floor||'',street:field('street')?.value.trim()||current?.street||'',area:field('area')?.value.trim()||'',locality:field('locality')?.value.trim()||current?.locality||'',city:field('city')?.value.trim()||'',district:field('district')?.value.trim()||current?.district||'',state:field('state')?.value.trim()||current?.state||'',pincode:field('pincode')?.value.trim()||'',landmark:field('landmark')?.value.trim()||'',note:field('note')?.value.trim()||'',latitude:current?.latitude??null,longitude:current?.longitude??null,accuracyMeters:current?.accuracyMeters??null,locationSource:current?.locationSource||'',placeId:current?.placeId||'',placeName:current?.placeName||'',locationUpdatedAt:current?.locationUpdatedAt||''}}
-function fill(a){if(!a)return;current={...a};set('customerName',a.recipientName);set('customerPhone',normalizePhone(a.deliveryPhone||'')||'');set('house',a.houseFlat);set('building',a.building);set('floor',a.floor);set('street',a.street);set('area',a.area);set('locality',a.locality);set('city',a.city);set('district',a.district);set('state',a.state);set('pincode',a.pincode);set('landmark',a.landmark);set('note',a.note);document.querySelectorAll('.address-label').forEach(x=>x.classList.toggle('active',x.dataset.fwLabel===(a.label||'Other')));saveLocal();display();updateMap();renderStatus()}
-function display(){const text=[current?.houseFlat,current?.area,current?.locality,current?.city].filter(Boolean).join(', ')+(current?.pincode?` - ${current.pincode}`:'');if($('#homeAddress'))$('#homeAddress').textContent=text||'Add your delivery address';if($('#profileAddressText'))$('#profileAddressText').textContent=text||'Not saved yet'}
-function loadLeaflet(){return new Promise((ok,no)=>{if(window.L)return ok();const s=document.createElement('script');s.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';s.async=true;s.onload=ok;s.onerror=no;document.head.appendChild(s);const c=document.createElement('link');c.rel='stylesheet';c.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.appendChild(c)})}
-async function reverse(lat,lon){const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`,{headers:{Accept:'application/json'}});if(!r.ok)throw Error('Could not read this location.');return await r.json()}
-function geocoded(result,lat,lon,source,accuracy){const a=result?.address||{};return{...(current||{}),latitude:Number(lat),longitude:Number(lon),accuracyMeters:accuracy??null,locationSource:source,locationUpdatedAt:new Date().toISOString(),placeId:result?.place_id?String(result.place_id):'',placeName:result?.display_name||'',houseFlat:[a.house_number,a.building].filter(Boolean).join(' ').trim(),building:a.building||'',street:a.road||'',area:[a.neighbourhood,a.suburb].filter(Boolean).filter((v,i,x)=>x.indexOf(v)===i).slice(0,2).join(', '),locality:a.city_district||a.locality||'',city:a.city||a.town||a.village||a.municipality||'',district:a.district||a.county||a.state_district||'',state:a.state||'',pincode:a.postcode||'',landmark:a.amenity||a.shop||'',landmarkSource:a.amenity?'amenity':a.shop?'shop':''}}
-async function choose(lat,lon,source,accuracy){if(!validLocation(lat,lon))return toast('Please select a real delivery location first.');const requestId=++locationRequestId;current={...(current||{}),latitude:Number(lat),longitude:Number(lon),accuracyMeters:accuracy??null,locationSource:source,locationUpdatedAt:new Date().toISOString()};updateMap();renderStatus();try{const result=await reverse(lat,lon);if(requestId!==locationRequestId)return;current=geocoded(result,lat,lon,source,accuracy);set('house',current.houseFlat);set('building',current.building);set('floor',current.floor);set('street',current.street);set('area',current.area);set('locality',current.locality);set('city',current.city);set('district',current.district);set('state',current.state);set('pincode',current.pincode);set('landmark',current.landmark);set('note',current.note||'')}catch(_){if(requestId!==locationRequestId)return;toast('Pin saved. Complete any address fields that could not be resolved automatically.')}if(requestId!==locationRequestId)return;saveLocal();display();updateMap();renderStatus()}
-function updateMap(){if(!map||!marker||!validLocation(current?.latitude,current?.longitude))return;marker.setOpacity(1);marker.setLatLng([current.latitude,current.longitude]);map.setView([current.latitude,current.longitude],17);setTimeout(()=>map.invalidateSize(),50)}
-function renderStatus(){const s=$('#addressLocationStatus');if(!s)return;if(validLocation(current?.latitude,current?.longitude)){const poor=Number(current.accuracyMeters)>100;s.innerHTML=`<div><strong>📍 Exact delivery location selected</strong><small>${poor?`GPS accuracy is approximately ±${Math.round(current.accuracyMeters)} m. Adjust the pin if needed.`:`Pin is the delivery source of truth${current.accuracyMeters?` · ±${Math.round(current.accuracyMeters)} m`:''}.`}</small></div><button type="button" class="secondary-btn" id="fwChangeLocation" style="flex:0 0 auto">Change</button>`}else s.innerHTML='<div><strong>📍 Location not selected</strong><small>Use GPS, search, or tap the map to place the exact pin.</small></div>'}
-function initMap(){const el=$('#addressMap');if(!el||!window.L)return;map=L.map(el,{zoomControl:true}).setView([20.5937,78.9629],5);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);marker=L.marker([20.5937,78.9629],{draggable:true,opacity:0}).addTo(map);map.on('click',async e=>{await choose(e.latlng.lat,e.latlng.lng,'Map pin')});marker.on('dragend',async()=>{const p=marker.getLatLng();await choose(p.lat,p.lng,'Map pin')});if(validLocation(current?.latitude,current?.longitude))updateMap();setTimeout(()=>map.invalidateSize(),100)}
-async function gps(){if(!navigator.geolocation)return toast('Location is not supported on this device.');const b=$('#fwUseGps');if(b){b.disabled=true;b.textContent='📍 Finding location…'}navigator.geolocation.getCurrentPosition(async p=>{await choose(p.coords.latitude,p.coords.longitude,'GPS',p.coords.accuracy);if(b){b.disabled=false;b.textContent='📍 Use my current location'}toast('Current location selected and all available address fields were filled. Check the pin before ordering.')},e=>{toast(e.code===1?'Location permission denied. Allow location access for FreshWay and try again.':'Could not determine your current location. You can search or tap the map.');if(b){b.disabled=false;b.textContent='📍 Use my current location'}},{enableHighAccuracy:true,timeout:15000,maximumAge:30000})}
-async function search(){const q=prompt('Search your area, street, PIN code, or nearby landmark');if(!q?.trim())return;const box=$('#addressSearchResults');if(box)box.innerHTML='<p class="address-map-note" role="status">Searching locations…</p>';try{const r=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=in&q=${encodeURIComponent(q.trim())}`,{headers:{Accept:'application/json'}});if(!r.ok)throw Error('Location search failed');const list=await r.json();searchResults=Array.isArray(list)?list:[];if(!searchResults.length){if(box)box.innerHTML='<p class="address-map-note" role="status">No results found. Try a more specific locality or landmark.</p>';return}if(box)box.innerHTML='<p class="address-map-note" role="status">Choose the exact match. Nothing is selected until you tap a result.</p>'+searchResults.map((item,i)=>`<button type="button" class="secondary-btn full" style="margin:4px 0;text-align:left;white-space:normal" data-fw-search-index="${i}">${esc(item.display_name||'Location result '+(i+1))}</button>`).join('')}catch(_){searchResults=[];if(box)box.innerHTML='<p class="address-map-note" role="status">Location search is unavailable. You can tap the map to select the exact location.</p>';toast('Could not search locations. Please try again.')}}
-async function loadSaved(){try{const r=await fetch('/api/addresses',{credentials:'include'});if(r.ok){const d=await readJsonResponse(r);addresses=d.addresses||[];if(!current)current=addresses.find(a=>a.isDefault&&validLocation(a.latitude,a.longitude))||addresses.find(a=>validLocation(a.latitude,a.longitude))||loadLocal();renderSaved();if(current)fill(current)}}catch(_){if(!current)current=loadLocal();if(current)fill(current)}}
-function renderSaved(){const el=$('#addressSaved');if(!el)return;el.innerHTML=addresses.map(a=>`<button type="button" class="address-chip ${Number(current?.id)===Number(a.id)?'active':''}" data-fw-use="${a.id}">${a.label==='Home'?'🏠':a.label==='Work'?'💼':'📍'} ${esc(a.label)}</button>`).join('')||'<span class="muted">No saved addresses yet — your first order will save this address.</span>'}
-function manager(){const m=$('#addressModal');if(!m)return;m.innerHTML='<div class="modal-sheet"><div class="modal-head"><div><span class="eyebrow">DELIVERY</span><h2>Your saved addresses</h2></div><button class="icon-btn" data-close-modal>×</button></div><div id="addressManagerList"></div><button class="primary-btn full" id="addressManagerNew">+ Add address</button></div>';m.classList.remove('hidden');renderManager()}
-function renderManager(){const el=$('#addressManagerList');if(!el)return;el.innerHTML=addresses.map(a=>`<article class="order-card" style="margin-top:10px"><div class="order-head"><strong>${a.label==='Home'?'🏠':a.label==='Work'?'💼':'📍'} ${esc(a.label)}</strong>${a.isDefault?'<span class="status delivered">Default</span>':''}</div><div class="address-block">${esc([a.houseFlat,a.area,a.locality,a.city].filter(Boolean).join(', '))}${a.pincode?` - ${esc(a.pincode)}`:''}</div><div class="order-actions"><button class="secondary-btn" data-fw-use="${a.id}">Use</button>${!a.isDefault?`<button class="secondary-btn" data-fw-default="${a.id}">Set default</button>`:''}<button class="secondary-btn" data-fw-edit="${a.id}">Edit</button><button class="secondary-btn danger" data-fw-delete="${a.id}">Delete</button></div></article>`).join('')||'<div class="empty" style="margin-top:10px">No saved addresses yet.</div>'}
-async function persist(){const a=fromFields();a.deliveryPhone=normalizePhone(a.deliveryPhone);if(!a.recipientName||!/^\d{10}$/.test(a.deliveryPhone))return toast('Enter a valid delivery contact number.');if(!a.houseFlat||!a.area||!a.city||!/^[0-9]{6}$/.test(a.pincode))return toast('Complete the required address fields.');if(!validLocation(a.latitude,a.longitude))return toast('Select your exact delivery location using GPS, search, or the map pin.');const url=current?.id?`/api/addresses/${current.id}`:'/api/addresses';const method=current?.id?'PATCH':'POST';try{const r=await fetch(url,{method,credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({...a,isDefault:!addresses.length})});const d=await readJsonResponse(r);if(!r.ok)throw Error(d.error||'Could not save address.');addresses=d.addresses||[];current=addresses.find(x=>Number(x.id)===Number(d.id))||addresses.find(x=>x.isDefault)||a;fill(current);toast('Address saved.')}catch(e){toast(e.message)}}
-function ensure(){const form=$('#checkoutForm');if(!form||$('#addressV2'))return;const extra=document.createElement('div');extra.className='address-extra-fields';extra.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 14px';extra.innerHTML='<label>Building <span class="optional">Optional</span><input id="building" autocomplete="address-line2" placeholder="Building / Apartment"></label><label>Floor <span class="optional">Optional</span><input id="floor" placeholder="Floor"></label><label>Street <span class="optional">Optional</span><input id="street" autocomplete="street-address" placeholder="Street / Road"></label><label>Locality <span class="optional">Optional</span><input id="locality" placeholder="Locality"></label><label>District <span class="optional">Optional</span><input id="district" placeholder="District"></label><label>State <span class="optional">Optional</span><input id="state" autocomplete="address-level1" placeholder="State"></label>';form.insertBefore(extra,form.querySelector('#landmark')?.parentElement||form.firstElementChild);const box=document.createElement('div');box.id='addressV2';box.className='address-v2';box.innerHTML='<div class="address-saved" id="addressSaved"></div><div class="address-labels"><button type="button" class="address-label active" data-fw-label="Home">🏠 Home</button><button type="button" class="address-label" data-fw-label="Work">💼 Work</button><button type="button" class="address-label" data-fw-label="Other">📍 Other</button></div><div class="address-actions"><button type="button" class="secondary-btn" id="fwUseGps">📍 Use my current location</button><button type="button" class="secondary-btn" id="fwSearchLocation">🔎 Search location</button></div><div id="addressSearchResults" aria-live="polite"></div><div id="addressMap" class="address-map"></div><div id="addressLocationStatus" class="address-location-status"></div><p class="address-map-note">The pin is the exact delivery location. Editing address text never moves it. Change the pin only deliberately.</p><button type="button" class="secondary-btn full" id="fwSaveAddress">Save this address</button>';form.insertBefore(box,form.firstElementChild);$('#fwUseGps').onclick=gps;$('#fwSearchLocation').onclick=search;$('#fwSaveAddress').onclick=persist;loadLeaflet().then(initMap).catch(()=>toast('Map unavailable. Manual address entry remains available, but an exact map location is required before ordering.'));renderSaved();renderStatus();const lab=[...form.querySelectorAll('label')].find(x=>x.querySelector('#customerPhone'));if(lab&&!lab.dataset.fwDone){lab.firstChild.textContent='Delivery contact number ';const s=document.createElement('small');s.textContent='Can be different from your registered mobile number.';s.style.cssText='display:block;color:#708078;font-weight:500;margin-top:4px';lab.insertBefore(s,lab.querySelector('input'));lab.dataset.fwDone='1'}}
-function intercept(){const base=window.fetch.bind(window);window.fetch=async function(input,init){const url=typeof input==='string'?input:input?.url||'';if(String(url).endsWith('/api/orders')&&init?.method==='POST'&&init.body){try{const p=JSON.parse(init.body),a=fromFields();if(!validLocation(a.latitude,a.longitude))throw new Error('Select your exact delivery location using GPS, search, or the map pin before placing the order.');p.address={...(p.address||{}),...a};init={...init,body:JSON.stringify(p)}}catch(e){if(e?.message?.startsWith('Select your exact'))throw e}}return base(input,init)}}
-document.addEventListener('click',async e=>{const t=e.target;const searchChoice=t.closest('[data-fw-search-index]');if(searchChoice){const item=searchResults[Number(searchChoice.dataset.fwSearchIndex)];if(item){searchResults=[];$('#addressSearchResults').innerHTML='';await choose(Number(item.lat),Number(item.lon),'Search');toast('Location selected. Verify the pin and address details before saving.')}return}if(t.closest('#addressBtn')||t.closest('#profileAddress')){e.preventDefault();e.stopImmediatePropagation();manager();loadSaved();return}if(t.closest('[data-close-modal]')){$('#addressModal')?.classList.add('hidden');return}const u=t.closest('[data-fw-use]');if(u){const a=addresses.find(x=>String(x.id)===u.dataset.fwUse);if(a){fill(a);$('#addressModal')?.classList.add('hidden')}}const ed=t.closest('[data-fw-edit]');if(ed){const a=addresses.find(x=>String(x.id)===ed.dataset.fwEdit);if(a){fill(a);$('#addressModal')?.classList.add('hidden');window.setView?.('checkout');setTimeout(ensure,80)}}const df=t.closest('[data-fw-default]');if(df){try{const r=await fetch(`/api/addresses/${df.dataset.fwDefault}`,{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({default:true})});const d=await readJsonResponse(r);if(!r.ok)throw Error(d.error||'Could not update default address.');addresses=d.addresses||[];current=addresses.find(x=>x.isDefault)||current;saveLocal();renderManager();renderSaved();display();toast('Default address updated.')}catch(e){toast(e.message)}}const del=t.closest('[data-fw-delete]');if(del&&confirm('Delete this saved address?')){try{const r=await fetch(`/api/addresses/${del.dataset.fwDelete}/delete`,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:Number(del.dataset.fwDelete)})});const d=await readJsonResponse(r);if(!r.ok)throw Error(d.error||'Could not delete saved address.');addresses=d.addresses||[];if(Number(current?.id)===Number(del.dataset.fwDelete))current=addresses.find(x=>x.isDefault)||addresses[0]||null;saveLocal();renderManager();renderSaved();display();toast('Address deleted.')}catch(e){toast(e.message)}}if(t.closest('#addressManagerNew')){$('#addressModal')?.classList.add('hidden');current=null;window.setView?.('checkout');setTimeout(ensure,80)}});
-document.addEventListener('click',e=>{if(e.target.closest('#fwChangeLocation'))toast('Use GPS, search, or tap/drag the pin to change location.');const l=e.target.closest('[data-fw-label]');if(l){document.querySelectorAll('.address-label').forEach(x=>x.classList.remove('active'));l.classList.add('active');current={...(current||{}),label:l.dataset.fwLabel};saveLocal()}});
-function initAddressSystem(){intercept();ensure();current=loadLocal();loadSaved();display()}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initAddressSystem,{once:true});else initAddressSystem();
+// FreshWay customer address book.
+// Address management is a dedicated modal; it never navigates to checkout.
+(function () {
+  'use strict';
+
+  const $ = function (selector) { return document.querySelector(selector); };
+  const esc = function (value) {
+    return String(value == null ? '' : value).replace(/[&<>'"]/g, function (character) {
+      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' })[character];
+    });
+  };
+  const normalizePhone = function (value) {
+    const digits = String(value || '').replace(/\D/g, '');
+    if (digits.length === 10) return digits;
+    if (digits.length === 12 && digits.indexOf('91') === 0) return digits.slice(2);
+    return '';
+  };
+  const validCoords = function (lat, lon) {
+    return Number.isFinite(Number(lat)) && Number.isFinite(Number(lon)) &&
+      Number(lat) >= -90 && Number(lat) <= 90 && Number(lon) >= -180 && Number(lon) <= 180 &&
+      !(Number(lat) === 0 && Number(lon) === 0);
+  };
+  const labelFields = [
+    ['fwAddrName', 'recipientName'], ['fwAddrPhone', 'deliveryPhone'],
+    ['fwAddrHouse', 'houseFlat'], ['fwAddrBuilding', 'building'],
+    ['fwAddrFloor', 'floor'], ['fwAddrStreet', 'street'],
+    ['fwAddrArea', 'area'], ['fwAddrLocality', 'locality'],
+    ['fwAddrCity', 'city'], ['fwAddrDistrict', 'district'],
+    ['fwAddrState', 'state'], ['fwAddrPincode', 'pincode'],
+    ['fwAddrLandmark', 'landmark'], ['fwAddrNote', 'note']
+  ];
+  const checkoutIds = ['customerName', 'customerPhone', 'house', 'area', 'city', 'pincode', 'landmark', 'note'];
+  let addresses = [];
+  let activeAddress = null;
+  let modalOrigin = 'profile';
+  let editingAddress = null;
+  let editorCoordinates = null;
+  let map = null;
+  let marker = null;
+  let searchResults = [];
+  let locationRequestId = 0;
+  let mapLoadPromise = null;
+  let editorLabel = 'Home';
+
+  function toast(message) {
+    const element = $('#toast');
+    if (!element) return;
+    element.textContent = message;
+    element.classList.add('show');
+    clearTimeout(window.__fwAddressToast);
+    window.__fwAddressToast = setTimeout(function () { element.classList.remove('show'); }, 3200);
+  }
+
+  function value(id) {
+    const element = document.getElementById(id);
+    return element ? String(element.value || '').trim() : '';
+  }
+
+  function setValue(id, nextValue) {
+    const element = document.getElementById(id);
+    if (!element || nextValue == null) return;
+    element.value = String(nextValue);
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function normalizeAddress(address) {
+    const a = address || {};
+    return {
+      id: a.id == null ? null : Number(a.id),
+      label: String(a.label || 'Other'),
+      recipientName: String(a.recipientName || a.recipient_name || ''),
+      deliveryPhone: String(a.deliveryPhone || a.delivery_phone || ''),
+      houseFlat: String(a.houseFlat || a.house_flat || a.house || ''),
+      building: String(a.building || ''),
+      floor: String(a.floor || ''),
+      street: String(a.street || ''),
+      area: String(a.area || ''),
+      locality: String(a.locality || ''),
+      city: String(a.city || ''),
+      district: String(a.district || ''),
+      state: String(a.state || ''),
+      pincode: String(a.pincode || ''),
+      landmark: String(a.landmark || ''),
+      note: String(a.note || a.deliveryNote || a.delivery_note || ''),
+      latitude: a.latitude == null || a.latitude === '' ? null : Number(a.latitude),
+      longitude: a.longitude == null || a.longitude === '' ? null : Number(a.longitude),
+      accuracyMeters: a.accuracyMeters == null || a.accuracyMeters === '' ? null : Number(a.accuracyMeters),
+      locationSource: String(a.locationSource || a.location_source || ''),
+      placeId: String(a.placeId || a.place_id || ''),
+      locationUpdatedAt: String(a.locationUpdatedAt || a.location_updated_at || ''),
+      isDefault: Boolean(a.isDefault || a.is_default)
+    };
+  }
+
+  function coreAddressKey(address) {
+    const a = normalizeAddress(address);
+    return [
+      a.label, a.recipientName, normalizePhone(a.deliveryPhone), a.houseFlat, a.building,
+      a.floor, a.street, a.area, a.locality, a.city, a.district, a.state, a.pincode
+    ].map(function (part) { return String(part || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase(); }).join('|');
+  }
+
+  function uniqueAddresses(list) {
+    const seen = new Set();
+    const out = [];
+    (Array.isArray(list) ? list : []).map(normalizeAddress).sort(function (a, b) {
+      return Number(b.isDefault) - Number(a.isDefault) || Number(b.id || 0) - Number(a.id || 0);
+    }).forEach(function (address) {
+      const key = coreAddressKey(address);
+      if (!key.replace(/\|/g, '')) return;
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(address);
+    });
+    const selected = out.find(function (a) { return a.isDefault; }) || out[0] || null;
+    out.forEach(function (a) { a.isDefault = !!selected && Number(a.id) === Number(selected.id); });
+    return out;
+  }
+
+  function defaultAddress() {
+    return addresses.find(function (address) { return address.isDefault; }) || addresses[0] || null;
+  }
+
+  function shortAddress(address) {
+    if (!address) return '';
+    const parts = [address.area, address.locality, address.city].filter(function (part, index, all) {
+      return part && all.indexOf(part) === index;
+    });
+    if (address.pincode) parts.push(address.pincode);
+    return parts.join(', ');
+  }
+
+  function fullAddress(address) {
+    if (!address) return '';
+    const parts = [
+      address.houseFlat, address.building, address.floor, address.street,
+      address.area, address.locality, address.city, address.district, address.state
+    ].filter(function (part, index, all) { return part && all.indexOf(part) === index; });
+    let result = parts.join(', ');
+    if (address.pincode) result += (result ? ' - ' : '') + address.pincode;
+    return result;
+  }
+
+  function iconFor(label) {
+    return label === 'Home' ? '🏠' : label === 'Work' ? '💼' : '📍';
+  }
+
+  function renderDisplays() {
+    const preferred = activeAddress || defaultAddress();
+    const home = $('#homeAddress');
+    const profile = $('#profileAddressText');
+    if (home) home.textContent = preferred ? (iconFor(preferred.label) + ' ' + (shortAddress(preferred) || preferred.label)) : 'Add your delivery address';
+    const savedDefault = defaultAddress();
+    if (profile) profile.textContent = savedDefault ? (savedDefault.label + ' · ' + fullAddress(savedDefault)) : 'Not saved yet';
+    syncCheckout();
+  }
+
+  function setActive(address) {
+    activeAddress = address ? normalizeAddress(address) : null;
+    renderDisplays();
+  }
+
+  async function readJsonResponse(response) {
+    const type = String(response.headers.get('content-type') || '').toLowerCase();
+    if (!type.includes('json')) throw new Error('The address service returned an unexpected response. Please try again.');
+    try { return await response.json(); }
+    catch (_) { throw new Error('Address service returned invalid data. Please try again.'); }
+  }
+
+  async function loadSaved(options) {
+    const preserveSelection = !options || options.preserveSelection !== false;
+    const previousId = preserveSelection && activeAddress ? activeAddress.id : null;
+    try {
+      const r = await fetch('/api/addresses', { credentials: 'include', cache: 'no-store' });
+      if (!r.ok) {
+        if (r.status === 401) {
+          addresses = [];
+          activeAddress = null;
+          renderDisplays();
+          return;
+        }
+        throw new Error('Could not load your saved addresses.');
+      }
+      const data = await readJsonResponse(r);
+      addresses = uniqueAddresses(data.addresses || []);
+      activeAddress = addresses.find(function (address) { return Number(address.id) === Number(previousId); }) || defaultAddress();
+      renderDisplays();
+      if ($('#addressModal') && !$('#addressModal').classList.contains('hidden')) renderManager();
+    } catch (error) {
+      renderDisplays();
+      if (options && options.showError) toast(error.message || 'Could not load saved addresses.');
+    }
+  }
+
+  function ensureCheckoutSummary() {
+    const form = $('#checkoutForm');
+    if (!form || $('#fwCheckoutAddressSummary')) return;
+    const summary = document.createElement('section');
+    summary.id = 'fwCheckoutAddressSummary';
+    summary.className = 'fw-checkout-address';
+    summary.setAttribute('aria-label', 'Delivery address');
+    form.insertBefore(summary, form.firstElementChild);
+  }
+
+  function setCheckoutFields(address) {
+    if (!address) return;
+    setValue('customerName', address.recipientName);
+    setValue('customerPhone', normalizePhone(address.deliveryPhone));
+    setValue('house', address.houseFlat);
+    setValue('area', address.area);
+    setValue('city', address.city);
+    setValue('pincode', address.pincode);
+    setValue('landmark', address.landmark);
+    setValue('note', address.note);
+  }
+
+  function syncCheckout() {
+    const form = $('#checkoutForm');
+    if (!form) return;
+    ensureCheckoutSummary();
+    const summary = $('#fwCheckoutAddressSummary');
+    if (!summary) return;
+    const address = activeAddress || defaultAddress();
+    checkoutIds.forEach(function (id) {
+      const field = document.getElementById(id);
+      const label = field && field.closest('label');
+      if (!field) return;
+      if (field.dataset.fwInitialRequired === undefined) field.dataset.fwInitialRequired = field.required ? 'true' : 'false';
+      field.required = address ? field.dataset.fwInitialRequired === 'true' : false;
+      if (label) label.hidden = true;
+    });
+    const extra = $('.address-extra-fields');
+    if (extra) extra.hidden = true;
+    if (address) {
+      if (!activeAddress) activeAddress = normalizeAddress(address);
+      setCheckoutFields(address);
+      summary.innerHTML =
+        '<div class="fw-checkout-address-copy"><span class="eyebrow">DELIVER TO</span>' +
+        '<strong>' + esc(iconFor(address.label) + ' ' + address.label) + (address.isDefault ? ' <span class="fw-default-tag">Default</span>' : '') + '</strong>' +
+        '<p>' + esc(fullAddress(address)) + '</p><small>' + esc(address.recipientName) +
+        (normalizePhone(address.deliveryPhone) ? ' · ' + esc(normalizePhone(address.deliveryPhone)) : '') + '</small></div>' +
+        '<button type="button" class="secondary-btn fw-change-address" id="fwCheckoutChangeAddress">Change</button>';
+    } else {
+      summary.innerHTML =
+        '<div class="fw-checkout-address-copy"><span class="eyebrow">DELIVERY ADDRESS</span>' +
+        '<strong>No saved address yet</strong><p>Add an address once. It will become your default automatically.</p></div>' +
+        '<button type="button" class="primary-btn fw-change-address" id="fwCheckoutAddAddress">+ Add address</button>';
+    }
+    summary.hidden = false;
+  }
+
+  function modal() {
+    const element = $('#addressModal');
+    if (!element) return null;
+    element.classList.add('fw-address-modal');
+    return element;
+  }
+
+  function showModal() {
+    const element = modal();
+    if (!element) return;
+    element.classList.remove('hidden');
+    document.body.classList.add('fw-address-modal-open');
+  }
+
+  function hideModal() {
+    const element = modal();
+    if (element) element.classList.add('hidden');
+    document.body.classList.remove('fw-address-modal-open');
+    destroyMap();
+  }
+
+  function renderManager() {
+    const element = modal();
+    if (!element) return;
+    destroyMap();
+    const list = addresses.map(function (address) {
+      const selected = activeAddress && Number(activeAddress.id) === Number(address.id);
+      return '<article class="fw-address-card' + (selected ? ' is-selected' : '') + '">' +
+        '<div class="fw-address-card-heading"><div><strong>' + esc(iconFor(address.label) + ' ' + address.label) + '</strong>' +
+        (address.isDefault ? '<span class="fw-default-tag">Default</span>' : '') +
+        (selected ? '<span class="fw-selected-tag">Selected</span>' : '') + '</div></div>' +
+        '<p class="fw-address-card-text">' + esc(fullAddress(address)) + '</p>' +
+        '<small class="fw-address-card-contact">' + esc(address.recipientName) +
+        (normalizePhone(address.deliveryPhone) ? ' · ' + esc(normalizePhone(address.deliveryPhone)) : '') + '</small>' +
+        '<div class="fw-address-actions">' +
+        '<button type="button" class="primary-btn" data-fw-use="' + esc(address.id) + '">' + (selected ? 'Use this address' : 'Use') + '</button>' +
+        (!address.isDefault ? '<button type="button" class="secondary-btn" data-fw-default="' + esc(address.id) + '">Make default</button>' : '') +
+        '<button type="button" class="secondary-btn" data-fw-edit="' + esc(address.id) + '">Edit</button>' +
+        '<button type="button" class="secondary-btn danger" data-fw-delete="' + esc(address.id) + '">Delete</button>' +
+        '</div></article>';
+    }).join('');
+    element.innerHTML =
+      '<div class="modal-sheet address-modal-sheet" role="document">' +
+      '<div class="modal-head fw-address-modal-head"><div><span class="eyebrow">DELIVERY</span><h2>Your addresses</h2><p class="fw-address-subtitle">Choose an address or manage your saved locations.</p></div>' +
+      '<button type="button" class="icon-btn" data-close-modal aria-label="Close addresses">×</button></div>' +
+      (list || '<div class="fw-address-empty"><span>📍</span><strong>No saved addresses yet</strong><p>Add your first address. It will automatically become your default.</p></div>') +
+      '<button type="button" class="primary-btn full fw-address-add" id="fwAddressManagerNew">+ Add address</button>' +
+      '</div>';
+    showModal();
+  }
+
+  function newAddressDraft() {
+    const firstName = value('customerName') || $('#profileName')?.textContent || '';
+    const firstPhone = value('customerPhone');
+    return normalizeAddress({
+      label: 'Home',
+      recipientName: firstName === 'Guest customer' ? '' : firstName,
+      deliveryPhone: firstPhone,
+      latitude: null,
+      longitude: null,
+      isDefault: addresses.length === 0
+    });
+  }
+
+  function destroyMap() {
+    if (map) {
+      try { map.remove(); } catch (_) {}
+    }
+    map = null;
+    marker = null;
+  }
+
+  function buildEditor(addressId) {
+    destroyMap();
+    editingAddress = addressId == null ? null : addresses.find(function (address) {
+      return Number(address.id) === Number(addressId);
+    }) || null;
+    const isEditing = !!editingAddress;
+    const source = normalizeAddress(editingAddress || newAddressDraft());
+    editorLabel = source.label || 'Home';
+    editorCoordinates = validCoords(source.latitude, source.longitude) ? {
+      latitude: source.latitude, longitude: source.longitude,
+      accuracyMeters: source.accuracyMeters, locationSource: source.locationSource,
+      placeId: source.placeId, locationUpdatedAt: source.locationUpdatedAt
+    } : null;
+    searchResults = [];
+    const element = modal();
+    element.innerHTML =
+      '<div class="modal-sheet address-modal-sheet address-editor-sheet" role="document">' +
+      '<div class="modal-head fw-address-modal-head"><div><span class="eyebrow">' + (isEditing ? 'EDIT ADDRESS' : 'NEW ADDRESS') + '</span><h2>' + (isEditing ? 'Edit delivery address' : 'Add delivery address') + '</h2><p class="fw-address-subtitle">Save it once. We will use your default next time.</p></div>' +
+      '<button type="button" class="icon-btn" data-close-modal aria-label="Close address editor">×</button></div>' +
+      '<div class="fw-address-editor-body">' +
+      '<div class="address-labels fw-address-labels">' +
+      '<button type="button" class="address-label' + (editorLabel === 'Home' ? ' active' : '') + '" data-fw-label="Home">🏠 Home</button>' +
+      '<button type="button" class="address-label' + (editorLabel === 'Work' ? ' active' : '') + '" data-fw-label="Work">💼 Work</button>' +
+      '<button type="button" class="address-label' + (editorLabel === 'Other' ? ' active' : '') + '" data-fw-label="Other">📍 Other</button></div>' +
+      '<label>Full name<input id="fwAddrName" autocomplete="name" maxlength="120" placeholder="Recipient name"></label>' +
+      '<label>Delivery contact number<input id="fwAddrPhone" inputmode="tel" autocomplete="tel" maxlength="16" placeholder="10-digit mobile number"></label>' +
+      '<div class="fw-address-form-grid">' +
+      '<label>House / flat number<input id="fwAddrHouse" autocomplete="address-line1" maxlength="200" placeholder="Flat, house number"></label>' +
+      '<label>Building <span class="optional">Optional</span><input id="fwAddrBuilding" maxlength="160" placeholder="Apartment / building"></label>' +
+      '<label>Floor <span class="optional">Optional</span><input id="fwAddrFloor" maxlength="40" placeholder="Floor"></label>' +
+      '<label>Street / road <span class="optional">Optional</span><input id="fwAddrStreet" autocomplete="street-address" maxlength="200" placeholder="Street / road"></label>' +
+      '<label>Area / colony<input id="fwAddrArea" maxlength="200" placeholder="Area / colony"></label>' +
+      '<label>Locality <span class="optional">Optional</span><input id="fwAddrLocality" maxlength="160" placeholder="Locality"></label>' +
+      '<label>City<input id="fwAddrCity" autocomplete="address-level2" maxlength="100" placeholder="City"></label>' +
+      '<label>PIN code<input id="fwAddrPincode" inputmode="numeric" autocomplete="postal-code" maxlength="6" pattern="[0-9]{6}" placeholder="6-digit PIN code"></label>' +
+      '<label>District <span class="optional">Optional</span><input id="fwAddrDistrict" maxlength="100" placeholder="District"></label>' +
+      '<label>State <span class="optional">Optional</span><input id="fwAddrState" autocomplete="address-level1" maxlength="100" placeholder="State"></label>' +
+      '</div>' +
+      '<label>Landmark <span class="optional">Optional</span><input id="fwAddrLandmark" maxlength="200" placeholder="Near a shop, school, temple"></label>' +
+      '<label>Delivery note <span class="optional">Optional</span><textarea id="fwAddrNote" rows="2" maxlength="500" placeholder="Help the delivery person find you"></textarea></label>' +
+      '<div class="fw-location-tools"><button type="button" class="secondary-btn" id="fwAddressGps">📍 Use current location</button>' +
+      '<div class="fw-address-search"><input id="fwAddrSearchInput" type="search" placeholder="Search area, street or landmark" aria-label="Search delivery location"><button type="button" class="secondary-btn" id="fwAddressSearch">Search</button></div></div>' +
+      '<div id="fwAddressSearchResults" class="fw-address-search-results" aria-live="polite"></div>' +
+      '<div id="fwAddressMap" class="address-map fw-address-map"></div>' +
+      '<div id="fwAddressLocationStatus" class="address-location-status" role="status"></div>' +
+      '<div id="fwAddressMatch" class="fw-address-match" hidden></div>' +
+      '<p class="address-map-note">Confirm the pin for the delivery location. Editing the address text does not move the pin.</p>' +
+      '</div>' +
+      '<div class="fw-address-editor-footer"><button type="button" class="secondary-btn" id="fwAddressCancel">Cancel</button><button type="button" class="primary-btn" id="fwAddressSave">' + (isEditing ? 'Save changes' : 'Save address') + '</button></div>' +
+      '</div>';
+    showModal();
+    labelFields.forEach(function (pair) { setValue(pair[0], source[pair[1]]); });
+    renderLocationStatus();
+    loadMap().then(initMap).catch(function () {
+      const mapElement = $('#fwAddressMap');
+      if (mapElement) mapElement.innerHTML = '<div class="fw-map-unavailable">Map could not load. Try GPS or search, then check your location details.</div>';
+    });
+    checkForMatchingAddress();
+  }
+
+  function loadMap() {
+    if (window.L) return Promise.resolve();
+    if (mapLoadPromise) return mapLoadPromise;
+    mapLoadPromise = new Promise(function (resolve, reject) {
+      if (!document.querySelector('link[data-fw-leaflet]')) {
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        css.dataset.fwLeaflet = '1';
+        document.head.appendChild(css);
+      }
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.async = true;
+      script.onload = resolve;
+      script.onerror = function () { mapLoadPromise = null; reject(new Error('Map library unavailable')); };
+      document.head.appendChild(script);
+    });
+    return mapLoadPromise;
+  }
+
+  function initMap() {
+    const element = $('#fwAddressMap');
+    if (!element || !window.L) return;
+    destroyMap();
+    const hasLocation = !!editorCoordinates;
+    const center = hasLocation ? [editorCoordinates.latitude, editorCoordinates.longitude] : [20.5937, 78.9629];
+    map = window.L.map(element, { zoomControl: true }).setView(center, hasLocation ? 17 : 5);
+    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+    marker = window.L.marker(center, { draggable: true, opacity: hasLocation ? 1 : 0 }).addTo(map);
+    map.on('click', function (event) { selectLocation(event.latlng.lat, event.latlng.lng, 'Map pin'); });
+    marker.on('dragend', function () {
+      const point = marker.getLatLng();
+      selectLocation(point.lat, point.lng, 'Map pin');
+    });
+    setTimeout(function () { if (map) map.invalidateSize(); }, 150);
+  }
+
+  function renderLocationStatus() {
+    const element = $('#fwAddressLocationStatus');
+    if (!element) return;
+    if (editorCoordinates && validCoords(editorCoordinates.latitude, editorCoordinates.longitude)) {
+      const accuracy = Number(editorCoordinates.accuracyMeters);
+      element.innerHTML = '<div><strong>📍 Delivery pin selected</strong><small>' +
+        (accuracy > 100 ? 'GPS accuracy is about ±' + Math.round(accuracy) + ' m. Adjust the pin if necessary.' :
+          'This pin will be saved with the address.') + '</small></div>' +
+        '<button type="button" class="secondary-btn" id="fwAddressClearPin">Clear pin</button>';
+    } else {
+      element.innerHTML = '<div><strong>📍 Location not selected</strong><small>Use GPS, search or tap the map to choose your delivery point.</small></div>';
+    }
+  }
+
+  async function reverseGeocode(latitude, longitude) {
+    const response = await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&lat=' +
+      encodeURIComponent(latitude) + '&lon=' + encodeURIComponent(longitude), {
+      headers: { Accept: 'application/json' }
+    });
+    if (!response.ok) throw new Error('Could not read this location.');
+    return response.json();
+  }
+
+  function fieldsFromGeocode(result, latitude, longitude, source, accuracy) {
+    const a = result && result.address || {};
+    return {
+      latitude: Number(latitude), longitude: Number(longitude),
+      accuracyMeters: accuracy == null ? null : Number(accuracy),
+      locationSource: source, locationUpdatedAt: new Date().toISOString(),
+      placeId: result && result.place_id ? String(result.place_id) : '',
+      placeName: result && result.display_name ? result.display_name : '',
+      houseFlat: [a.house_number, a.building].filter(Boolean).join(' ').trim(),
+      building: a.building || '',
+      street: a.road || a.pedestrian || a.residential || '',
+      area: [a.neighbourhood, a.suburb, a.quarter].filter(Boolean).filter(function (item, index, list) { return list.indexOf(item) === index; }).slice(0, 2).join(', '),
+      locality: a.city_district || a.locality || '',
+      city: a.city || a.town || a.village || a.municipality || '',
+      district: a.district || a.county || a.state_district || '',
+      state: a.state || '',
+      pincode: a.postcode || '',
+      landmark: a.amenity || a.shop || ''
+    };
+  }
+
+  async function selectLocation(latitude, longitude, source, accuracy) {
+    if (!validCoords(latitude, longitude)) {
+      toast('Please choose a valid delivery location.');
+      return;
+    }
+    const requestId=++locationRequestId;
+    editorCoordinates = {
+      latitude: Number(latitude), longitude: Number(longitude),
+      accuracyMeters: accuracy == null ? null : Number(accuracy),
+      locationSource: source, locationUpdatedAt: new Date().toISOString()
+    };
+    if (map && marker) {
+      marker.setOpacity(1);
+      marker.setLatLng([Number(latitude), Number(longitude)]);
+      map.setView([Number(latitude), Number(longitude)], 17);
+      setTimeout(function () { if (map) map.invalidateSize(); }, 50);
+    }
+    renderLocationStatus();
+    try {
+      const result = await reverseGeocode(latitude, longitude);
+      if (requestId !== locationRequestId) return;
+      const data = fieldsFromGeocode(result, latitude, longitude, source, accuracy);
+      editorCoordinates = data;
+      const preserve = ['recipientName', 'deliveryPhone', 'label', 'note', 'floor'];
+      const previous = readEditor();
+      preserve.forEach(function (key) { data[key] = previous[key] || (editingAddress ? editingAddress[key] : '') || data[key] || ''; });
+      Object.assign(editorCoordinates, {
+        latitude: data.latitude, longitude: data.longitude, accuracyMeters: data.accuracyMeters,
+        locationSource: data.locationSource, placeId: data.placeId, locationUpdatedAt: data.locationUpdatedAt
+      });
+      labelFields.forEach(function (pair) { if (data[pair[1]] !== undefined && pair[1] !== 'recipientName' && pair[1] !== 'deliveryPhone' && pair[1] !== 'note') setValue(pair[0], data[pair[1]]); });
+      setValue('fwAddrName', previous.recipientName || (editingAddress && editingAddress.recipientName) || '');
+      setValue('fwAddrPhone', normalizePhone(previous.deliveryPhone || (editingAddress && editingAddress.deliveryPhone) || ''));
+    } catch (_) {
+      if (requestId !== locationRequestId) return;
+      toast('Pin selected. Complete any address fields that could not be filled automatically.');
+    }
+    if (requestId !== locationRequestId) return;
+    renderLocationStatus();
+    checkForMatchingAddress();
+  }
+
+  function readEditor() {
+    const result = {};
+    labelFields.forEach(function (pair) { result[pair[1]] = value(pair[0]); });
+    result.label = editorLabel;
+    result.deliveryPhone = normalizePhone(result.deliveryPhone);
+    if (editorCoordinates) {
+      result.latitude = editorCoordinates.latitude;
+      result.longitude = editorCoordinates.longitude;
+      result.accuracyMeters = editorCoordinates.accuracyMeters;
+      result.locationSource = editorCoordinates.locationSource;
+      result.placeId = editorCoordinates.placeId || '';
+      result.locationUpdatedAt = editorCoordinates.locationUpdatedAt || new Date().toISOString();
+    } else {
+      result.latitude = null;
+      result.longitude = null;
+      result.accuracyMeters = null;
+      result.locationSource = '';
+      result.placeId = '';
+      result.locationUpdatedAt = '';
+    }
+    result.isDefault = editingAddress ? editingAddress.isDefault : addresses.length === 0;
+    return result;
+  }
+
+  function distanceMeters(a, b) {
+    if (!validCoords(a && a.latitude, a && a.longitude) || !validCoords(b && b.latitude, b && b.longitude)) return Infinity;
+    const rad = function (value) { return value * Math.PI / 180; };
+    const dLat = rad(Number(b.latitude) - Number(a.latitude));
+    const dLon = rad(Number(b.longitude) - Number(a.longitude));
+    const s1 = Math.sin(dLat / 2), s2 = Math.sin(dLon / 2);
+    const q = s1 * s1 + Math.cos(rad(Number(a.latitude))) * Math.cos(rad(Number(b.latitude))) * s2 * s2;
+    return 6371000 * 2 * Math.atan2(Math.sqrt(q), Math.sqrt(Math.max(0, 1 - q)));
+  }
+
+  function findMatchingAddress(candidate) {
+    if (!candidate || !validCoords(candidate.latitude, candidate.longitude)) return null;
+    return addresses.find(function (address) {
+      if (editingAddress && Number(address.id) === Number(editingAddress.id)) return false;
+      const samePinCode = !candidate.pincode || !address.pincode || candidate.pincode === address.pincode;
+      const near = distanceMeters(candidate, address) <= 35;
+      const sameText = coreAddressKey(candidate) === coreAddressKey(address);
+      return sameText || (near && samePinCode && (
+        String(candidate.houseFlat || '').trim().toLowerCase() === String(address.houseFlat || '').trim().toLowerCase() ||
+        String(candidate.area || '').trim().toLowerCase() === String(address.area || '').trim().toLowerCase()
+      ));
+    }) || null;
+  }
+
+  function checkForMatchingAddress() {
+    const box = $('#fwAddressMatch');
+    if (!box) return;
+    const candidate = readEditor();
+    const existing = findMatchingAddress(candidate);
+    if (!existing) {
+      box.hidden = true;
+      box.innerHTML = '';
+      return;
+    }
+    box.hidden = false;
+    box.innerHTML = '<div><strong>This looks like your saved ' + esc(existing.label) + ' address.</strong><small>You can use the saved address instead of creating a duplicate.</small></div>' +
+      '<button type="button" class="secondary-btn" id="fwUseMatchingAddress">Use saved address</button>';
+  }
+
+  function findSearch() {
+    const query = value('fwAddrSearchInput');
+    const box = $('#fwAddressSearchResults');
+    if (!query) {
+      toast('Enter an area, street, PIN code or nearby landmark.');
+      return;
+    }
+    if (box) box.innerHTML = '<p role="status">Searching locations…</p>';
+    fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=in&q=' + encodeURIComponent(query), {
+      headers: { Accept: 'application/json' }
+    }).then(function (response) {
+      if (!response.ok) throw new Error('Location search unavailable.');
+      return response.json();
+    }).then(function (results) {
+      searchResults = Array.isArray(results) ? results : [];
+      if (!box) return;
+      if (!searchResults.length) {
+        box.innerHTML = '<p role="status">No results found. Try a more specific area or landmark.</p>';
+        return;
+      }
+      box.innerHTML = '<p class="fw-address-search-hint">Choose the exact match. Nothing is selected until you tap a result.</p>' +
+        searchResults.map(function (item, index) {
+          return '<button type="button" class="secondary-btn full" data-fw-search-index="' + index + '">' +
+            esc(item.display_name || ('Location result ' + (index + 1))) + '</button>';
+        }).join('');
+    }).catch(function () {
+      searchResults = [];
+      if (box) box.innerHTML = '<p role="status">Search is unavailable. You can still use GPS or the map pin.</p>';
+      toast('Could not search locations. Please try again.');
+    });
+  }
+
+  function useGps() {
+    if (!navigator.geolocation) {
+      toast('Location is not supported on this device.');
+      return;
+    }
+    const button = $('#fwAddressGps');
+    if (button) {
+      button.disabled = true;
+      button.textContent = '📍 Finding location…';
+    }
+    navigator.geolocation.getCurrentPosition(function (position) {
+      selectLocation(position.coords.latitude, position.coords.longitude, 'GPS', position.coords.accuracy).finally(function () {
+        if (button) {
+          button.disabled = false;
+          button.textContent = '📍 Use current location';
+        }
+      });
+    }, function (error) {
+      if (button) {
+        button.disabled = false;
+        button.textContent = '📍 Use current location';
+      }
+      toast(error.code === 1 ? 'Allow location access for FreshWay, or search for your area.' :
+        'Could not determine your location. Try search or tap the map.');
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
+  }
+
+  async function saveEditor() {
+    const address = readEditor();
+    if (!address.recipientName || address.recipientName.length < 2) return toast('Enter the recipient name.');
+    if (!/^\d{10}$/.test(address.deliveryPhone)) return toast('Enter a valid 10-digit delivery contact number.');
+    if (!address.houseFlat || !address.area || !address.city) return toast('Enter the house/flat, area and city.');
+    if (!/^\d{6}$/.test(address.pincode)) return toast('Enter a valid 6-digit PIN code.');
+    const existingLegacyWithoutPin = !!editingAddress && !validCoords(editingAddress.latitude, editingAddress.longitude) && !editorCoordinates;
+    if (!validCoords(address.latitude, address.longitude) && !existingLegacyWithoutPin) {
+      return toast('Select your delivery location using GPS, search or the map pin.');
+    }
+    const saveButton = $('#fwAddressSave');
+    if (saveButton) {
+      saveButton.disabled = true;
+      saveButton.textContent = 'Saving…';
+    }
+    const wasActiveId = activeAddress && activeAddress.id;
+    const payload = Object.assign({}, address, { isDefault: editingAddress ? !!editingAddress.isDefault : addresses.length === 0 });
+    const url = editingAddress ? '/api/addresses/' + encodeURIComponent(editingAddress.id) : '/api/addresses';
+    try {
+      const r = await fetch(url, {
+        method: editingAddress ? 'PATCH' : 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await readJsonResponse(r);
+      if (!r.ok) throw new Error(data.error || 'Could not save your address.');
+      addresses = uniqueAddresses(data.addresses || []);
+      const returnedAddress = addresses.find(function (item) { return Number(item.id) === Number(data.id); }) ||
+        addresses.find(function (item) { return Number(item.id) === Number(editingAddress && editingAddress.id); }) || null;
+      if (modalOrigin === 'checkout' && returnedAddress) {
+        activeAddress = returnedAddress;
+      } else if (wasActiveId != null) {
+        activeAddress = addresses.find(function (item) { return Number(item.id) === Number(wasActiveId); }) || defaultAddress();
+      } else {
+        activeAddress = defaultAddress();
+      }
+      editingAddress = null;
+      renderDisplays();
+      renderManager();
+      toast(data.deduplicated ? 'This address is already saved. We kept your existing default.' : 'Address saved.');
+    } catch (error) {
+      toast(error.message || 'Could not save your address.');
+      if (saveButton) {
+        saveButton.disabled = false;
+        saveButton.textContent = editingAddress ? 'Save changes' : 'Save address';
+      }
+    }
+  }
+
+  async function setDefault(id) {
+    try {
+      const r = await fetch('/api/addresses/' + encodeURIComponent(id), {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ default: true })
+      });
+      const data = await readJsonResponse(r);
+      if (!r.ok) throw new Error(data.error || 'Could not change the default address.');
+      addresses = uniqueAddresses(data.addresses || []);
+      activeAddress = addresses.find(function (address) { return Number(address.id) === Number(id); }) || defaultAddress();
+      renderDisplays();
+      renderManager();
+      toast('Default address updated.');
+    } catch (error) {
+      toast(error.message || 'Could not change the default address.');
+    }
+  }
+
+  async function deleteAddress(button) {
+    const id = button.dataset.fwDelete;
+    if (!window.confirm('Delete this saved address?')) return;
+    try {
+      const r = await fetch(`/api/addresses/${button.dataset.fwDelete}/delete`,{method:'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await readJsonResponse(r);
+      if (!r.ok) throw new Error(data.error || 'Could not delete this address.');
+      const previousActiveId = activeAddress && activeAddress.id;
+      addresses = uniqueAddresses(data.addresses || []);
+      activeAddress = addresses.find(function (address) { return Number(address.id) === Number(previousActiveId); }) || defaultAddress();
+      renderDisplays();
+      renderManager();
+      toast(addresses.length ? 'Address deleted. Your remaining default is ready to use.' : 'Address deleted. Add an address when you are ready.');
+    } catch (error) {
+      toast(error.message || 'Could not delete this address.');
+    }
+  }
+
+  function openManager(origin) {
+    modalOrigin = origin || 'profile';
+    loadSaved({ preserveSelection: true, showError: false }).then(renderManager);
+  }
+
+  function openCheckoutAddressManager() {
+    openManager('checkout');
+  }
+
+  function bindEvents() {
+    // Keep a missing address from falling through into order submission. The
+    // first-time customer is guided to the same address form used by Profile.
+    document.addEventListener('submit', function (event) {
+      if (!event.target || event.target.id !== 'checkoutForm') return;
+      if (activeAddress || defaultAddress()) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      toast('Add and save a delivery address before placing your order.');
+      openCheckoutAddressManager();
+    }, true);
+    document.addEventListener('click', async function (event) {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const searchResult = target.closest('[data-fw-search-index]');
+      if (searchResult) {
+        const item = searchResults[Number(searchResult.dataset.fwSearchIndex)];
+        searchResults = [];
+        const box = $('#fwAddressSearchResults');
+        if (box) box.innerHTML = '';
+        if (item) await selectLocation(Number(item.lat), Number(item.lon), 'Search');
+        return;
+      }
+      if (target.closest('#addressBtn') || target.closest('#profileAddress')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        openManager(target.closest('#profileAddress') ? 'profile' : 'home');
+        return;
+      }
+      if (target.closest('#fwCheckoutChangeAddress') || target.closest('#fwCheckoutAddAddress')) {
+        event.preventDefault();
+        openCheckoutAddressManager();
+        return;
+      }
+      if (target.closest('[data-close-modal]')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        hideModal();
+        return;
+      }
+      const useButton = target.closest('[data-fw-use]');
+      if (useButton) {
+        const selected = addresses.find(function (address) { return String(address.id) === String(useButton.dataset.fwUse); });
+        if (selected) {
+          setActive(selected);
+          hideModal();
+          toast('Delivery address selected. Your saved default has not changed.');
+        }
+        return;
+      }
+      const defaultButton = target.closest('[data-fw-default]');
+      if (defaultButton) {
+        await setDefault(defaultButton.dataset.fwDefault);
+        return;
+      }
+      const editButton = target.closest('[data-fw-edit]');
+      if (editButton) {
+        buildEditor(editButton.dataset.fwEdit);
+        return;
+      }
+      const deleteButton = target.closest('[data-fw-delete]');
+      if (deleteButton) {
+        await deleteAddress(deleteButton);
+        return;
+      }
+      if (target.closest('#fwAddressManagerNew')) {
+        buildEditor(null);
+        return;
+      }
+      if (target.closest('#fwAddressCancel')) {
+        renderManager();
+        return;
+      }
+      if (target.closest('#fwAddressGps')) {
+        useGps();
+        return;
+      }
+      if (target.closest('#fwAddressSearch')) {
+        findSearch();
+        return;
+      }
+      if (target.closest('#fwAddressSave')) {
+        await saveEditor();
+        return;
+      }
+      if (target.closest('#fwAddressClearPin')) {
+        editorCoordinates = null;
+        renderLocationStatus();
+        checkForMatchingAddress();
+        return;
+      }
+      if (target.closest('#fwUseMatchingAddress')) {
+        const match = findMatchingAddress(readEditor());
+        if (match) {
+          activeAddress = match;
+          renderDisplays();
+          renderManager();
+          toast('Using the saved address. No duplicate was created and your default was not changed.');
+        }
+        return;
+      }
+      const addressLabel = target.closest('[data-fw-label]');
+      if (addressLabel) {
+        editorLabel = addressLabel.dataset.fwLabel || 'Other';
+        document.querySelectorAll('[data-fw-label]').forEach(function (button) {
+          button.classList.toggle('active', button.dataset.fwLabel === editorLabel);
+        });
+        checkForMatchingAddress();
+        return;
+      }
+      if (target.id === 'addressModal') {
+        hideModal();
+      }
+    });
+
+    document.addEventListener('input', function (event) {
+      const target = event.target;
+      if (!target || !target.id || target.id.indexOf('fwAddr') !== 0) return;
+      if (target.id !== 'fwAddrSearchInput') checkForMatchingAddress();
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && $('#addressModal') && !$('#addressModal').classList.contains('hidden')) hideModal();
+      if (event.key === 'Enter' && event.target && event.target.id === 'fwAddrSearchInput') {
+        event.preventDefault();
+        findSearch();
+      }
+    });
+  }
+
+  function interceptOrderAddress() {
+    if (window.__fwAddressFetchWrapped) return;
+    window.__fwAddressFetchWrapped = true;
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async function (input, init) {
+      const url = typeof input === 'string' ? input : (input && input.url) || '';
+      const method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+      let isOrderPost = false;
+      try { isOrderPost = method === 'POST' && new URL(url, window.location.href).pathname.replace(/\/+$/, '') === '/api/orders'; }
+      catch (_) {}
+      if (isOrderPost) {
+        if (!activeAddress && !defaultAddress()) throw new Error('Add and save a delivery address before placing your order.');
+        if (init && init.body) {
+          let payload;
+          try { payload = JSON.parse(init.body); }
+          catch (_) { return originalFetch(input, init); }
+          const selected = normalizeAddress(activeAddress || defaultAddress());
+          if (!selected.recipientName || !normalizePhone(selected.deliveryPhone) || !selected.houseFlat || !selected.area || !selected.city || !/^\d{6}$/.test(selected.pincode)) {
+            throw new Error('Complete your saved delivery address before placing the order.');
+          }
+          payload.address = Object.assign({}, payload.address || {}, selected);
+          payload.address.deliveryPhone = selected.deliveryPhone;
+          payload.address.recipientName = selected.recipientName;
+          if (selected.latitude != null && selected.longitude != null) {
+            payload.address.latitude = selected.latitude;
+            payload.address.longitude = selected.longitude;
+          }
+          init = Object.assign({}, init, { body: JSON.stringify(payload) });
+        }
+      }
+      return originalFetch(input, init);
+    };
+  }
+
+  function init() {
+    bindEvents();
+    interceptOrderAddress();
+    ensureCheckoutSummary();
+    renderDisplays();
+    loadSaved({ preserveSelection: false, showError: false });
+    const checkoutView = $('#checkoutView');
+    if (checkoutView && window.MutationObserver) {
+      const observer = new MutationObserver(function () {
+        if (checkoutView.classList.contains('active-view')) syncCheckout();
+      });
+      observer.observe(checkoutView, { attributes: true, attributeFilter: ['class'] });
+    }
+  }
+
+  window.FreshWayAddressSystem = Object.freeze({
+    open: openManager,
+    refresh: loadSaved,
+    renderDisplays: renderDisplays,
+    syncCheckout: syncCheckout,
+    getSelectedAddress: function () { return activeAddress || defaultAddress(); }
+  });
+
+  // This script is loaded after the address modal markup and before app.js.
+  // Bind the delegated click listener now so Profile/home address clicks are
+  // handled before the generic navigation listener in app.js.
+  init();
 })();

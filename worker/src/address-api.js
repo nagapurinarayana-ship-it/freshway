@@ -31,7 +31,10 @@ function publicAddress(r) {
     accuracyMeters:r.accuracy_meters,locationSource:r.location_source,placeId:r.place_id,locationUpdatedAt:r.location_updated_at,isDefault:!!r.is_default };
 }
 function duplicateKey(r) {
-  return [r.label,r.recipient_name,r.delivery_phone,r.house_flat,r.building,r.floor,r.street,r.area,r.locality,r.city,r.district,r.state,r.pincode,r.landmark,r.note,r.latitude,r.longitude].map(v => String(v ?? '')).join('\u001f');
+  // Identify a saved destination by its core delivery details, not transient
+  // GPS jitter, optional landmarks or delivery notes.
+  return [r.label,r.recipient_name,r.delivery_phone,r.house,r.building,r.floor,r.street,r.area,r.locality,r.city,r.district,r.state,r.pincode]
+    .map(v => String(v ?? '').trim().replace(/\s+/g,' ').toLocaleLowerCase()).join('\u001f');
 }
 async function list(env, customerId) {
   const { results } = await env.DB.prepare('SELECT * FROM addresses WHERE customer_id=? AND deleted_at IS NULL ORDER BY is_default DESC,id DESC').bind(customerId).all();
@@ -55,14 +58,32 @@ function validate(a) {
   return '';
 }
 async function findDuplicate(env, customerId, a) {
-  return env.DB.prepare(`SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL AND label=? AND recipient_name=? AND delivery_phone=? AND house=? AND building=? AND floor=? AND street=? AND area=? AND locality=? AND city=? AND district=? AND state=? AND pincode=? AND landmark=? AND note=? AND ((latitude=? AND longitude=?) OR (latitude IS NULL AND longitude IS NULL)) LIMIT 1`)
-    .bind(customerId,a.label,a.recipient_name,a.delivery_phone,a.house_flat,a.building,a.floor,a.street,a.area,a.locality,a.city,a.district,a.state,a.pincode,a.landmark,a.note,a.latitude,a.longitude).first();
+  // A repeated GPS reading can move a few metres. Match the textual delivery
+  // destination and recipient, not exact coordinates or optional notes.
+  return env.DB.prepare(`SELECT id FROM addresses
+    WHERE customer_id=? AND deleted_at IS NULL
+      AND LOWER(TRIM(label))=LOWER(?) AND LOWER(TRIM(recipient_name))=LOWER(?)
+      AND delivery_phone=?
+      AND LOWER(TRIM(COALESCE(house,'')))=LOWER(?)
+      AND LOWER(TRIM(COALESCE(building,'')))=LOWER(?)
+      AND LOWER(TRIM(COALESCE(floor,'')))=LOWER(?)
+      AND LOWER(TRIM(COALESCE(street,'')))=LOWER(?)
+      AND LOWER(TRIM(COALESCE(area,'')))=LOWER(?)
+      AND LOWER(TRIM(COALESCE(locality,'')))=LOWER(?)
+      AND LOWER(TRIM(COALESCE(city,'')))=LOWER(?)
+      AND LOWER(TRIM(COALESCE(district,'')))=LOWER(?)
+      AND LOWER(TRIM(COALESCE(state,'')))=LOWER(?)
+      AND TRIM(COALESCE(pincode,''))=?
+    ORDER BY is_default DESC,id DESC LIMIT 1`)
+    .bind(customerId,a.label,a.recipient_name,a.delivery_phone,a.house_flat,a.building,a.floor,a.street,a.area,a.locality,a.city,a.district,a.state,a.pincode).first();
 }
 async function ensureDefault(env, customerId) {
   const current = await env.DB.prepare('SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL AND is_default=1 ORDER BY id DESC LIMIT 1').bind(customerId).first();
-  if (current) return current.id;
-  const next = await env.DB.prepare('SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1').bind(customerId).first();
-  if (next) await env.DB.prepare('UPDATE addresses SET is_default=1 WHERE id=? AND customer_id=?').bind(next.id, customerId).run();
+  const next = current || await env.DB.prepare('SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1').bind(customerId).first();
+  if (next) {
+    // Normalize legacy accounts to exactly one default address.
+    await env.DB.prepare('UPDATE addresses SET is_default=CASE WHEN id=? THEN 1 ELSE 0 END WHERE customer_id=? AND deleted_at IS NULL').bind(next.id, customerId).run();
+  }
   return next?.id || null;
 }
 export async function handleAddress(request, env, customerId, action) {
@@ -78,8 +99,13 @@ export async function handleAddress(request, env, customerId, action) {
     if (error) return response({ error }, 400, env);
     const duplicate = await findDuplicate(env, customerId, a);
     if (duplicate) {
-      if (a.is_default) await env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=?').bind(customerId).run();
-      await env.DB.prepare('UPDATE addresses SET is_default=1 WHERE id=? AND customer_id=?').bind(duplicate.id, customerId).run();
+      // Creating an address that already exists must not silently change default.
+      if (a.is_default) {
+        await env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=?').bind(customerId).run();
+        await env.DB.prepare('UPDATE addresses SET is_default=1 WHERE id=? AND customer_id=?').bind(duplicate.id, customerId).run();
+      } else {
+        await ensureDefault(env, customerId);
+      }
       return response({ ok:true, addresses:await list(env,customerId), id:duplicate.id, deduplicated:true }, 200, env);
     }
     if (a.is_default) await env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=?').bind(customerId).run();
@@ -106,6 +132,8 @@ export async function handleAddress(request, env, customerId, action) {
     }
     const a = normalized(payload), error = validate(a);
     if (error) return response({ error }, 400, env);
+    // Editing keeps this address's default status unless explicitly changed.
+    a.is_default = payload.isDefault === undefined ? Number(owned.is_default || 0) : (payload.isDefault ? 1 : 0);
     if (a.is_default) await env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=?').bind(customerId).run();
     await env.DB.prepare(`UPDATE addresses SET label=?,recipient_name=?,delivery_phone=?,house=?,building=?,floor=?,street=?,area=?,locality=?,city=?,district=?,state=?,pincode=?,landmark=?,note=?,latitude=?,longitude=?,accuracy_meters=?,location_source=?,place_id=?,location_updated_at=?,is_default=? WHERE id=? AND customer_id=?`)
       .bind(a.label,a.recipient_name,a.delivery_phone,a.house_flat,a.building,a.floor,a.street,a.area,a.locality,a.city,a.district,a.state,a.pincode,a.landmark,a.note,a.latitude,a.longitude,a.accuracy_meters,a.location_source,a.place_id,a.location_updated_at,a.is_default,id,customerId).run();
