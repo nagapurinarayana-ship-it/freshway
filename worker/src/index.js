@@ -102,7 +102,7 @@ async function createOrder(env, payload) {
   await env.DB.prepare(`INSERT INTO customers (id,name,phone,whatsapp_opt_in,updated_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)
     ON CONFLICT(id) DO UPDATE SET name=excluded.name, whatsapp_opt_in=excluded.whatsapp_opt_in, updated_at=CURRENT_TIMESTAMP`)
     .bind(customerId, customerName, customerPhoneForProfile, payload.whatsappOptIn ? 1 : 0).run();
-  const addressResult = await env.DB.prepare(`INSERT INTO addresses (customer_id,house,area,city,pincode,landmark,note) VALUES (?,?,?,?,?,?,?)`)
+  const addressResult = await env.DB.prepare(`INSERT INTO addresses (customer_id,house,area,city,pincode,landmark,note,is_saved) VALUES (?,?,?,?,?,?,?,0)`)
     .bind(customerId, String(address.house).trim().slice(0, 200), String(address.area).trim().slice(0, 200), String(address.city).trim().slice(0, 100), String(address.pincode), String(address.landmark || '').trim().slice(0, 200), String(address.note || '').trim().slice(0, 500)).run();
   const addressId = addressResult?.meta?.last_row_id; if (!addressId) throw new Error('Could not save delivery address.');
   const id = orderId(), createdAt = now();
