@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 
+let savedAddresses = [];
+
 const products = [{
   id: 'p1',
   name: 'Basmati Rice',
@@ -13,26 +15,39 @@ const products = [{
 }];
 
 test.beforeEach(async ({ page }) => {
+  savedAddresses = [];
   await page.addInitScript(() => {
     localStorage.clear();
     sessionStorage.clear();
-    localStorage.setItem('freshway-address-v2', JSON.stringify({
-      label: 'Home',
-      recipientName: 'E2E Customer',
-      deliveryPhone: '9876543210',
-      houseFlat: '12',
-      area: 'Test Street',
-      city: 'Hyderabad',
-      pincode: '500001',
-      landmark: '',
-      note: '',
-      latitude: 17.385044,
-      longitude: 78.486671,
-      accuracyMeters: 10,
-      locationSource: 'E2E fixture',
-      placeId: 'e2e-location',
-      locationUpdatedAt: '2026-10-07T10:00:00.000Z'
-    }));
+    // Keep this E2E deterministic without depending on browser/device GPS permissions.
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition(success) {
+          success({ coords: { latitude: 17.385044, longitude: 78.486671, accuracy: 10 }, timestamp: Date.now() });
+        }
+      }
+    });
+  });
+
+  await page.route('https://nominatim.openstreetmap.org/reverse?**', async route => {
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        place_id: 1,
+        display_name: '12, Test Street, Boduppal, Hyderabad, Telangana, 500001',
+        address: {
+          house_number: '12',
+          road: 'Test Street',
+          suburb: 'Boduppal',
+          city: 'Hyderabad',
+          district: 'Medchal',
+          state: 'Telangana',
+          postcode: '500001'
+        }
+      })
+    });
   });
 
   await page.route('**/api/**', async route => {
@@ -70,7 +85,60 @@ test.beforeEach(async ({ page }) => {
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ addresses: [] })
+        body: JSON.stringify({ addresses: savedAddresses })
+      });
+    }
+
+    if (url.pathname === '/api/addresses' && method === 'POST') {
+      const payload = JSON.parse(request.postData() || '{}');
+      const address = {
+        ...payload,
+        id: savedAddresses.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1,
+        isDefault: savedAddresses.length === 0 || !!payload.isDefault
+      };
+      if (address.isDefault) savedAddresses = savedAddresses.map(item => ({ ...item, isDefault: false }));
+      savedAddresses.push(address);
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, id: address.id, addresses: savedAddresses })
+      });
+    }
+
+    if (/^\\/api\\/addresses\\/\\d+$/.test(url.pathname) && method === 'PATCH') {
+      const id = Number(url.pathname.split('/').pop());
+      const payload = JSON.parse(request.postData() || '{}');
+      if (payload.default === true) {
+        savedAddresses = savedAddresses.map(item => ({ ...item, isDefault: Number(item.id) === id }));
+      } else {
+        savedAddresses = savedAddresses.map(item => Number(item.id) === id ? { ...item, ...payload } : item);
+      }
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, addresses: savedAddresses })
+      });
+    }
+
+    if (/^\\/api\\/addresses\\/\\d+\\/delete$/.test(url.pathname) && method === 'POST') {
+      const id = Number(url.pathname.split('/')[3]);
+      savedAddresses = savedAddresses.filter(item => Number(item.id) !== id);
+      if (savedAddresses.length && !savedAddresses.some(item => item.isDefault)) savedAddresses[0].isDefault = true;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, addresses: savedAddresses })
+      });
+    }
+
+    if (/^\\/api\\/addresses\\/\\d+$/.test(url.pathname) && method === 'DELETE') {
+      const id = Number(url.pathname.split('/').pop());
+      savedAddresses = savedAddresses.filter(item => Number(item.id) !== id);
+      if (savedAddresses.length && !savedAddresses.some(item => item.isDefault)) savedAddresses[0].isDefault = true;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, addresses: savedAddresses })
       });
     }
 
@@ -167,12 +235,23 @@ test('customer can browse, add a product, checkout, and receive confirmation', a
   await expect(page.locator('#checkoutBtn')).toBeVisible();
   await page.locator('#checkoutBtn').click();
 
-  await page.locator('#customerName').fill('E2E Customer');
-  await page.locator('#customerPhone').fill('9876543210');
-  await page.locator('#house').fill('12');
-  await page.locator('#area').fill('Test Street');
-  await page.locator('#city').fill('Hyderabad');
-  await page.locator('#pincode').fill('500001');
+  // New customers manage their first address from the dedicated address
+  // editor; the checkout fields are not exposed as a second address form.
+  await expect(page.locator('#fwCheckoutAddAddress')).toBeVisible();
+  await page.locator('#fwCheckoutAddAddress').click();
+  await expect(page.locator('#fwAddrName')).toBeVisible();
+  await page.locator('#fwAddrName').fill('E2E Customer');
+  await page.locator('#fwAddrPhone').fill('9876543210');
+  await page.locator('#fwAddrHouse').fill('12');
+  await page.locator('#fwAddrArea').fill('Test Street');
+  await page.locator('#fwAddrCity').fill('Hyderabad');
+  await page.locator('#fwAddrPincode').fill('500001');
+  await page.locator('#fwAddressGps').click();
+  await expect(page.locator('#fwAddressLocationStatus')).toContainText('Delivery pin selected');
+  await page.locator('#fwAddressSave').click();
+  await expect(page.locator('.fw-address-card')).toContainText('Default');
+  await page.locator('.fw-address-card [data-fw-use]').click();
+  await expect(page.locator('#fwCheckoutAddressSummary')).toContainText('E2E Customer');
 
   await page.locator('#checkoutForm button[type="submit"]').click();
 
