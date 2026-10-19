@@ -92,6 +92,8 @@ CREATE TABLE IF NOT EXISTS orders (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   payment_collected_at TEXT,
   client_order_id TEXT UNIQUE,
+  stock_release_token TEXT UNIQUE,
+  stock_released_at TEXT,
   is_test_order INTEGER NOT NULL DEFAULT 0 CHECK(is_test_order IN (0,1)),
   FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE RESTRICT,
   FOREIGN KEY(address_id) REFERENCES addresses(id) ON DELETE RESTRICT
