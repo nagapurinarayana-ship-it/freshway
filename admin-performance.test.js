@@ -18,9 +18,10 @@ assert.match(html,/admin\.js\?v=20261018-test-orders-v2/);
 assert.match(sw,/const CACHE = 'freshway-v\d+'/);
 assert.match(sw,/const cached = await cache\.match\(event\.request\)/);
 assert.match(sw,/event\.waitUntil\(update\.catch\(\(\) => undefined\)\)/);
-assert.match(sw,/url\.pathname === '\/admin\.html'/);
-assert.match(sw,/const key = url\.pathname === '\/admin\.html'/);
-assert.match(sw,/cache\.match\(key\)/);
+assert.match(sw,/url\.pathname === '\/admin\.html' \|\| url\.pathname\.startsWith\('\/admin\/'\)/);
+assert.match(sw,/keys\.filter\(key => key\.startsWith\('freshway-'\) && key !== CACHE\)/);
+assert.doesNotMatch(sw,/\/admin\.css\?v=/);
+assert.doesNotMatch(sw,/\/admin\.js\?v=/);
 assert.match(sw,/if \(cached && !freshCode\)/);
 assert.match(sw,/cache: 'no-store'/);
 assert.doesNotMatch(sw,/\.catch\(\(\) => \{\}\)/);
@@ -31,6 +32,10 @@ assert.doesNotMatch(auth,/response\(\{ok:true,version:ADMIN_AUTH_VERSION,session
 assert.match(auth,/SameSite=Lax/);
 assert.match(response,/SameSite=Lax/);
 
+const ownerSw = fs.readFileSync('admin/sw.js','utf8');
+assert.match(ownerSw,/const CACHE = 'fw-owner-v\\d+'/);
+assert.match(ownerSw,/key\.startsWith\('fw-owner-'\)/);
+assert.doesNotMatch(ownerSw,/caches\.delete\(key\).*freshway-/);
 console.log('Owner reload, cache, performance and session-storage audit contracts OK');
 
 assert.ok(require('node:fs').readFileSync('worker/migrations/0021_hard_reset_obsolete_orders.sql','utf8').includes("'apple','banana','grapes','guava'"));
