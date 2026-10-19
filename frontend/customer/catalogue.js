@@ -36,10 +36,10 @@
     }
     if(!categoryOk||!productOk){
       loading=false;
-      if(hadData){ready=true;renderHome();if(selected&&categories.some(x=>String(x.id)===String(selected)))setMode(selected,{history:'none'});else{selected=null;applyMode()};return}
+      if(hadData){ready=true;renderHome();if(selected&&categories.some(x=>String(x.id)===String(selected)))setMode(selected,{history:'none'});else setMode(null,{history:'none'});return}
       categories=[];products=[];window.FreshWayCustomerCatalogue?.clear();ready=false;errorMessage=!productOk?'We could not load FreshWay products right now. Please check your connection and retry.':'We could not load the full catalogue. Please retry.';renderHome();applyMode();return
     }
-    loading=false;ready=true;renderHome();if(selected&&categories.some(x=>String(x.id)===String(selected)))setMode(selected,{history:'none'});else{selected=null;applyMode()}
+    loading=false;ready=true;renderHome();if(selected&&categories.some(x=>String(x.id)===String(selected)))setMode(selected,{history:'none'});else setMode(null,{history:'none'})
   }
   function renderHome(){
     const c=ensureUI();if(!c)return;
