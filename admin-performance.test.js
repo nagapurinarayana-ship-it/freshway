@@ -33,7 +33,7 @@ assert.match(auth,/SameSite=Lax/);
 assert.match(response,/SameSite=Lax/);
 
 const ownerSw = fs.readFileSync('admin/sw.js','utf8');
-assert.match(ownerSw,/const CACHE = 'fw-owner-v\\d+'/);
+assert.match(ownerSw,/const CACHE = 'fw-owner-v\d+'/);
 assert.match(ownerSw,/key\.startsWith\('fw-owner-'\)/);
 assert.doesNotMatch(ownerSw,/caches\.delete\(key\).*freshway-/);
 console.log('Owner reload, cache, performance and session-storage audit contracts OK');
