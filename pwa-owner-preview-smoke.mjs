@@ -27,10 +27,11 @@ function assertFreshResponse(response, label) {
 }
 
 const pageResponse = await fetchPreviewRoute('/admin/');
+const html = await pageResponse.text();
+console.log('Owner preview route diagnostics:', JSON.stringify({ url: pageResponse.url, status: pageResponse.status, contentType: pageResponse.headers.get('content-type'), cacheControl: pageResponse.headers.get('cache-control'), robots: pageResponse.headers.get('x-robots-tag'), bodyStart: html.slice(0, 180) }));
 assertFreshResponse(pageResponse, 'Owner app shell');
 assert.equal(new URL(pageResponse.url).pathname, '/admin/', 'Owner app canonical route must have a trailing slash');
-assert.match(pageResponse.headers.get('content-type') || '', /text\/html/i);
-const html = await pageResponse.text();
+assert.match(pageResponse.headers.get('content-type') || '', /text\\/html/i);
 assert.match(html, /<link rel="manifest" href="\/admin\/manifest\.webmanifest">/);
 assert.match(html, /navigator\.serviceWorker\.register\("\/admin\/sw\.js",\{scope:"\/admin\/",updateViaCache:"none"\}\)/);
 assert.match(html, /FreshWay — Owner/);
