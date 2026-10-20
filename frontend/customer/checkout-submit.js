@@ -29,7 +29,8 @@
         const id=customerId();
         if(!id)throw new Error('Please log in before placing your order.');
         const result=await api('/api/orders',{method:'POST',body:JSON.stringify(customerCheckout.payload(data,address,cartItems().map(x=>({id:x.product.id,qty:x.qty})),id,clientOrderId,$('#whatsappOptIn')?.checked||false))});
-        const order={id:result.id,customer:data,address,items:(result.items||[]).map(i=>({name:i.name,unit:i.unit,qty:i.qty,price:i.price,lineTotal:i.lineTotal})),total:result.total,payment:result.payment,status:result.status,deliveryPlan:result.deliveryPlan,createdAt:result.createdAt,updatedAt:result.updatedAt};
+        const registeredPhone=customerAuth.registeredPhone?.()||'';
+        const order={id:result.id,customer:{name:customerAuth.registeredName?.()||name,phone:registeredPhone},address:{...address,recipientName:address.recipientName||name,deliveryPhone:phone},items:(result.items||[]).map(i=>({name:i.name,unit:i.unit,qty:i.qty,price:i.price,lineTotal:i.lineTotal})),total:result.total,payment:result.payment,status:result.status,deliveryPlan:result.deliveryPlan,createdAt:result.createdAt,updatedAt:result.updatedAt};
         state.orders=[order,...state.orders.filter(x=>x.id!==order.id)];
         state.cart={};
         state.profile.address=customerAddress.format(address);
