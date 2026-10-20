@@ -124,7 +124,7 @@ async function completePasscodeReset(request, env) {
   const phone = normalizedPhone(payload.phone);
   const code = String(payload.code || '').trim();
   const passcode = String(payload.passcode || '');
-  if (!phone || !/^\\d{6}$/.test(code) || !validPasscode(passcode)) {
+  if (!phone || !/^\d{6}$/.test(code) || !validPasscode(passcode)) {
     return response({ error: 'Enter your registered mobile number, 6-digit SMS code and new 6-digit passcode.' }, 400, env);
   }
   if (!twilioConfig(env)) return recoveryUnavailable(env);
@@ -210,12 +210,12 @@ async function protectedOrders(request, env) {
     return response({ error: 'Customer identity does not match the signed-in account.' }, 403, env);
   }
   const deliveryPhone = cleanPhone(payload.address?.deliveryPhone || payload.customer?.phone);
-  if (!deliveryPhone || !/^\\d{10}$/.test(deliveryPhone)) {
+  if (!deliveryPhone || !/^\d{10}$/.test(deliveryPhone)) {
     return response({ error: 'Enter a valid 10-digit delivery contact number.' }, 400, env);
   }
   const registration = await env.DB.prepare('SELECT phone FROM customers WHERE id=? LIMIT 1').bind(sessionId).first();
   const registeredPhone = String(registration?.phone || '');
-  if (!/^91\\d{10}$/.test(registeredPhone)) {
+  if (!/^91\d{10}$/.test(registeredPhone)) {
     return response({ error: 'Customer registration phone is not configured.' }, 409, env);
   }
   // Identity always comes from the signed-in account. The delivery contact is an
