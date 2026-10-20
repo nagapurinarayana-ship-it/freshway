@@ -725,7 +725,7 @@
         box.innerHTML = '<p role="status">No matching Indian map result. Try a nearby town, PIN code or a longer landmark name, or tap the map to place the pin.</p>';
         return;
       }
-      box.innerHTML = '<p class="fw-address-search-hint">Choose the correct result. The pin moves only after you select one; verify the house/flat and PIN before saving.</p>' +
+      box.innerHTML = '<p class="fw-address-search-hint">Choose the exact match. Nothing is selected until you tap a result. The pin moves only after selection; verify the house/flat and PIN before saving.</p>' +
         searchResults.map(function (item, index) {
           return '<button type="button" class="secondary-btn full" data-fw-search-index="' + index + '">' +
             esc(item.display_name || ('Location result ' + (index + 1))) + '</button>';
