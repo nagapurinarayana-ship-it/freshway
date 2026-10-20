@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v14';
+const CACHE = 'fw-owner-v15';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -7,8 +7,8 @@ const SHELL = [
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/owner-pwa-install.css?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261020-order-detail-map-row-v1',
-  '/admin/admin.js?v=20261020-compact-order-map-v1',
-  '/admin/frontend/admin/order-alerts.js?v=20261020-owner-push-autosubscribe-v1',
+  '/admin/admin.js?v=20261020-owner-alert-login-ready-v1',
+  '/admin/frontend/admin/order-alerts.js?v=20261020-owner-push-login-ready-v2',
   '/admin/frontend/phone-display.js?v=20261009-phone-display-v1',
   '/admin/frontend/admin/store-profile.js?v=20261008-store-profile-v1',
   '/admin/frontend/catalogue-media.js?v=20261008-ui-media-v1',
@@ -29,8 +29,8 @@ const REQUIRED_SHELL = [
   '/admin/manifest.webmanifest',
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261020-order-detail-map-row-v1',
-  '/admin/admin.js?v=20261020-compact-order-map-v1',
-  '/admin/frontend/admin/order-alerts.js?v=20261020-owner-push-autosubscribe-v1',
+  '/admin/admin.js?v=20261020-owner-alert-login-ready-v1',
+  '/admin/frontend/admin/order-alerts.js?v=20261020-owner-push-login-ready-v2',
   '/admin/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1'
 ];
 
