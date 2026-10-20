@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v54';
+const CACHE = 'freshway-v55';
 const APP_SHELL = [
 '/',
 '/index.html',
@@ -6,7 +6,7 @@ const APP_SHELL = [
 '/address-system.css?v=20260907-address-v2',
 '/frontend/customer/address-book.css?v=20261020-address-ui-hardening-v2',
 '/frontend/customer/checkout-submit.js?v=20261020-selected-address-checkout-v2',
-'/app.js?v=20261020-order-alert-links-v1',
+'/app.js?v=20261020-push-order-refresh-v1',
 '/frontend/customer/orders-view.js?v=20261020-order-alert-links-v1',
 '/frontend/phone-display.js?v=20261009-phone-display-v1',
 '/frontend/customer/product-view.js?v=20261019-catalogue-premium-v1',
@@ -119,13 +119,33 @@ try {
 } catch (_) {
   data = { body: event.data.text() };
 }
-event.waitUntil(self.registration.showNotification(data.title || 'FreshWay', {
-  body: data.body || 'You have a new FreshWay update.',
-  icon: data.icon || '/icon.svg',
-  badge: data.badge || '/icon.svg',
-  tag: data.tag || 'freshway-notification',
-  data: { url: data.url || '/', ...(data.data || {}) }
-}));
+event.waitUntil((async () => {
+  await self.registration.showNotification(data.title || 'FreshWay', {
+    body: data.body || 'You have a new FreshWay update.',
+    icon: data.icon || '/icon.svg',
+    badge: data.badge || '/icon.svg',
+    tag: data.tag || 'freshway-notification',
+    data: { url: data.url || '/', ...(data.data || {}) }
+  });
+
+  // If the customer app is already open, refresh server-owned order state
+  // immediately rather than waiting for the next polling/focus refresh.
+  const alert = data.data || {};
+  if (alert.audience !== 'customer' || !alert.orderId) return;
+  const pages = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  await Promise.all(pages.map(async client => {
+    try {
+      const page = new URL(client.url);
+      if (page.origin !== self.location.origin || page.pathname.startsWith('/admin/') || page.pathname === '/admin.html') return;
+      client.postMessage({
+        type: 'freshway:order-updated',
+        audience: 'customer',
+        orderId: String(alert.orderId),
+        eventType: String(alert.eventType || 'order_update')
+      });
+    } catch (_) {}
+  }));
+})());
 });
 self.addEventListener('notificationclick', event => {
 event.notification.close();
