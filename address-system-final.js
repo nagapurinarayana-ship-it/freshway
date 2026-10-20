@@ -505,7 +505,7 @@
       const accuracy = Number(editorCoordinates.accuracyMeters);
       element.innerHTML = '<div><strong>📍 Delivery pin selected</strong><small>' +
         (accuracy > 100 ? 'GPS accuracy is about ±' + Math.round(accuracy) + ' m. Adjust the pin if necessary.' :
-          'Address fields were refreshed for this pin. Confirm the house/flat number and PIN code.') + '</small></div>' +
+          'Map-derived address is a suggestion. Confirm the house/flat number and 6-digit PIN code before saving.') + '</small></div>' +
         '<button type="button" class="secondary-btn" id="fwAddressClearPin">Clear pin</button>';
     } else {
       element.innerHTML = '<div><strong>📍 Location not selected</strong><small>Use GPS, search or tap the map to choose your delivery point.</small></div>';
@@ -587,7 +587,18 @@
       }
       renderLocationStatus();
       checkForMatchingAddress();
-      toast('Address lookup failed. Your previous address and pin were kept. Try again or search for this location.');
+      if (previousCoordinates && validCoords(previousCoordinates.latitude, previousCoordinates.longitude)) {
+        // A failed new lookup must be transactional: restore the old verified
+        // pin and its existing text rather than pairing it with the attempted pin.
+        toast('Could not verify the new pin. Your previous pin and address were restored. Try again or search for this location.');
+      } else {
+        // With no previously verified pin, old address text must not survive a
+        // failed location lookup: doing so could save an unrelated PIN/house
+        // against the attempted coordinates (or a legacy address without a pin).
+        ['fwAddrHouse','fwAddrBuilding','fwAddrFloor','fwAddrStreet','fwAddrArea','fwAddrLocality','fwAddrCity','fwAddrDistrict','fwAddrState','fwAddrPincode','fwAddrLandmark']
+          .forEach(function (id) { setValue(id, ''); });
+        toast('Could not verify this pin. Old location details were cleared to prevent a wrong delivery address. Try again or search again.');
+      }
       return;
     }
 
@@ -602,7 +613,7 @@
     if (missing.length) {
       toast('Location updated. The map could not identify the ' + missing.join(', ') + '. Enter them before saving.');
     } else {
-      toast('Location and address details updated. Verify the house/flat number and PIN code before saving.');
+      toast('Location selected. Verify the suggested address, house/flat number and PIN code before saving.');
     }
   }
 
