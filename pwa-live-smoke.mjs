@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 
 const BASE_URL = process.env.BASE_URL || 'https://freshway-f32.pages.dev';
 const VIEWPORT_STYLES_PATH = '/styles.css?v=20261021-mobile-viewport-fit-v1';
+const CUSTOMER_APP_PATH = '/app.js?v=20261021-home-navigation-refresh-v1';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchWithRetry(url, options = {}) {
@@ -47,7 +48,7 @@ function assertResponsiveViewportCss(css, label) {
 
 async function waitForFullImageFitAssets(base) {
   const viewportStylesPath = VIEWPORT_STYLES_PATH;
-  const appPath = '/app.js?v=20261021-home-navigation-refresh-v1';
+  const appPath = CUSTOMER_APP_PATH;
   const promotionPath = '/frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2';
   const customerCataloguePath = '/frontend/customer/catalogue.js?v=20261021-home-navigation-refresh-v1';
   const cataloguePath = '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1';
@@ -221,7 +222,7 @@ async function verifyCustomDomain() {
     fetchWithRetry(`${customBase}/api/categories`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/frontend/customer/catalogue.js?v=20261021-home-navigation-refresh-v1`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}${VIEWPORT_STYLES_PATH}`, { cache: 'no-store' }),
-    fetchWithRetry(`${customBase}${appNew}`, { cache: 'no-store' })
+    fetchWithRetry(`${customBase}${CUSTOMER_APP_PATH}`, { cache: 'no-store' })
   ]);
   assert.equal(customerCatalogueResponse.status, 200, 'customer catalogue script must load on the custom domain');
   assert.equal(appResponse.status, 200, 'customer app navigation script must load on the custom domain');
