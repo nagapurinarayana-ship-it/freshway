@@ -421,7 +421,20 @@
       '<div class="fw-address-editor-footer"><button type="button" class="secondary-btn" id="fwAddressCancel">Cancel</button><button type="button" class="primary-btn" id="fwAddressSave">' + (isEditing ? 'Save changes' : 'Save address') + '</button></div>' +
       '</div>';
     showModal();
-    labelFields.forEach(function (pair) { setValue(pair[0], source[pair[1]]); });
+    labelFields.forEach(function (pair) {
+      const fieldValue = pair[1] === 'deliveryPhone'
+        ? (normalizePhone(source[pair[1]]) || source[pair[1]])
+        : source[pair[1]];
+      setValue(pair[0], fieldValue);
+    });
+    const phoneField = $('#fwAddrPhone');
+    if (phoneField && !phoneField.dataset.fwPhoneNormalizeBound) {
+      phoneField.dataset.fwPhoneNormalizeBound = 'true';
+      phoneField.addEventListener('blur', function () {
+        const normalized = normalizePhone(phoneField.value);
+        if (normalized) phoneField.value = normalized;
+      });
+    }
     focusModalTitle();
     renderLocationStatus();
     loadMap().then(initMap).catch(function () {
