@@ -110,6 +110,8 @@ assert.match(source,/if\(!selected\)\{grid\.classList\.add\('fw-category-home-hi
 assert.match(source,/fw-category-grid'\+\(usable\.length===1\?' is-single':''\)/,'single category uses a compact full-width tile');
 assert.match(source,/\.fw-category-back button\{[^}]*flex:0 0 auto/,'All categories control must size to its label instead of wrapping into a narrow icon width');
 assert.match(source,/\.fw-category-grid\.is-single \.fw-category-card/,'single category card styling is defined');
+assert.match(source,/window\.freshWayCustomerCatalogueGoHome=\(\)=>\{const state=window\.history\.state;if\(state\?\.__freshwayCustomer&&state\.category\)window\.history\.replaceState\(\{\.\.\.state,category:null\},'',window\.location\.href\);setMode\(null,\{history:'none'\}\)\}/,'explicit Home navigation clears selected category without replacing the current view state');
+assert.doesNotMatch(source,/querySelectorAll\('\[data-nav\]'\).*setMode\(null/,'category reset is centralized rather than duplicated in the Home-tab handler');
 assert.match(source,/hero\.classList\.add\('fw-category-home-hidden'\)/);
 assert.match(source,/label\.textContent='CATALOGUE'/);
 assert.doesNotMatch(source,/search\.classList\.add\('fw-category-home-hidden'\)/);
