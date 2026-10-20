@@ -7,5 +7,7 @@
   const ensureAuthenticated=phone=>service().ensureAuthenticated(phone);
   const logout=()=>service().logout();
   const customerId=()=>service().customerId();
-  window.FreshWayCustomerAuth=Object.freeze({session,login,ensureAuthenticated,logout,customerId});
+  const registeredPhone=()=>service().registeredPhone?.()||'';
+  const registeredName=()=>service().registeredName?.()||'';
+  window.FreshWayCustomerAuth=Object.freeze({session,login,ensureAuthenticated,logout,customerId,registeredPhone,registeredName});
 })();
