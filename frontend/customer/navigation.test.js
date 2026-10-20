@@ -8,6 +8,7 @@ assert.match(source,/popstate/);
 assert.match(source,/history:'none'/);
 const app=fs.readFileSync('app.js','utf8');
 assert.match(app,/navigation\.goBack\(\)/);
+assert.match(app,/function setView\(name,options\)\{if\(name==='home'&&options\?\.history!=='none'\)window\.freshWayCustomerCatalogueGoHome\?\.\(\);navigation\.setView\(name,options\)\}/,'explicit Home actions reset category selection while popstate restoration preserves the history state');
 const viewState=fs.readFileSync('frontend/customer/view-state.js','utf8');
 assert.match(viewState,/history:'replace'/);
 console.log('customer navigation history isolation OK');
