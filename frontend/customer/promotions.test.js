@@ -17,8 +17,8 @@ assert.doesNotMatch(source, /\.fw-promo-controls\{position:absolute/);
 assert.doesNotMatch(source, /object-fit:cover/);
 assert.match(source, /promotions\.length<2/);
 assert.match(source, /FreshWayCustomerAPI\?\.request/);
-assert.ok(index.includes('frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2'), 'index must reference the full-image-fit customer banner asset');
-assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2'), 'service worker must cache the full-image-fit customer banner asset');
+assert.ok(index.includes('frontend/customer/promotions.js?v=20261021-home-promotions-v1'), 'index must reference the full-image-fit customer banner asset');
+assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261021-home-promotions-v1'), 'service worker must cache the full-image-fit customer banner asset');
 
 assert.match(sw, /const CACHE = 'freshway-v[0-9]+'/);
 console.log('customer promotion carousel: complete natural-ratio banners and unobstructed artwork OK');
