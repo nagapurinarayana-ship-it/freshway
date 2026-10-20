@@ -29,6 +29,7 @@ const oldAddress = {
 const newGeocode = api.fromReverseResult({
   place_id: 98765,
   display_name: '9, New Road, New Colony, Hyderabad, Telangana, 500072',
+  name: 'New Landmark',
   address: {
     house_number: '9',
     road: 'New Road',
@@ -52,7 +53,7 @@ assert.equal(result.city, 'Hyderabad');
 assert.equal(result.district, 'Medchal-Malkajgiri');
 assert.equal(result.state, 'Telangana');
 assert.equal(result.pincode, '500072');
-assert.equal(result.landmark, '');
+assert.equal(result.landmark, 'New Landmark');
 assert.equal(result.recipientName, 'Narayana Nagapuri');
 assert.equal(result.deliveryPhone, '7702661401');
 assert.equal(result.note, 'Call before delivery');
