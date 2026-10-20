@@ -128,7 +128,7 @@ async function waitForFullImageFitAssets(base) {
       assert.match(customerCatalogueSource,/if\(!selected\)\{grid\.classList\.add\('fw-category-home-hidden'\);return\}/);
       assert.match(addressGeocodeSource,/houseFlat: first\(a\.house_number, a\.house_name\)/);
       assert.match(addressGeocodeSource,/pincode: indianPincode\(a\.postcode\)/);
-      assert.match(addressGeocodeSource,/landmark: ''/);
+      assert.match(addressGeocodeSource,/landmark: first\(result && result\.name, a\.amenity, a\.shop\)/);
       assert.ok(addressSystemSource.includes("fetch('/api/geocode/reverse?lat='), 'address editor must call the same-origin geocoder');
       assert.ok(addressSystemSource.includes('editorCoordinates = previousCoordinates'), 'failed geocoding must restore the last verified pin');
       assert.doesNotMatch(addressSystemSource,/const preserve = labelFields\\.map/,'old address data must not overwrite newly geocoded fields');
@@ -262,7 +262,7 @@ async function verifyCustomDomain() {
   const addressSystemSource = await addressSystemResponse.text();
   assert.match(addressGeocodeSource,/houseFlat: first\(a\.house_number, a\.house_name\)/);
   assert.match(addressGeocodeSource,/pincode: indianPincode\(a\.postcode\)/);
-  assert.match(addressGeocodeSource,/landmark: ''/);
+  assert.match(addressGeocodeSource,/landmark: first\(result && result\.name, a\.amenity, a\.shop\)/);
   assert.ok(addressSystemSource.includes("fetch('/api/geocode/reverse?lat='), 'custom-domain editor must call the same-origin geocoder');
   assert.ok(addressSystemSource.includes('editorCoordinates = previousCoordinates'), 'custom-domain editor must restore the last verified pin on lookup failure');
   assert.doesNotMatch(addressSystemSource,/const preserve = labelFields\\.map/,'custom-domain editor must not retain stale geo fields');
