@@ -7,6 +7,8 @@ const freshness=fs.readFileSync('frontend/customer/state-freshness.js','utf8');
 const ordersData=fs.readFileSync('frontend/customer/orders-data.js','utf8');
 
 assert.match(source,/window\.FreshWayCustomerAPI\?\.request/);
+assert.match(source,/selected=\(window\.history\.state\?\.__freshwayCustomer&&window\.history\.state\.view==='home'\?window\.history\.state\.category:null\)\|\|null/,'refresh restores the selected category from the current history entry');
+assert.match(source,/history:selected\?'replace':'none'/,'a deleted category clears stale selection from history instead of restoring it on every refresh');
 assert.match(source,/Promise\.allSettled\(\[/);
 assert.doesNotMatch(source,/fetch\(['"]\/api\/(categories|products)/);
 assert.match(source,/window\.FreshWayCustomerCatalogue\?\.setProducts/);
