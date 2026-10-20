@@ -105,5 +105,8 @@ assert.doesNotMatch(addressApi, /UPDATE addresses SET label=\?,recipient_name=\?
 assert.match(addressApi, /Could not save the order delivery-address snapshot/);
 assert.match(addressUi, /Choose the exact match\. Nothing is selected until you tap a result\./);
 assert.match(addressUi, /data-fw-search-index/);
-assert.match(addressUi, /const requestId=\+\+locationRequestId/);
+assert.match(addressUi, /const requestId\s*=\s*\+\+locationRequestId/);
+assert.match(addressUi, /locationLookupPending/);
+assert.match(addressUi, /editorCoordinates = previousCoordinates/);
+assert.doesNotMatch(addressUi, /const preserve = labelFields\.map/);
 console.log('quick-commerce address creation, explicit search choice, and immutable snapshot guards OK');
