@@ -76,6 +76,7 @@ jobs:
           node functions/admin-pwa.test.mjs
           node --check pwa-owner-live-smoke.mjs
           node --check pwa-live-smoke.mjs
+          node --check pwa-live-smoke.mjs
       - name: Run customer API resilience test
         run: node frontend/customer/api.test.js
         
