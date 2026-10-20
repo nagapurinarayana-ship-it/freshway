@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 
 const schema = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8');
 const migration = readFileSync(new URL('../migrations/0022_test_order_classification.sql', import.meta.url), 'utf8');
+const accountPhoneMigration = readFileSync(new URL('../migrations/0023_registered_account_phone.sql', import.meta.url), 'utf8');
+const authVersionMigration = readFileSync(new URL('../migrations/0024_customer_auth_version.sql', import.meta.url), 'utf8');
 
 const ordersTable = schema.match(
   /CREATE TABLE IF NOT EXISTS orders \(([\s\S]*?)\n\);/
@@ -68,4 +70,18 @@ test('fresh database address snapshot schema matches the production migration an
   for (const column of insert.split(',').map(value => value.trim())) {
     assert.ok(snapshotTable.includes(column + ' ') || snapshotTable.includes(column + '\n'), `snapshot API column ${column} must exist in fresh schema`);
   }
+});
+
+
+test('fresh customer schema supports passcode-reset session invalidation', () => {
+  const customersTable = schema.match(/CREATE TABLE IF NOT EXISTS customers \\(([\\s\\S]*?)\\n\\);/)?.[1];
+  assert.ok(customersTable?.includes('auth_version INTEGER NOT NULL DEFAULT 0'));
+  assert.match(authVersionMigration, /ALTER TABLE customers ADD COLUMN auth_version INTEGER NOT NULL DEFAULT 0/);
+});
+
+test('historical order phone reconciliation preserves delivery contacts in snapshots', () => {
+  assert.match(accountPhoneMigration, /UPDATE orders[\\s\\S]*SET customer_phone/);
+  assert.match(accountPhoneMigration, /c\\.phone/);
+  assert.match(accountPhoneMigration, /orders\\.customer_id/);
+  assert.match(schema, /delivery_phone TEXT NOT NULL/);
 });
