@@ -129,7 +129,7 @@ async function waitForFullImageFitAssets(base) {
       assert.match(addressGeocodeSource,/houseFlat: first\(a\.house_number, a\.house_name\)/);
       assert.match(addressGeocodeSource,/pincode: indianPincode\(a\.postcode\)/);
       assert.match(addressGeocodeSource,/landmark: first\(result && result\.name, a\.amenity, a\.shop\)/);
-      assert.ok(addressSystemSource.includes("fetch('/api/geocode/reverse?lat='), 'address editor must call the same-origin geocoder');
+      assert.match(addressSystemSource, /fetch\(['"]\/api\/geocode\/reverse\?lat=/, 'address editor must call the same-origin geocoder');
       assert.ok(addressSystemSource.includes('editorCoordinates = previousCoordinates'), 'failed geocoding must restore the last verified pin');
       assert.doesNotMatch(addressSystemSource,/const preserve = labelFields\\.map/,'old address data must not overwrite newly geocoded fields');
       assert.match(catalogueSource, /\.fw-promo-preview\{[^}]*height:auto;min-height:0;aspect-ratio:auto/);
@@ -263,7 +263,7 @@ async function verifyCustomDomain() {
   assert.match(addressGeocodeSource,/houseFlat: first\(a\.house_number, a\.house_name\)/);
   assert.match(addressGeocodeSource,/pincode: indianPincode\(a\.postcode\)/);
   assert.match(addressGeocodeSource,/landmark: first\(result && result\.name, a\.amenity, a\.shop\)/);
-  assert.ok(addressSystemSource.includes("fetch('/api/geocode/reverse?lat='), 'custom-domain editor must call the same-origin geocoder');
+  assert.match(addressSystemSource, /fetch\(['"]\/api\/geocode\/reverse\?lat=/, 'custom-domain editor must call the same-origin geocoder');
   assert.ok(addressSystemSource.includes('editorCoordinates = previousCoordinates'), 'custom-domain editor must restore the last verified pin on lookup failure');
   assert.doesNotMatch(addressSystemSource,/const preserve = labelFields\\.map/,'custom-domain editor must not retain stale geo fields');
   assert.ok(appSource.includes("function setView(name,options){if(name==='home'&&options?.history!=='none')window.freshWayCustomerCatalogueGoHome?.();navigation.setView(name,options)"), 'custom-domain home navigation resets category state');
