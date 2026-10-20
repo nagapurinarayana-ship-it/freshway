@@ -5,9 +5,17 @@ const source = fs.readFileSync('address-system-final.js', 'utf8');
 const index = fs.readFileSync('index.html', 'utf8');
 const sw = fs.readFileSync('sw.js', 'utf8');
 const css = fs.readFileSync('frontend/customer/address-book.css', 'utf8');
+const notifications = fs.readFileSync('notifications.js', 'utf8');
 
 assert.match(source, /function checkoutAddressIssue\(address\)/);
-assert.match(source, /pair\[1\] === 'deliveryPhone'[\s\S]*?normalizePhone\(source\[pair\[1\]\]\)/, 'saved +91 phone must be normalized when prefilled into the address editor');
+assert.match(source, /deliveryPhone: normalizePhone\(rawPhone\) \|\| rawPhone/,
+  'saved +91 phone must be normalized at the shared address boundary');
+assert.match(source, /const normalizedFieldPhone = normalizePhone\(phoneField && phoneField\.value\)/,
+  'save must normalize the visible phone input before reading the payload');
+assert.match(source, /pair\[1\] === 'deliveryPhone'[\s\S]*?normalizePhone\(source\[pair\[1\]\]\)/,
+  'saved +91 phone must be normalized when prefilled into the editor');
+assert.match(notifications, /async function ensureAuthenticated\(phone\)[\s\S]*?const normalized=normalizeAuthPhone\(phone\)/,
+  'authentication must normalize +91 numbers before 10-digit validation');
 assert.match(source, /phoneField\.addEventListener\('blur'[\s\S]*?normalizePhone\(phoneField\.value\)/, 'pasted +91 phone must normalize when the user leaves the field');
 for (const required of ['recipient name','delivery contact number','house\/flat number','area\/street','city','PIN code']) {
   assert.ok(source.includes(required), 'checkout address completeness must check ' + required);

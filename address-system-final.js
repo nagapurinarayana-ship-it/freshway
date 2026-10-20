@@ -68,11 +68,13 @@
 
   function normalizeAddress(address) {
     const a = address || {};
+    const rawPhone = String(a.deliveryPhone || a.delivery_phone || '');
     return {
       id: a.id == null ? null : Number(a.id),
       label: String(a.label || 'Other'),
       recipientName: String(a.recipientName || a.recipient_name || ''),
-      deliveryPhone: String(a.deliveryPhone || a.delivery_phone || ''),
+      // Database/API values can be canonical +91 digits; the customer UI uses ten digits.
+      deliveryPhone: normalizePhone(rawPhone) || rawPhone,
       houseFlat: String(a.houseFlat || a.house_flat || a.house || ''),
       building: String(a.building || ''),
       floor: String(a.floor || ''),
@@ -696,6 +698,9 @@
   }
 
   async function saveEditor() {
+    const phoneField = $('#fwAddrPhone');
+    const normalizedFieldPhone = normalizePhone(phoneField && phoneField.value);
+    if (phoneField && normalizedFieldPhone) phoneField.value = normalizedFieldPhone;
     const address = readEditor();
     if (!address.recipientName || address.recipientName.length < 2) return toast('Enter the recipient name.');
     if (!/^\d{10}$/.test(address.deliveryPhone)) return toast('Enter a valid 10-digit delivery contact number.');
