@@ -14,6 +14,61 @@
   const icon = status => ['sent'].includes(status) ? '✓' : ['partial', 'sending'].includes(status) ? '◷' : '!' ;
   let loading = false;
   let lastPublicKey = null;
+  let subscriptionSetupPromise = null;
+  let automaticSetupAttempted = false;
+
+  async function ensureOwnerSubscription({ requestPermission = false } = {}) {
+    if (subscriptionSetupPromise) return subscriptionSetupPromise;
+    subscriptionSetupPromise = (async () => {
+      if (Notification.permission === 'denied') {
+        throw new Error('Notifications are blocked. Allow them for fwcoldpressed.in in browser site settings first.');
+      }
+      const info = lastPublicKey
+        ? { publicKey: lastPublicKey, pushConfigured: true }
+        : await api('/admin/push/public-key');
+      lastPublicKey = info.publicKey || null;
+      if (!lastPublicKey || !info.pushConfigured) {
+        throw new Error('Push credentials are not configured for this environment.');
+      }
+      if (Notification.permission !== 'granted') {
+        if (!requestPermission) throw new Error('Tap Enable order alerts to grant notification permission.');
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') throw new Error('Notification permission was not granted.');
+      }
+
+      const registration = await navigator.serviceWorker.register('/admin/sw.js', { scope: '/admin/' });
+      // Wait until the newly registered Owner worker is active before subscribing.
+      if (!registration.active) {
+        await new Promise((resolve, reject) => {
+          const worker = registration.installing || registration.waiting;
+          if (!worker) return reject(new Error('Owner service worker is not active yet. Please retry.'));
+          const onStateChange = () => {
+            if (worker.state === 'activated') { worker.removeEventListener('statechange', onStateChange); resolve(); }
+            else if (worker.state === 'redundant') { worker.removeEventListener('statechange', onStateChange); reject(new Error('Owner service worker could not activate. Please reload and retry.')); }
+          };
+          worker.addEventListener('statechange', onStateChange);
+          onStateChange();
+        });
+      }
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: decodeVapidKey(lastPublicKey)
+        });
+      }
+      await api('/admin/push/subscribe', {
+        method: 'POST',
+        body: JSON.stringify({ subscription: subscription.toJSON() })
+      });
+      return { registration, subscription };
+    })();
+    try {
+      return await subscriptionSetupPromise;
+    } finally {
+      subscriptionSetupPromise = null;
+    }
+  }
 
   async function loadStatus() {
     const button = $('#ownerOrderAlertToggle');
@@ -35,6 +90,13 @@
         return;
       }
       button.disabled = false;
+      if (Notification.permission === 'denied') {
+        button.textContent = 'Notifications blocked';
+        button.dataset.enabled = '0';
+        status.textContent = 'Notifications are blocked for fwcoldpressed.in. Allow them in browser site settings, then return here and tap Enable order alerts.';
+        return;
+      }
+
       const registration = await navigator.serviceWorker.getRegistration('/admin/');
       const subscription = registration ? await registration.pushManager.getSubscription() : null;
       if (subscription && Notification.permission === 'granted') {
@@ -42,14 +104,33 @@
         await api('/admin/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription: subscription.toJSON() }) });
         button.textContent = 'Disable alerts on this device';
         button.dataset.enabled = '1';
-        status.textContent = 'Order alerts are enabled on this device.';
-      } else {
-        button.textContent = 'Enable order alerts on this device';
-        button.dataset.enabled = '0';
-        status.textContent = Notification.permission === 'denied'
-          ? 'Notifications are blocked by this browser. Allow notifications for fwcoldpressed.in in browser site settings, then try again.'
-          : 'Enable push to receive new-order and order-change alerts when Owner is not open.';
+        status.textContent = 'Owner order alerts are enabled and this device subscription is registered with FreshWay.';
+        return;
       }
+
+      button.dataset.enabled = '0';
+      if (Notification.permission === 'granted' && !automaticSetupAttempted) {
+        // The customer PWA may already have obtained this origin's permission.
+        // Register Owner's separate /admin/ worker and subscription without asking again.
+        automaticSetupAttempted = true;
+        try {
+          await ensureOwnerSubscription();
+          button.textContent = 'Disable alerts on this device';
+          button.dataset.enabled = '1';
+          status.textContent = 'Owner order alerts are enabled and this device subscription is registered with FreshWay.';
+          return;
+        } catch (error) {
+          status.textContent = 'Notifications are allowed, but Owner still needs its own push subscription. Tap “Finish enabling Owner alerts” to complete setup. ' + (error.message || '');
+          button.textContent = 'Finish enabling Owner alerts';
+          return;
+        }
+      }
+      button.textContent = Notification.permission === 'granted'
+        ? 'Finish enabling Owner alerts'
+        : 'Enable order alerts on this device';
+      status.textContent = Notification.permission === 'granted'
+        ? 'Android notification permission is already granted, but Owner needs its own push subscription. Tap to finish setup.'
+        : 'Enable push to receive new-order and order-change alerts when Owner is not open.';
     } catch (error) {
       status.textContent = error.message || 'Could not check push-alert status.';
       button.disabled = false;
@@ -70,23 +151,15 @@
     button.disabled = true;
     button.textContent = 'Enabling…';
     try {
-      if (Notification.permission === 'denied') throw new Error('Notifications are blocked. Allow them in browser site settings first.');
-      const publicKey = lastPublicKey || (await api('/admin/push/public-key')).publicKey;
-      if (!publicKey) throw new Error('Push credentials are not configured yet.');
-      const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
-      if (permission !== 'granted') throw new Error('Notification permission was not granted.');
-      const registration = await navigator.serviceWorker.register('/admin/sw.js', { scope: '/admin/' });
-      await navigator.serviceWorker.ready;
-      let subscription = await registration.pushManager.getSubscription();
-      if (!subscription) subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: decodeVapidKey(publicKey) });
-      await api('/admin/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription: subscription.toJSON() }) });
-      status.textContent = 'Order alerts are enabled on this device.';
+      await ensureOwnerSubscription({ requestPermission: true });
+      status.textContent = 'Owner order alerts are enabled and this device subscription is registered with FreshWay.';
       button.dataset.enabled = '1';
       button.textContent = 'Disable alerts on this device';
       await loadAlerts();
     } catch (error) {
       status.textContent = error.message || 'Could not enable Owner order alerts.';
-      button.textContent = 'Retry enabling order alerts';
+      button.textContent = Notification.permission === 'granted' ? 'Retry Owner alert setup' : 'Retry enabling order alerts';
+      button.dataset.enabled = '0';
     } finally {
       button.disabled = false;
     }
@@ -101,6 +174,7 @@
       const registration = await navigator.serviceWorker.getRegistration('/admin/');
       const subscription = registration ? await registration.pushManager.getSubscription() : null;
       if (subscription) {
+        // Remove the server record first; keep the local subscription if that fails.
         await api('/admin/push/subscribe', { method: 'DELETE', body: JSON.stringify({ endpoint: subscription.endpoint }) });
         await subscription.unsubscribe();
       }
