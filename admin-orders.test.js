@@ -35,4 +35,11 @@ assert.match(js,/f\.from&&f\.to&&f\.from>f\.to/);
 assert.match(js,/min!==null&&max!==null&&min>max/);
 assert.match(js,/syncOrderFilterSummary/);
 
+
+assert.match(js,/Registered mobile/);
+assert.match(js,/Delivery contact/);
+assert.match(js,/registeredPhone/);
+assert.ok(js.includes("o.address?.deliveryPhone||o.customer?.deliveryPhone"));
+
+console.log('owner order account-vs-delivery identity contract OK');
 console.log('owner orders mobile filter hierarchy contract OK');

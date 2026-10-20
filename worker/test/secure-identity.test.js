@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import handler from '../src/passcode-auth.js';
 
-const customer = { id: 'customer-1', name: '', phone: '', passcode_salt: null, passcode_hash: null };
+const customer = { id: 'customer-1', name: '', phone: '919876543210', passcode_salt: null, passcode_hash: null, auth_version: 0 };
 const env = {
   APP_ORIGIN: 'https://freshway-f32.pages.dev',
   CUSTOMER_SESSION_SECRET: 'fixture-customer-session',
@@ -16,6 +16,7 @@ const env = {
             async first() {
               if (sql.includes('SELECT id,name,phone,passcode_salt,passcode_hash')) return customer.phone === args[0] ? customer : null;
               if (sql.includes('SELECT id,name,phone FROM customers')) return customer.id === args[0] ? customer : null;
+              if (sql.includes('SELECT auth_version FROM customers')) return customer.id === args[0] ? { auth_version: customer.auth_version || 0 } : null;
               if (sql.includes('SELECT id,name,phone,passcode_salt,passcode_hash FROM customers WHERE phone')) return customer.phone === args[0] ? customer : null;
               if (sql.includes('SELECT phone FROM customers')) return customer.id === args[0] ? { phone: customer.phone } : null;
               if (sql.includes('SELECT id FROM customers')) return customer.id === args[0] ? { id: customer.id } : null;
@@ -23,9 +24,14 @@ const env = {
               return null;
             },
             async run() {
-              if (sql.startsWith('INSERT INTO customers') || sql.startsWith('UPDATE customers')) {
-                if (sql.includes('passcode_salt')) { customer.phone = args[2]; customer.passcode_salt = args[3]; customer.passcode_hash = args[4]; customer.name = args[1] || ''; }
-                else { customer.name = args[0] || ''; }
+              if (sql.startsWith('INSERT INTO customers')) {
+                customer.id = args[0]; customer.name = args[1] || ''; customer.phone = args[2];
+                customer.passcode_salt = args[3]; customer.passcode_hash = args[4]; customer.auth_version = 0;
+              } else if (sql.startsWith('UPDATE customers SET passcode_salt=')) {
+                customer.passcode_salt = args[0]; customer.passcode_hash = args[1];
+                customer.auth_version = Number(customer.auth_version || 0) + 1;
+              } else if (sql.startsWith('UPDATE customers SET whatsapp_opt_in=')) {
+                customer.whatsapp_opt_in = args[0];
               }
               return { meta: { changes: 1 } };
             },
@@ -80,11 +86,13 @@ test('passcode must be exactly six digits', async () => {
   assert.equal(response.status, 400);
 });
 
-test('customer checkout forwards a plain 10-digit delivery mobile unchanged', () => {
+test('order identity uses the registered account phone and keeps delivery contact in the snapshot', () => {
   const source = readFileSource();
-  assert.ok(source.includes("const deliveryPhone = cleanPhone(payload.customer?.phone)"));
-  assert.ok(source.includes("phone: deliveryPhone }"));
-  assert.equal(source.includes("phone: deliveryPhone.slice(2)"), false);
+  assert.ok(source.includes("const deliveryPhone = cleanPhone(payload.address?.deliveryPhone || payload.customer?.phone)"));
+  assert.ok(source.includes("customer: { ...(payload.customer || {}), phone: registeredPhone }"));
+  assert.ok(source.includes('deliveryPhone:') && source.includes('registeredPhone'), 'delivery mobile must be stored separately from registered identity');
+  assert.ok(source.includes("bind(registeredPhone, String(result.id), sessionId).run()"));
+  assert.equal(source.includes("bind(`91${deliveryPhone}`, String(result.id), sessionId).run()"), false);
 });
 
 function readFileSource() {
@@ -103,4 +111,77 @@ test('customer registration update keeps the registered mobile immutable', async
   const response = await request('/api/customers/register', { method: 'POST', headers: { Cookie: sessionCookie(), 'Content-Type': 'application/json' }, body: JSON.stringify({ id: 'customer-1', name: 'Updated Delivery Name', phone: '9123456789' }) });
   assert.equal(response.status, 200);
   assert.equal(customer.phone, registeredPhone);
+});
+
+test('an already registered mobile cannot create a second account', async () => {
+  const previousId = customer.id, previousHash = customer.passcode_hash;
+  const response = await request('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Second Account', phone: '9876543210', passcode: '112233' }) });
+  assert.equal(response.status, 409);
+  assert.equal(customer.id, previousId);
+  assert.equal(customer.passcode_hash, previousHash);
+});
+
+test('forgot passcode fails safely when SMS verification is not configured', async () => {
+  const response = await request('/api/auth/passcode-reset/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '9876543210' }) });
+  assert.equal(response.status, 503);
+  assert.match((await response.json()).error, /temporarily unavailable/i);
+});
+
+test('forgot passcode sends SMS verification without exposing whether a number is registered', async t => {
+  const configured = {
+    ...env,
+    TWILIO_ACCOUNT_SID: 'AC' + 'a'.repeat(32),
+    TWILIO_AUTH_TOKEN: 'test-auth-token',
+    TWILIO_VERIFY_SERVICE_SID: 'VA' + 'b'.repeat(32)
+  };
+  const mock = t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.match(String(url), /\/Verifications$/);
+    assert.equal(options.method, 'POST');
+    assert.match(options.headers.authorization, /^Basic /);
+    assert.ok(options.body.includes('To=%2B919876543210'));
+    assert.ok(options.body.includes('Channel=sms'));
+    return Response.json({ status: 'pending' }, { status: 201 });
+  });
+  const response = await request('/api/auth/passcode-reset/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: '9876543210' })
+  }, configured);
+  assert.equal(response.status, 200);
+  assert.match((await response.json()).message, /If this mobile is registered/i);
+  assert.equal(mock.mock.callCount(), 1);
+});
+
+test('approved SMS reset changes passcode and invalidates old sessions', async t => {
+  const oldHash = customer.passcode_hash;
+  const configured = {
+    ...env,
+    TWILIO_ACCOUNT_SID: 'AC' + 'a'.repeat(32),
+    TWILIO_AUTH_TOKEN: 'test-auth-token',
+    TWILIO_VERIFY_SERVICE_SID: 'VA' + 'b'.repeat(32)
+  };
+  const mock = t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.match(String(url), /\/VerificationCheck$/);
+    assert.match(options.body, /Code=654321/);
+    return Response.json({ status: 'approved' }, { status: 200 });
+  });
+  const response = await request('/api/auth/passcode-reset/complete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: '9876543210', code: '654321', passcode: '135790' })
+  }, configured);
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.customerId, 'customer-1');
+  assert.equal(payload.registeredPhone, '919876543210');
+  assert.equal(customer.phone, '919876543210');
+  assert.notEqual(customer.passcode_hash, oldHash);
+  assert.equal(customer.auth_version, 1);
+  assert.equal(mock.mock.callCount(), 1);
+  const oldSession = await request('/api/auth/session', { method: 'GET', headers: { Cookie: sessionCookie() } }, configured);
+  assert.equal(oldSession.status, 401);
+  const oldLogin = await request('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '9876543210', passcode: '246810' }) }, configured);
+  assert.equal(oldLogin.status, 401);
+  const newLogin = await request('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '9876543210', passcode: '135790' }) }, configured);
+  assert.equal(newLogin.status, 200);
 });

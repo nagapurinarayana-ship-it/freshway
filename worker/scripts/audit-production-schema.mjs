@@ -40,7 +40,7 @@ function rowsFor(sql, predicate) {
 }
 
 const required = {
-  customers: ['id', 'name', 'phone', 'passcode_salt', 'passcode_hash', 'whatsapp_opt_in'],
+  customers: ['id', 'name', 'phone', 'passcode_salt', 'passcode_hash', 'auth_version', 'whatsapp_opt_in'],
   addresses: ['id', 'customer_id', 'house', 'area', 'city', 'pincode', 'is_default', 'deleted_at', 'latitude', 'longitude'],
   products: ['id', 'name', 'unit', 'price', 'active', 'category_id', 'image_data', 'stock_managed', 'stock_quantity', 'low_stock_threshold'],
   categories: ['id', 'name', 'slug', 'active', 'display_order'],

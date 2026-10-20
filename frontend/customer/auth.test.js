@@ -6,7 +6,9 @@ const notifications={
   login:()=>calls.push('login'),
   ensureAuthenticated:phone=>{calls.push(['ensure',phone]);return 'ok'},
   logout:()=>calls.push('logout'),
-  customerId:()=> 'customer-1'
+  customerId:()=> 'customer-1',
+  registeredPhone:()=> '919876543210',
+  registeredName:()=> 'Account Holder'
 };
 const context={window:{FreshWayNotifications:notifications}};
 vm.runInNewContext(require('node:fs').readFileSync('frontend/customer/auth.js','utf8'),context);
@@ -16,6 +18,8 @@ assert.equal(typeof api.login,'function');
 assert.equal(typeof api.ensureAuthenticated,'function');
 assert.equal(typeof api.logout,'function');
 assert.equal(api.customerId(),'customer-1');
+assert.equal(api.registeredPhone(),'919876543210');
+assert.equal(api.registeredName(),'Account Holder');
 assert.equal(api.ensureAuthenticated('9999999999'),'ok');
 api.session();
 api.login();

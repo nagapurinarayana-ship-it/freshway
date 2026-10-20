@@ -100,7 +100,7 @@ async function createOrder(env, payload) {
   // The account mobile is identity data. Checkout's delivery phone is order data and
   // must never overwrite the customer's registered mobile number.
   await env.DB.prepare(`INSERT INTO customers (id,name,phone,whatsapp_opt_in,updated_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)
-    ON CONFLICT(id) DO UPDATE SET name=excluded.name, whatsapp_opt_in=excluded.whatsapp_opt_in, updated_at=CURRENT_TIMESTAMP`)
+    ON CONFLICT(id) DO UPDATE SET name=CASE WHEN customers.name IS NULL OR TRIM(customers.name)='' THEN excluded.name ELSE customers.name END, whatsapp_opt_in=excluded.whatsapp_opt_in, updated_at=CURRENT_TIMESTAMP`)
     .bind(customerId, customerName, customerPhoneForProfile, payload.whatsappOptIn ? 1 : 0).run();
   const addressResult = await env.DB.prepare(`INSERT INTO addresses (customer_id,house,area,city,pincode,landmark,note) VALUES (?,?,?,?,?,?,?)`)
     .bind(customerId, String(address.house).trim().slice(0, 200), String(address.area).trim().slice(0, 200), String(address.city).trim().slice(0, 100), String(address.pincode), String(address.landmark || '').trim().slice(0, 200), String(address.note || '').trim().slice(0, 500)).run();

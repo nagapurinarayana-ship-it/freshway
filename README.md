@@ -12,11 +12,12 @@ FreshWay is a hyperlocal customer ordering PWA plus an owner operations dashboar
 
 ## Customer authentication
 - Mobile number is the permanent customer identity.
-- Registration uses mobile number + customer information + a self-created 6-digit passcode.
+- Registration is one-time per normalized mobile number and uses customer information + a self-created 6-digit passcode; an existing registered mobile must log in, not create a second account.
+- The registered mobile is the permanent account identity for customer history, orders, ownership and Owner reporting. The delivery contact/name are independent per-order details and never replace the registered account mobile.
 - The passcode is stored as a salted PBKDF2-SHA-256 hash; it is never stored in plain text.
 - Login uses the registered mobile number and the same 6-digit passcode.
 - A signed, HttpOnly, Secure customer session cookie protects customer API actions.
-- No SMS OTP or Twilio dependency is part of the V1 authentication flow.
+- Normal login does not require SMS. Forgot-passcode recovery sends a verified SMS code through Twilio Verify when its optional Worker secrets are configured; until configured, recovery fails safely with a support message rather than allowing an unverified reset.
 - Customer phone number cannot be changed after registration.
 - Login/registration attempts are rate limited by mobile number and client IP.
 
@@ -83,9 +84,10 @@ From `worker/`:
 2. Create the Cloudflare D1 database and configure its ID in `wrangler.jsonc`.
 3. Apply the D1 migrations with the normal production deployment path.
 4. Configure the required Worker secrets: `ADMIN_TOKEN`, `CUSTOMER_SESSION_SECRET`, and `ADMIN_SESSION_SECRET`.
-5. Configure Web Push VAPID secrets only when push notifications are enabled.
-6. Configure WhatsApp credentials only when WhatsApp broadcasting is enabled.
-7. Deploy with the project's Cloudflare deployment process.
+5. To enable Forgot passcode, configure the optional secrets `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_VERIFY_SERVICE_SID`. Use a Twilio Verify service with SMS enabled. Recovery endpoints remain safely disabled until all three exist.
+6. Configure Web Push VAPID secrets only when push notifications are enabled.
+7. Configure WhatsApp credentials only when WhatsApp broadcasting is enabled.
+8. Deploy with the project's Cloudflare deployment process.
 
 Do **not** commit secrets to GitHub.
 
