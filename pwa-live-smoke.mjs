@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 const BASE_URL = process.env.BASE_URL || 'https://freshway-f32.pages.dev';
 const VIEWPORT_STYLES_PATH = '/styles.css?v=20261021-mobile-viewport-fit-v1';
 const CUSTOMER_APP_PATH = '/app.js?v=20261021-home-navigation-refresh-v1';
-const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-location-field-reconcile-v1';
-const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261021-location-field-reconcile-v1';
+const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-pin-address-fail-closed-v2';
+const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261021-pin-address-fail-closed-v2';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchWithRetry(url, options = {}) {

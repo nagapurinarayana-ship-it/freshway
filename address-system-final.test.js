@@ -34,6 +34,12 @@ assert.match(source, /fetch\('\/api\/geocode\/reverse\?lat='/, 'reverse geocodin
 assert.doesNotMatch(source, /const preserve = labelFields\.map/, 'old address fields must not overwrite a newly geocoded location');
 assert.match(source, /if \(locationLookupPending\) return toast/, 'save must be blocked while the map lookup is pending');
 assert.match(source, /editorCoordinates = previousCoordinates/, 'failed geocoding must restore the last verified pin');
+assert.match(source, /if \(previousCoordinates && validCoords\(previousCoordinates\.latitude, previousCoordinates\.longitude\)\)[\s\S]*?previous pin and address were restored/,
+  'failed lookup with a verified prior pin must restore that pin and address together');
+assert.match(source, /\['fwAddrHouse','fwAddrBuilding','fwAddrFloor','fwAddrStreet','fwAddrArea','fwAddrLocality','fwAddrCity','fwAddrDistrict','fwAddrState','fwAddrPincode','fwAddrLandmark'\][\s\S]*?setValue\(id, ''\)/,
+  'failed lookup without a verified prior pin must clear stale geographic fields and PIN');
+assert.match(source, /Map-derived address is a suggestion\. Confirm the house\/flat number and 6-digit PIN code/,
+  'map-derived address and PIN must be presented as suggestions to verify');
 assert.match(geocode, /houseFlat: first\(a\.house_number, a\.house_name\)/);
 assert.match(geocode, /pincode: indianPincode\(a\.postcode\)/);
 assert.match(geocode, /landmark: first\(result && result\.name, a\.amenity, a\.shop\)/);
@@ -42,15 +48,15 @@ assert.match(geocode, /note: text\(old\.note\)/);
 assert.match(source, /addressLoadError = error\.message/);
 assert.match(source, /id="addressModalTitle" tabindex="-1"/);
 assert.match(source, /modalReturnFocus/);
-assert.ok(index.includes('frontend/customer/address-geocode.js?v=20261021-location-field-reconcile-v1'), 'HTML must load the current geocode field mapper');
-assert.ok(sw.includes('/frontend/customer/address-geocode.js?v=20261021-location-field-reconcile-v1'), 'service worker must cache the current geocode field mapper');
-assert.ok(index.includes('address-system-final.js?v=20261021-location-field-reconcile-v1'), 'HTML must load the current address module');
-assert.ok(sw.includes('/address-system-final.js?v=20261021-location-field-reconcile-v1'), 'service worker must cache the current address module');
+assert.ok(index.includes('frontend/customer/address-geocode.js?v=20261021-pin-address-fail-closed-v2'), 'HTML must load the current geocode field mapper');
+assert.ok(sw.includes('/frontend/customer/address-geocode.js?v=20261021-pin-address-fail-closed-v2'), 'service worker must cache the current geocode field mapper');
+assert.ok(index.includes('address-system-final.js?v=20261021-pin-address-fail-closed-v2'), 'HTML must load the current address module');
+assert.ok(sw.includes('/address-system-final.js?v=20261021-pin-address-fail-closed-v2'), 'service worker must cache the current address module');
 assert.ok(index.includes('address-book.css?v=20261020-address-ui-hardening-v2'), 'HTML must load the current address CSS');
 assert.ok(sw.includes('/frontend/customer/address-book.css?v=20261020-address-ui-hardening-v2'), 'service worker must cache the current address CSS');
 assert.ok(index.includes('notifications.js?v=20261020-normalized-auth-phone-v2'), 'HTML must load the auth phone normalizer');
 assert.ok(sw.includes('/notifications.js?v=20261020-normalized-auth-phone-v2'), 'service worker must cache the auth phone normalizer');
-assert.match(sw, /freshway-v60/);
+assert.match(sw, /freshway-v61/);
 assert.match(css, /#toast\s*\{[^}]*white-space:\s*normal/s);
 assert.match(css, /\.fw-address-incomplete\s*\{/);
 console.log('checkout address completion, geocoding preservation, error feedback, accessibility and asset cache tests passed');
