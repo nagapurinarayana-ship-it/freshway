@@ -122,6 +122,18 @@
     return addresses.find(function (address) { return address.isDefault; }) || addresses[0] || null;
   }
 
+  function checkoutAddressIssue(address) {
+    if (!address) return 'Add and save a delivery address before placing your order.';
+    const missing = [];
+    if (!String(address.recipientName || '').trim() || String(address.recipientName || '').trim().length < 2) missing.push('recipient name');
+    if (!/^\d{10}$/.test(normalizePhone(address.deliveryPhone))) missing.push('10-digit delivery contact number');
+    if (!String(address.houseFlat || '').trim()) missing.push('house/flat number');
+    if (!String(address.area || '').trim()) missing.push('area/street');
+    if (!String(address.city || '').trim()) missing.push('city');
+    if (!/^\d{6}$/.test(String(address.pincode || '').trim())) missing.push('6-digit PIN code');
+    return missing.length ? 'Complete your delivery address: ' + missing.join(', ') + '.' : '';
+  }
+
   function shortAddress(address) {
     if (!address) return '';
     const parts = [address.area, address.locality, address.city].filter(function (part, index, all) {
@@ -235,12 +247,17 @@
     if (address) {
       if (!activeAddress) activeAddress = normalizeAddress(address);
       setCheckoutFields(address);
+      const issue = checkoutAddressIssue(address);
       summary.innerHTML =
         '<div class="fw-checkout-address-copy"><span class="eyebrow">DELIVER TO</span>' +
         '<strong>' + esc(iconFor(address.label) + ' ' + address.label) + (address.isDefault ? ' <span class="fw-default-tag">Default</span>' : '') + '</strong>' +
         '<p>' + esc(fullAddress(address)) + '</p><small>' + esc(address.recipientName) +
-        (normalizePhone(address.deliveryPhone) ? ' · ' + esc(normalizePhone(address.deliveryPhone)) : '') + '</small></div>' +
-        '<button type="button" class="secondary-btn fw-change-address" id="fwCheckoutChangeAddress">Change</button>';
+        (normalizePhone(address.deliveryPhone) ? ' · ' + esc(normalizePhone(address.deliveryPhone)) : '') + '</small>' +
+        (issue ? '<p class="fw-address-incomplete" role="alert">This saved address is incomplete. Edit and save it before placing your order.</p>' : '') +
+        '</div>' +
+        (issue
+          ? '<button type="button" class="primary-btn fw-change-address" id="fwCheckoutCompleteAddress">Complete address</button>'
+          : '<button type="button" class="secondary-btn fw-change-address" id="fwCheckoutChangeAddress">Change</button>');
     } else {
       summary.innerHTML =
         '<div class="fw-checkout-address-copy"><span class="eyebrow">DELIVERY ADDRESS</span>' +
@@ -669,6 +686,12 @@
       }
       editingAddress = null;
       renderDisplays();
+      if (modalOrigin === 'checkout' && returnedAddress) {
+        hideModal();
+        syncCheckout();
+        toast('Address saved. You can now place your order.');
+        return;
+      }
       renderManager();
       toast(data.deduplicated ? 'This address is already saved. We kept your existing default.' : 'Address saved.');
     } catch (error) {
@@ -721,13 +744,19 @@
     }
   }
 
-  function openManager(origin) {
+  function openManager(origin, editAddressId) {
     modalOrigin = origin || 'profile';
-    loadSaved({ preserveSelection: true, showError: false }).then(renderManager);
+    loadSaved({ preserveSelection: true, showError: false }).then(function () {
+      if (editAddressId != null && addresses.some(function (address) { return Number(address.id) === Number(editAddressId); })) {
+        buildEditor(editAddressId);
+      } else {
+        renderManager();
+      }
+    });
   }
 
-  function openCheckoutAddressManager() {
-    openManager('checkout');
+  function openCheckoutAddressManager(editAddressId) {
+    openManager('checkout', editAddressId);
   }
 
   function bindEvents() {
@@ -735,11 +764,13 @@
     // first-time customer is guided to the same address form used by Profile.
     document.addEventListener('submit', function (event) {
       if (!event.target || event.target.id !== 'checkoutForm') return;
-      if (activeAddress || defaultAddress()) return;
+      const selected = activeAddress || defaultAddress();
+      const issue = checkoutAddressIssue(selected);
+      if (!issue) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      toast('Add and save a delivery address before placing your order.');
-      openCheckoutAddressManager();
+      toast(issue);
+      openCheckoutAddressManager(selected && selected.id);
     }, true);
     document.addEventListener('click', async function (event) {
       const target = event.target;
@@ -757,6 +788,11 @@
         event.preventDefault();
         event.stopImmediatePropagation();
         openManager(target.closest('#profileAddress') ? 'profile' : 'home');
+        return;
+      }
+      if (target.closest('#fwCheckoutCompleteAddress')) {
+        event.preventDefault();
+        openCheckoutAddressManager((activeAddress || defaultAddress())?.id);
         return;
       }
       if (target.closest('#fwCheckoutChangeAddress') || target.closest('#fwCheckoutAddAddress')) {
@@ -877,9 +913,8 @@
           try { payload = JSON.parse(init.body); }
           catch (_) { return originalFetch(input, init); }
           const selected = normalizeAddress(activeAddress || defaultAddress());
-          if (!selected.recipientName || !normalizePhone(selected.deliveryPhone) || !selected.houseFlat || !selected.area || !selected.city || !/^\d{6}$/.test(selected.pincode)) {
-            throw new Error('Complete your saved delivery address before placing the order.');
-          }
+          const issue = checkoutAddressIssue(selected);
+          if (issue) throw new Error(issue);
           payload.address = Object.assign({}, payload.address || {}, selected);
           payload.address.deliveryPhone = selected.deliveryPhone;
           payload.address.recipientName = selected.recipientName;
