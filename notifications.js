@@ -108,7 +108,8 @@ function openAuth(phone){
           try{
             await api('/api/auth/passcode-reset/start',{method:'POST',body:JSON.stringify({phone:p})});
             codeSent=true;render();
-            showError('If this mobile is registered, a verification code has been sent. Check SMS.');
+            showError('');
+            hint.textContent='If this mobile is registered, a verification code has been sent. Check SMS.';
             resetCode.focus();
           }catch(error){showError(error.message||'Could not start passcode recovery. Please try again.')}
           finally{busy=false;submit.disabled=false}
