@@ -85,6 +85,17 @@ customerKeyboard.bind({document,onHome:()=>setView('home')});
 customerCartActions.bind({document,changeQty,toast});
 const refreshAccountIdentity=()=>customerAuth.session().then(account=>{if(account?.customerId&&account.customerId===customerId()){renderProfile();customerOrderData.load()}}).catch(()=>{});document.addEventListener('freshway:session',refreshAccountIdentity);renderProducts();renderProfile();updateCartBar();customerOrderData.load();refreshAccountIdentity();
 
+// Refresh customer-owned order data immediately when the service worker receives
+// a transactional push. This keeps payment/delivery labels in sync with alerts.
+if(navigator.serviceWorker?.addEventListener){
+  navigator.serviceWorker.addEventListener('message',event=>{
+    const message=event.data;
+    if(message?.type!=='freshway:order-updated'||message.audience!=='customer')return;
+    if(!customerId())return;
+    customerOrderData.load();
+  });
+}
+
 // Push notification links open My Orders and highlight the matching order.
 (function openOrderFromNotification(){
   const incoming=new URL(location.href);
