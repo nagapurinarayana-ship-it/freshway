@@ -2,6 +2,7 @@ import webpush from 'web-push';
 import { getStoreProfile } from './store-profile.js';
 import { buildOrderPlacedAlerts, dispatchOrderAlert } from './order-alerts.js';
 import { buildOrderChangeAlerts } from './admin-notifications.js';
+import { handleReverseGeocode } from './geocode-api.js';
 
 const json = (data, status = 200, origin = '*') => new Response(JSON.stringify(data), {
   status,
@@ -266,7 +267,7 @@ async function notificationHistory(env){const{results}=await env.DB.prepare('SEL
 export { normalizePaymentFilter, validateOrderPatch, validateOrderItems, updateOrder };
 
 export default{async fetch(request,env,ctx){const cors=origin(env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{'access-control-allow-origin':cors,'access-control-allow-methods':'GET,POST,PATCH,OPTIONS','access-control-allow-headers':'Content-Type,Authorization,X-Freshway-Admin-Token'}});const url=new URL(request.url);try{
-if(url.pathname==='/api/health'&&request.method==='GET')return json({ok:true,service:'freshway-api'},200,cors);if(url.pathname==='/api/store-profile'&&request.method==='GET')return json({storeProfile:await getStoreProfile(env)},200,cors);
+if(url.pathname==='/api/health'&&request.method==='GET')return json({ok:true,service:'freshway-api'},200,cors);if(url.pathname==='/api/geocode/reverse'&&request.method==='GET')return handleReverseGeocode(request,{origin:cors,fetcher:fetch,cache:typeof caches!=='undefined'?caches.default:null,waitUntil:promise=>ctx?.waitUntil?.(promise)});if(url.pathname==='/api/store-profile'&&request.method==='GET')return json({storeProfile:await getStoreProfile(env)},200,cors);
 if(url.pathname==='/api/products'&&request.method==='GET')return json({products:await products(env,false)},200,cors);
 if(url.pathname==='/api/push/public-key'&&request.method==='GET')return json({publicKey:env.VAPID_PUBLIC_KEY||null},200,cors);
 if(url.pathname==='/api/push/subscribe'&&request.method==='POST')return json(await saveSubscription(env,await body(request)),200,cors);
