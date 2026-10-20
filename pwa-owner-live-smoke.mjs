@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 const BASE_URL = (process.env.OWNER_PWA_BASE_URL || '').replace(/\/$/, '');
 if (!BASE_URL) throw new Error('OWNER_PWA_BASE_URL is required for Owner PWA deployment smoke');
 
+const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261020-owner-alert-login-ready-v1';
+const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261020-owner-push-login-ready-v2';
+const EXPECTED_OWNER_CACHE = 'fw-owner-v15';
+
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchOwnerRoute(path, attempts = 60) {
@@ -26,8 +30,70 @@ function assertFreshResponse(response, label) {
   assert.match(response.headers.get('x-robots-tag') || '', /noindex/i, `${label} must be excluded from search indexing`);
 }
 
-const pageResponse = await fetchOwnerRoute('/admin/');
-const html = await pageResponse.text();
+function hasScriptReference(html, pageUrl, expectedPath) {
+  const expected = new URL(expectedPath, pageUrl);
+  return [...html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)].some(([, src]) => {
+    try {
+      const actual = new URL(src, pageUrl);
+      return actual.pathname === expected.pathname && actual.search === expected.search;
+    } catch (_) {
+      return false;
+    }
+  });
+}
+
+// Do not pass merely because an old but healthy deployment is still available.
+// Poll cache-busted production reads while Cloudflare Pages publishes the new release.
+async function fetchCurrentOwnerAppShell(attempts = 60) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const probe = new URL('/admin/', BASE_URL);
+      probe.searchParams.set('__freshway_owner_release_probe', Date.now() + '-' + attempt);
+      const response = await fetch(probe, { cache: 'no-store', redirect: 'follow' });
+      if (!response.ok) {
+        lastError = new Error('/admin/ returned HTTP ' + response.status);
+      } else {
+        const html = await response.text();
+        const currentAdmin = hasScriptReference(html, response.url, EXPECTED_OWNER_ADMIN_SCRIPT);
+        const currentAlerts = hasScriptReference(html, response.url, EXPECTED_OWNER_ALERTS_SCRIPT);
+        if (currentAdmin && currentAlerts) return { response, html };
+        lastError = new Error('/admin/ still serves stale Owner assets (attempt ' + attempt + '/' + attempts + '); expected ' + EXPECTED_OWNER_ADMIN_SCRIPT + ' and ' + EXPECTED_OWNER_ALERTS_SCRIPT);
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt < attempts) await sleep(5000);
+  }
+  throw lastError || new Error('Owner app shell did not reach the expected release.');
+}
+
+async function fetchCurrentOwnerServiceWorker(attempts = 60) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const url = new URL('/admin/sw.js', BASE_URL);
+      url.searchParams.set('__freshway_owner_release_probe', Date.now() + '-' + attempt);
+      const response = await fetch(url, { cache: 'no-store', redirect: 'follow' });
+      if (!response.ok) {
+        lastError = new Error('/admin/sw.js returned HTTP ' + response.status);
+      } else {
+        const worker = await response.text();
+        const currentCache = worker.includes("const CACHE = '" + EXPECTED_OWNER_CACHE + "';");
+        const currentAdmin = worker.includes(EXPECTED_OWNER_ADMIN_SCRIPT);
+        const currentAlerts = worker.includes(EXPECTED_OWNER_ALERTS_SCRIPT);
+        if (currentCache && currentAdmin && currentAlerts) return { response, worker };
+        lastError = new Error('/admin/sw.js still serves stale Owner cache/assets (attempt ' + attempt + '/' + attempts + '); expected ' + EXPECTED_OWNER_CACHE + ' and current Owner script URLs');
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt < attempts) await sleep(5000);
+  }
+  throw lastError || new Error('Owner service worker did not reach the expected release.');
+}
+
+const { response: pageResponse, html } = await fetchCurrentOwnerAppShell();
 console.log('Owner deployment route diagnostics:', JSON.stringify({ url: pageResponse.url, status: pageResponse.status, contentType: pageResponse.headers.get('content-type'), cacheControl: pageResponse.headers.get('cache-control'), robots: pageResponse.headers.get('x-robots-tag'), bodyStart: html.slice(0, 180) }));
 assertFreshResponse(pageResponse, 'Owner app shell');
 assert.equal(new URL(pageResponse.url).pathname, '/admin/', 'Owner app canonical route must have a trailing slash');
@@ -39,6 +105,8 @@ const installScriptUrl = new URL(installScriptMatch[1], pageResponse.url);
 assert.equal(installScriptUrl.origin, new URL(pageResponse.url).origin, 'Owner bootstrap must remain same-origin');
 assert.ok(installScriptUrl.pathname.startsWith('/admin/'), 'Owner bootstrap must stay inside the /admin/ scope');
 assert.match(html, /FreshWay — Owner/);
+assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_ADMIN_SCRIPT), 'Owner app must load the latest login-aware admin script');
+assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_ALERTS_SCRIPT), 'Owner app must load the latest login-aware push setup script');
 
 for (const [, value] of html.matchAll(/\b(?:src|href)=["']([^"']+)["']/gi)) {
   if (value.startsWith('#') || value === '/' || /^[a-z][a-z0-9+.-]*:/i.test(value)) continue;
@@ -58,11 +126,13 @@ assert.equal(manifest.display, 'standalone');
 assert.ok(manifest.icons.length >= 2);
 assert.ok(manifest.icons.every(icon => icon.src.startsWith('/admin/')), 'Owner installation icons must remain under /admin/');
 
-const workerResponse = await fetchOwnerRoute('/admin/sw.js');
+const { response: workerResponse, worker } = await fetchCurrentOwnerServiceWorker();
 assertFreshResponse(workerResponse, 'Owner service worker');
 assert.match(workerResponse.headers.get('content-type') || '', /javascript/i);
 assert.equal(workerResponse.headers.get('service-worker-allowed'), '/admin/');
-const worker = await workerResponse.text();
+assert.ok(worker.includes("const CACHE = '" + EXPECTED_OWNER_CACHE + "';"), 'Owner service worker must publish the latest cache version');
+assert.ok(worker.includes(EXPECTED_OWNER_ADMIN_SCRIPT), 'Owner service worker shell must cache the latest Owner script');
+assert.ok(worker.includes(EXPECTED_OWNER_ALERTS_SCRIPT), 'Owner service worker shell must cache the latest push setup script');
 const installScriptResponse = await fetchOwnerRoute(installScriptUrl.pathname + installScriptUrl.search);
 assertFreshResponse(installScriptResponse, 'Owner install/bootstrap script');
 assert.match(installScriptResponse.headers.get('content-type') || '', /javascript/i);
