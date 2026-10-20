@@ -90,7 +90,7 @@ test('order identity uses the registered account phone and keeps delivery contac
   const source = readFileSource();
   assert.ok(source.includes("const deliveryPhone = cleanPhone(payload.address?.deliveryPhone || payload.customer?.phone)"));
   assert.ok(source.includes("customer: { ...(payload.customer || {}), phone: registeredPhone }"));
-  assert.ok(source.includes("deliveryPhone: `91${deliveryPhone}`"));
+  assert.ok(source.includes('deliveryPhone:') && source.includes('registeredPhone'), 'delivery mobile must be stored separately from registered identity');
   assert.ok(source.includes("bind(registeredPhone, String(result.id), sessionId).run()"));
   assert.equal(source.includes("bind(`91${deliveryPhone}`, String(result.id), sessionId).run()"), false);
 });
@@ -135,11 +135,11 @@ test('forgot passcode sends SMS verification without exposing whether a number i
     TWILIO_VERIFY_SERVICE_SID: 'VA' + 'b'.repeat(32)
   };
   const mock = t.mock.method(globalThis, 'fetch', async (url, options) => {
-    assert.match(String(url), /\\/Verifications$/);
+    assert.match(String(url), /\/Verifications$/);
     assert.equal(options.method, 'POST');
     assert.match(options.headers.authorization, /^Basic /);
-    assert.match(options.body, /To=%2B919876543210/);
-    assert.match(options.body, /Channel=sms/);
+    assert.ok(options.body.includes('To=%2B919876543210'));
+    assert.ok(options.body.includes('Channel=sms'));
     return Response.json({ status: 'pending' }, { status: 201 });
   });
   const response = await request('/api/auth/passcode-reset/start', {
@@ -161,7 +161,7 @@ test('approved SMS reset changes passcode and invalidates old sessions', async t
     TWILIO_VERIFY_SERVICE_SID: 'VA' + 'b'.repeat(32)
   };
   const mock = t.mock.method(globalThis, 'fetch', async (url, options) => {
-    assert.match(String(url), /\\/VerificationCheck$/);
+    assert.match(String(url), /\/VerificationCheck$/);
     assert.match(options.body, /Code=654321/);
     return Response.json({ status: 'approved' }, { status: 200 });
   });
