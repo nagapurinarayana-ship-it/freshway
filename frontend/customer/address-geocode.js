@@ -47,7 +47,7 @@
       pincode: indianPincode(a.postcode),
       // A landmark is delivery guidance, not an authoritative address field.
       // Reset it on pin changes so an old landmark cannot point to another place.
-      landmark: ''
+      landmark: first(result && result.name, a.amenity, a.shop)
     };
 
     if (!Object.keys(addressFields).some(key => addressFields[key])) {
