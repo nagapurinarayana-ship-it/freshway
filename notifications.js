@@ -62,7 +62,7 @@ function openAuth(phone){
     forgotButton.classList.toggle('hidden',mode!=='login');
     modeButton.textContent=registerMode?'Already registered? Login':resetMode?'Back to login':'New customer? Create account';
     modeButton.textContent=resetMode?'Back to login':modeButton.textContent;
-    modeButton.classList.toggle('hidden',resetMode&&codeSent);
+    
     submit.textContent=resetMode?(codeSent?'Reset passcode':'Send verification code'):registerMode?'Create account':'Login';
     hint.textContent=resetMode
       ? (codeSent?'Enter the SMS code and choose a new 6-digit passcode.':'We will send a verification code to your registered mobile if the account exists.')
@@ -86,7 +86,8 @@ function openAuth(phone){
     const toggle=()=>{
       showError('');
       codeSent=false;
-      mode=mode==='register'?'login':'register';
+      phoneEl.disabled=false;
+      mode=mode==='register'||mode==='forgot'?'login':'register';
       passEl.value='';confirmEl.value='';resetCode.value='';resetNew.value='';resetConfirm.value='';
       render();passEl.focus();
     };
