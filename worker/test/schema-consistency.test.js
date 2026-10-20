@@ -6,6 +6,7 @@ const schema = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8');
 const migration = readFileSync(new URL('../migrations/0022_test_order_classification.sql', import.meta.url), 'utf8');
 const accountPhoneMigration = readFileSync(new URL('../migrations/0023_registered_account_phone.sql', import.meta.url), 'utf8');
 const authVersionMigration = readFileSync(new URL('../migrations/0024_customer_auth_version.sql', import.meta.url), 'utf8');
+const orderAlertsMigration = readFileSync(new URL('../migrations/0025_order_alerts.sql', import.meta.url), 'utf8');
 
 const ordersTable = schema.match(
   /CREATE TABLE IF NOT EXISTS orders \(([\s\S]*?)\n\);/
@@ -85,4 +86,17 @@ test('historical order phone reconciliation preserves delivery contacts in snaps
   assert.ok(accountPhoneMigration.includes('c.phone'));
   assert.ok(accountPhoneMigration.includes('orders.customer_id'));
   assert.ok(schema.includes('delivery_phone TEXT NOT NULL'));
+});
+
+test('transactional order alert schema matches the production migration', () => {
+  for (const table of ['owner_push_subscriptions', 'notification_events']) {
+    assert.match(schema, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\s*\\(`), `fresh schema must define ${table}`);
+    assert.match(orderAlertsMigration, new RegExp(`CREATE TABLE IF NOT EXISTS ${table}\\s*\\(`), `migration 0025 must define ${table}`);
+  }
+  assert.match(schema, /event_key TEXT NOT NULL UNIQUE/);
+  assert.match(orderAlertsMigration, /event_key TEXT NOT NULL UNIQUE/);
+  assert.match(schema, /audience TEXT NOT NULL CHECK\(audience IN \(\'customer\',\'owner\'\)\)/);
+  assert.match(orderAlertsMigration, /audience TEXT NOT NULL CHECK\(audience IN \(\'customer\',\'owner\'\)\)/);
+  assert.match(orderAlertsMigration, /idx_notification_events_audience_id/);
+  assert.match(orderAlertsMigration, /idx_notification_events_order_id/);
 });

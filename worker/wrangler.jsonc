@@ -2,9 +2,15 @@
   "name": "freshway-api",
   "main": "src/admin-auth.js",
   "compatibility_date": "2026-09-06",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "d1_databases": [
-    {"binding": "DB", "database_name": "freshway", "database_id": "4b645f26-12ad-4805-bf22-12186122ad3a"}
+    {
+      "binding": "DB",
+      "database_name": "freshway",
+      "database_id": "4b645f26-12ad-4805-bf22-12186122ad3a"
+    }
   ],
   "vars": {
     "FRESHWAY_ENVIRONMENT": "production",
@@ -15,12 +21,7 @@
     "required": [
       "ADMIN_TOKEN",
       "CUSTOMER_SESSION_SECRET",
-      "ADMIN_SESSION_SECRET"
-    ],
-    "optional": [
-      "TWILIO_ACCOUNT_SID",
-      "TWILIO_AUTH_TOKEN",
-      "TWILIO_VERIFY_SERVICE_SID",
+      "ADMIN_SESSION_SECRET",
       "VAPID_PUBLIC_KEY",
       "VAPID_PRIVATE_KEY",
       "VAPID_SUBJECT"

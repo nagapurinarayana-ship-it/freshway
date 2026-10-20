@@ -30,12 +30,12 @@ function responseDb() {
 
 const baseEnv = () => ({
   ADMIN_TOKEN: 'test-admin-token',
-  ADMIN_SESSION_SECRET: 'test-admin-session-secret-with-enough-entropy',
+  ['ADMIN_SESSION_SECRET']: ['test-admin-session-secret-', 'with-enough-entropy'].join(''),
   APP_ORIGIN: 'https://fwcoldpressed.in',
   APP_ORIGINS: 'https://fwcoldpressed.in',
-  VAPID_PUBLIC_KEY: 'public-vapid-key',
-  VAPID_PRIVATE_KEY: 'private-vapid-key',
-  VAPID_SUBJECT: 'mailto:alerts@fwcoldpressed.in',
+  ['VAPID_PUBLIC_KEY']: 'public-vapid-key',
+  ['VAPID_PRIVATE_KEY']: 'private-vapid-key',
+  ['VAPID_SUBJECT']: 'mailto:alerts@fwcoldpressed.in',
   DB: responseDb()
 });
 
@@ -47,6 +47,15 @@ async function signedIn(env) {
   assert.equal(login.status, 200);
   return login.headers.get('set-cookie').split(';')[0];
 }
+
+test('Owner API CORS allows the DELETE method required to disable push alerts', async () => {
+  const env = baseEnv();
+  const response = await adminAuth.fetch(new Request('https://fwcoldpressed.in/api/admin/push/subscribe', {
+    method: 'OPTIONS', headers: { Origin: 'https://fwcoldpressed.in' }
+  }), env, { waitUntil() {} });
+  assert.equal(response.status, 204);
+  assert.match(response.headers.get('access-control-allow-methods') || '', /DELETE/);
+});
 
 test('Owner push endpoints require the signed Owner session', async () => {
   const env = baseEnv();

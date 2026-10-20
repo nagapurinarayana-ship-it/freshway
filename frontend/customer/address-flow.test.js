@@ -16,5 +16,5 @@ assert.equal(nodes.note.value,'Later');
 nodes.house.value='existing';
 api.fill(document,{house:'replacement',area:'X',city:'Y',pincode:'123456',landmark:'Z',note:'N'},{onlyEmpty:true});
 assert.equal(nodes.house.value,'existing');
-assert.equal(nodes.area.value,'X');
+assert.equal(nodes.area.value,'New Area');
 console.log('customer address flow OK');

@@ -251,9 +251,9 @@ test('customer can browse, add a product, checkout, and receive confirmation', a
   await page.locator('#fwAddressGps').click();
   await expect(page.locator('#fwAddressLocationStatus')).toContainText('Delivery pin selected');
   await page.locator('#fwAddressSave').click();
-  await expect(page.locator('.fw-address-card')).toContainText('Default');
-  await page.locator('.fw-address-card [data-fw-use]').click();
+  // Saving from checkout returns directly to checkout with the new address selected.
   await expect(page.locator('#fwCheckoutAddressSummary')).toContainText('E2E Customer');
+  await expect(page.locator('#fwCheckoutAddressSummary')).toContainText('Test Street');
 
   await page.locator('#checkoutForm button[type="submit"]').click();
 

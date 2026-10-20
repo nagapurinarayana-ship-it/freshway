@@ -132,7 +132,12 @@ event.notification.close();
 const target = event.notification.data?.url || '/';
 event.waitUntil((async () => {
   const pages = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-  const same = pages.find(client => client.url.startsWith(self.location.origin));
+  const same = pages.find(client => {
+    try {
+      const page = new URL(client.url);
+      return page.origin === self.location.origin && !page.pathname.startsWith('/admin/') && page.pathname !== '/admin.html';
+    } catch (_) { return false; }
+  });
   if (same) {
     await same.focus();
     if ('navigate' in same) await same.navigate(target);

@@ -23,6 +23,7 @@ const requiredOwnerAssets = [
   'frontend/admin/catalogue.js',
   'frontend/admin/owner-lifecycle-autosave.js',
   'frontend/admin/push.js',
+  'frontend/admin/order-alerts.js',
   'owner-lifecycle.js',
   'owner-address-final.js',
   'frontend/media/catalogue/groundnut-oil.svg',

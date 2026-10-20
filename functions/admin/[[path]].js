@@ -16,6 +16,7 @@ const OWNER_ASSETS = new Map([
   ['frontend/admin/catalogue.js', '/frontend/admin/catalogue.js'],
   ['frontend/admin/owner-lifecycle-autosave.js', '/frontend/admin/owner-lifecycle-autosave.js'],
   ['frontend/admin/push.js', '/frontend/admin/push.js'],
+  ['frontend/admin/order-alerts.js', '/frontend/admin/order-alerts.js'],
   ['owner-lifecycle.js', '/owner-lifecycle.js'],
   ['owner-address-final.js', '/owner-address-final.js'],
   ['frontend/media/catalogue/groundnut-oil.svg', '/frontend/media/catalogue/groundnut-oil.svg'],
