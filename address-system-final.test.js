@@ -45,18 +45,29 @@ assert.match(geocode, /pincode: indianPincode\(a\.postcode\)/);
 assert.match(geocode, /landmark: first\(result && result\.name, a\.amenity, a\.shop\)/);
 assert.match(geocode, /recipientName: text\(old\.recipientName\)/);
 assert.match(geocode, /note: text\(old\.note\)/);
+assert.match(source, /let guestAddressMode = false/);
+assert.match(source, /modalOrigin === 'checkout' && guestAddressMode && !editingAddress[\s\S]*?Delivery address ready for this order/,
+  'guest checkout must keep a validated address in memory instead of requiring the saved-address API');
+assert.match(source, /if \(!loaded\)[\s\S]*?modalOrigin === 'checkout' && guestAddressMode[\s\S]*?buildEditor/,
+  'a 401 on saved addresses must open the checkout address editor rather than an Addresses unavailable dead end');
+assert.match(source, /const guestDraft = modalOrigin === 'checkout' && guestAddressMode/,
+  'reopening the guest editor must retain the in-memory address draft');
+assert.match(source, /async function findSearch\(\)[\s\S]*?searchRequestId[\s\S]*?countrycodes: 'in'/,
+  'map search must validate India-only results and ignore stale concurrent searches');
+assert.match(source, /No matching Indian map result/,
+  'empty map searches must offer useful recovery steps');
 assert.match(source, /addressLoadError = error\.message/);
 assert.match(source, /id="addressModalTitle" tabindex="-1"/);
 assert.match(source, /modalReturnFocus/);
-assert.ok(index.includes('frontend/customer/address-geocode.js?v=20261021-pin-address-fail-closed-v2'), 'HTML must load the current geocode field mapper');
-assert.ok(sw.includes('/frontend/customer/address-geocode.js?v=20261021-pin-address-fail-closed-v2'), 'service worker must cache the current geocode field mapper');
-assert.ok(index.includes('address-system-final.js?v=20261021-pin-address-fail-closed-v2'), 'HTML must load the current address module');
-assert.ok(sw.includes('/address-system-final.js?v=20261021-pin-address-fail-closed-v2'), 'service worker must cache the current address module');
+assert.ok(index.includes('frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3'), 'HTML must load the current geocode field mapper');
+assert.ok(sw.includes('/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3'), 'service worker must cache the current geocode field mapper');
+assert.ok(index.includes('address-system-final.js?v=20261021-guest-address-map-search-v3'), 'HTML must load the current address module');
+assert.ok(sw.includes('/address-system-final.js?v=20261021-guest-address-map-search-v3'), 'service worker must cache the current address module');
 assert.ok(index.includes('address-book.css?v=20261020-address-ui-hardening-v2'), 'HTML must load the current address CSS');
 assert.ok(sw.includes('/frontend/customer/address-book.css?v=20261020-address-ui-hardening-v2'), 'service worker must cache the current address CSS');
 assert.ok(index.includes('notifications.js?v=20261020-normalized-auth-phone-v2'), 'HTML must load the auth phone normalizer');
 assert.ok(sw.includes('/notifications.js?v=20261020-normalized-auth-phone-v2'), 'service worker must cache the auth phone normalizer');
-assert.match(sw, /freshway-v61/);
+assert.match(sw, /freshway-v62/);
 assert.match(css, /#toast\s*\{[^}]*white-space:\s*normal/s);
 assert.match(css, /\.fw-address-incomplete\s*\{/);
 console.log('checkout address completion, geocoding preservation, error feedback, accessibility and asset cache tests passed');

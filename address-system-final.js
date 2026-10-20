@@ -39,7 +39,9 @@
   let marker = null;
   let searchResults = [];
   let locationRequestId = 0;
+  let searchRequestId = 0;
   let locationLookupPending = false;
+  let guestAddressMode = false;
   let mapLoadPromise = null;
   let editorLabel = 'Home';
   let addressLoadError = '';
@@ -192,10 +194,14 @@
       const r = await fetch('/api/addresses', { credentials: 'include', cache: 'no-store' });
       if (!r.ok) {
         if (r.status === 401) {
-          addresses = []; activeAddress = null;
+          addresses = [];
+          // A guest can keep an in-memory checkout address draft; only saved-address
+          // management requires an account session.
+          if (!(activeAddress && activeAddress.id == null && validCoords(activeAddress.latitude, activeAddress.longitude))) activeAddress = null;
+          guestAddressMode = true;
           addressLoadError = 'Sign in to load and manage your saved delivery addresses.';
           renderDisplays();
-          if (options && options.showError) toast(addressLoadError);
+          if (options && options.showError && !(modalOrigin === 'checkout' && guestAddressMode)) toast(addressLoadError);
           if ($('#addressModal') && !$('#addressModal').classList.contains('hidden') && !(options && options.deferRender)) renderManager();
           return false;
         }
@@ -203,7 +209,7 @@
       }
       const data = await readJsonResponse(r);
       if (!Array.isArray(data.addresses)) throw new Error('Saved addresses could not be read. Please retry.');
-      addresses = uniqueAddresses(data.addresses); addressLoadError = '';
+      addresses = uniqueAddresses(data.addresses); addressLoadError = ''; guestAddressMode = false;
       activeAddress = addresses.find(function (address) { return Number(address.id) === Number(previousId); }) || defaultAddress();
       renderDisplays();
       if ($('#addressModal') && !$('#addressModal').classList.contains('hidden') && !(options && options.deferRender)) renderManager();
@@ -383,7 +389,8 @@
       return Number(address.id) === Number(addressId);
     }) || null;
     const isEditing = !!editingAddress;
-    const source = normalizeAddress(editingAddress || newAddressDraft());
+    const guestDraft = modalOrigin === 'checkout' && guestAddressMode && activeAddress && activeAddress.id == null ? activeAddress : null;
+    const source = normalizeAddress(editingAddress || guestDraft || newAddressDraft());
     editorLabel = source.label || 'Home';
     editorCoordinates = validCoords(source.latitude, source.longitude) ? {
       latitude: source.latitude, longitude: source.longitude,
@@ -394,7 +401,7 @@
     const element = modal();
     element.innerHTML =
       '<div class="modal-sheet address-modal-sheet address-editor-sheet" role="document">' +
-      '<div class="modal-head fw-address-modal-head"><div><span class="eyebrow">' + (isEditing ? 'EDIT ADDRESS' : 'NEW ADDRESS') + '</span><h2 id="addressModalTitle" tabindex="-1">' + (isEditing ? 'Edit delivery address' : 'Add delivery address') + '</h2><p class="fw-address-subtitle">Save it once. We will use your default next time.</p></div>' +
+      '<div class="modal-head fw-address-modal-head"><div><span class="eyebrow">' + (isEditing ? 'EDIT ADDRESS' : 'NEW ADDRESS') + '</span><h2 id="addressModalTitle" tabindex="-1">' + (isEditing ? 'Edit delivery address' : 'Add delivery address') + '</h2><p class="fw-address-subtitle">' + (modalOrigin === 'checkout' && guestAddressMode ? 'Use this address for your current order. Sign in to save it for next time.' : 'Save it once. We will use your default next time.') + '</p></div>' +
       '<button type="button" class="icon-btn" data-close-modal aria-label="Close address editor">×</button></div>' +
       '<div class="fw-address-editor-body">' +
       '<div class="address-labels fw-address-labels">' +
@@ -680,36 +687,57 @@
       '<button type="button" class="secondary-btn" id="fwUseMatchingAddress">Use saved address</button>';
   }
 
-  function findSearch() {
+  async function findSearch() {
     const query = value('fwAddrSearchInput');
     const box = $('#fwAddressSearchResults');
-    if (!query) {
-      toast('Enter an area, street, PIN code or nearby landmark.');
+    const button = $('#fwAddressSearch');
+    if (query.length < 2) {
+      toast('Enter at least 2 characters: an area, street, PIN code or landmark.');
       return;
     }
-    if (box) box.innerHTML = '<p role="status">Searching locations…</p>';
-    fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=in&q=' + encodeURIComponent(query), {
-      headers: { Accept: 'application/json' }
-    }).then(function (response) {
-      if (!response.ok) throw new Error('Location search unavailable.');
-      return response.json();
-    }).then(function (results) {
-      searchResults = Array.isArray(results) ? results : [];
+    const requestId = ++searchRequestId;
+    searchResults = [];
+    if (button) { button.disabled = true; button.textContent = 'Searching…'; }
+    if (box) box.innerHTML = '<p role="status">Searching Indian map locations…</p>';
+    try {
+      const params = new URLSearchParams({
+        format: 'jsonv2', addressdetails: '1', limit: '5',
+        countrycodes: 'in', 'accept-language': 'en', q: query
+      });
+      const response = await fetch('https://nominatim.openstreetmap.org/search?' + params.toString(), {
+        method: 'GET', mode: 'cors', credentials: 'omit', cache: 'no-store',
+        headers: { Accept: 'application/json' }
+      });
+      if (!response.ok) {
+        if (response.status === 429) throw new Error('Map search is temporarily busy. Wait a moment and try again.');
+        throw new Error('Map search is temporarily unavailable. Try GPS or move the pin manually.');
+      }
+      const results = await response.json();
+      if (requestId !== searchRequestId) return;
+      searchResults = (Array.isArray(results) ? results : []).filter(function (item) {
+        return item && Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lon)) &&
+          Number(item.lat) >= -90 && Number(item.lat) <= 90 &&
+          Number(item.lon) >= -180 && Number(item.lon) <= 180 &&
+          String(item.display_name || '').trim();
+      }).slice(0, 5);
       if (!box) return;
       if (!searchResults.length) {
-        box.innerHTML = '<p role="status">No results found. Try a more specific area or landmark.</p>';
+        box.innerHTML = '<p role="status">No matching Indian map result. No results found. Try a more specific area or landmark, a nearby town, or a 6-digit PIN code; you can also tap the map to place the pin.</p>';
         return;
       }
-      box.innerHTML = '<p class="fw-address-search-hint">Choose the exact match. Nothing is selected until you tap a result.</p>' +
+      box.innerHTML = '<p class="fw-address-search-hint">Choose the exact match. Nothing is selected until you tap a result. The pin moves only after selection; verify the house/flat and PIN before saving.</p>' +
         searchResults.map(function (item, index) {
           return '<button type="button" class="secondary-btn full" data-fw-search-index="' + index + '">' +
             esc(item.display_name || ('Location result ' + (index + 1))) + '</button>';
         }).join('');
-    }).catch(function () {
+    } catch (error) {
+      if (requestId !== searchRequestId) return;
       searchResults = [];
-      if (box) box.innerHTML = '<p role="status">Search is unavailable. You can still use GPS or the map pin.</p>';
-      toast('Could not search locations. Please try again.');
-    });
+      if (box) box.innerHTML = '<p role="status">' + esc(error.message || 'Map search failed. You can still use GPS or tap the map.') + '</p>';
+      toast(error.message || 'Could not search locations. Please try again.');
+    } finally {
+      if (requestId === searchRequestId && button) { button.disabled = false; button.textContent = 'Search'; }
+    }
   }
 
   function useGps() {
@@ -752,6 +780,18 @@
     const existingLegacyWithoutPin = !!editingAddress && !validCoords(editingAddress.latitude, editingAddress.longitude) && !editorCoordinates;
     if (!validCoords(address.latitude, address.longitude) && !existingLegacyWithoutPin) {
       return toast('Select your delivery location using GPS, search or the map pin.');
+    }
+    // Guests can prepare an address for this checkout without creating an account
+    // or calling the authenticated address-book API. The order flow may still ask
+    // them to verify their phone before submission.
+    if (modalOrigin === 'checkout' && guestAddressMode && !editingAddress) {
+      address.id = null;
+      address.isDefault = false;
+      activeAddress = normalizeAddress(address);
+      renderDisplays();
+      hideModal();
+      toast('Delivery address ready for this order. Sign in to save it for next time.');
+      return;
     }
     const saveButton = $('#fwAddressSave');
     if (saveButton) {
@@ -845,7 +885,15 @@
     modalReturnFocus = document.activeElement; addressLoadError = '';
     renderLoadingManager();
     loadSaved({ preserveSelection: true, showError: true, deferRender: true }).then(function (loaded) {
-      if (!loaded) { renderManager(); return; }
+      if (!loaded) {
+        if (modalOrigin === 'checkout' && guestAddressMode) {
+          addressLoadError = '';
+          buildEditor(editAddressId != null && addresses.some(function (address) { return Number(address.id) === Number(editAddressId); }) ? editAddressId : null);
+          toast('Add a delivery address for this order. Sign in is only needed to save it to your account.');
+          return;
+        }
+        renderManager(); return;
+      }
       if (editAddressId != null && addresses.some(function (address) { return Number(address.id) === Number(editAddressId); })) buildEditor(editAddressId);
       else renderManager();
     });
