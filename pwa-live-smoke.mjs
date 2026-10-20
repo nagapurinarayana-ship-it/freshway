@@ -38,6 +38,7 @@ function assertCurrentScriptReference(html, pageUrl, expectedPath, label) {
 
 async function waitForFullImageFitAssets(base) {
   const promotionPath = '/frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2';
+  const customerCataloguePath = '/frontend/customer/catalogue.js?v=20261021-home-category-first-v1';
   const cataloguePath = '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1';
   let lastError;
 
@@ -66,21 +67,28 @@ async function waitForFullImageFitAssets(base) {
         indexResponse.text(), adminResponse.text(), swResponse.text()
       ]);
       assertCurrentScriptReference(indexHtml, indexResponse.url, promotionPath, 'production home');
+      assertCurrentScriptReference(indexHtml, indexResponse.url, customerCataloguePath, 'production home');
       assertCurrentScriptReference(adminHtml, adminResponse.url, cataloguePath, 'production Owner');
       assert.ok(sw.includes(promotionPath), 'service worker does not cache the current promotion script');
+      assert.ok(sw.includes(customerCataloguePath), 'service worker does not cache the current customer catalogue script');
 
-      const [promotionResponse, catalogueResponse] = await Promise.all([
+      const [promotionResponse, customerCatalogueResponse, catalogueResponse] = await Promise.all([
         fetch(`${base}${promotionPath}`, { cache: 'no-store', redirect: 'follow' }),
+        fetch(`${base}${customerCataloguePath}`, { cache: 'no-store', redirect: 'follow' }),
         fetch(`${base}${cataloguePath}`, { cache: 'no-store', redirect: 'follow' })
       ]);
       assert.equal(promotionResponse.status, 200, 'current customer promotion script must load');
+      assert.equal(customerCatalogueResponse.status, 200, 'current customer catalogue script must load');
       assert.equal(catalogueResponse.status, 200, 'current Owner catalogue script must load');
 
-      const [promotionSource, catalogueSource] = await Promise.all([
-        promotionResponse.text(), catalogueResponse.text()
+      const [promotionSource, customerCatalogueSource, catalogueSource] = await Promise.all([
+        promotionResponse.text(), customerCatalogueResponse.text(), catalogueResponse.text()
       ]);
       assert.match(promotionSource, /\.fw-promo-carousel\{[^}]*height:auto;aspect-ratio:16\/7/);
       assert.match(promotionSource, /object-fit:contain/);
+      assert.match(customerCatalogueSource,/home\.insertBefore\(c,\s*searchWrap\.nextSibling\)/);
+      assert.match(customerCatalogueSource,/heading\.classList\.add\('fw-category-home-hidden'\)/);
+      assert.match(customerCatalogueSource,/if\(!selected\)\{grid\.classList\.add\('fw-category-home-hidden'\);return\}/);
       assert.match(catalogueSource, /\.fw-promo-preview\{[^}]*height:auto;min-height:0;aspect-ratio:auto/);
       assert.match(catalogueSource, /\.fw-promo-preview img\{[^}]*max-width:100%;max-height:320px;width:auto;height:auto;object-fit:contain/);
       assert.match(catalogueSource, /\.fw-product-icon\{height:auto;min-height:100px;aspect-ratio:4\/3/);
@@ -171,19 +179,27 @@ async function verifyCustomDomain() {
   assert.match(homeHtml, /property="og:image" content="https:\/\/fwcoldpressed\.in\/freshway-whatsapp-share\.png\?v=[^"]+"/, 'WhatsApp share image must use the versioned custom-domain image');
   assert.match(homeHtml, /name="twitter:image" content="https:\/\/fwcoldpressed\.in\/freshway-whatsapp-share\.png\?v=[^"]+"/, 'Twitter share image must use the same versioned custom-domain image');
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2', 'custom-domain home');
+  assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/catalogue.js?v=20261021-home-category-first-v1', 'custom-domain home');
   assertCurrentScriptReference(adminHtml, adminResponse.url, '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1', 'custom-domain Owner');
   assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2'), 'custom-domain service worker must cache the current promotion script');
+  assert.ok(sw.includes('/frontend/customer/catalogue.js?v=20261021-home-category-first-v1'), 'custom-domain service worker must cache the current customer catalogue script');
 
   const shareMatch = homeHtml.match(/property="og:image" content="([^"]+)"/);
   assert.ok(shareMatch, 'custom-domain Open Graph image URL must exist');
   const shareImageUrl = new URL(shareMatch[1], customBase);
   assert.equal(shareImageUrl.origin, customBase, 'share image must not point to a different host');
-  const [shareImageResponse, healthResponse, productsResponse, categoriesResponse] = await Promise.all([
+  const [shareImageResponse, healthResponse, productsResponse, categoriesResponse, customerCatalogueResponse] = await Promise.all([
     fetchWithRetry(shareImageUrl.href, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/api/health`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/api/products`, { cache: 'no-store' }),
-    fetchWithRetry(`${customBase}/api/categories`, { cache: 'no-store' })
+    fetchWithRetry(`${customBase}/api/categories`, { cache: 'no-store' }),
+    fetchWithRetry(`${customBase}/frontend/customer/catalogue.js?v=20261021-home-category-first-v1`, { cache: 'no-store' })
   ]);
+  assert.equal(customerCatalogueResponse.status, 200, 'customer catalogue script must load on the custom domain');
+  const customerCatalogueSource = await customerCatalogueResponse.text();
+  assert.match(customerCatalogueSource,/home\.insertBefore\(c,\s*searchWrap\.nextSibling\)/);
+  assert.match(customerCatalogueSource,/heading\.classList\.add\('fw-category-home-hidden'\)/);
+  assert.match(customerCatalogueSource,/if\(!selected\)\{grid\.classList\.add\('fw-category-home-hidden'\);return\}/);
   assert.match(shareImageResponse.headers.get('content-type') || '', /^image\/png/i, 'WhatsApp share image must be served as PNG');
   assert.ok((await shareImageResponse.arrayBuffer()).byteLength > 100, 'WhatsApp share image must contain image data');
 
