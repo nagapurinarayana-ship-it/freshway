@@ -31,7 +31,7 @@ const deps={
     validate:()=>'',
     payload:(customer,address,items,id,clientOrderId,whatsappOptIn)=>({customer,address,items,id,clientOrderId,whatsappOptIn})
   },
-  customerAuth:{ensureAuthenticated:async()=>calls.push('auth')},
+  customerAuth:{ensureAuthenticated:async(phone)=>calls.push(['auth',phone])},
   customerId:()=> 'customer-1',
   api:async(path,options)=>{calls.push(['api',path,JSON.parse(options.body)]);return {id:'order-1',items:[{name:'Apple',unit:'kg',qty:1,price:120,lineTotal:120}],total:120,payment:'Cash',status:'New',deliveryPlan:'Standard',createdAt:'now',updatedAt:'now'}},
   customerNotifications:{registerCustomer:async(...args)=>calls.push(['notify',...args])},
@@ -57,7 +57,7 @@ assert.equal(listeners[0][0],'submit');
   assert.equal(state.profile.checkout.name,'Saved Recipient');
   assert.equal(state.profile.checkout.phone,'9876543210','a valid saved delivery number must beat an invalid stale hidden input');
   assert.equal(state.profile.pendingCheckout,undefined);
-  assert.ok(calls.includes('auth'));
+  assert.ok(calls.some(x=>Array.isArray(x)&&x[0]==='auth'&&x[1]==='9876543210'),'checkout must pass the normalized selected delivery phone to authentication');
   assert.ok(calls.some(x=>Array.isArray(x)&&x[0]==='api'&&x[1]==='/api/orders'));
   assert.ok(calls.some(x=>Array.isArray(x)&&x[0]==='notify'));
   assert.ok(calls.some(x=>Array.isArray(x)&&x[0]==='confirmation'&&x[1]==='order-1'));

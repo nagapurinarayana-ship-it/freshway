@@ -793,6 +793,11 @@
     openManager('checkout', editAddressId);
   }
 
+  function editCheckoutAddress() {
+    const selected = activeAddress || defaultAddress();
+    openCheckoutAddressManager(selected ? selected.id : null);
+  }
+
   function bindEvents() {
     // Keep a missing address from falling through into order submission. The
     // first-time customer is guided to the same address form used by Profile.
@@ -830,7 +835,13 @@
         openCheckoutAddressManager((activeAddress || defaultAddress())?.id);
         return;
       }
-      if (target.closest('#fwCheckoutChangeAddress') || target.closest('#fwCheckoutAddAddress')) {
+      if (target.closest('#fwCheckoutChangeAddress')) {
+        event.preventDefault();
+        // Keep the customer on checkout and edit the selected/default address directly.
+        editCheckoutAddress();
+        return;
+      }
+      if (target.closest('#fwCheckoutAddAddress')) {
         event.preventDefault();
         openCheckoutAddressManager();
         return;

@@ -39,7 +39,7 @@
       const button=form.querySelector('button[type="submit"]');
       if(button){button.disabled=true;button.textContent='Placing order…'}
       try{
-        await customerAuth.ensureAuthenticated();
+        await customerAuth.ensureAuthenticated(phone);
         const id=customerId();
         if(!id)throw new Error('Please log in before placing your order.');
         const result=await api('/api/orders',{method:'POST',body:JSON.stringify(customerCheckout.payload(data,address,cartItems().map(x=>({id:x.product.id,qty:x.qty})),id,clientOrderId,$('#whatsappOptIn')?.checked||false))});
