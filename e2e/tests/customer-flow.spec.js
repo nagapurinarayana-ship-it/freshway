@@ -255,7 +255,7 @@ test('customer can browse, add a product, checkout, and receive confirmation', a
   await page.locator('#fwAddressSave').click();
   // Saving from checkout returns directly to checkout with the new address selected.
   await expect(page.locator('#fwCheckoutAddressSummary')).toContainText('E2E Customer');
-  await expect(page.locator('#fwCheckoutAddressSummary')).toContainText('Test Street');
+  await expect(page.locator('#fwCheckoutAddressSummary')).toContainText('New Road');
 
   await page.locator('#checkoutForm button[type="submit"]').click();
 
