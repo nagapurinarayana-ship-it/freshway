@@ -26,9 +26,10 @@ async function signSession(env, customerId) {
   const issued = Math.floor(Date.now() / 1000);
   const account = await env.DB.prepare('SELECT auth_version FROM customers WHERE id=? LIMIT 1').bind(customerId).first();
   const version = Math.max(0, Number(account?.auth_version || 0));
-  const payload = `${String(customerId).slice(0, 100)}.${issued}.${version}`;
+  const payload = String(customerId).slice(0, 100) + '.' + issued + '.' + version;
   const signature = await crypto.subtle.sign('HMAC', await sessionKey(env), enc(payload));
-  return `${btoa(payload).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '')}.${hex(new Uint8Array(signature))}`;
+  const encoded = btoa(payload).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  return encoded + '.' + hex(new Uint8Array(signature));
 }
 function cookieValue(request) { const raw = request.headers.get('Cookie') || ''; const match = raw.match(new RegExp(`(?:^|;\\s*)${COOKIE}=([^;]+)`)); return match ? match[1] : ''; }
 async function sessionCustomerId(request, env) {
@@ -78,11 +79,11 @@ function twilioConfig(env) {
 async function twilioVerify(env, operation, fields) {
   const config = twilioConfig(env);
   if (!config) throw new Error('PASSCODE_RECOVERY_NOT_CONFIGURED');
-  const url = \`https://verify.twilio.com/v2/Services/\${config.serviceSid}/\${operation}\`;
-  const auth = btoa(\`\${config.accountSid}:\${config.authToken}\`);
+  const url = `https://verify.twilio.com/v2/Services/${config.serviceSid}/${operation}`;
+  const auth = btoa(`${config.accountSid}:${config.authToken}`);
   const result = await fetch(url, {
     method: 'POST',
-    headers: { authorization: \`Basic \${auth}\`, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { authorization: `Basic ${auth}`, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams(fields).toString()
   });
   const data = await result.json().catch(() => ({}));
@@ -103,13 +104,13 @@ async function startPasscodeReset(request, env) {
   const phone = normalizedPhone(payload.phone);
   if (!phone) return response({ error: 'Enter the registered 10-digit mobile number.' }, 400, env);
   if (!twilioConfig(env)) return recoveryUnavailable(env);
-  if (!(await rateLimit(env, \`auth:reset:start:phone:\${phone}\`, 3)) ||
-      !(await rateLimit(env, \`auth:reset:start:ip:\${clientIp(request)}\`, 10))) return limited(env);
+  if (!(await rateLimit(env, `auth:reset:start:phone:${phone}`, 3)) ||
+      !(await rateLimit(env, `auth:reset:start:ip:${clientIp(request)}`, 10))) return limited(env);
   const customer = await customerByPhone(env, phone);
   // Return the same response for unknown and known numbers to avoid account enumeration.
   if (customer?.id && customer.passcode_hash) {
     try {
-      await twilioVerify(env, 'Verifications', { To: \`+\${phone}\`, Channel: 'sms' });
+      await twilioVerify(env, 'Verifications', { To: `+${phone}`, Channel: 'sms' });
     } catch (error) {
       if (error.message === 'PASSCODE_RECOVERY_NOT_CONFIGURED') return recoveryUnavailable(env);
       return response({ error: 'Could not send a verification code. Please wait and try again.' }, 502, env);
@@ -127,13 +128,13 @@ async function completePasscodeReset(request, env) {
     return response({ error: 'Enter your registered mobile number, 6-digit SMS code and new 6-digit passcode.' }, 400, env);
   }
   if (!twilioConfig(env)) return recoveryUnavailable(env);
-  if (!(await rateLimit(env, \`auth:reset:complete:phone:\${phone}\`, 5)) ||
-      !(await rateLimit(env, \`auth:reset:complete:ip:\${clientIp(request)}\`, 15))) return limited(env);
+  if (!(await rateLimit(env, `auth:reset:complete:phone:${phone}`, 5)) ||
+      !(await rateLimit(env, `auth:reset:complete:ip:${clientIp(request)}`, 15))) return limited(env);
   const customer = await customerByPhone(env, phone);
   if (!customer?.id || !customer.passcode_hash) return response({ error: 'The verification code is invalid or expired. Request a new code.' }, 401, env);
   let verification;
   try {
-    verification = await twilioVerify(env, 'VerificationCheck', { To: \`+\${phone}\`, Code: code });
+    verification = await twilioVerify(env, 'VerificationCheck', { To: `+${phone}`, Code: code });
   } catch (error) {
     if (error.message === 'PASSCODE_RECOVERY_NOT_CONFIGURED') return recoveryUnavailable(env);
     return response({ error: 'The verification code could not be checked. Request a new code and try again.' }, 502, env);
@@ -146,13 +147,13 @@ async function completePasscodeReset(request, env) {
   const version = Math.max(0, Number(refreshed?.auth_version || 0));
   const token = await signSession(env, customer.id);
   return withSession({
-    ok: true, customerId: customer.id, phone: \`******\${phone.slice(-4)}\`,
+    ok: true, customerId: customer.id, phone: `******${phone.slice(-4)}`,
     registeredPhone: phone, name: customer.name || '', passcodeReset: true
   }, env, token);
 }
 async function updateCustomer(request, env) { const sessionId = await sessionCustomerId(request, env); if (!sessionId) return response({ error: 'Customer authentication required.' }, 401, env); let payload = {}; try { payload = await request.json(); } catch (_) {} if (String(payload.id || '').trim() !== sessionId) return response({ error: 'Customer identity does not match the signed-in account.' }, 409, env); await env.DB.prepare('UPDATE customers SET whatsapp_opt_in=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(payload.whatsappOptIn ? 1 : 0, sessionId).run(); return response({ ok: true, customerId: sessionId }, 200, env); }
 async function customerOrdersFromSnapshots(request, env, customerId) {
-  const { results } = await env.DB.prepare(\`SELECT o.id,o.customer_name,o.customer_phone,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.payment_collected_at,
+  const { results } = await env.DB.prepare(`SELECT o.id,o.customer_name,o.customer_phone,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.payment_collected_at,
     c.name registered_name,c.phone registered_phone,
     COALESCE(s.recipient_name,a.recipient_name,o.customer_name) recipient_name,
     COALESCE(s.delivery_phone,a.delivery_phone) delivery_phone,
@@ -168,7 +169,7 @@ async function customerOrdersFromSnapshots(request, env, customerId) {
     LEFT JOIN addresses a ON a.id=o.address_id
     LEFT JOIN order_items oi ON oi.order_id=o.id
     WHERE o.customer_id=? AND COALESCE(o.is_test_order,0)=0
-    ORDER BY o.created_at DESC,oi.id ASC\`).bind(customerId).all();
+    ORDER BY o.created_at DESC,oi.id ASC`).bind(customerId).all();
   const map = new Map();
   for (const row of results || []) {
     if (!map.has(row.id)) map.set(row.id, {
@@ -219,7 +220,7 @@ async function protectedOrders(request, env) {
   }
   // Identity always comes from the signed-in account. The delivery contact is an
   // order-specific field and is stored only in the immutable address snapshot.
-  const address = { ...(payload.address || {}), deliveryPhone: \`91\${deliveryPhone}\` };
+  const address = { ...(payload.address || {}), deliveryPhone: `91${deliveryPhone}` };
   const forwarded = { ...payload, customer: { ...(payload.customer || {}), phone: registeredPhone }, address };
   const responseFromOriginal = await original.fetch(new Request(request, {
     method: 'POST', body: JSON.stringify(forwarded)
