@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 const BASE_URL = process.env.BASE_URL || 'https://freshway-f32.pages.dev';
 const VIEWPORT_STYLES_PATH = '/styles.css?v=20261021-mobile-viewport-fit-v1';
 const CUSTOMER_APP_PATH = '/app.js?v=20261021-home-navigation-refresh-v1';
+const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-location-field-reconcile-v1';
+const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261021-location-field-reconcile-v1';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchWithRetry(url, options = {}) {
@@ -51,6 +53,8 @@ async function waitForFullImageFitAssets(base) {
   const appPath = CUSTOMER_APP_PATH;
   const promotionPath = '/frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2';
   const customerCataloguePath = '/frontend/customer/catalogue.js?v=20261021-category-refresh-restore-v2';
+  const addressGeocodePath = ADDRESS_GEOCODE_PATH;
+  const addressSystemPath = ADDRESS_SYSTEM_PATH;
   const cataloguePath = '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1';
   let lastError;
 
@@ -82,27 +86,35 @@ async function waitForFullImageFitAssets(base) {
       assertCurrentScriptReference(indexHtml, indexResponse.url, promotionPath, 'production home');
       assert.ok(indexHtml.includes(viewportStylesPath.slice(1)), 'production home must reference current mobile viewport styles');
       assertCurrentScriptReference(indexHtml, indexResponse.url, customerCataloguePath, 'production home');
+      assertCurrentScriptReference(indexHtml, indexResponse.url, addressGeocodePath, 'production home');
+      assertCurrentScriptReference(indexHtml, indexResponse.url, addressSystemPath, 'production home');
       assert.ok(sw.includes(viewportStylesPath), 'service worker must cache the current mobile viewport stylesheet');
+      assert.ok(sw.includes(addressGeocodePath), 'service worker must cache the current address geocode mapper');
+      assert.ok(sw.includes(addressSystemPath), 'service worker must cache the current address editor');
       assertCurrentScriptReference(adminHtml, adminResponse.url, cataloguePath, 'production Owner');
       assert.ok(sw.includes(appPath), 'service worker does not cache the current app navigation script');
       assert.ok(sw.includes(promotionPath), 'service worker does not cache the current promotion script');
       assert.ok(sw.includes(customerCataloguePath), 'service worker does not cache the current customer catalogue script');
 
-      const [viewportStylesResponse, appResponse, promotionResponse, customerCatalogueResponse, catalogueResponse] = await Promise.all([
+      const [viewportStylesResponse, appResponse, promotionResponse, customerCatalogueResponse, addressGeocodeResponse, addressSystemResponse, catalogueResponse] = await Promise.all([
         fetch(`${base}${viewportStylesPath}`, { cache: 'no-store', redirect: 'follow' }),
         fetch(`${base}${appPath}`, { cache: 'no-store', redirect: 'follow' }),
         fetch(`${base}${promotionPath}`, { cache: 'no-store', redirect: 'follow' }),
         fetch(`${base}${customerCataloguePath}`, { cache: 'no-store', redirect: 'follow' }),
+        fetch(`${base}${addressGeocodePath}`, { cache: 'no-store', redirect: 'follow' }),
+        fetch(`${base}${addressSystemPath}`, { cache: 'no-store', redirect: 'follow' }),
         fetch(`${base}${cataloguePath}`, { cache: 'no-store', redirect: 'follow' })
       ]);
       assert.equal(viewportStylesResponse.status, 200, 'current mobile viewport stylesheet must load');
       assert.equal(appResponse.status, 200, 'current customer navigation app script must load');
       assert.equal(promotionResponse.status, 200, 'current customer promotion script must load');
       assert.equal(customerCatalogueResponse.status, 200, 'current customer catalogue script must load');
+      assert.equal(addressGeocodeResponse.status, 200, 'current address geocode mapper must load');
+      assert.equal(addressSystemResponse.status, 200, 'current address editor must load');
       assert.equal(catalogueResponse.status, 200, 'current Owner catalogue script must load');
 
-      const [viewportStylesSource, appSource, promotionSource, customerCatalogueSource, catalogueSource] = await Promise.all([
-        viewportStylesResponse.text(), appResponse.text(), promotionResponse.text(), customerCatalogueResponse.text(), catalogueResponse.text()
+      const [viewportStylesSource, appSource, promotionSource, customerCatalogueSource, addressGeocodeSource, addressSystemSource, catalogueSource] = await Promise.all([
+        viewportStylesResponse.text(), appResponse.text(), promotionResponse.text(), customerCatalogueResponse.text(), addressGeocodeResponse.text(), addressSystemResponse.text(), catalogueResponse.text()
       ]);
       assert.ok(appSource.includes("function setView(name,options){if(name==='home'&&options?.history!=='none')window.freshWayCustomerCatalogueGoHome?.();navigation.setView(name,options)"), 'home navigation must reset category state for explicit Home actions only');
       assert.ok(customerCatalogueSource.includes("window.freshWayCustomerCatalogueGoHome=()=>{const state=window.history.state;if(state?.__freshwayCustomer&&state.category)window.history.replaceState({...state,category:null},'',window.location.href);setMode(null,{history:'none'})};"), 'category home reset must preserve navigation view history');
@@ -114,6 +126,12 @@ async function waitForFullImageFitAssets(base) {
       assert.match(customerCatalogueSource,/home\.insertBefore\(c,\s*searchWrap\.nextSibling\)/);
       assert.match(customerCatalogueSource,/heading\.classList\.add\('fw-category-home-hidden'\)/);
       assert.match(customerCatalogueSource,/if\(!selected\)\{grid\.classList\.add\('fw-category-home-hidden'\);return\}/);
+      assert.match(addressGeocodeSource,/houseFlat: first\(a\.house_number, a\.house_name\)/);
+      assert.match(addressGeocodeSource,/pincode: indianPincode\(a\.postcode\)/);
+      assert.match(addressGeocodeSource,/landmark: ''/);
+      assert.ok(addressSystemSource.includes("fetch('/api/geocode/reverse?lat='), 'address editor must call the same-origin geocoder');
+      assert.ok(addressSystemSource.includes('editorCoordinates = previousCoordinates'), 'failed geocoding must restore the last verified pin');
+      assert.doesNotMatch(addressSystemSource,/const preserve = labelFields\\.map/,'old address data must not overwrite newly geocoded fields');
       assert.match(catalogueSource, /\.fw-promo-preview\{[^}]*height:auto;min-height:0;aspect-ratio:auto/);
       assert.match(catalogueSource, /\.fw-promo-preview img\{[^}]*max-width:100%;max-height:320px;width:auto;height:auto;object-fit:contain/);
       assert.match(catalogueSource, /\.fw-product-icon\{height:auto;min-height:100px;aspect-ratio:4\/3/);
@@ -208,30 +226,46 @@ async function verifyCustomDomain() {
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/app.js?v=20261021-home-navigation-refresh-v1', 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2', 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/catalogue.js?v=20261021-category-refresh-restore-v2', 'custom-domain home');
+  assertCurrentScriptReference(homeHtml, homeResponse.url, ADDRESS_GEOCODE_PATH, 'custom-domain home');
+  assertCurrentScriptReference(homeHtml, homeResponse.url, ADDRESS_SYSTEM_PATH, 'custom-domain home');
   assertCurrentScriptReference(adminHtml, adminResponse.url, '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1', 'custom-domain Owner');
   assert.ok(sw.includes('/app.js?v=20261021-home-navigation-refresh-v1'), 'custom-domain service worker must cache the current app navigation script');
   assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2'), 'custom-domain service worker must cache the current promotion script');
   assert.ok(sw.includes('/frontend/customer/catalogue.js?v=20261021-category-refresh-restore-v2'), 'custom-domain service worker must cache the current customer catalogue script');
+  assert.ok(sw.includes(ADDRESS_GEOCODE_PATH), 'custom-domain service worker must cache the current address geocode mapper');
+  assert.ok(sw.includes(ADDRESS_SYSTEM_PATH), 'custom-domain service worker must cache the current address editor');
 
   const shareMatch = homeHtml.match(/property="og:image" content="([^"]+)"/);
   assert.ok(shareMatch, 'custom-domain Open Graph image URL must exist');
   const shareImageUrl = new URL(shareMatch[1], customBase);
   assert.equal(shareImageUrl.origin, customBase, 'share image must not point to a different host');
-  const [shareImageResponse, healthResponse, productsResponse, categoriesResponse, customerCatalogueResponse, viewportStylesResponse, appResponse] = await Promise.all([
+  const [shareImageResponse, healthResponse, productsResponse, categoriesResponse, customerCatalogueResponse, viewportStylesResponse, appResponse, addressGeocodeResponse, addressSystemResponse] = await Promise.all([
     fetchWithRetry(shareImageUrl.href, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/api/health`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/api/products`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/api/categories`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/frontend/customer/catalogue.js?v=20261021-category-refresh-restore-v2`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}${VIEWPORT_STYLES_PATH}`, { cache: 'no-store' }),
-    fetchWithRetry(`${customBase}${CUSTOMER_APP_PATH}`, { cache: 'no-store' })
+    fetchWithRetry(`${customBase}${CUSTOMER_APP_PATH}`, { cache: 'no-store' }),
+    fetchWithRetry(`${customBase}${ADDRESS_GEOCODE_PATH}`, { cache: 'no-store' }),
+    fetchWithRetry(`${customBase}${ADDRESS_SYSTEM_PATH}`, { cache: 'no-store' })
   ]);
   assert.equal(customerCatalogueResponse.status, 200, 'customer catalogue script must load on the custom domain');
   assert.equal(appResponse.status, 200, 'customer app navigation script must load on the custom domain');
   assert.equal(viewportStylesResponse.status, 200, 'mobile viewport stylesheet must load on the custom domain');
+  assert.equal(addressGeocodeResponse.status, 200, 'address geocode mapper must load on the custom domain');
+  assert.equal(addressSystemResponse.status, 200, 'address editor must load on the custom domain');
   assertResponsiveViewportCss(await viewportStylesResponse.text(), 'custom domain');
   const customerCatalogueSource = await customerCatalogueResponse.text();
   const appSource = await appResponse.text();
+  const addressGeocodeSource = await addressGeocodeResponse.text();
+  const addressSystemSource = await addressSystemResponse.text();
+  assert.match(addressGeocodeSource,/houseFlat: first\(a\.house_number, a\.house_name\)/);
+  assert.match(addressGeocodeSource,/pincode: indianPincode\(a\.postcode\)/);
+  assert.match(addressGeocodeSource,/landmark: ''/);
+  assert.ok(addressSystemSource.includes("fetch('/api/geocode/reverse?lat='), 'custom-domain editor must call the same-origin geocoder');
+  assert.ok(addressSystemSource.includes('editorCoordinates = previousCoordinates'), 'custom-domain editor must restore the last verified pin on lookup failure');
+  assert.doesNotMatch(addressSystemSource,/const preserve = labelFields\\.map/,'custom-domain editor must not retain stale geo fields');
   assert.ok(appSource.includes("function setView(name,options){if(name==='home'&&options?.history!=='none')window.freshWayCustomerCatalogueGoHome?.();navigation.setView(name,options)"), 'custom-domain home navigation resets category state');
   assert.ok(customerCatalogueSource.includes("window.freshWayCustomerCatalogueGoHome=()=>{const state=window.history.state;if(state?.__freshwayCustomer&&state.category)window.history.replaceState({...state,category:null},'',window.location.href);setMode(null,{history:'none'})};"), 'custom-domain category state reset is current');
   assert.match(customerCatalogueSource,/home\.insertBefore\(c,\s*searchWrap\.nextSibling\)/);
@@ -245,6 +279,10 @@ async function verifyCustomDomain() {
   assert.equal(health.service, 'freshway-api', 'custom-domain API must reach the FreshWay Worker');
   const products = await productsResponse.json();
   const categories = await categoriesResponse.json();
+  const geocodeResponse = await fetchWithRetry(`${customBase}/api/geocode/reverse?lat=17.3850&lon=78.4867`, { cache: 'no-store' });
+  assert.equal(geocodeResponse.status, 200, 'custom-domain reverse-geocode API must return HTTP 200');
+  const geocodePayload = await geocodeResponse.json();
+  assert.ok(geocodePayload.address && typeof geocodePayload.address === 'object', 'reverse-geocode API must return structured address details');
   assert.ok(Array.isArray(products.products), 'custom-domain products API must return a products array');
   assert.ok(Array.isArray(categories.categories), 'custom-domain categories API must return a categories array');
 
