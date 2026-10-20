@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const source = fs.readFileSync('address-system-final.js', 'utf8');
 const index = fs.readFileSync('index.html', 'utf8');
 const sw = fs.readFileSync('sw.js', 'utf8');
+const css = fs.readFileSync('frontend/customer/address-book.css', 'utf8');
 
 assert.match(source, /function checkoutAddressIssue\(address\)/);
 for (const required of ['recipient name','delivery contact number','house\/flat number','area\/street','city','PIN code']) {
@@ -15,7 +16,15 @@ assert.match(source, /buildEditor\(editAddressId\)/);
 assert.match(source, /modalOrigin === 'checkout' && returnedAddress/);
 assert.match(source, /hideModal\(\);\s*syncCheckout\(\);/);
 assert.match(source, /isDefault: editingAddress \? !!editingAddress\.isDefault : addresses\.length === 0/);
-assert.ok(index.includes('address-system-final.js?v=20261020-checkout-address-completion-v1'), 'HTML must load the updated address module');
-assert.ok(sw.includes('/address-system-final.js?v=20261020-checkout-address-completion-v1'), 'service worker must cache the updated address module');
-assert.match(sw, /freshway-v49/);
-console.log('checkout incomplete/default address completion contract OK');
+assert.match(source, /const preserve = labelFields\.map/);
+assert.match(source, /addressLoadError = error\.message/);
+assert.match(source, /id="addressModalTitle" tabindex="-1"/);
+assert.match(source, /modalReturnFocus/);
+assert.ok(index.includes('address-system-final.js?v=20261020-address-ui-hardening-v2'), 'HTML must load the current address module');
+assert.ok(sw.includes('/address-system-final.js?v=20261020-address-ui-hardening-v2'), 'service worker must cache the current address module');
+assert.ok(index.includes('address-book.css?v=20261020-address-ui-hardening-v2'), 'HTML must load the current address CSS');
+assert.ok(sw.includes('/frontend/customer/address-book.css?v=20261020-address-ui-hardening-v2'), 'service worker must cache the current address CSS');
+assert.match(sw, /freshway-v50/);
+assert.match(css, /#toast\s*\{[^}]*white-space:\s*normal/s);
+assert.match(css, /\.fw-address-incomplete\s*\{/);
+console.log('checkout address completion, geocoding preservation, error feedback, accessibility and asset cache tests passed');

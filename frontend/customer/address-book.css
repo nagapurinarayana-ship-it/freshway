@@ -223,3 +223,10 @@ label[hidden] { display: none !important; }
   .fw-checkout-address { align-items: flex-start; }
   .fw-checkout-address .fw-change-address { padding: 9px 10px; }
 }
+
+/* Clear, readable address feedback that stays above the fixed cart bar. */
+#toast { width: max-content; max-width: calc(100vw - 28px); white-space: normal; overflow-wrap: anywhere; text-align: center; line-height: 1.4; z-index: 80; bottom: calc(154px + env(safe-area-inset-bottom)); }
+.fw-address-incomplete { color: #805900 !important; background: #fff8e8; border: 1px solid #f1dfaa; border-radius: 10px; padding: 9px 10px; font-size: 11px; line-height: 1.45; }
+.fw-address-modal-error .fw-address-subtitle { color: #9d3d2b; }
+#addressModal [tabindex="-1"]:focus { outline: none; }
+@media (max-width: 390px) { #toast { max-width: calc(100vw - 24px); bottom: calc(158px + env(safe-area-inset-bottom)); } }

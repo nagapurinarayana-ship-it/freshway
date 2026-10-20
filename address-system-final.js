@@ -41,6 +41,8 @@
   let locationRequestId = 0;
   let mapLoadPromise = null;
   let editorLabel = 'Home';
+  let addressLoadError = '';
+  let modalReturnFocus = null;
 
   function toast(message) {
     const element = $('#toast');
@@ -187,24 +189,30 @@
       const r = await fetch('/api/addresses', { credentials: 'include', cache: 'no-store' });
       if (!r.ok) {
         if (r.status === 401) {
-          addresses = [];
-          activeAddress = null;
+          addresses = []; activeAddress = null;
+          addressLoadError = 'Sign in to load and manage your saved delivery addresses.';
           renderDisplays();
-          return;
+          if (options && options.showError) toast(addressLoadError);
+          if ($('#addressModal') && !$('#addressModal').classList.contains('hidden') && !(options && options.deferRender)) renderManager();
+          return false;
         }
-        throw new Error('Could not load your saved addresses.');
+        throw new Error('Could not load your saved addresses. Please check your connection and retry.');
       }
       const data = await readJsonResponse(r);
-      addresses = uniqueAddresses(data.addresses || []);
+      if (!Array.isArray(data.addresses)) throw new Error('Saved addresses could not be read. Please retry.');
+      addresses = uniqueAddresses(data.addresses); addressLoadError = '';
       activeAddress = addresses.find(function (address) { return Number(address.id) === Number(previousId); }) || defaultAddress();
       renderDisplays();
-      if ($('#addressModal') && !$('#addressModal').classList.contains('hidden')) renderManager();
+      if ($('#addressModal') && !$('#addressModal').classList.contains('hidden') && !(options && options.deferRender)) renderManager();
+      return true;
     } catch (error) {
+      addressLoadError = error.message || 'Could not load your saved addresses. Please retry.';
+      if (options && options.showError) toast(addressLoadError);
       renderDisplays();
-      if (options && options.showError) toast(error.message || 'Could not load saved addresses.');
+      if ($('#addressModal') && !$('#addressModal').classList.contains('hidden') && !(options && options.deferRender)) renderManager();
+      return false;
     }
   }
-
   function ensureCheckoutSummary() {
     const form = $('#checkoutForm');
     if (!form || $('#fwCheckoutAddressSummary')) return;
@@ -212,6 +220,7 @@
     summary.id = 'fwCheckoutAddressSummary';
     summary.className = 'fw-checkout-address';
     summary.setAttribute('aria-label', 'Delivery address');
+    summary.setAttribute('aria-live', 'polite');
     form.insertBefore(summary, form.firstElementChild);
   }
 
@@ -286,12 +295,33 @@
     if (element) element.classList.add('hidden');
     document.body.classList.remove('fw-address-modal-open');
     destroyMap();
+    const returnFocus = modalReturnFocus; modalReturnFocus = null;
+    if (returnFocus && returnFocus.isConnected && typeof returnFocus.focus === 'function') {
+      try { returnFocus.focus({ preventScroll: true }); } catch (_) { returnFocus.focus(); }
+    }
+  }
+
+  function focusModalTitle() {
+    const title = $('#addressModalTitle');
+    if (title && typeof title.focus === 'function') {
+      try { title.focus({ preventScroll: true }); } catch (_) { title.focus(); }
+    }
+  }
+
+  function renderLoadingManager() {
+    const element = modal(); if (!element) return;
+    element.innerHTML = '<div class="modal-sheet address-modal-sheet" role="document"><div class="modal-head fw-address-modal-head"><div><span class="eyebrow">DELIVERY</span><h2 id="addressModalTitle" tabindex="-1">Loading addresses…</h2><p class="fw-address-subtitle" role="status">Getting your saved delivery locations.</p></div><button type="button" class="icon-btn" data-close-modal aria-label="Close addresses">×</button></div></div>';
+    showModal(); focusModalTitle();
   }
 
   function renderManager() {
     const element = modal();
     if (!element) return;
     destroyMap();
+    if (addressLoadError) {
+      element.innerHTML = '<div class="modal-sheet address-modal-sheet fw-address-modal-error" role="document"><div class="modal-head fw-address-modal-head"><div><span class="eyebrow">DELIVERY</span><h2 id="addressModalTitle" tabindex="-1">Addresses unavailable</h2><p class="fw-address-subtitle" role="alert">' + esc(addressLoadError) + '</p></div><button type="button" class="icon-btn" data-close-modal aria-label="Close addresses">×</button></div><button type="button" class="primary-btn full" id="fwAddressRetry">Retry loading addresses</button></div>';
+      showModal(); focusModalTitle(); return;
+    }
     const list = addresses.map(function (address) {
       const selected = activeAddress && Number(activeAddress.id) === Number(address.id);
       return '<article class="fw-address-card' + (selected ? ' is-selected' : '') + '">' +
@@ -310,12 +340,13 @@
     }).join('');
     element.innerHTML =
       '<div class="modal-sheet address-modal-sheet" role="document">' +
-      '<div class="modal-head fw-address-modal-head"><div><span class="eyebrow">DELIVERY</span><h2>Your addresses</h2><p class="fw-address-subtitle">Choose an address or manage your saved locations.</p></div>' +
+      '<div class="modal-head fw-address-modal-head"><div><span class="eyebrow">DELIVERY</span><h2 id="addressModalTitle" tabindex="-1">Your addresses</h2><p class="fw-address-subtitle">Choose an address or manage your saved locations.</p></div>' +
       '<button type="button" class="icon-btn" data-close-modal aria-label="Close addresses">×</button></div>' +
       (list || '<div class="fw-address-empty"><span>📍</span><strong>No saved addresses yet</strong><p>Add your first address. It will automatically become your default.</p></div>') +
       '<button type="button" class="primary-btn full fw-address-add" id="fwAddressManagerNew">+ Add address</button>' +
       '</div>';
     showModal();
+    focusModalTitle();
   }
 
   function newAddressDraft() {
@@ -356,7 +387,7 @@
     const element = modal();
     element.innerHTML =
       '<div class="modal-sheet address-modal-sheet address-editor-sheet" role="document">' +
-      '<div class="modal-head fw-address-modal-head"><div><span class="eyebrow">' + (isEditing ? 'EDIT ADDRESS' : 'NEW ADDRESS') + '</span><h2>' + (isEditing ? 'Edit delivery address' : 'Add delivery address') + '</h2><p class="fw-address-subtitle">Save it once. We will use your default next time.</p></div>' +
+      '<div class="modal-head fw-address-modal-head"><div><span class="eyebrow">' + (isEditing ? 'EDIT ADDRESS' : 'NEW ADDRESS') + '</span><h2 id="addressModalTitle" tabindex="-1">' + (isEditing ? 'Edit delivery address' : 'Add delivery address') + '</h2><p class="fw-address-subtitle">Save it once. We will use your default next time.</p></div>' +
       '<button type="button" class="icon-btn" data-close-modal aria-label="Close address editor">×</button></div>' +
       '<div class="fw-address-editor-body">' +
       '<div class="address-labels fw-address-labels">' +
@@ -391,6 +422,7 @@
       '</div>';
     showModal();
     labelFields.forEach(function (pair) { setValue(pair[0], source[pair[1]]); });
+    focusModalTitle();
     renderLocationStatus();
     loadMap().then(initMap).catch(function () {
       const mapElement = $('#fwAddressMap');
@@ -506,9 +538,11 @@
       if (requestId !== locationRequestId) return;
       const data = fieldsFromGeocode(result, latitude, longitude, source, accuracy);
       editorCoordinates = data;
-      const preserve = ['recipientName', 'deliveryPhone', 'label', 'note', 'floor'];
+      // Reverse geocoding may fill blank fields, but never erase or silently replace customer-entered details.
+      const preserve = labelFields.map(function (pair) { return pair[1]; });
       const previous = readEditor();
-      preserve.forEach(function (key) { data[key] = previous[key] || (editingAddress ? editingAddress[key] : '') || data[key] || ''; });
+      preserve.forEach(function (key) { data[key] = previous[key] || (editingAddress && editingAddress[key]) || data[key] || ''; });
+      data.label = previous.label || (editingAddress && editingAddress.label) || data.label || editorLabel;
       Object.assign(editorCoordinates, {
         latitude: data.latitude, longitude: data.longitude, accuracyMeters: data.accuracyMeters,
         locationSource: data.locationSource, placeId: data.placeId, locationUpdatedAt: data.locationUpdatedAt
@@ -523,6 +557,7 @@
     if (requestId !== locationRequestId) return;
     renderLocationStatus();
     checkForMatchingAddress();
+    toast('Location selected. Existing address details were kept; verify they match the pin before saving.');
   }
 
   function readEditor() {
@@ -746,15 +781,14 @@
 
   function openManager(origin, editAddressId) {
     modalOrigin = origin || 'profile';
-    loadSaved({ preserveSelection: true, showError: false }).then(function () {
-      if (editAddressId != null && addresses.some(function (address) { return Number(address.id) === Number(editAddressId); })) {
-        buildEditor(editAddressId);
-      } else {
-        renderManager();
-      }
+    modalReturnFocus = document.activeElement; addressLoadError = '';
+    renderLoadingManager();
+    loadSaved({ preserveSelection: true, showError: true, deferRender: true }).then(function (loaded) {
+      if (!loaded) { renderManager(); return; }
+      if (editAddressId != null && addresses.some(function (address) { return Number(address.id) === Number(editAddressId); })) buildEditor(editAddressId);
+      else renderManager();
     });
   }
-
   function openCheckoutAddressManager(editAddressId) {
     openManager('checkout', editAddressId);
   }
@@ -775,6 +809,7 @@
     document.addEventListener('click', async function (event) {
       const target = event.target;
       if (!(target instanceof Element)) return;
+      if (target.closest('#fwAddressRetry')) { event.preventDefault(); addressLoadError = ''; renderLoadingManager(); await loadSaved({ preserveSelection: true, showError: true }); if (addressLoadError) renderManager(); return; }
       const searchResult = target.closest('[data-fw-search-index]');
       if (searchResult) {
         const item = searchResults[Number(searchResult.dataset.fwSearchIndex)];
