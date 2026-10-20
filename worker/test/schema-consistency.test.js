@@ -74,14 +74,15 @@ test('fresh database address snapshot schema matches the production migration an
 
 
 test('fresh customer schema supports passcode-reset session invalidation', () => {
-  const customersTable = schema.match(/CREATE TABLE IF NOT EXISTS customers \\(([\\s\\S]*?)\\n\\);/)?.[1];
+  const customersTable = schema.split('CREATE TABLE IF NOT EXISTS customers (')[1]?.split('\n);')[0];
   assert.ok(customersTable?.includes('auth_version INTEGER NOT NULL DEFAULT 0'));
   assert.match(authVersionMigration, /ALTER TABLE customers ADD COLUMN auth_version INTEGER NOT NULL DEFAULT 0/);
 });
 
 test('historical order phone reconciliation preserves delivery contacts in snapshots', () => {
-  assert.match(accountPhoneMigration, /UPDATE orders[\\s\\S]*SET customer_phone/);
-  assert.match(accountPhoneMigration, /c\\.phone/);
-  assert.match(accountPhoneMigration, /orders\\.customer_id/);
-  assert.match(schema, /delivery_phone TEXT NOT NULL/);
+  assert.ok(accountPhoneMigration.includes('UPDATE orders'));
+  assert.ok(accountPhoneMigration.includes('SET customer_phone'));
+  assert.ok(accountPhoneMigration.includes('c.phone'));
+  assert.ok(accountPhoneMigration.includes('orders.customer_id'));
+  assert.ok(schema.includes('delivery_phone TEXT NOT NULL'));
 });
