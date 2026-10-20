@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import handler from '../src/passcode-auth.js';
 
-const customer = { id: 'customer-1', name: '', phone: '', passcode_salt: null, passcode_hash: null, auth_version: 0 };
+const customer = { id: 'customer-1', name: '', phone: '919876543210', passcode_salt: null, passcode_hash: null, auth_version: 0 };
 const env = {
   APP_ORIGIN: 'https://freshway-f32.pages.dev',
   CUSTOMER_SESSION_SECRET: 'fixture-customer-session',
