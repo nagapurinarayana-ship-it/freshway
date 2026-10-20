@@ -228,6 +228,10 @@
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden && notifications?.classList.contains('active')) { void loadStatus(); void loadAlerts(); }
     });
+    window.addEventListener('freshway:admin-authenticated', () => {
+      void loadStatus();
+      void loadAlerts();
+    });
     void loadStatus();
   }
 
