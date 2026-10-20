@@ -104,7 +104,12 @@ assert.equal(indexResponse.status, 200);
 assert.match(indexHtml, /<link rel="manifest" href="\/manifest\.webmanifest">/);
 
 const manifestResponse = await fetchWithRetry(`${base}/manifest.webmanifest`);
-assert.equal(manifestResponse.url, `${base}/manifest.webmanifest`);
+const finalManifestUrl = new URL(manifestResponse.url);
+assert.equal(finalManifestUrl.pathname, '/manifest.webmanifest');
+assert.ok(
+  [new URL(base).origin, new URL(process.env.CUSTOM_DOMAIN_URL || 'https://fwcoldpressed.in').origin].includes(finalManifestUrl.origin),
+  'manifest must remain on the Pages host or the configured production custom domain'
+);
 assert.equal(manifestResponse.status, 200);
 assert.match(
   manifestResponse.headers.get('content-type') || '',
