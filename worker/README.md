@@ -55,7 +55,21 @@ npx wrangler secret put WHATSAPP_ACCESS_TOKEN
 
 Set `WHATSAPP_PHONE_NUMBER_ID` and `WHATSAPP_GRAPH_VERSION` as Worker environment variables. Only customers who explicitly opted in are selected for WhatsApp broadcasts. Use approved templates where Meta requires them.
 
-## 4. API
+## 4. Customer identity and passcode recovery
+
+The normalized mobile number used at account registration is the permanent customer identity. Customer order queries and Owner customer metrics are keyed by the authenticated `customer_id` and display the registered customer phone. The phone and recipient in an order's delivery-address snapshot are delivery-specific; they must never overwrite `customers.phone` or replace the account identity in `orders.customer_phone`. Migration `0023_registered_account_phone.sql` repairs the denormalized registered phone for historical orders while preserving address snapshots.
+
+A mobile number that already has a passcode cannot register again. Customers must sign in with that number and passcode. Forgot-passcode recovery is implemented through Twilio Verify SMS and is deliberately disabled unless all of these Worker secrets are set:
+
+```bash
+npx wrangler secret put TWILIO_ACCOUNT_SID
+npx wrangler secret put TWILIO_AUTH_TOKEN
+npx wrangler secret put TWILIO_VERIFY_SERVICE_SID
+```
+
+Create a Twilio Verify service with SMS enabled and store the credentials in Cloudflare Worker secrets, never in browser code. Reset attempts are rate-limited; a successful reset increments `customers.auth_version`, invalidating older sessions. If these secrets are absent, the reset API returns HTTP 503 without changing the passcode.
+
+## 5. API
 
 Public customer endpoints:
 
@@ -79,7 +93,7 @@ Admin endpoints require `Authorization: Bearer <ADMIN_TOKEN>`:
 
 `PATCH /api/admin/orders/:id` supports delivery status, cash-payment status and persistent delivery planning (`Today`, `Tomorrow`, `Later`, `Unscheduled`). Cash can only be marked collected after the order is delivered.
 
-## 5. Deploy
+## 6. Deploy
 
 ```bash
 npm install
