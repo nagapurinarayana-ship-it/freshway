@@ -11,6 +11,14 @@ assert.match(view,/product-action-control/);
 assert.match(css,/\.product-action-info/);
 assert.match(css,/\.product-action-control/);
 assert.match(css,/fw-cart-bar-visible main/);
+assert.match(css,/body\\{padding-bottom:calc\\(84px \\+ env\\(safe-area-inset-bottom,0px\\)\\)\\}/,'body reserves Android safe-area space');
+assert.match(css,/main\\{padding:14px 16px calc\\(98px \\+ env\\(safe-area-inset-bottom,0px\\)\\)\\}/,'main reserves space below fixed navigation');
+assert.match(css,/\\.bottom-nav\\{height:calc\\(68px \\+ env\\(safe-area-inset-bottom,0px\\)\\)\\}/,'bottom navigation includes device safe area');
+assert.match(css,/\\.info-page\\{display:grid;gap:10px;padding:2px 0 8px;min-width:0\\}/,'business pages use shared scroll reserve instead of double bottom padding');
+assert.match(css,/\\.store-about-hero\\{[^}]*min-width:0\\}/,'About brand panel may shrink safely on narrow viewports');
+assert.match(css,/\\.store-info-section\\{[^}]*min-width:0\\}/,'store details cards prevent horizontal overflow');
+assert.match(css,/\\.store-contact-cta\\{[^}]*overflow-wrap:anywhere\\}/,'contact action text wraps within the usable viewport');
+
 assert.match(adminCss,/\.customer-card \.address/);
 assert.match(sw,/const CACHE = 'freshway-v\d+'/);
 assert.doesNotMatch(sw,/admin\.css\?v=20260907-owner-v2/);
