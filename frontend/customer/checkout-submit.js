@@ -15,9 +15,10 @@
       e.preventDefault();
       if(!cartItems().length){toast('Your cart is empty');setView('home');return}
       const form=e.target;
-      const name=$('#customerName')?.value.trim()||'';
-      const phone=customerCheckout.normalizePhone?customerCheckout.normalizePhone($('#customerPhone')?.value||''):($('#customerPhone')?.value.trim()||'');
       const address=customerAddress.normalize(customerAddressFlow.read(document,customerAddress));
+      const name=$('#customerName')?.value.trim()||customerAuth.registeredName?.()||address.recipientName||'';
+      const rawPhone=$('#customerPhone')?.value||address.deliveryPhone||customerAuth.registeredPhone?.()||'';
+      const phone=customerCheckout.normalizePhone?customerCheckout.normalizePhone(rawPhone):String(rawPhone).trim();
       const validationError=customerCheckout.validate(name,phone,address);
       if(validationError)return toast(validationError);
       const data={name,phone};
@@ -53,6 +54,8 @@
       const form=$('#checkoutForm');
       if(!form||form.__freshwayCheckoutSubmitBound)return;
       form.__freshwayCheckoutSubmitBound=true;
+      // Saved-address checkout hides required fields; bypass native blocking and validate in submitOrder.
+      form.noValidate=true;
       form.addEventListener('submit',submitOrder);
     };
     return Object.freeze({bind,submitOrder});
