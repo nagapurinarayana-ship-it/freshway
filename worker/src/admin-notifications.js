@@ -29,7 +29,7 @@ export function buildOrderChangeAlerts(id, before, after, nonce = String(Date.no
     ]) {
       alerts.push({
         audience, customerId: audience === 'customer' ? text(after.customer_id || before.customer_id) : '',
-        orderId, eventType, title: eventTitle, body, url,
+        orderId, eventType, title: audience === 'owner' ? `OWNER · ${eventTitle}` : eventTitle, body, url,
         eventKey: `order:${orderId}:${eventType}:${audience}:${nonce}`
       });
     }

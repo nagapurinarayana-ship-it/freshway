@@ -29,7 +29,7 @@ export function buildOrderPlacedAlerts(order) {
     {
       audience: 'owner', customerId: '', orderId: id,
       eventType: 'new_order', eventKey: `order:${id}:placed:owner`,
-      title: 'New FreshWay order',
+      title: 'OWNER · New FreshWay order',
       body: `${customerName} · ${id} · ${amount} · ${itemCount} item${itemCount === 1 ? '' : 's'} · Cash pending`,
       url: `/admin/?openOrder=${encodeURIComponent(id)}#orders`
     }

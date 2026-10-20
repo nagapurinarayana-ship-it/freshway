@@ -15,7 +15,8 @@ test('new order alerts tell the customer the order was received and alert the Ow
   assert.doesNotMatch(customer.body, /is confirmed/i);
   assert.match(customer.url, /openOrder=FW-12345678-ABC#orders/);
   assert.equal(owner.audience, 'owner');
-  assert.match(owner.title, /New FreshWay order/);
+  assert.match(owner.title, /^OWNER · New FreshWay order/);
+  assert.doesNotMatch(customer.title, /^OWNER/);
   assert.match(owner.body, /Narayana/);
   assert.match(owner.body, /₹2,238/);
   assert.match(owner.body, /4 items/);
@@ -29,6 +30,8 @@ test('only real persisted status, payment, or delivery-plan transitions generate
   const alerts = buildOrderChangeAlerts('FW-1', before, after, 'test-transition');
   assert.equal(alerts.length, 2);
   assert.deepEqual(alerts.map(x => x.audience), ['customer', 'owner']);
+  assert.doesNotMatch(alerts[0].title, /^OWNER/);
+  assert.match(alerts[1].title, /^OWNER · Order status updated/);
   assert.match(alerts[0].body, /order FW-1 is ready/i);
   assert.doesNotMatch(alerts[0].body, /ready for delivery/i);
   assert.match(alerts[1].body, /New → Ready/);
@@ -36,9 +39,13 @@ test('only real persisted status, payment, or delivery-plan transitions generate
 
   const paymentAlerts = buildOrderChangeAlerts('FW-1', before, { ...before, payment_status: 'Collected' }, 'payment-transition');
   assert.equal(paymentAlerts.length, 2);
+  assert.doesNotMatch(paymentAlerts[0].title, /^OWNER/);
+  assert.match(paymentAlerts[1].title, /^OWNER · Order payment updated/);
   assert.match(paymentAlerts[0].body, /cash payment has been collected/i);
   const planAlerts = buildOrderChangeAlerts('FW-1', before, { ...before, delivery_plan: 'Today' }, 'plan-transition');
   assert.equal(planAlerts.length, 2);
+  assert.doesNotMatch(planAlerts[0].title, /^OWNER/);
+  assert.match(planAlerts[1].title, /^OWNER · Order delivery plan updated/);
   assert.match(planAlerts[0].body, /delivery plan.*Today/i);
 });
 
