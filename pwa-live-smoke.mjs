@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 
 const BASE_URL = process.env.BASE_URL || 'https://freshway-f32.pages.dev';
+const VIEWPORT_STYLES_PATH = '/styles.css?v=20261021-mobile-viewport-fit-v1';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchWithRetry(url, options = {}) {
@@ -36,9 +37,18 @@ function assertCurrentScriptReference(html, pageUrl, expectedPath, label) {
   );
 }
 
+function assertResponsiveViewportCss(css, label) {
+  assert.match(css, /body\{padding-bottom:calc\(84px \+ env\(safe-area-inset-bottom,0px\)\)\}/, \`\${label} must reserve the device safe area\`);
+  assert.match(css, /main\{padding:14px 16px calc\(98px \+ env\(safe-area-inset-bottom,0px\)\)\}/, \`\${label} must reserve scroll space below navigation\`);
+  assert.match(css, /\.bottom-nav\{height:calc\(68px \+ env\(safe-area-inset-bottom,0px\)\)\}/, \`\${label} bottom navigation must respect the safe area\`);
+  assert.match(css, /\.info-page\{display:grid;gap:10px;padding:2px 0 8px;min-width:0\}/, \`\${label} About/Contact pages must use the shared scroll reserve\`);
+  assert.match(css, /\.store-contact-cta\{[^}]*min-height:48px/, \`\${label} contact action must remain compact and tappable\`);
+}
+
 async function waitForFullImageFitAssets(base) {
+  const viewportStylesPath = VIEWPORT_STYLES_PATH;
   const promotionPath = '/frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2';
-  const customerCataloguePath = '/frontend/customer/catalogue.js?v=20261021-home-category-first-v1';
+  const customerCataloguePath = '/frontend/customer/catalogue.js?v=20261021-mobile-viewport-fit-v1';
   const cataloguePath = '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1';
   let lastError;
 
@@ -67,23 +77,28 @@ async function waitForFullImageFitAssets(base) {
         indexResponse.text(), adminResponse.text(), swResponse.text()
       ]);
       assertCurrentScriptReference(indexHtml, indexResponse.url, promotionPath, 'production home');
+      assert.ok(indexHtml.includes(viewportStylesPath.slice(1)), 'production home must reference current mobile viewport styles');
       assertCurrentScriptReference(indexHtml, indexResponse.url, customerCataloguePath, 'production home');
+      assert.ok(sw.includes(viewportStylesPath), 'service worker must cache the current mobile viewport stylesheet');
       assertCurrentScriptReference(adminHtml, adminResponse.url, cataloguePath, 'production Owner');
       assert.ok(sw.includes(promotionPath), 'service worker does not cache the current promotion script');
       assert.ok(sw.includes(customerCataloguePath), 'service worker does not cache the current customer catalogue script');
 
-      const [promotionResponse, customerCatalogueResponse, catalogueResponse] = await Promise.all([
+      const [viewportStylesResponse, promotionResponse, customerCatalogueResponse, catalogueResponse] = await Promise.all([
+        fetch(`${base}${viewportStylesPath}`, { cache: 'no-store', redirect: 'follow' }),
         fetch(`${base}${promotionPath}`, { cache: 'no-store', redirect: 'follow' }),
         fetch(`${base}${customerCataloguePath}`, { cache: 'no-store', redirect: 'follow' }),
         fetch(`${base}${cataloguePath}`, { cache: 'no-store', redirect: 'follow' })
       ]);
+      assert.equal(viewportStylesResponse.status, 200, 'current mobile viewport stylesheet must load');
       assert.equal(promotionResponse.status, 200, 'current customer promotion script must load');
       assert.equal(customerCatalogueResponse.status, 200, 'current customer catalogue script must load');
       assert.equal(catalogueResponse.status, 200, 'current Owner catalogue script must load');
 
-      const [promotionSource, customerCatalogueSource, catalogueSource] = await Promise.all([
-        promotionResponse.text(), customerCatalogueResponse.text(), catalogueResponse.text()
+      const [viewportStylesSource, promotionSource, customerCatalogueSource, catalogueSource] = await Promise.all([
+        viewportStylesResponse.text(), promotionResponse.text(), customerCatalogueResponse.text(), catalogueResponse.text()
       ]);
+      assertResponsiveViewportCss(viewportStylesSource, 'production');
       assert.match(promotionSource, /\.fw-promo-carousel\{[^}]*height:auto;aspect-ratio:16\/7/);
       assert.match(promotionSource, /object-fit:contain/);
       assert.match(customerCatalogueSource,/home\.insertBefore\(c,\s*searchWrap\.nextSibling\)/);
@@ -178,24 +193,29 @@ async function verifyCustomDomain() {
   assert.match(homeHtml, /property="og:url" content="https:\/\/fwcoldpressed\.in\//, 'Open Graph URL must use the production domain');
   assert.match(homeHtml, /property="og:image" content="https:\/\/fwcoldpressed\.in\/freshway-whatsapp-share\.png\?v=[^"]+"/, 'WhatsApp share image must use the versioned custom-domain image');
   assert.match(homeHtml, /name="twitter:image" content="https:\/\/fwcoldpressed\.in\/freshway-whatsapp-share\.png\?v=[^"]+"/, 'Twitter share image must use the same versioned custom-domain image');
+  assert.ok(homeHtml.includes(VIEWPORT_STYLES_PATH.slice(1)), 'custom-domain home must reference the current mobile viewport stylesheet');
+  assert.ok(sw.includes(VIEWPORT_STYLES_PATH), 'custom-domain service worker must cache the current mobile viewport stylesheet');
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2', 'custom-domain home');
-  assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/catalogue.js?v=20261021-home-category-first-v1', 'custom-domain home');
+  assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/catalogue.js?v=20261021-mobile-viewport-fit-v1', 'custom-domain home');
   assertCurrentScriptReference(adminHtml, adminResponse.url, '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1', 'custom-domain Owner');
   assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2'), 'custom-domain service worker must cache the current promotion script');
-  assert.ok(sw.includes('/frontend/customer/catalogue.js?v=20261021-home-category-first-v1'), 'custom-domain service worker must cache the current customer catalogue script');
+  assert.ok(sw.includes('/frontend/customer/catalogue.js?v=20261021-mobile-viewport-fit-v1'), 'custom-domain service worker must cache the current customer catalogue script');
 
   const shareMatch = homeHtml.match(/property="og:image" content="([^"]+)"/);
   assert.ok(shareMatch, 'custom-domain Open Graph image URL must exist');
   const shareImageUrl = new URL(shareMatch[1], customBase);
   assert.equal(shareImageUrl.origin, customBase, 'share image must not point to a different host');
-  const [shareImageResponse, healthResponse, productsResponse, categoriesResponse, customerCatalogueResponse] = await Promise.all([
+  const [shareImageResponse, healthResponse, productsResponse, categoriesResponse, customerCatalogueResponse, viewportStylesResponse] = await Promise.all([
     fetchWithRetry(shareImageUrl.href, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/api/health`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/api/products`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/api/categories`, { cache: 'no-store' }),
-    fetchWithRetry(`${customBase}/frontend/customer/catalogue.js?v=20261021-home-category-first-v1`, { cache: 'no-store' })
+    fetchWithRetry(`${customBase}/frontend/customer/catalogue.js?v=20261021-mobile-viewport-fit-v1`, { cache: 'no-store' }),
+    fetchWithRetry(`${customBase}${VIEWPORT_STYLES_PATH}`, { cache: 'no-store' })
   ]);
   assert.equal(customerCatalogueResponse.status, 200, 'customer catalogue script must load on the custom domain');
+  assert.equal(viewportStylesResponse.status, 200, 'mobile viewport stylesheet must load on the custom domain');
+  assertResponsiveViewportCss(await viewportStylesResponse.text(), 'custom domain');
   const customerCatalogueSource = await customerCatalogueResponse.text();
   assert.match(customerCatalogueSource,/home\.insertBefore\(c,\s*searchWrap\.nextSibling\)/);
   assert.match(customerCatalogueSource,/heading\.classList\.add\('fw-category-home-hidden'\)/);
