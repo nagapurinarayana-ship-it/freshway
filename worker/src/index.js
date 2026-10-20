@@ -68,6 +68,7 @@ function scheduleOrderAlerts(ctx, env, alerts) {
   if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(work);
   else return work;
 }
+
 async function existingOrderByClientId(env, customerId, clientOrderId) {
   if (!clientOrderId) return null;
   const { results } = await env.DB.prepare('SELECT id FROM orders WHERE client_order_id=? AND customer_id=? LIMIT 1').bind(clientOrderId, customerId).all();

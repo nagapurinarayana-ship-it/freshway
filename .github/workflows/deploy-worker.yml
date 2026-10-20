@@ -48,7 +48,7 @@ jobs:
           node --check src/order-alerts.js
       - name: Validate Wrangler configuration
         working-directory: worker
-        run: node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); const required=['ADMIN_TOKEN','CUSTOMER_SESSION_SECRET','ADMIN_SESSION_SECRET']; const optional=['TWILIO_ACCOUNT_SID','TWILIO_AUTH_TOKEN','TWILIO_VERIFY_SERVICE_SID','VAPID_PUBLIC_KEY','VAPID_PRIVATE_KEY','VAPID_SUBJECT']; if(x.main!=='src/admin-auth.js'||required.some(s=>!x.secrets?.required?.includes(s))||optional.some(s=>!x.secrets?.optional?.includes(s))||x.secrets.optional.some(s=>!optional.includes(s))||x.vars?.OTP_PROVIDER) process.exit(1)"
+        run: node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8')); const required=['ADMIN_TOKEN','CUSTOMER_SESSION_SECRET','ADMIN_SESSION_SECRET','VAPID_PUBLIC_KEY','VAPID_PRIVATE_KEY','VAPID_SUBJECT']; if(x.main!=='src/admin-auth.js'||required.some(s=>!x.secrets?.required?.includes(s))||x.secrets.optional||x.vars?.OTP_PROVIDER) process.exit(1)"
       - name: Check production deployment credentials
         id: cloudflare
         env:

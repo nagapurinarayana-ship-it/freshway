@@ -48,6 +48,15 @@ async function signedIn(env) {
   return login.headers.get('set-cookie').split(';')[0];
 }
 
+test('Owner API CORS allows the DELETE method required to disable push alerts', async () => {
+  const env = baseEnv();
+  const response = await adminAuth.fetch(new Request('https://fwcoldpressed.in/api/admin/push/subscribe', {
+    method: 'OPTIONS', headers: { Origin: 'https://fwcoldpressed.in' }
+  }), env, { waitUntil() {} });
+  assert.equal(response.status, 204);
+  assert.match(response.headers.get('access-control-allow-methods') || '', /DELETE/);
+});
+
 test('Owner push endpoints require the signed Owner session', async () => {
   const env = baseEnv();
   const response = await adminAuth.fetch(new Request('https://fwcoldpressed.in/api/admin/push/subscribe', {
