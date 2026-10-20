@@ -15,10 +15,23 @@
       e.preventDefault();
       if(!cartItems().length){toast('Your cart is empty');setView('home');return}
       const form=e.target;
-      const address=customerAddress.normalize(customerAddressFlow.read(document,customerAddress));
-      const name=$('#customerName')?.value.trim()||customerAuth.registeredName?.()||address.recipientName||'';
-      const rawPhone=$('#customerPhone')?.value||address.deliveryPhone||customerAuth.registeredPhone?.()||'';
-      const phone=customerCheckout.normalizePhone?customerCheckout.normalizePhone(rawPhone):String(rawPhone).trim();
+      const selectedAddress=window.FreshWayAddressSystem?.getSelectedAddress?.()||null;
+      const formAddress=customerAddressFlow.read(document,customerAddress);
+      // Saved-address checkout hides these fields. Validate from the selected saved address, not stale hidden values.
+      const address=customerAddress.normalize(selectedAddress?Object.assign({},formAddress,{
+        house:selectedAddress.houseFlat||selectedAddress.house||formAddress.house,
+        area:selectedAddress.area||formAddress.area,
+        city:selectedAddress.city||formAddress.city,
+        pincode:selectedAddress.pincode||formAddress.pincode,
+        landmark:selectedAddress.landmark||formAddress.landmark,
+        note:selectedAddress.note||formAddress.note
+      }):formAddress);
+      const selectedName=String(selectedAddress?.recipientName||'').trim();
+      const name=(selectedName.length>=2?selectedName:'')||$('#customerName')?.value.trim()||customerAuth.registeredName?.()||'';
+      const normalizePhone=customerCheckout.normalizePhone;
+      const selectedPhone=normalizePhone?normalizePhone(selectedAddress?.deliveryPhone):String(selectedAddress?.deliveryPhone||'').replace(/\D/g,'');
+      const rawPhone=/^\d{10}$/.test(String(selectedPhone||''))?selectedPhone:($('#customerPhone')?.value||customerAuth.registeredPhone?.()||'');
+      const phone=normalizePhone?normalizePhone(rawPhone):String(rawPhone).trim();
       const validationError=customerCheckout.validate(name,phone,address);
       if(validationError)return toast(validationError);
       const data={name,phone};

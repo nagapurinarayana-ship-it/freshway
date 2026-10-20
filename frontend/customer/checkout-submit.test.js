@@ -3,7 +3,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 
 const source=fs.readFileSync('frontend/customer/checkout-submit.js','utf8');
-const sandbox={window:{},globalThis:{}};
+const sandbox={window:{FreshWayAddressSystem:{getSelectedAddress:()=>({recipientName:'Saved Recipient',deliveryPhone:'+91 9876543210',houseFlat:'1',area:'Main',city:'Warangal',pincode:'506001',isDefault:true})}},globalThis:{}};
 vm.runInNewContext(source,sandbox);
 const create=sandbox.window.FreshWayCustomerCheckoutSubmit.create;
 assert.equal(typeof create,'function');
@@ -12,7 +12,7 @@ const listeners=[];
 const elements={
   '#checkoutForm':{noValidate:false,querySelector:()=>({disabled:false,innerHTML:'',textContent:''}),addEventListener:(type,fn)=>listeners.push([type,fn]),reset:()=>{}},
   '#customerName':{value:'Ravi'},
-  '#customerPhone':{value:'9876543210'},
+  '#customerPhone':{value:'stale-invalid-phone'},
   '#whatsappOptIn':{checked:true}
 };
 const document={querySelector:selector=>elements[selector]||null};
@@ -26,6 +26,7 @@ const deps={
   customerAddress:{normalize:value=>value,format:value=>'formatted'},
   customerAddressFlow:{read:()=>({house:'1',area:'Main',city:'Warangal',pincode:'506001'})},
   customerCheckout:{
+    normalizePhone:value=>{const digits=String(value||'').replace(/\D/g,'');return digits.length===10?digits:digits.length===12&&digits.startsWith('91')?digits.slice(2):String(value||'').trim()},
     clientOrderId:()=>({key:'client-1',fingerprint:'fp'}),
     validate:()=>'',
     payload:(customer,address,items,id,clientOrderId,whatsappOptIn)=>({customer,address,items,id,clientOrderId,whatsappOptIn})
@@ -53,8 +54,8 @@ assert.equal(listeners[0][0],'submit');
   assert.equal(state.orders[0].id,'order-1');
   assert.equal(JSON.stringify(state.cart),'{}');
   assert.equal(state.profile.address,'formatted');
-  assert.equal(state.profile.checkout.name,'Ravi');
-  assert.equal(state.profile.checkout.phone,'9876543210');
+  assert.equal(state.profile.checkout.name,'Saved Recipient');
+  assert.equal(state.profile.checkout.phone,'9876543210','a valid saved delivery number must beat an invalid stale hidden input');
   assert.equal(state.profile.pendingCheckout,undefined);
   assert.ok(calls.includes('auth'));
   assert.ok(calls.some(x=>Array.isArray(x)&&x[0]==='api'&&x[1]==='/api/orders'));
