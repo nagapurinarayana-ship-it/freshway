@@ -89,7 +89,7 @@ test('passcode must be exactly six digits', async () => {
 test('order identity uses the registered account phone and keeps delivery contact in the snapshot', () => {
   const source = readFileSource();
   assert.ok(source.includes("const deliveryPhone = cleanPhone(payload.address?.deliveryPhone || payload.customer?.phone)"));
-  assert.ok(source.includes("customer: { ...(payload.customer || {}), phone: registeredPhone }"));
+  assert.ok(source.includes("customer: { ...(payload.customer || {}), phone: registeredPhone.slice(2) }"), "the legacy order writer must receive 10 digits while stored identity remains canonical");
   assert.ok(source.includes('deliveryPhone:') && source.includes('registeredPhone'), 'delivery mobile must be stored separately from registered identity');
   assert.ok(source.includes("bind(registeredPhone, String(result.id), sessionId).run()"));
   assert.equal(source.includes("bind(`91${deliveryPhone}`, String(result.id), sessionId).run()"), false);
@@ -102,7 +102,10 @@ function readFileSource() {
 test('customer checkout keeps delivery mobile separate from registered mobile', async () => {
   const registeredPhone = customer.phone;
   const response = await request('/api/orders', { method: 'POST', headers: { Cookie: sessionCookie(), 'Content-Type': 'application/json' }, body: JSON.stringify({ customerId: 'customer-1', customer: { name: 'Test Customer', phone: '9123456789' }, address: { house: '1', area: 'Main Road', city: 'Hyderabad', pincode: '500001' }, items: [{ id: 'apple', qty: 1 }] }) });
-  assert.notEqual(response.status, 409);
+  const result = await response.json();
+  assert.equal(response.status, 400);
+  assert.match(result.error, /One or more products are no longer available/i,
+    'valid registered account phone must pass the legacy ten-digit check and reach product validation');
   assert.equal(customer.phone, registeredPhone);
 });
 

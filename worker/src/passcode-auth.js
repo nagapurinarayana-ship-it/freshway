@@ -221,7 +221,8 @@ async function protectedOrders(request, env) {
   // Identity always comes from the signed-in account. The delivery contact is an
   // order-specific field and is stored only in the immutable address snapshot.
   const address = { ...(payload.address || {}), deliveryPhone: `91${deliveryPhone}` };
-  const forwarded = { ...payload, customer: { ...(payload.customer || {}), phone: registeredPhone }, address };
+  // The legacy order writer validates customer.phone as ten local digits. Keep the account identity canonical in D1 and restore its canonical value on the order row below.
+  const forwarded = { ...payload, customer: { ...(payload.customer || {}), phone: registeredPhone.slice(2) }, address };
   const responseFromOriginal = await original.fetch(new Request(request, {
     method: 'POST', body: JSON.stringify(forwarded)
   }), env, {});
