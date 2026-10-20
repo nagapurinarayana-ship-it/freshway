@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import handler from '../src/passcode-auth.js';
 
-const customer = { id: 'customer-1', name: '', phone: '', passcode_salt: null, passcode_hash: null };
+const customer = { id: 'customer-1', name: '', phone: '', passcode_salt: null, passcode_hash: null, auth_version: 0 };
 const env = {
   APP_ORIGIN: 'https://freshway-f32.pages.dev',
   CUSTOMER_SESSION_SECRET: 'fixture-customer-session',
@@ -16,6 +16,7 @@ const env = {
             async first() {
               if (sql.includes('SELECT id,name,phone,passcode_salt,passcode_hash')) return customer.phone === args[0] ? customer : null;
               if (sql.includes('SELECT id,name,phone FROM customers')) return customer.id === args[0] ? customer : null;
+              if (sql.includes('SELECT auth_version FROM customers')) return customer.id === args[0] ? { auth_version: customer.auth_version || 0 } : null;
               if (sql.includes('SELECT id,name,phone,passcode_salt,passcode_hash FROM customers WHERE phone')) return customer.phone === args[0] ? customer : null;
               if (sql.includes('SELECT phone FROM customers')) return customer.id === args[0] ? { phone: customer.phone } : null;
               if (sql.includes('SELECT id FROM customers')) return customer.id === args[0] ? { id: customer.id } : null;
@@ -23,9 +24,14 @@ const env = {
               return null;
             },
             async run() {
-              if (sql.startsWith('INSERT INTO customers') || sql.startsWith('UPDATE customers')) {
-                if (sql.includes('passcode_salt')) { customer.phone = args[2]; customer.passcode_salt = args[3]; customer.passcode_hash = args[4]; customer.name = args[1] || ''; }
-                else { customer.name = args[0] || ''; }
+              if (sql.startsWith('INSERT INTO customers')) {
+                customer.id = args[0]; customer.name = args[1] || ''; customer.phone = args[2];
+                customer.passcode_salt = args[3]; customer.passcode_hash = args[4]; customer.auth_version = 0;
+              } else if (sql.startsWith('UPDATE customers SET passcode_salt=')) {
+                customer.passcode_salt = args[0]; customer.passcode_hash = args[1];
+                customer.auth_version = Number(customer.auth_version || 0) + 1;
+              } else if (sql.startsWith('UPDATE customers SET whatsapp_opt_in=')) {
+                customer.whatsapp_opt_in = args[0];
               }
               return { meta: { changes: 1 } };
             },
