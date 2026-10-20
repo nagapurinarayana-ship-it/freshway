@@ -67,7 +67,7 @@ assert.match(css,/\.order-map-link/);
 assert.ok(html.includes('admin.css?v=20261020-order-detail-map-row-v1'),'Owner HTML must load the compact location-row styles');
 assert.ok(html.includes('admin.js?v=20261020-compact-order-map-v1'),'Owner HTML must load the cleaned order details');
 const ownerSw=fs.readFileSync('admin/sw.js','utf8');
-assert.ok(ownerSw.includes('fw-owner-v13'),'Owner PWA cache must advance for updated order detail assets');
+assert.ok(ownerSw.includes('fw-owner-v14'),'Owner PWA cache must advance for updated order detail assets');
 assert.ok(ownerSw.includes('/admin/admin.css?v=20261020-order-detail-map-row-v1'),'Owner PWA shell must cache the current Owner CSS');
 assert.ok(ownerSw.includes('/admin/admin.js?v=20261020-compact-order-map-v1'),'Owner PWA shell must cache the current Owner JS');
 
