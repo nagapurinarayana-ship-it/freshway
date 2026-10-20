@@ -30,30 +30,32 @@ test.beforeEach(async ({ page }) => {
     });
   });
 
-  await page.route('https://nominatim.openstreetmap.org/reverse?**', async route => {
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        place_id: 1,
-        display_name: '12, Test Street, Boduppal, Hyderabad, Telangana, 500001',
-        address: {
-          house_number: '12',
-          road: 'Test Street',
-          suburb: 'Boduppal',
-          city: 'Hyderabad',
-          district: 'Medchal',
-          state: 'Telangana',
-          postcode: '500001'
-        }
-      })
-    });
-  });
-
   await page.route('**/api/**', async route => {
     const request = route.request();
     const url = new URL(request.url());
     const method = request.method();
+
+    if (url.pathname === '/api/geocode/reverse' && method === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          place_id: 98765,
+          display_name: '9, New Road, New Colony, Hyderabad, Telangana, 500072',
+          name: 'New Landmark',
+          address: {
+            house_number: '9',
+            road: 'New Road',
+            neighbourhood: 'New Colony',
+            city_district: 'Kukatpally',
+            city: 'Hyderabad',
+            state_district: 'Medchal-Malkajgiri',
+            state: 'Telangana',
+            postcode: '500072'
+          }
+        })
+      });
+    }
 
     if (url.pathname === '/api/categories' && method === 'GET') {
       return route.fulfill({
@@ -253,7 +255,7 @@ test('customer can browse, add a product, checkout, and receive confirmation', a
   await page.locator('#fwAddressSave').click();
   // Saving from checkout returns directly to checkout with the new address selected.
   await expect(page.locator('#fwCheckoutAddressSummary')).toContainText('E2E Customer');
-  await expect(page.locator('#fwCheckoutAddressSummary')).toContainText('Test Street');
+  await expect(page.locator('#fwCheckoutAddressSummary')).toContainText('New Road');
 
   await page.locator('#checkoutForm button[type="submit"]').click();
 
@@ -262,6 +264,70 @@ test('customer can browse, add a product, checkout, and receive confirmation', a
   await expect(page.locator('#confirmationView')).toContainText('Payment: Cash');
   await expect(page.locator('#confirmationView')).toContainText('Delivery plan: Tomorrow');
   await expect(page.locator('#cartCount')).toHaveText('0 items');
+});
+
+test('selecting a new pin replaces stale geographic fields but preserves customer details', async ({ page }) => {
+  savedAddresses = [{
+    id: 41,
+    label: 'Home',
+    recipientName: 'Narayana Nagapuri',
+    deliveryPhone: '7702661401',
+    houseFlat: '1-12/23/c, old plot',
+    building: 'Old apartment',
+    floor: '3',
+    street: 'Old Road',
+    area: 'Old Colony',
+    locality: 'Old Locality',
+    city: 'Old City',
+    district: 'Old District',
+    state: 'Old State',
+    pincode: '505209',
+    landmark: 'Old temple',
+    note: 'Call before delivery',
+    latitude: 17.30,
+    longitude: 78.30,
+    accuracyMeters: 20,
+    locationSource: 'GPS',
+    placeId: 'old-place',
+    locationUpdatedAt: '2026-10-01T00:00:00.000Z',
+    isDefault: true
+  }];
+
+  await page.goto('/');
+  await page.locator('#addressBtn').click();
+  await expect(page.locator('[data-fw-edit="41"]')).toBeVisible();
+  await page.locator('[data-fw-edit="41"]').click();
+
+  await expect(page.locator('#fwAddrHouse')).toHaveValue('1-12/23/c, old plot');
+  await expect(page.locator('#fwAddrPincode')).toHaveValue('505209');
+  await page.locator('#fwAddressGps').click();
+  await expect(page.locator('#fwAddressLocationStatus')).toContainText('Delivery pin selected');
+
+  await expect(page.locator('#fwAddrHouse')).toHaveValue('9');
+  await expect(page.locator('#fwAddrBuilding')).toHaveValue('');
+  await expect(page.locator('#fwAddrFloor')).toHaveValue('');
+  await expect(page.locator('#fwAddrStreet')).toHaveValue('New Road');
+  await expect(page.locator('#fwAddrArea')).toHaveValue('New Colony');
+  await expect(page.locator('#fwAddrLocality')).toHaveValue('Kukatpally');
+  await expect(page.locator('#fwAddrCity')).toHaveValue('Hyderabad');
+  await expect(page.locator('#fwAddrDistrict')).toHaveValue('Medchal-Malkajgiri');
+  await expect(page.locator('#fwAddrState')).toHaveValue('Telangana');
+  await expect(page.locator('#fwAddrPincode')).toHaveValue('500072');
+  await expect(page.locator('#fwAddrLandmark')).toHaveValue('New Landmark');
+
+  await expect(page.locator('#fwAddrName')).toHaveValue('Narayana Nagapuri');
+  await expect(page.locator('#fwAddrPhone')).toHaveValue('7702661401');
+  await expect(page.locator('#fwAddrNote')).toHaveValue('Call before delivery');
+
+  await page.locator('#fwAddressSave').click();
+  await expect.poll(() => savedAddresses.find(address => Number(address.id) === 41)?.pincode).toBe('500072');
+  const saved = savedAddresses.find(address => Number(address.id) === 41);
+  expect(saved.street).toBe('New Road');
+  expect(saved.houseFlat).toBe('9');
+  expect(saved.latitude).toBe(17.385044);
+  expect(saved.longitude).toBe(78.486671);
+  expect(saved.recipientName).toBe('Narayana Nagapuri');
+  expect(saved.note).toBe('Call before delivery');
 });
 
 test('customer shell exposes the direct-install PWA contract', async ({ page }) => {
