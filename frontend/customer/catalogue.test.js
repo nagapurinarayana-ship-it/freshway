@@ -108,6 +108,7 @@ assert.match(source,/home\.insertBefore\(c,\s*searchWrap\.nextSibling\)/,'catego
 assert.match(source,/heading\.classList\.add\('fw-category-home-hidden'\)/,'product heading stays hidden before selecting a category');
 assert.match(source,/if\(!selected\)\{grid\.classList\.add\('fw-category-home-hidden'\);return\}/,'products stay hidden until category selection');
 assert.match(source,/fw-category-grid'\+\(usable\.length===1\?' is-single':''\)/,'single category uses a compact full-width tile');
+assert.match(source,/\.fw-category-back button\{[^}]*flex:0 0 auto/,'All categories control must size to its label instead of wrapping into a narrow icon width');
 assert.match(source,/\.fw-category-grid\.is-single \.fw-category-card/,'single category card styling is defined');
 assert.match(source,/hero\.classList\.add\('fw-category-home-hidden'\)/);
 assert.match(source,/label\.textContent='CATALOGUE'/);
