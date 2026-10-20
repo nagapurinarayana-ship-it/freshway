@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v58';
+const CACHE = 'freshway-v59';
 const APP_SHELL = [
 '/',
 '/index.html',
@@ -10,7 +10,7 @@ const APP_SHELL = [
 '/frontend/customer/orders-view.js?v=20261020-order-alert-links-v1',
 '/frontend/phone-display.js?v=20261009-phone-display-v1',
 '/frontend/customer/product-view.js?v=20261019-catalogue-premium-v1',
-'/frontend/customer/catalogue.js?v=20261021-home-navigation-refresh-v1',
+'/frontend/customer/catalogue.js?v=20261021-category-refresh-restore-v2',
 '/notifications.js?v=20261020-normalized-auth-phone-v2',
 '/address-fix.js?v=20261009-address-fallback-safety-v5',
 '/address-system-final.js?v=20261020-phone-boundary-fix-v2',
