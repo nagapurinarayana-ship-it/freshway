@@ -722,7 +722,7 @@
       }).slice(0, 5);
       if (!box) return;
       if (!searchResults.length) {
-        box.innerHTML = '<p role="status">No matching Indian map result. Try a nearby town, PIN code or a longer landmark name, or tap the map to place the pin.</p>';
+        box.innerHTML = '<p role="status">No matching Indian map result. No results found. Try a more specific area or landmark, a nearby town, or a 6-digit PIN code; you can also tap the map to place the pin.</p>';
         return;
       }
       box.innerHTML = '<p class="fw-address-search-hint">Choose the exact match. Nothing is selected until you tap a result. The pin moves only after selection; verify the house/flat and PIN before saving.</p>' +
