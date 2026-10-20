@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v47';
+const CACHE = 'freshway-v48';
 
 const APP_SHELL = [
   '/',
@@ -14,7 +14,7 @@ const APP_SHELL = [
   '/address-system-final.js?v=20261008-address-final-v6',
   '/frontend/customer/pwa-install.css?v=20261007-install-v2',
   '/frontend/customer/seo.js?v=20261007-seo-v1',
-  '/frontend/customer/promotions.js?v=20261009-full-image-fit-v1',
+  '/frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2',
   '/frontend/customer/store-info.js?v=20261009-store-profile-v5',
   '/frontend/customer/profile.js?v=20261009-customer-profile-v2',
   '/icons/icon-192.svg?v=20261008-brand-v1',
