@@ -39,7 +39,7 @@ assert.match(js,/syncOrderFilterSummary/);
 assert.match(js,/Registered mobile/);
 assert.match(js,/Delivery contact/);
 assert.match(js,/registeredPhone/);
-assert.match(js,/a\\.deliveryPhone\\|\\|o\\.customer\\?\\.deliveryPhone/);
+assert.ok(js.includes("o.address?.deliveryPhone||o.customer?.deliveryPhone"));
 
 console.log('owner order account-vs-delivery identity contract OK');
 console.log('owner orders mobile filter hierarchy contract OK');
