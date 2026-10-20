@@ -34,23 +34,23 @@ export async function orders(env, u) {
   if(te){where.push('o.created_at<=?');p.push(te);}
   if(minAmount&&Number.isFinite(Number(minAmount))){where.push('o.total>=?');p.push(Number(minAmount));}
   if(maxAmount&&Number.isFinite(Number(maxAmount))){where.push('o.total<=?');p.push(Number(maxAmount));}
-  const base=\`FROM orders o
+  const base=`FROM orders o
     LEFT JOIN customers c ON c.id=o.customer_id
     LEFT JOIN addresses a ON a.id=o.address_id
     LEFT JOIN order_address_snapshots s ON s.order_id=o.id
-    WHERE \${where.join(' AND ')}\`;
-  const total=Number((await env.DB.prepare(\`SELECT COUNT(*) count \${base}\`).bind(...p).first())?.count||0);
-  const rows=(await env.DB.prepare(\`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.is_test_order,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.payment_collected_at,
+    WHERE ${where.join(' AND ')}`;
+  const total=Number((await env.DB.prepare(`SELECT COUNT(*) count ${base}`).bind(...p).first())?.count||0);
+  const rows=(await env.DB.prepare(`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.is_test_order,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.payment_collected_at,
     COALESCE(c.name,o.customer_name) registered_name,COALESCE(c.phone,o.customer_phone) registered_phone,
     COALESCE(s.house_flat,a.house) house,COALESCE(s.area,a.area) area,COALESCE(s.city,a.city) city,
     COALESCE(s.pincode,a.pincode) pincode,COALESCE(s.landmark,a.landmark) landmark,
     COALESCE(s.delivery_note,a.note) note,COALESCE(s.recipient_name,a.recipient_name,o.customer_name) recipient_name,
     COALESCE(s.delivery_phone,a.delivery_phone) delivery_phone,s.building,s.floor,s.street,s.locality,s.district,s.state,
     s.latitude,s.longitude,s.accuracy_meters,s.location_source,s.place_id,s.location_updated_at
-    \${base} ORDER BY \${orderSort(u)} LIMIT ? OFFSET ?\`).bind(...p,limit,offset).all()).results||[];
+    ${base} ORDER BY ${orderSort(u)} LIMIT ? OFFSET ?`).bind(...p,limit,offset).all()).results||[];
   if(!rows.length)return{orders:[],pagination:{page,limit,total,pages:Math.max(1,Math.ceil(total/limit))}};
   const ids=rows.map(row=>row.id),ph=ids.map(()=>'?').join(',');
-  const items=(await env.DB.prepare(\`SELECT order_id,product_id,name,unit,qty,price,line_total FROM order_items WHERE order_id IN (\${ph}) ORDER BY id\`).bind(...ids).all()).results||[];
+  const items=(await env.DB.prepare(`SELECT order_id,product_id,name,unit,qty,price,line_total FROM order_items WHERE order_id IN (${ph}) ORDER BY id`).bind(...ids).all()).results||[];
   const map=new Map(rows.map(row=>[row.id,{
     id:row.id,customerId:row.customer_id,
     customer:{
