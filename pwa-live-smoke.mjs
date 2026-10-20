@@ -49,7 +49,7 @@ async function waitForFullImageFitAssets(base) {
   const viewportStylesPath = VIEWPORT_STYLES_PATH;
   const appPath = '/app.js?v=20261021-home-navigation-refresh-v1';
   const promotionPath = '/frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2';
-  const customerCataloguePath = '/frontend/customer/catalogue.js?v=20261021-home-navigation-refresh-v1';
+  const customerCataloguePath = '/frontend/customer/catalogue.js?v=20261021-category-refresh-restore-v2';
   const cataloguePath = '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1';
   let lastError;
 
@@ -105,6 +105,8 @@ async function waitForFullImageFitAssets(base) {
       ]);
       assert.ok(appSource.includes("function setView(name,options){if(name==='home'&&options?.history!=='none')window.freshWayCustomerCatalogueGoHome?.();navigation.setView(name,options)"), 'home navigation must reset category state for explicit Home actions only');
       assert.ok(customerCatalogueSource.includes("window.freshWayCustomerCatalogueGoHome=()=>{const state=window.history.state;if(state?.__freshwayCustomer&&state.category)window.history.replaceState({...state,category:null},'',window.location.href);setMode(null,{history:'none'})};"), 'category home reset must preserve navigation view history');
+      assert.ok(customerCatalogueSource.includes("selected=(window.history.state?.__freshwayCustomer&&window.history.state.view==='home'?window.history.state.category:null)||null"), 'refresh must restore the selected category from history');
+      assert.ok(customerCatalogueSource.includes("history:selected?'replace':'none'"), 'removed categories must not remain selected in browser history');
       assertResponsiveViewportCss(viewportStylesSource, 'production');
       assert.match(promotionSource, /\.fw-promo-carousel\{[^}]*height:auto;aspect-ratio:16\/7/);
       assert.match(promotionSource, /object-fit:contain/);
@@ -204,11 +206,11 @@ async function verifyCustomDomain() {
   assert.ok(sw.includes(VIEWPORT_STYLES_PATH), 'custom-domain service worker must cache the current mobile viewport stylesheet');
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/app.js?v=20261021-home-navigation-refresh-v1', 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2', 'custom-domain home');
-  assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/catalogue.js?v=20261021-home-navigation-refresh-v1', 'custom-domain home');
+  assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/catalogue.js?v=20261021-category-refresh-restore-v2', 'custom-domain home');
   assertCurrentScriptReference(adminHtml, adminResponse.url, '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1', 'custom-domain Owner');
   assert.ok(sw.includes('/app.js?v=20261021-home-navigation-refresh-v1'), 'custom-domain service worker must cache the current app navigation script');
   assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2'), 'custom-domain service worker must cache the current promotion script');
-  assert.ok(sw.includes('/frontend/customer/catalogue.js?v=20261021-home-navigation-refresh-v1'), 'custom-domain service worker must cache the current customer catalogue script');
+  assert.ok(sw.includes('/frontend/customer/catalogue.js?v=20261021-category-refresh-restore-v2'), 'custom-domain service worker must cache the current customer catalogue script');
 
   const shareMatch = homeHtml.match(/property="og:image" content="([^"]+)"/);
   assert.ok(shareMatch, 'custom-domain Open Graph image URL must exist');
@@ -219,7 +221,7 @@ async function verifyCustomDomain() {
     fetchWithRetry(`${customBase}/api/health`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/api/products`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/api/categories`, { cache: 'no-store' }),
-    fetchWithRetry(`${customBase}/frontend/customer/catalogue.js?v=20261021-home-navigation-refresh-v1`, { cache: 'no-store' }),
+    fetchWithRetry(`${customBase}/frontend/customer/catalogue.js?v=20261021-category-refresh-restore-v2`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}${VIEWPORT_STYLES_PATH}`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}${appNew}`, { cache: 'no-store' })
   ]);
