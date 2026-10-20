@@ -201,7 +201,7 @@
           guestAddressMode = true;
           addressLoadError = 'Sign in to load and manage your saved delivery addresses.';
           renderDisplays();
-          if (options && options.showError) toast(addressLoadError);
+          if (options && options.showError && !(modalOrigin === 'checkout' && guestAddressMode)) toast(addressLoadError);
           if ($('#addressModal') && !$('#addressModal').classList.contains('hidden') && !(options && options.deferRender)) renderManager();
           return false;
         }
@@ -401,7 +401,7 @@
     const element = modal();
     element.innerHTML =
       '<div class="modal-sheet address-modal-sheet address-editor-sheet" role="document">' +
-      '<div class="modal-head fw-address-modal-head"><div><span class="eyebrow">' + (isEditing ? 'EDIT ADDRESS' : 'NEW ADDRESS') + '</span><h2 id="addressModalTitle" tabindex="-1">' + (isEditing ? 'Edit delivery address' : 'Add delivery address') + '</h2><p class="fw-address-subtitle">Save it once. We will use your default next time.</p></div>' +
+      '<div class="modal-head fw-address-modal-head"><div><span class="eyebrow">' + (isEditing ? 'EDIT ADDRESS' : 'NEW ADDRESS') + '</span><h2 id="addressModalTitle" tabindex="-1">' + (isEditing ? 'Edit delivery address' : 'Add delivery address') + '</h2><p class="fw-address-subtitle">' + (modalOrigin === 'checkout' && guestAddressMode ? 'Use this address for your current order. Sign in to save it for next time.' : 'Save it once. We will use your default next time.') + '</p></div>' +
       '<button type="button" class="icon-btn" data-close-modal aria-label="Close address editor">×</button></div>' +
       '<div class="fw-address-editor-body">' +
       '<div class="address-labels fw-address-labels">' +
