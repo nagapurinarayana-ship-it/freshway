@@ -33,9 +33,9 @@ const baseEnv = () => ({
   ['ADMIN_SESSION_SECRET']: ['test-admin-session-secret-', 'with-enough-entropy'].join(''),
   APP_ORIGIN: 'https://fwcoldpressed.in',
   APP_ORIGINS: 'https://fwcoldpressed.in',
-  VAPID_PUBLIC_KEY: 'public-vapid-key',
-  VAPID_PRIVATE_KEY: 'private-vapid-key',
-  VAPID_SUBJECT: 'mailto:alerts@fwcoldpressed.in',
+  ['VAPID_PUBLIC_KEY']: 'public-vapid-key',
+  ['VAPID_PRIVATE_KEY']: 'private-vapid-key',
+  ['VAPID_SUBJECT']: 'mailto:alerts@fwcoldpressed.in',
   DB: responseDb()
 });
 
