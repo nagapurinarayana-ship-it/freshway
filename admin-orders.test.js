@@ -27,6 +27,14 @@ assert.match(lifecycle,/function isTestModeActive\(\)/);
 assert.match(lifecycle,/testOrders:testOrders\?'1':'0'/);
 assert.match(lifecycle,/data-life-test-toggle=/);
 assert.match(lifecycle,/data-is-test=/);
+assert.match(lifecycle,/order-map-row/);
+assert.match(lifecycle,/Map pin saved/);
+assert.doesNotMatch(lifecycle,/Exact delivery location/);
+assert.doesNotMatch(lifecycle,/modalExactMap/);
+assert.match(lifecycle,/id="modalDeliveryMap"/);
+assert.match(lifecycle,/seenAddressParts/);
+assert.match(lifecycle,/addressParts\.join\(', '\)/);
+
 assert.match(js,/function validateOrderFilters/);
 assert.match(js,/orderAdvancedFilters/);
 assert.match(js,/orderAdvancedCount/);
@@ -59,7 +67,7 @@ assert.match(css,/\.order-map-link/);
 assert.ok(html.includes('admin.css?v=20261020-order-detail-map-row-v1'),'Owner HTML must load the compact location-row styles');
 assert.ok(html.includes('admin.js?v=20261020-compact-order-map-v1'),'Owner HTML must load the cleaned order details');
 const ownerSw=fs.readFileSync('admin/sw.js','utf8');
-assert.ok(ownerSw.includes('fw-owner-v11'),'Owner PWA cache must advance for updated order detail assets');
+assert.ok(ownerSw.includes('fw-owner-v12'),'Owner PWA cache must advance for updated order detail assets');
 assert.ok(ownerSw.includes('/admin/admin.css?v=20261020-order-detail-map-row-v1'),'Owner PWA shell must cache the current Owner CSS');
 assert.ok(ownerSw.includes('/admin/admin.js?v=20261020-compact-order-map-v1'),'Owner PWA shell must cache the current Owner JS');
 
