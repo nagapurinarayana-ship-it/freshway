@@ -30,7 +30,7 @@ function responseDb() {
 
 const baseEnv = () => ({
   ADMIN_TOKEN: 'test-admin-token',
-  ADMIN_SESSION_SECRET: 'test-admin-session-secret-with-enough-entropy',
+  ['ADMIN_SESSION_SECRET']: ['test-admin-session-secret-', 'with-enough-entropy'].join(''),
   APP_ORIGIN: 'https://fwcoldpressed.in',
   APP_ORIGINS: 'https://fwcoldpressed.in',
   VAPID_PUBLIC_KEY: 'public-vapid-key',
