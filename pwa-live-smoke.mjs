@@ -38,11 +38,11 @@ function assertCurrentScriptReference(html, pageUrl, expectedPath, label) {
 }
 
 function assertResponsiveViewportCss(css, label) {
-  assert.match(css, /body\{padding-bottom:calc\(84px \+ env\(safe-area-inset-bottom,0px\)\)\}/, \`\${label} must reserve the device safe area\`);
-  assert.match(css, /main\{padding:14px 16px calc\(98px \+ env\(safe-area-inset-bottom,0px\)\)\}/, \`\${label} must reserve scroll space below navigation\`);
-  assert.match(css, /\.bottom-nav\{height:calc\(68px \+ env\(safe-area-inset-bottom,0px\)\)\}/, \`\${label} bottom navigation must respect the safe area\`);
-  assert.match(css, /\.info-page\{display:grid;gap:10px;padding:2px 0 8px;min-width:0\}/, \`\${label} About/Contact pages must use the shared scroll reserve\`);
-  assert.match(css, /\.store-contact-cta\{[^}]*min-height:48px/, \`\${label} contact action must remain compact and tappable\`);
+  assert.match(css, /body\{padding-bottom:calc\(84px \+ env\(safe-area-inset-bottom,0px\)\)\}/, label + ' must reserve the device safe area');
+  assert.match(css, /main\{padding:14px 16px calc\(98px \+ env\(safe-area-inset-bottom,0px\)\)\}/, label + ' must reserve scroll space below navigation');
+  assert.match(css, /\.bottom-nav\{height:calc\(68px \+ env\(safe-area-inset-bottom,0px\)\)\}/, label + ' bottom navigation must respect the safe area');
+  assert.match(css, /\.info-page\{display:grid;gap:10px;padding:2px 0 8px;min-width:0\}/, label + ' About/Contact pages must use the shared scroll reserve');
+  assert.match(css, /\.store-contact-cta\{[^}]*min-height:48px/, label + ' contact action must remain compact and tappable');
 }
 
 async function waitForFullImageFitAssets(base) {
