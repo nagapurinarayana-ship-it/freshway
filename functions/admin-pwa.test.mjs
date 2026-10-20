@@ -7,9 +7,15 @@ const sourceHtml = readRepoFile('admin.html').toString('utf8');
 const customerHtml = readRepoFile('index.html').toString('utf8');
 assert.doesNotMatch(customerHtml, /href=["']\/admin(?:\.html|\/?)['"]/i, 'customer app must not expose an Owner dashboard link');
 assert.doesNotMatch(customerHtml, /class=["'][^"']*\badmin-link\b/i, 'customer profile must not render an Owner dashboard shortcut');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261020-owner-alert-login-ready-v1';"), 'production Owner smoke must demand the current admin.js version');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261020-owner-push-login-ready-v2';"), 'production Owner smoke must demand the current push setup version');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v15';"), 'production Owner smoke must demand the current service-worker cache');
+assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerAppShell/);
+assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerServiceWorker/);
 const ownerManifestSource = readRepoFile('admin/manifest.webmanifest').toString('utf8');
 const ownerWorkerSource = readRepoFile('admin/sw.js').toString('utf8');
 const ownerInstallSource = readRepoFile('owner-pwa-install.js').toString('utf8');
+const ownerLiveSmokeSource = readRepoFile('pwa-owner-live-smoke.mjs').toString('utf8');
 const requiredOwnerAssets = [
   'admin.css',
   'admin.js',
