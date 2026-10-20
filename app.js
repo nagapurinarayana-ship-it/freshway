@@ -83,4 +83,4 @@ checkoutSubmit.bind();
 customerSearch.bind({document,render:renderProducts});
 customerKeyboard.bind({document,onHome:()=>setView('home')});
 customerCartActions.bind({document,changeQty,toast});
-renderProducts();renderProfile();updateCartBar();customerOrderData.load();document.addEventListener('freshway:session',()=>{renderProfile();customerOrderData.load()});
+const refreshAccountIdentity=()=>customerAuth.session().then(account=>{if(account?.customerId&&account.customerId===customerId()){renderProfile();customerOrderData.load()}}).catch(()=>{});document.addEventListener('freshway:session',refreshAccountIdentity);renderProducts();renderProfile();updateCartBar();customerOrderData.load();refreshAccountIdentity();
