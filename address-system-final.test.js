@@ -46,13 +46,13 @@ assert.match(geocode, /landmark: first\(result && result\.name, a\.amenity, a\.s
 assert.match(geocode, /recipientName: text\(old\.recipientName\)/);
 assert.match(geocode, /note: text\(old\.note\)/);
 assert.match(source, /let guestAddressMode = false/);
-assert.match(source, /modalOrigin === 'checkout' && guestAddressMode && !editingAddress[\\s\\S]*?Delivery address ready for this order/,
+assert.match(source, /modalOrigin === 'checkout' && guestAddressMode && !editingAddress[\s\S]*?Delivery address ready for this order/,
   'guest checkout must keep a validated address in memory instead of requiring the saved-address API');
-assert.match(source, /if \\(!loaded\\)[\\s\\S]*?modalOrigin === 'checkout' && guestAddressMode[\\s\\S]*?buildEditor/,
+assert.match(source, /if \(!loaded\)[\s\S]*?modalOrigin === 'checkout' && guestAddressMode[\s\S]*?buildEditor/,
   'a 401 on saved addresses must open the checkout address editor rather than an Addresses unavailable dead end');
 assert.match(source, /const guestDraft = modalOrigin === 'checkout' && guestAddressMode/,
   'reopening the guest editor must retain the in-memory address draft');
-assert.match(source, /async function findSearch\\(\\)[\\s\\S]*?searchRequestId[\\s\\S]*?countrycodes: 'in'/,
+assert.match(source, /async function findSearch\(\)[\s\S]*?searchRequestId[\s\S]*?countrycodes: 'in'/,
   'map search must validate India-only results and ignore stale concurrent searches');
 assert.match(source, /No matching Indian map result/,
   'empty map searches must offer useful recovery steps');
