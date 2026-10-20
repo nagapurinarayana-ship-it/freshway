@@ -44,7 +44,80 @@ async function loadCash(){try{const r=await api('/admin/reports?range=today');co
 function renderProducts(){const q=norm($('#productSearch')?.value),a=$('#productAvailability')?.value||'all';const list=products.filter(p=>(!q||norm(p.name).includes(q))&&(a==='all'||(a==='active'?!!p.active:!p.active)));$('#productList').innerHTML=list.length?list.map(p=>`<article class="product-card"><div class="product-icon">${esc(p.emoji)}</div><b>${esc(p.name)}</b><span>${money(p.price)} / ${esc(p.unit)}</span><small class="${p.active?'available':'hidden-state'}">● ${p.active?'Available':'Hidden'}</small><div><button class="ghost" data-product-toggle="${esc(p.id)}" data-active="${p.active?1:0}">${p.active?'Hide':'Show'}</button><button class="ghost" data-product-edit="${esc(p.id)}">Edit</button><button class="ghost" data-product-delete="${esc(p.id)}">Delete</button></div></article>`).join(''):'<div class="empty">No products found.</div>'}
 async function refreshOwnerAfterOrderMutation(){const id=location.hash.slice(1)||'overview';try{if(id==='overview')await Promise.all([loadSummary(),loadBusiness(),loadHome()]);else if(id==='orders')await Promise.all([loadSummary(),loadBusiness(),loadOrders(true)]);else if(id==='delivery')await Promise.all([loadSummary(),loadBusiness(),loadDelivery(true)]);else if(id==='cash')await Promise.all([loadSummary(),loadBusiness(),loadCash()]);else if(id==='customers')await loadCustomers(true);else if(id==='reports')await loadReports();}catch(e){toast(e.message);throw e}}
 async function updateOrder(id,patch){try{await api(`/admin/orders/${encodeURIComponent(id)}`,{method:'PATCH',body:JSON.stringify(patch)});toast('Order updated');await refreshOwnerAfterOrderMutation();closeOwnerOverlay($('#modal'));}catch(e){toast(e.message)}}
-async function showOrder(id){const o=orders.find(x=>x.id===id)||(await api(`/admin/orders?search=${encodeURIComponent(id)}&limit=1&testOrders=${testOrderMode?'1':'0'}`)).orders[0];if(!o)return;const a=o.address||{};const has=Number.isFinite(Number(a.latitude))&&Number.isFinite(Number(a.longitude));$('#modalBody').innerHTML=`<span class="eyebrow">${o.isTestOrder?'TEST ORDER ARCHIVE':'ORDER DETAIL'}</span><h2>${esc(o.id)}</h2><div class="detail-actions order-classification-actions"><button type="button" class="${o.isTestOrder?'primary':'ghost'}" data-test-order-toggle="${esc(o.id)}" data-is-test="${o.isTestOrder?'1':'0'}">${o.isTestOrder?'Move back to live orders':'Mark as Test Order'}</button></div><div class="detail-grid"><div><small>Status</small><b>${esc(o.status)}</b></div><div><small>Payment</small><b>${esc(o.payment)}</b></div><div><small>Delivery</small><b>${esc(o.deliveryPlan)}</b></div><div><small>Total</small><b>${money(o.total)}</b></div></div><h3>Customer account</h3><p><b>${esc(o.customer?.name||'Customer')}</b><br>📱 Registered mobile: ${esc(displayPhone(o.customer?.registeredPhone||o.customer?.phone)||'Not recorded')}</p><h3>Delivery contact</h3><p><b>${esc(a.recipientName||o.customer?.recipientName||o.customer?.name||'Recipient')}</b><br>📞 Delivery mobile: ${esc(displayPhone(a.deliveryPhone||o.customer?.deliveryPhone||'')||'Not recorded')}<br>📍 ${esc([a.house,a.building,a.floor,a.street,a.area,a.locality,a.city,a.district,a.state,a.pincode].filter(Boolean).join(', '))}${a.landmark?`<br>Landmark: ${esc(a.landmark)}`:''}${a.note?`<br>Instructions: ${esc(a.note)}`:''}</p>${has?`<div class="exact-location"><b>📍 Exact delivery location</b><small>${Number(a.latitude).toFixed(6)}, ${Number(a.longitude).toFixed(6)}${a.accuracyMeters?` · ±${Math.round(Number(a.accuracyMeters))}m`:''}</small><button id="modalExactMap" class="primary full" type="button">Open exact location in Maps →</button></div>`:'<div class="exact-location warning"><b>Map location unavailable</b><small>This order has no saved coordinates. Use the written address.</small></div>'}<h3>Items</h3><div class="detail-items">${(o.items||[]).map(i=>`<div><span>${esc(i.name)} ×${i.qty} ${esc(i.unit)}</span><b>${money(i.lineTotal)}</b></div>`).join('')}</div><div class="detail-actions"><button class="ghost" data-map-text="${encodeURIComponent([a.house,a.area,a.city,a.pincode].filter(Boolean).join(', '))}">Open address in Maps</button></div>`;openOwnerOverlay($('#modal'));if(has)$('#modalExactMap').onclick=()=>window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${a.latitude},${a.longitude}`)}`,'_blank');$$('[data-map-text]').forEach(b=>b.onclick=()=>window.open(`https://www.google.com/maps/search/?api=1&query=${b.dataset.mapText}`,'_blank'))}
+async function showOrder(id) {
+  const o = orders.find(x => x.id === id) || (await api('/admin/orders?search=' + encodeURIComponent(id) + '&limit=1&testOrders=' + (testOrderMode ? '1' : '0'))).orders[0];
+  if (!o) return;
+
+  const a = o.address || {};
+  const lat = Number(a.latitude);
+  const lon = Number(a.longitude);
+  const has = a.latitude != null && a.latitude !== '' &&
+    a.longitude != null && a.longitude !== '' &&
+    Number.isFinite(lat) && Number.isFinite(lon) &&
+    lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180 &&
+    !(lat === 0 && lon === 0);
+
+  // Legacy saved addresses may repeat the same complete address across multiple fields.
+  // Deduplicate only the displayed text; do not rewrite the customer's saved data.
+  const addressParts = [];
+  const seenAddressParts = new Set();
+  [a.house, a.building, a.floor, a.street, a.area, a.locality, a.city, a.district, a.state, a.pincode]
+    .map(value => String(value || '').trim())
+    .filter(Boolean)
+    .forEach(part => {
+      const key = part.toLocaleLowerCase().replace(/\s+/g, ' ');
+      if (!seenAddressParts.has(key)) {
+        seenAddressParts.add(key);
+        addressParts.push(part);
+      }
+    });
+  const addressText = addressParts.join(', ');
+  const mapQuery = has ? String(lat) + ',' + String(lon) : addressText;
+  const mapUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(mapQuery);
+
+  $('#modalBody').innerHTML =
+    '<span class="eyebrow">' + (o.isTestOrder ? 'TEST ORDER ARCHIVE' : 'ORDER DETAIL') + '</span>' +
+    '<h2>' + esc(o.id) + '</h2>' +
+    '<div class="detail-actions order-classification-actions">' +
+      '<button type="button" class="' + (o.isTestOrder ? 'primary' : 'ghost') + '" data-test-order-toggle="' + esc(o.id) +
+      '" data-is-test="' + (o.isTestOrder ? '1' : '0') + '">' +
+      (o.isTestOrder ? 'Move back to live orders' : 'Mark as Test Order') + '</button>' +
+    '</div>' +
+    '<div class="detail-grid">' +
+      '<div><small>Status</small><b>' + esc(o.status) + '</b></div>' +
+      '<div><small>Payment</small><b>' + esc(o.payment) + '</b></div>' +
+      '<div><small>Delivery</small><b>' + esc(o.deliveryPlan) + '</b></div>' +
+      '<div><small>Total</small><b>' + money(o.total) + '</b></div>' +
+    '</div>' +
+    '<h3>Customer account</h3>' +
+    '<p><b>' + esc(o.customer?.name || 'Customer') + '</b><br>📱 Registered mobile: ' +
+      esc(displayPhone(o.customer?.registeredPhone || o.customer?.phone) || 'Not recorded') + '</p>' +
+    '<h3>Delivery details</h3>' +
+    '<p class="order-delivery-copy"><b>' +
+      esc(a.recipientName || o.customer?.recipientName || o.customer?.name || 'Recipient') +
+      '</b><br>📞 Delivery mobile: ' +
+      esc(displayPhone(a.deliveryPhone || o.customer?.deliveryPhone || '') || 'Not recorded') +
+      '<br>📍 ' + esc(addressText || 'Address not recorded') +
+      (a.landmark ? '<br>Landmark: ' + esc(a.landmark) : '') +
+      (a.note ? '<br>Instructions: ' + esc(a.note) : '') +
+    '</p>' +
+    '<div class="order-map-row ' + (has ? 'has-pin' : 'no-pin') + '">' +
+      '<span class="order-map-status">' + (has ? 'Map pin saved' : 'Map pin unavailable') + '</span>' +
+      '<button id="modalDeliveryMap" class="order-map-link" type="button">' +
+        (has ? 'Open map ↗' : 'Map address ↗') +
+      '</button>' +
+    '</div>' +
+    '<h3>Items</h3>' +
+    '<div class="detail-items">' +
+      (o.items || []).map(i =>
+        '<div><span>' + esc(i.name) + ' ×' + i.qty + ' ' + esc(i.unit) + '</span><b>' +
+        money(i.lineTotal) + '</b></div>'
+      ).join('') +
+    '</div>';
+
+  openOwnerOverlay($('#modal'));
+  $('#modalDeliveryMap').onclick = () => window.open(mapUrl, '_blank', 'noopener,noreferrer');
+}
 async function showCustomer(id){const d=await api(`/admin/customers/${encodeURIComponent(id)}`),c=d.customer;$('#modalBody').innerHTML=`<span class="eyebrow">CUSTOMER</span><h2>${esc(c.name||'Customer')}</h2><p>📞 ${esc(displayPhone(c.phone))}</p><div class="detail-grid"><div><small>Orders</small><b>${c.orders.length}</b></div><div><small>Total spend</small><b>${money(c.orders.reduce((s,o)=>s+Number(o.total||0),0))}</b></div></div><h3>Order history</h3><div class="detail-items">${c.orders.map(o=>`<button class="history-order" data-order="${esc(o.id)}"><span>${esc(o.status||o.delivery_status)}</span><b>${money(o.total)}</b></button>`).join('')||'<div class="empty">No orders yet.</div>'}</div>`;openOwnerOverlay($('#modal'));$('.history-order').forEach(b=>b.onclick=()=>showOrder(b.dataset.order))}
 async function loadHistory(){try{const d=await api('/admin/notifications/history');$('#notificationHistory').innerHTML=(d.notifications||[]).map(n=>`<article class="history-row"><b>${esc(n.channel)}</b><div><strong>${esc(n.title||'FreshWay')}</strong><small>${esc(n.body||'')} · ${esc(new Date(n.created_at).toLocaleString('en-IN'))}</small></div><span>${Number(n.success_count||0)}/${Number(n.recipient_count||0)} delivered</span></article>`).join('')||'<div class="empty">No notifications sent yet.</div>'}catch(e){toast(e.message)}}
 async function loadReports(){try{const r=await api(`/admin/reports?range=${encodeURIComponent($('#reportRange')?.value||'today')}&from=${encodeURIComponent($('#reportFrom')?.value||'')}&to=${encodeURIComponent($('#reportTo')?.value||'')}`);$('#reportCards').innerHTML=`<article class="report"><span>Sales</span><strong>${money(r.sales)}</strong><small>${r.orders} orders</small></article><article class="report"><span>Delivered sales</span><strong>${money(r.deliveredSales)}</strong><small>${r.delivered} delivered</small></article><article class="report"><span>Average order</span><strong>${money(r.aov)}</strong><small>Sales ÷ ${r.eligibleOrders} eligible orders</small></article><article class="report"><span>Cash collected</span><strong>${money(r.cashCollected)}</strong><small>${r.cashCollectedOrders} collections</small></article><article class="report"><span>Cash pending</span><strong>${money(r.cashPending)}</strong><small>${r.cashPendingOrders} orders</small></article><article class="report"><span>Cancelled</span><strong>${r.cancelled}</strong><small>${money(r.cancelledValue)} value</small></article><article class="report"><span>Customers</span><strong>${r.customers}</strong><small>${r.newCustomers} new · ${r.repeatOrders} repeat orders</small></article>`;$('#topProducts').innerHTML=(r.topProducts||[]).map(x=>`<div class="report-row"><span>${esc(x.name)} · ${x.qty} ${esc(x.unit)}</span><b>${money(x.value)}</b></div>`).join('')||'<div class="empty">No product sales in this period.</div>';$('#topCustomers').innerHTML=(r.topCustomers||[]).map(x=>`<div class="report-row"><span>${esc(x.name)} · ${x.orders} ${x.orders===1?'order':'orders'}</span><b>${money(x.value)}</b></div>`).join('')||'<div class="empty">No customer sales in this period.</div>'}catch(e){toast(e.message)}}

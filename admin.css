@@ -108,3 +108,15 @@ button,input,textarea,select{touch-action:manipulation}
 .settings-actions{display:flex;align-items:center;gap:10px;margin:0 0 16px}
 .settings-actions #storeProfileStatus{font-size:9px;color:var(--muted);font-weight:800}
 @media(max-width:800px){.settings-form-grid{grid-template-columns:1fr}.settings-field.full{grid-column:auto}.settings-store-panel{grid-column:auto}}
+
+
+/* Owner order detail: keep the map useful but visually secondary, like a delivery operations tool. */
+.order-delivery-copy{line-height:1.55;overflow-wrap:anywhere;word-break:break-word}
+.order-map-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0 2px;padding-top:10px;border-top:1px solid var(--line)}
+.order-map-status{display:inline-flex;align-items:center;gap:7px;min-width:0;color:var(--muted);font-size:10px;font-weight:800}
+.order-map-status::before{content:"";width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:var(--g)}
+.order-map-row.no-pin .order-map-status::before{background:var(--orange)}
+.order-map-link{flex:0 0 auto;min-height:36px;padding:8px 11px;border:1px solid #d6e8dc;border-radius:9px;background:#f0f8f3;color:var(--gd);font:inherit;font-size:10px;font-weight:900;white-space:nowrap;cursor:pointer}
+.order-map-link:hover{background:var(--mint);border-color:#b9d9c5}
+.order-map-link:focus-visible{outline:2px solid var(--g);outline-offset:2px}
+@media(max-width:480px){.order-map-row{gap:8px}.order-map-status{font-size:9px}.order-map-link{min-height:36px;padding:8px 9px;font-size:9px}}
