@@ -1,0 +1,91 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { buildOrderPlacedAlerts, dispatchOrderAlert, saveOwnerSubscription, deleteOwnerSubscription } from '../src/order-alerts.js';
+import { buildOrderChangeAlerts } from '../src/admin-notifications.js';
+
+test('new order alerts tell the customer the order was received and alert the Owner separately', () => {
+  const [customer, owner] = buildOrderPlacedAlerts({
+    id: 'FW-12345678-ABC', customerId: 'customer-1', customerName: 'Narayana', total: 2238,
+    items: [{ qty: 2 }, { qty: 1 }, { qty: 1 }]
+  });
+  assert.equal(customer.audience, 'customer');
+  assert.match(customer.title, /Order received/i);
+  assert.match(customer.body, /received order FW-12345678-ABC/i);
+  assert.match(customer.body, /notify you when it’s confirmed/i);
+  assert.doesNotMatch(customer.body, /is confirmed/i);
+  assert.match(customer.url, /openOrder=FW-12345678-ABC#orders/);
+  assert.equal(owner.audience, 'owner');
+  assert.match(owner.title, /New FreshWay order/);
+  assert.match(owner.body, /Narayana/);
+  assert.match(owner.body, /₹2,238/);
+  assert.match(owner.body, /4 items/);
+  assert.match(owner.url, /\/admin\/\?openOrder=FW-12345678-ABC#orders/);
+  assert.notEqual(customer.eventKey, owner.eventKey);
+});
+
+test('only real persisted status, payment, or delivery-plan transitions generate alerts for both sides', () => {
+  const before = { customer_id: 'customer-1', delivery_status: 'New', payment_status: 'Not Collected', delivery_plan: 'Tomorrow', is_test_order: 0 };
+  const after = { ...before, delivery_status: 'Ready' };
+  const alerts = buildOrderChangeAlerts('FW-1', before, after, 'test-transition');
+  assert.equal(alerts.length, 2);
+  assert.deepEqual(alerts.map(x => x.audience), ['customer', 'owner']);
+  assert.match(alerts[0].body, /order FW-1 is ready/i);
+  assert.doesNotMatch(alerts[0].body, /ready for delivery/i);
+  assert.match(alerts[1].body, /New → Ready/);
+  assert.equal(buildOrderChangeAlerts('FW-1', after, after, 'same-state').length, 0);
+
+  const paymentAlerts = buildOrderChangeAlerts('FW-1', before, { ...before, payment_status: 'Collected' }, 'payment-transition');
+  assert.equal(paymentAlerts.length, 2);
+  assert.match(paymentAlerts[0].body, /cash payment has been collected/i);
+  const planAlerts = buildOrderChangeAlerts('FW-1', before, { ...before, delivery_plan: 'Today' }, 'plan-transition');
+  assert.equal(planAlerts.length, 2);
+  assert.match(planAlerts[0].body, /delivery plan.*Today/i);
+});
+
+test('test orders never emit customer or Owner alerts', () => {
+  const order = { customer_id: 'customer-1', delivery_status: 'New', payment_status: 'Not Collected', delivery_plan: 'Tomorrow', is_test_order: 1 };
+  assert.deepEqual(buildOrderChangeAlerts('FW-TEST', order, { ...order, delivery_status: 'Confirmed' }, 'test'), []);
+});
+
+test('alert event keys deduplicate duplicate dispatch attempts and absent VAPID credentials are recorded safely', async () => {
+  const events = new Map();
+  const updates = [];
+  const env = {
+    DB: {
+      prepare(sql) {
+        let args = [];
+        return {
+          bind(...values) { args = values; return this; },
+          async run() {
+            if (sql.includes('INSERT INTO notification_events')) {
+              if (events.has(args[0])) return { meta: { changes: 0 } };
+              const id = events.size + 1; events.set(args[0], { id, args }); return { meta: { changes: 1 } };
+            }
+            if (sql.includes('UPDATE notification_events')) { updates.push(args); return { meta: { changes: 1 } }; }
+            throw new Error('Unexpected SQL: ' + sql);
+          },
+          async first() { const v = events.get(args[0]); return v ? { id: v.id } : null; }
+        };
+      }
+    }
+  };
+  const alert = { audience: 'owner', orderId: 'FW-2', eventType: 'new_order', eventKey: 'event-fw-2-owner', title: 'New order', body: 'FW-2 created', url: '/admin/#orders' };
+  assert.equal((await dispatchOrderAlert(env, alert)).status, 'not_configured');
+  assert.equal(events.size, 1);
+  assert.equal((await dispatchOrderAlert(env, alert)).status, 'duplicate');
+  assert.equal(events.size, 1);
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0][0], 'not_configured');
+});
+
+test('Owner push subscription writes are scoped to the Owner partition and validate secure endpoints', async () => {
+  const statements = [];
+  const env = { DB: { prepare(sql) { return { bind(...args) { statements.push({ sql, args }); return this; }, async run() { return { meta: { changes: 1 } }; } }; } } };
+  const subscription = { subscription: { endpoint: 'https://push.example.test/sub/1', keys: { p256dh: 'p256dh', auth: 'auth' }, expirationTime: null } };
+  assert.deepEqual(await saveOwnerSubscription(env, subscription), { ok: true });
+  assert.match(statements[0].sql, /owner_push_subscriptions/);
+  assert.match(statements[0].sql, /owner_key/);
+  assert.equal(statements[0].args[0], 'https://push.example.test/sub/1');
+  await assert.rejects(() => saveOwnerSubscription(env, { subscription: { ...subscription.subscription, endpoint: 'http://bad.example/sub' } }), /Invalid push endpoint/);
+  assert.deepEqual(await deleteOwnerSubscription(env, { endpoint: 'https://push.example.test/sub/1' }), { ok: true });
+});

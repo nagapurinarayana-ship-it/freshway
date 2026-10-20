@@ -56,6 +56,8 @@ jobs:
           node admin-navigation.test.js
           node admin-performance.test.js
           node admin-orders.test.js
+          node frontend/admin/order-alerts.test.js
+          node frontend/customer/confirmation.test.js
           node frontend/customer/search.test.js
           node frontend/customer/orders-view.test.js
           node frontend/customer/keyboard.test.js

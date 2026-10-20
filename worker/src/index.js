@@ -1,5 +1,7 @@
 import webpush from 'web-push';
 import { getStoreProfile } from './store-profile.js';
+import { buildOrderPlacedAlerts, dispatchOrderAlert } from './order-alerts.js';
+import { buildOrderChangeAlerts } from './admin-notifications.js';
 
 const json = (data, status = 200, origin = '*') => new Response(JSON.stringify(data), {
   status,
@@ -58,20 +60,14 @@ async function validateOrderItems(env, rawItems) {
   return { items, total: items.reduce((sum, item) => sum + item.lineTotal, 0) };
 }
 
-async function sendCustomerPush(env, customerId, title, message, url = '/') {
-  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.VAPID_SUBJECT) return { sent: 0, failed: 0 };
-  const { results } = await env.DB.prepare('SELECT endpoint,p256dh,auth FROM push_subscriptions WHERE customer_id=?').bind(customerId).all();
-  if (!results?.length) return { sent: 0, failed: 0 };
-  webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
-  let sent = 0, failed = 0; const dead = [];
-  await Promise.all(results.map(async row => {
-    try { await webpush.sendNotification({endpoint:row.endpoint,keys:{p256dh:row.p256dh,auth:row.auth}},JSON.stringify({title,body:message,url,tag:`freshway-order-${customerId}`})); sent++; }
-    catch (error) { failed++; if ([404,410].includes(error?.statusCode)) dead.push(row.endpoint); }
-  }));
-  if (dead.length) await env.DB.batch(dead.map(endpoint => env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint=?').bind(endpoint)));
-  return { sent, failed };
+function scheduleOrderAlerts(ctx, env, alerts) {
+  const work = Promise.all(alerts.map(alert => dispatchOrderAlert(env, alert).catch(error => {
+    console.error('FreshWay order alert failed:', error?.message || error);
+    return { status: 'failed', sent: 0, failed: 0 };
+  })));
+  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(work);
+  else return work;
 }
-
 async function existingOrderByClientId(env, customerId, clientOrderId) {
   if (!clientOrderId) return null;
   const { results } = await env.DB.prepare('SELECT id FROM orders WHERE client_order_id=? AND customer_id=? LIMIT 1').bind(clientOrderId, customerId).all();
@@ -80,7 +76,7 @@ async function existingOrderByClientId(env, customerId, clientOrderId) {
   return orders.find(order => order.id === results[0].id) || null;
 }
 
-async function createOrder(env, payload) {
+async function createOrder(env, payload, ctx) {
   const customerId = String(payload.customerId || '').slice(0, 100), customer = payload.customer || {}, address = payload.address || {};
   const rawItems = Array.isArray(payload.items) ? payload.items : [];
   const clientOrderId = String(payload.clientOrderId || '').trim().slice(0, 100);
@@ -117,7 +113,9 @@ async function createOrder(env, payload) {
     if (/stock_quantity/i.test(error?.message || '')) throw new Error('Stock changed while you were checking out. Please refresh your cart and try again.');
     throw error;
   }
-  try { await sendCustomerPush(env, customerId, 'FreshWay order placed', `Order ${id} is confirmed. Delivery is planned for tomorrow or when your route is available.`); } catch (_) {}
+  const placedAlerts = buildOrderPlacedAlerts({ id, customerId, customerName, total, items });
+  const alertWork = scheduleOrderAlerts(ctx, env, placedAlerts);
+  if (alertWork) await alertWork;
   return { id, customerId, total, payment: 'Not Collected', status: 'New', deliveryPlan: 'Tomorrow', createdAt, updatedAt: createdAt, address: { ...address, pincode: String(address.pincode) }, items };
 }
 
@@ -224,12 +222,10 @@ async function updateOrder(env,id,payload){
   statements.push(env.DB.prepare(`UPDATE orders SET ${sets.join(',')} WHERE ${guards.join(' AND ')}`).bind(...params,...whereParams));
   try{const batchResult=await env.DB.batch(statements);const updateResult=batchResult?.[batchResult.length-1];if(!updateResult?.meta?.changes)throw new Error('ORDER_CONFLICT: This order changed while you were saving. Refresh the order and try again.')}catch(error){if(/stock_quantity/i.test(error?.message||''))throw new Error('Stock could not be restored safely. Refresh and try again.');throw error}
   const classificationOnlyChange=testClassificationChanged&&!status&&!payment&&!deliveryPlan;
-  if(!classificationOnlyChange&&((status&&status!==current.delivery_status)||(payment&&payment!==current.payment_status)||(deliveryPlan&&deliveryPlan!==current.delivery_plan))){
-    let text;
-    if(status&&status!==current.delivery_status)text=status==='Processing'?`Order ${id} is now being prepared.`:status==='Ready'?`Order ${id} is ready for delivery.`:status==='Out for Delivery'?`Order ${id} is out for delivery.`:status==='Delivered'?`Order ${id} has been delivered.`:status==='Cancelled'?`Order ${id} has been cancelled.`:status==='Confirmed'?`Order ${id} has been confirmed.`:`Order ${id} status is ${status}.`;
-    else if(payment&&payment!==current.payment_status)text=payment==='Collected'?`Payment for order ${id} has been collected.`:payment==='Refunded'?`Payment for order ${id} has been refunded.`:`Payment for order ${id} is ${payment.toLowerCase()}.`;
-    else text=`Delivery plan for order ${id} is now ${deliveryPlan}.`;
-    try{await sendCustomerPush(env,current.customer_id,'FreshWay order update',text)}catch(_){ }
+  if(!classificationOnlyChange){
+    const after={...current,delivery_status:status||current.delivery_status,payment_status:payment||current.payment_status,delivery_plan:deliveryPlan||current.delivery_plan,is_test_order:nextTestFlag};
+    const alerts=buildOrderChangeAlerts(id,current,after,`${Date.now()}-${Math.random().toString(36).slice(2,8)}`);
+    try{await Promise.all(alerts.map(alert=>dispatchOrderAlert(env,alert)))}catch(error){console.error('FreshWay order status alert failed:',error?.message||error)}
   }
   return {ok:true,status:status||current.delivery_status,payment:payment||current.payment_status,deliveryPlan:deliveryPlan||current.delivery_plan,isTestOrder:nextTestFlag,testClassificationChanged};
 }
@@ -268,13 +264,13 @@ async function notificationHistory(env){const{results}=await env.DB.prepare('SEL
 
 export { normalizePaymentFilter, validateOrderPatch, validateOrderItems, updateOrder };
 
-export default{async fetch(request,env){const cors=origin(env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{'access-control-allow-origin':cors,'access-control-allow-methods':'GET,POST,PATCH,OPTIONS','access-control-allow-headers':'Content-Type,Authorization,X-Freshway-Admin-Token'}});const url=new URL(request.url);try{
+export default{async fetch(request,env,ctx){const cors=origin(env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{'access-control-allow-origin':cors,'access-control-allow-methods':'GET,POST,PATCH,OPTIONS','access-control-allow-headers':'Content-Type,Authorization,X-Freshway-Admin-Token'}});const url=new URL(request.url);try{
 if(url.pathname==='/api/health'&&request.method==='GET')return json({ok:true,service:'freshway-api'},200,cors);if(url.pathname==='/api/store-profile'&&request.method==='GET')return json({storeProfile:await getStoreProfile(env)},200,cors);
 if(url.pathname==='/api/products'&&request.method==='GET')return json({products:await products(env,false)},200,cors);
 if(url.pathname==='/api/push/public-key'&&request.method==='GET')return json({publicKey:env.VAPID_PUBLIC_KEY||null},200,cors);
 if(url.pathname==='/api/push/subscribe'&&request.method==='POST')return json(await saveSubscription(env,await body(request)),200,cors);
 if(url.pathname==='/api/customers/register'&&request.method==='POST')return json(await registerCustomer(env,await body(request)),200,cors);
-if(url.pathname==='/api/orders'&&request.method==='POST')return json(await createOrder(env,await body(request)),201,cors);
+if(url.pathname==='/api/orders'&&request.method==='POST')return json(await createOrder(env,await body(request),ctx),201,cors);
 if(url.pathname==='/api/orders'&&request.method==='GET')return json({orders:await customerOrders(env,url.searchParams.get('customerId'))},200,cors);
 if(url.pathname==='/api/admin/orders'&&request.method==='GET'){if(!auth(request,env))return json({error:'Unauthorized'},401,cors);return json(await adminOrders(env,url),200,cors)}
 if(url.pathname.startsWith('/api/admin/orders/')&&request.method==='PATCH'){if(!auth(request,env))return json({error:'Unauthorized'},401,cors);const id=decodeURIComponent(url.pathname.split('/').pop());return json(await updateOrder(env,id,await body(request)),200,cors)}

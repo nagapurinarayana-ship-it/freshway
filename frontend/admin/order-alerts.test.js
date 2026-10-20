@@ -1,0 +1,23 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const html = fs.readFileSync('admin.html', 'utf8');
+const source = fs.readFileSync('frontend/admin/order-alerts.js', 'utf8');
+const worker = fs.readFileSync('admin/sw.js', 'utf8');
+const route = fs.readFileSync('worker/src/admin-auth.js', 'utf8');
+
+assert.match(html, /id="ownerOrderAlertToggle"/);
+assert.match(html, /id="ownerOrderAlertStatus"/);
+assert.match(html, /id="ownerOrderAlertList"/);
+assert.match(html, /frontend\/admin\/order-alerts\.js\?v=20261020-order-alerts-v1/);
+assert.match(source, /Notification\.requestPermission\(\)/);
+assert.match(source, /pushManager\.subscribe/);
+assert.match(source, /\/admin\/push\/subscribe/);
+assert.match(source, /\/admin\/order-alerts\?limit=25/);
+assert.match(source, /Disable alerts on this device/);
+assert.match(worker, /addEventListener\('push'/);
+assert.match(worker, /addEventListener\('notificationclick'/);
+assert.match(worker, /fw-owner-v13/);
+assert.match(route, /\/api\/admin\/push\/public-key/);
+assert.match(route, /\/api\/admin\/push\/subscribe/);
+assert.match(route, /\/api\/admin\/order-alerts/);
+console.log('Owner transactional notification controls and push worker contract OK');

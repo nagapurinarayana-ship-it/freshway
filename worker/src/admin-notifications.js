@@ -1,78 +1,91 @@
-import webpush from 'web-push';
+import { dispatchOrderAlert } from './order-alerts.js';
 
-/**
- * Sends customer notifications for owner-side order changes.
- * Kept outside admin-auth so authentication changes cannot alter notification logic.
- */
-export async function notifyOrderChange(request, env) {
+const text = value => String(value ?? '').trim();
+const statusText = status => ({
+  New: 'status is now New',
+  Confirmed: 'is confirmed',
+  Processing: 'is being prepared',
+  Ready: 'is ready',
+  'Out for Delivery': 'is out for delivery',
+  Delivered: 'has been delivered',
+  Cancelled: 'has been cancelled'
+})[status] || `status changed to ${String(status || 'updated').toLowerCase()}`;
+const paymentText = payment => ({
+  'Not Collected': 'cash payment is still pending',
+  Collected: 'cash payment has been collected',
+  Refunded: 'payment has been refunded',
+  Cancelled: 'payment has been cancelled'
+})[payment] || `payment status changed to ${String(payment || 'updated').toLowerCase()}`;
+
+export function buildOrderChangeAlerts(id, before, after, nonce = String(Date.now())) {
+  if (!before || !after || Number(before.is_test_order || 0) === 1 || Number(after.is_test_order || 0) === 1) return [];
+  const orderId = text(id);
+  if (!orderId) return [];
+  const alerts = [];
+  const addPair = (eventType, title, customerBody, ownerTitle, ownerBody) => {
+    for (const [audience, eventTitle, body, url] of [
+      ['customer', title, customerBody, `/?openOrder=${encodeURIComponent(orderId)}#orders`],
+      ['owner', ownerTitle, ownerBody, `/admin/?openOrder=${encodeURIComponent(orderId)}#orders`]
+    ]) {
+      alerts.push({
+        audience, customerId: audience === 'customer' ? text(after.customer_id || before.customer_id) : '',
+        orderId, eventType, title: eventTitle, body, url,
+        eventKey: `order:${orderId}:${eventType}:${audience}:${nonce}`
+      });
+    }
+  };
+
+  const previousStatus = text(before.delivery_status);
+  const nextStatus = text(after.delivery_status);
+  if (nextStatus && previousStatus !== nextStatus) {
+    addPair(
+      'status_changed', 'FreshWay order update',
+      `Your order ${orderId} ${statusText(nextStatus)}.`,
+      'Order status updated',
+      `${orderId}: ${previousStatus || 'Unknown'} → ${nextStatus}.`
+    );
+  }
+
+  const previousPayment = text(before.payment_status);
+  const nextPayment = text(after.payment_status);
+  if (nextPayment && previousPayment !== nextPayment) {
+    addPair(
+      'payment_changed', 'FreshWay payment update',
+      `For order ${orderId}, ${paymentText(nextPayment)}.`,
+      'Order payment updated',
+      `${orderId}: ${previousPayment || 'Unknown'} → ${nextPayment}.`
+    );
+  }
+
+  const previousPlan = text(before.delivery_plan);
+  const nextPlan = text(after.delivery_plan);
+  if (nextPlan && previousPlan !== nextPlan) {
+    addPair(
+      'delivery_plan_changed', 'FreshWay delivery update',
+      `The delivery plan for order ${orderId} is now ${nextPlan}.`,
+      'Order delivery plan updated',
+      `${orderId}: delivery plan changed from ${previousPlan || 'Unscheduled'} to ${nextPlan}.`
+    );
+  }
+  return alerts;
+}
+
+/** Send alerts only after a successful Owner PATCH and only for persisted state changes. */
+export async function notifyOrderChange(request, env, before) {
   try {
-    if (request.method !== 'PATCH' || !new URL(request.url).pathname.startsWith('/api/admin/orders/')) return;
-
-    const payload = await request.clone().json();
+    if (request.method !== 'PATCH' || !new URL(request.url).pathname.startsWith('/api/admin/orders/') || !before) return;
     const id = decodeURIComponent(new URL(request.url).pathname.split('/').pop());
-    const row = await env.DB.prepare(
-      'SELECT customer_id,delivery_status,payment_status,delivery_plan FROM orders WHERE id=?'
+    const after = await env.DB.prepare(
+      'SELECT customer_id,delivery_status,payment_status,delivery_plan,is_test_order FROM orders WHERE id=?'
     ).bind(id).first();
-    if (!row) return;
-
-    const status = String(payload.status || '').trim();
-    const payment = String(payload.payment || '').trim();
-    const plan = String(payload.deliveryPlan || '').trim();
-    let title = '';
-    let message = '';
-
-    if (status) {
-      if (status === 'Confirmed') message = `Order ${id} has been confirmed.`;
-      else if (status === 'Processing') message = `Order ${id} is now being prepared.`;
-      else if (status === 'Ready') message = `Order ${id} is ready for delivery.`;
-      else if (status === 'Out for Delivery') message = `Order ${id} is out for delivery.`;
-      else if (status === 'Delivered') message = `Order ${id} has been delivered.`;
-      else if (status === 'Cancelled') message = `Order ${id} has been cancelled.`;
-      else if (status === 'New') message = `Order ${id} is now new.`;
-      if (message) title = 'FreshWay order update';
-    } else if (payment === 'Collected') {
-      title = 'FreshWay payment update';
-      message = `Payment for order ${id} has been collected.`;
-    } else if (payment === 'Refunded') {
-      title = 'FreshWay payment update';
-      message = `Payment for order ${id} has been refunded.`;
-    } else if (payment === 'Cancelled') {
-      title = 'FreshWay payment update';
-      message = `Payment for order ${id} has been cancelled.`;
-    } else if (payment === 'Not Collected') {
-      title = 'FreshWay payment update';
-      message = `Payment for order ${id} is not collected.`;
-    } else if (plan) {
-      title = 'FreshWay delivery update';
-      message = `Delivery for order ${id} is planned for ${plan}.`;
-    }
-
-    if (!message || !row.customer_id || !env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.VAPID_SUBJECT) return;
-
-    const subs = (await env.DB.prepare(
-      'SELECT endpoint,p256dh,auth FROM push_subscriptions WHERE customer_id=?'
-    ).bind(row.customer_id).all()).results || [];
-    if (!subs.length) return;
-
-    webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
-    const dead = [];
-    await Promise.all(subs.map(async sub => {
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          JSON.stringify({ title, body: message, url: `/orders/${id}`, tag: `freshway-order-${id}` })
-        );
-      } catch (error) {
-        if ([404, 410].includes(error?.statusCode)) dead.push(sub.endpoint);
-      }
-    }));
-
-    if (dead.length) {
-      await env.DB.batch(dead.map(endpoint =>
-        env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint=?').bind(endpoint)
-      ));
-    }
-  } catch (_) {
-    // Notifications are best-effort and must never fail the order update response.
+    if (!after) return;
+    const alerts = buildOrderChangeAlerts(id, before, after, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    await Promise.all(alerts.map(alert => dispatchOrderAlert(env, alert).catch(error => {
+      console.error('FreshWay order status alert failed:', error?.message || error);
+      return { status: 'failed' };
+    })));
+  } catch (error) {
+    // Order writes must not fail because a push provider or alert log is unavailable.
+    console.error('FreshWay Owner order alert processing failed:', error?.message || error);
   }
 }

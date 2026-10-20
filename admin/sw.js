@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v12';
+const CACHE = 'fw-owner-v13';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -8,6 +8,7 @@ const SHELL = [
   '/admin/owner-pwa-install.css?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261020-order-detail-map-row-v1',
   '/admin/admin.js?v=20261020-compact-order-map-v1',
+  '/admin/frontend/admin/order-alerts.js?v=20261020-order-alerts-v1',
   '/admin/frontend/phone-display.js?v=20261009-phone-display-v1',
   '/admin/frontend/admin/store-profile.js?v=20261008-store-profile-v1',
   '/admin/frontend/catalogue-media.js?v=20261008-ui-media-v1',
@@ -28,6 +29,8 @@ const REQUIRED_SHELL = [
   '/admin/manifest.webmanifest',
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261020-order-detail-map-row-v1',
+  '/admin/admin.js?v=20261020-compact-order-map-v1',
+  '/admin/frontend/admin/order-alerts.js?v=20261020-order-alerts-v1',
   '/admin/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1'
 ];
 
@@ -91,10 +94,23 @@ self.addEventListener('fetch', event => {
   })());
 });
 
+self.addEventListener('push', event => {
+  if (!event.data) return;
+  let data = {};
+  try { data = event.data.json(); } catch (_) { data = { body: event.data.text() }; }
+  event.waitUntil(self.registration.showNotification(data.title || 'FreshWay order alert', {
+    body: data.body || 'There is an update to a FreshWay order.',
+    icon: data.icon || '/admin/icons/icon-192.svg',
+    badge: data.badge || '/admin/icons/icon-192.svg',
+    tag: data.tag || 'freshway-owner-order-alert',
+    data: { url: data.url || '/admin/#orders', ...(data.data || {}) }
+  }));
+});
+
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const targetUrl = new URL(event.notification.data?.url || '/admin/', self.location.origin);
-  const target = targetUrl.pathname.startsWith('/admin/') ? targetUrl.pathname + targetUrl.search : '/admin/';
+  let target = '/admin/';
+  try { const targetUrl = new URL(event.notification.data?.url || '/admin/', self.location.origin); if (targetUrl.origin === self.location.origin && targetUrl.pathname.startsWith('/admin/')) target = targetUrl.pathname + targetUrl.search + targetUrl.hash; } catch (_) {}
   event.waitUntil((async () => {
     const pages = await clients.matchAll({ type: 'window', includeUncontrolled: true });
     const same = pages.find(client => new URL(client.url).pathname.startsWith('/admin/'));

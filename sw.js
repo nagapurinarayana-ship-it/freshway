@@ -1,165 +1,143 @@
-const CACHE = 'freshway-v53';
-
+const CACHE = 'freshway-v54';
 const APP_SHELL = [
-  '/',
-  '/index.html',
-  '/styles.css?v=20261019-catalogue-premium-v1',
-  '/address-system.css?v=20260907-address-v2',
-  '/frontend/customer/address-book.css?v=20261020-address-ui-hardening-v2',
-  '/frontend/customer/checkout-submit.js?v=20261020-selected-address-checkout-v2',
-  '/app.js?v=20261009-store-profile-v3',
-  '/frontend/phone-display.js?v=20261009-phone-display-v1',
-  '/frontend/customer/product-view.js?v=20261019-catalogue-premium-v1',
-  '/frontend/customer/catalogue.js?v=20261019-catalogue-premium-v1',
-  '/notifications.js?v=20261020-normalized-auth-phone-v2',
-  '/address-fix.js?v=20261009-address-fallback-safety-v5',
-  '/address-system-final.js?v=20261020-phone-boundary-fix-v2',
-  '/frontend/customer/pwa-install.css?v=20261007-install-v2',
-  '/frontend/customer/seo.js?v=20261007-seo-v1',
-  '/frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2',
-  '/frontend/customer/store-info.js?v=20261009-store-profile-v5',
-  '/frontend/customer/profile.js?v=20261009-customer-profile-v2',
-  '/icons/icon-192.svg?v=20261008-brand-v1',
-  '/icons/icon-512.svg?v=20261008-brand-v1',
-  '/frontend/customer/pwa-install.js?v=20261007-install-v2',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/icons/icon-192-maskable.png',
-  '/icons/icon-512-maskable.png',
-  '/icon.svg?v=20261008-brand-v1',
-  '/freshway-logo-master.webp?v=20261008-master-v1',
-  '/freshway-logo-clean.svg?v=20261008-brand-v1'
+'/',
+'/index.html',
+'/styles.css?v=20261020-order-alert-target-v1',
+'/address-system.css?v=20260907-address-v2',
+'/frontend/customer/address-book.css?v=20261020-address-ui-hardening-v2',
+'/frontend/customer/checkout-submit.js?v=20261020-selected-address-checkout-v2',
+'/app.js?v=20261020-order-alert-links-v1',
+'/frontend/customer/orders-view.js?v=20261020-order-alert-links-v1',
+'/frontend/phone-display.js?v=20261009-phone-display-v1',
+'/frontend/customer/product-view.js?v=20261019-catalogue-premium-v1',
+'/frontend/customer/catalogue.js?v=20261019-catalogue-premium-v1',
+'/notifications.js?v=20261020-normalized-auth-phone-v2',
+'/address-fix.js?v=20261009-address-fallback-safety-v5',
+'/address-system-final.js?v=20261020-phone-boundary-fix-v2',
+'/frontend/customer/pwa-install.css?v=20261007-install-v2',
+'/frontend/customer/seo.js?v=20261007-seo-v1',
+'/frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2',
+'/frontend/customer/store-info.js?v=20261009-store-profile-v5',
+'/frontend/customer/profile.js?v=20261009-customer-profile-v2',
+'/icons/icon-192.svg?v=20261008-brand-v1',
+'/icons/icon-512.svg?v=20261008-brand-v1',
+'/frontend/customer/pwa-install.js?v=20261007-install-v2',
+'/icons/icon-192.png',
+'/icons/icon-512.png',
+'/icons/icon-192-maskable.png',
+'/icons/icon-512-maskable.png',
+'/icon.svg?v=20261008-brand-v1',
+'/freshway-logo-master.webp?v=20261008-master-v1',
+'/freshway-logo-clean.svg?v=20261008-brand-v1'
 ];
-
 const REQUIRED_SHELL = [
-  '/',
-  '/index.html'
+'/',
+'/index.html'
 ];
-
 self.addEventListener('install', event => {
-  event.waitUntil((async () => {
-    const cache = await caches.open(CACHE);
-    const results = await Promise.all(APP_SHELL.map(async asset => {
-      try {
-        const response = await fetch(new Request(asset, { cache: 'no-cache' }));
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        await cache.put(asset, response.clone());
-        return true;
-      } catch (error) {
-        console.error('FreshWay service worker shell asset failed:', asset, error);
-        return false;
-      }
-    }));
-
-    if (!REQUIRED_SHELL.every(asset => results[APP_SHELL.indexOf(asset)])) {
-      throw new Error('FreshWay critical app shell could not be cached.');
-    }
-  })());
-
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(
-        keys.filter(key => key.startsWith('freshway-') && key !== CACHE).map(key => caches.delete(key))
-      ))
-      .then(() => self.clients.claim())
-  );
-});
-
-self.addEventListener('fetch', event => {
-  if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
-
-  const url = new URL(event.request.url);
-  // The Owner PWA owns /admin/ and its own cache lifecycle. The customer worker
-  // must not intercept Owner routes or delete the Owner worker's cache.
-  if (url.pathname === '/admin.html' || url.pathname.startsWith('/admin/')) return;
-
-  const destination = event.request.destination;
-  const isNavigation = event.request.mode === 'navigate' || destination === 'document';
-  const isStaticAsset = ['script','style','image','font','manifest'].includes(destination);
-  if (!isNavigation && !isStaticAsset) return;
-
-  event.respondWith((async () => {
-    const isLogo = url.pathname === '/freshway-logo-clean.svg';
-    const freshCode = ['script','style'].includes(destination);
-    const request = isLogo ? new Request(event.request, { cache: 'reload' }) : freshCode ? new Request(event.request, { cache: 'no-store' }) : event.request;
-
-    const cache = await caches.open(CACHE);
-
-    if (isNavigation && ['/', '/index.html'].includes(url.pathname)) {
-      const key = url.pathname === '/index.html' ? '/index.html' : '/';
-      try {
-        const response = await fetch(new Request(event.request, { cache: 'no-store' }));
-        if (response.ok) cache.put(key, response.clone()).catch(error => console.error('FreshWay document cache update failed:', error));
-        return response;
-      } catch (error) {
-        console.error('FreshWay document fetch failed:', event.request.url, error);
-        return (await cache.match(key)) || (key === '/' ? await cache.match('/index.html') : null) || Response.error();
-      }
-    }
-
-    const cached = await cache.match(event.request);
-
-    const update = fetch(request).then(response => {
-      if (response.ok) {
-        cache.put(event.request, response.clone()).catch(error =>
-          console.error('FreshWay cache update failed:', event.request.url, error)
-        );
-      }
-      return response;
-    }).catch(error => {
-      console.error('FreshWay asset fetch failed:', event.request.url, error);
-      throw error;
-    });
-
-    if (cached && !freshCode) {
-      event.waitUntil(update.catch(() => undefined));
-      return cached;
-    }
-
+event.waitUntil((async () => {
+  const cache = await caches.open(CACHE);
+  const results = await Promise.all(APP_SHELL.map(async asset => {
     try {
-      return await update;
-    } catch (_) {
-      if (isNavigation) return (await cache.match('/index.html')) || Response.error();
-      return (await cache.match(event.request)) || Response.error();
+      const response = await fetch(new Request(asset, { cache: 'no-cache' }));
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      await cache.put(asset, response.clone());
+      return true;
+    } catch (error) {
+      console.error('FreshWay service worker shell asset failed:', asset, error);
+      return false;
     }
-  })());
-});
-
-self.addEventListener('push', event => {
-  if (!event.data) return;
-  let data = {};
-  try {
-    data = event.data.json();
-  } catch (_) {
-    data = { body: event.data.text() };
-  }
-
-  event.waitUntil(self.registration.showNotification(data.title || 'FreshWay', {
-    body: data.body || 'You have a new FreshWay update.',
-    icon: data.icon || '/icon.svg',
-    badge: data.badge || '/icon.svg',
-    tag: data.tag || 'freshway-notification',
-    data: { url: data.url || '/', ...(data.data || {}) }
   }));
+  if (!REQUIRED_SHELL.every(asset => results[APP_SHELL.indexOf(asset)])) {
+    throw new Error('FreshWay critical app shell could not be cached.');
+  }
+})());
+self.skipWaiting();
 });
-
-self.addEventListener('notificationclick', event => {
-  event.notification.close();
-  const target = event.notification.data?.url || '/';
-
-  event.waitUntil((async () => {
-    const pages = await clients.matchAll({ type: 'window', includeUncontrolled: true });
-    const same = pages.find(client => client.url.startsWith(self.location.origin));
-
-    if (same) {
-      await same.focus();
-      if ('navigate' in same) await same.navigate(target);
-    } else if (clients.openWindow) {
-      await clients.openWindow(target);
+self.addEventListener('activate', event => {
+event.waitUntil(
+  caches.keys()
+    .then(keys => Promise.all(
+      keys.filter(key => key.startsWith('freshway-') && key !== CACHE).map(key => caches.delete(key))
+    ))
+    .then(() => self.clients.claim())
+);
+});
+self.addEventListener('fetch', event => {
+if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
+const url = new URL(event.request.url);
+if (url.pathname === '/admin.html' || url.pathname.startsWith('/admin/')) return;
+const destination = event.request.destination;
+const isNavigation = event.request.mode === 'navigate' || destination === 'document';
+const isStaticAsset = ['script','style','image','font','manifest'].includes(destination);
+if (!isNavigation && !isStaticAsset) return;
+event.respondWith((async () => {
+  const isLogo = url.pathname === '/freshway-logo-clean.svg';
+  const freshCode = ['script','style'].includes(destination);
+  const request = isLogo ? new Request(event.request, { cache: 'reload' }) : freshCode ? new Request(event.request, { cache: 'no-store' }) : event.request;
+  const cache = await caches.open(CACHE);
+  if (isNavigation && ['/', '/index.html'].includes(url.pathname)) {
+    const key = url.pathname === '/index.html' ? '/index.html' : '/';
+    try {
+      const response = await fetch(new Request(event.request, { cache: 'no-store' }));
+      if (response.ok) cache.put(key, response.clone()).catch(error => console.error('FreshWay document cache update failed:', error));
+      return response;
+    } catch (error) {
+      console.error('FreshWay document fetch failed:', event.request.url, error);
+      return (await cache.match(key)) || (key === '/' ? await cache.match('/index.html') : null) || Response.error();
     }
-  })());
+  }
+  const cached = await cache.match(event.request);
+  const update = fetch(request).then(response => {
+    if (response.ok) {
+      cache.put(event.request, response.clone()).catch(error =>
+        console.error('FreshWay cache update failed:', event.request.url, error)
+      );
+    }
+    return response;
+  }).catch(error => {
+    console.error('FreshWay asset fetch failed:', event.request.url, error);
+    throw error;
+  });
+  if (cached && !freshCode) {
+    event.waitUntil(update.catch(() => undefined));
+    return cached;
+  }
+  try {
+    return await update;
+  } catch (_) {
+    if (isNavigation) return (await cache.match('/index.html')) || Response.error();
+    return (await cache.match(event.request)) || Response.error();
+  }
+})());
+});
+self.addEventListener('push', event => {
+if (!event.data) return;
+let data = {};
+try {
+  data = event.data.json();
+} catch (_) {
+  data = { body: event.data.text() };
+}
+event.waitUntil(self.registration.showNotification(data.title || 'FreshWay', {
+  body: data.body || 'You have a new FreshWay update.',
+  icon: data.icon || '/icon.svg',
+  badge: data.badge || '/icon.svg',
+  tag: data.tag || 'freshway-notification',
+  data: { url: data.url || '/', ...(data.data || {}) }
+}));
+});
+self.addEventListener('notificationclick', event => {
+event.notification.close();
+const target = event.notification.data?.url || '/';
+event.waitUntil((async () => {
+  const pages = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+  const same = pages.find(client => client.url.startsWith(self.location.origin));
+  if (same) {
+    await same.focus();
+    if ('navigate' in same) await same.navigate(target);
+  } else if (clients.openWindow) {
+    await clients.openWindow(target);
+  }
+})());
 });

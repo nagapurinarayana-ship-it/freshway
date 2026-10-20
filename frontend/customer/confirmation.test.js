@@ -1,0 +1,10 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const source = fs.readFileSync('frontend/customer/confirmation.js', 'utf8');
+const markup = source.slice(source.indexOf('home.insertAdjacentHTML'), source.indexOf('`);', source.indexOf('home.insertAdjacentHTML')));
+assert.match(markup, /id="confirmationNotifications"/);
+assert.match(markup, /Enable order updates on this device/);
+assert.match(source, /FreshWayCustomerNotifications\.enable\(\)/);
+assert.match(source, /notificationsStatus\.textContent=.*enabled on this device/);
+console.log('Customer post-checkout opt-in for order push alerts contract OK');

@@ -70,7 +70,7 @@ function setView(name,options){navigation.setView(name,options)}
 function changeQty(id,delta){const current=Number(state.cart[id]||0);const next=catalogueCart.nextQuantity(current,delta);if(delta>0&&current>=99){toast('Maximum quantity is 99');return}if(next<=0)delete state.cart[id];else state.cart[id]=next;save();renderProducts($('#searchInput')?.value||'');if($('#cartView')?.classList.contains('active-view'))renderCart()}
 function openAddressModal(){customerModal.open(document)}
 function closeModal(){customerModal.close(document)}
-function showConfirmation(order){customerConfirmation.show(order,{esc,planText:customerOrderDisplay.planText,setView,updateCartBar});renderProfile()}
+function showConfirmation(order){customerConfirmation.show(order,{esc,planText:customerOrderDisplay.planText,setView,updateCartBar,toast});renderProfile()}
 const checkoutSubmit=customerCheckoutSubmit.create({document,cartItems,state,save,customerAddress,customerAddressFlow,customerCheckout,customerAuth,customerId,api,customerNotifications,toast,renderProducts,renderProfile,showConfirmation,updateCartBar,setView,money});
 window.showConfirmation=showConfirmation;
 window.setView=setView;
@@ -84,3 +84,17 @@ customerSearch.bind({document,render:renderProducts});
 customerKeyboard.bind({document,onHome:()=>setView('home')});
 customerCartActions.bind({document,changeQty,toast});
 const refreshAccountIdentity=()=>customerAuth.session().then(account=>{if(account?.customerId&&account.customerId===customerId()){renderProfile();customerOrderData.load()}}).catch(()=>{});document.addEventListener('freshway:session',refreshAccountIdentity);renderProducts();renderProfile();updateCartBar();customerOrderData.load();refreshAccountIdentity();
+
+// Push notification links open My Orders and highlight the matching order.
+(function openOrderFromNotification(){
+  const incoming=new URL(location.href);
+  const orderId=incoming.searchParams.get('openOrder');
+  if(!orderId)return;
+  setView('orders',{history:'replace'});
+  customerOrderData.load().then(()=>{
+    const orderCard=[...document.querySelectorAll('[data-order-id]')].find(card=>card.dataset.orderId===orderId);
+    if(orderCard){orderCard.classList.add('notification-target-order');orderCard.scrollIntoView({behavior:'smooth',block:'center'});}
+    const clean=new URL(location.href);clean.searchParams.delete('openOrder');clean.hash='orders';
+    history.replaceState({[customerNavigation.HISTORY_FLAG]:true,view:'orders'},'',clean.pathname+clean.search+clean.hash);
+  }).catch(()=>{});
+})();
