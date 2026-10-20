@@ -58,9 +58,10 @@ assert.match(css,/\.order-map-status/);
 assert.match(css,/\.order-map-link/);
 assert.ok(html.includes('admin.css?v=20261020-order-detail-map-row-v1'),'Owner HTML must load the compact location-row styles');
 assert.ok(html.includes('admin.js?v=20261020-compact-order-map-v1'),'Owner HTML must load the cleaned order details');
-assert.ok(sw.includes('fw-owner-v11'),'Owner PWA cache must advance for updated order detail assets');
-assert.ok(sw.includes('/admin/admin.css?v=20261020-order-detail-map-row-v1'),'Owner PWA shell must cache the current Owner CSS');
-assert.ok(sw.includes('/admin/admin.js?v=20261020-compact-order-map-v1'),'Owner PWA shell must cache the current Owner JS');
+const ownerSw=fs.readFileSync('admin/sw.js','utf8');
+assert.ok(ownerSw.includes('fw-owner-v11'),'Owner PWA cache must advance for updated order detail assets');
+assert.ok(ownerSw.includes('/admin/admin.css?v=20261020-order-detail-map-row-v1'),'Owner PWA shell must cache the current Owner CSS');
+assert.ok(ownerSw.includes('/admin/admin.js?v=20261020-compact-order-map-v1'),'Owner PWA shell must cache the current Owner JS');
 
 console.log('Owner order map UI stays compact, accessible and does not expose raw coordinates');
 console.log('Owner address display deduplicates repeated legacy address fields without modifying saved data');
