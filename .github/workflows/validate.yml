@@ -68,6 +68,7 @@ jobs:
           node mobile-visual.test.js
           node frontend/customer/checkout-submit.test.js
           node address-system-final.test.js
+          node frontend/customer/address-geocode.test.js
           node frontend/customer/catalogue.test.js
           node worker/test/inventory.test.js
           node functions/api-addresses.test.mjs
