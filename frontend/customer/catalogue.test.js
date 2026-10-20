@@ -85,18 +85,6 @@ assert.match(catalogueApi,/MAX_IMAGE_DATA/);
 assert.match(catalogueApi,/image_data/);
 assert.match(catalogueApi,/imageFields\(p,'Category'\)/);
 assert.match(catalogueApi,/image_data,c\.image_mime_type/);
-
-const promotions = fs.readFileSync('frontend/customer/promotions.js', 'utf8');
-const indexHtml = fs.readFileSync('index.html', 'utf8');
-assert.ok(source.includes('home.insertBefore(c,heading)'), 'category discovery must appear before the product list');
-assert.ok(source.includes('home.appendChild(hero)'), 'campaign art must follow product discovery');
-assert.ok(source.includes("(usable.length===1?' is-single':'')"), 'a lone category must use the compact full-width layout');
-assert.ok(source.includes("grid.classList.remove('fw-category-home-hidden')"), 'all products must be visible on the default home view');
-assert.ok(promotions.includes('viewport.style.aspectRatio=aspect>=1.2'), 'portrait promotions must not dictate home page height');
-assert.ok(promotions.includes('max-height:320px'), 'promo display must have a bounded height');
-assert.ok(!promotions.includes('fw-promo-hint'), 'remove the redundant Swipe pill');
-assert.ok(indexHtml.includes('promotions.js?v=20261021-home-promotions-v1'));
-assert.ok(indexHtml.includes('catalogue.js?v=20261021-home-catalogue-v1'));
 console.log('catalogue UI-only media mapping OK');
 
 const navigation=fs.readFileSync('frontend/customer/navigation.js','utf8');
