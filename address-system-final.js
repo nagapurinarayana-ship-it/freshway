@@ -39,6 +39,7 @@
   let marker = null;
   let searchResults = [];
   let locationRequestId = 0;
+  let locationLookupPending = false;
   let mapLoadPromise = null;
   let editorLabel = 'Home';
   let addressLoadError = '';
@@ -293,6 +294,8 @@
   }
 
   function hideModal() {
+    locationRequestId += 1;
+    locationLookupPending = false;
     const element = modal();
     if (element) element.classList.add('hidden');
     document.body.classList.remove('fw-address-modal-open');
@@ -373,6 +376,8 @@
   }
 
   function buildEditor(addressId) {
+    locationRequestId += 1;
+    locationLookupPending = false;
     destroyMap();
     editingAddress = addressId == null ? null : addresses.find(function (address) {
       return Number(address.id) === Number(addressId);
@@ -489,11 +494,18 @@
   function renderLocationStatus() {
     const element = $('#fwAddressLocationStatus');
     if (!element) return;
+    const saveButton = $('#fwAddressSave');
+    if (locationLookupPending) {
+      if (saveButton) saveButton.disabled = true;
+      element.innerHTML = '<div><strong>📍 Updating address from this pin…</strong><small>Old location details will be replaced. Save will be available after the lookup finishes.</small></div>';
+      return;
+    }
+    if (saveButton && saveButton.textContent !== 'Saving…') saveButton.disabled = false;
     if (editorCoordinates && validCoords(editorCoordinates.latitude, editorCoordinates.longitude)) {
       const accuracy = Number(editorCoordinates.accuracyMeters);
       element.innerHTML = '<div><strong>📍 Delivery pin selected</strong><small>' +
         (accuracy > 100 ? 'GPS accuracy is about ±' + Math.round(accuracy) + ' m. Adjust the pin if necessary.' :
-          'This pin will be saved with the address.') + '</small></div>' +
+          'Address fields were refreshed for this pin. Confirm the house/flat number and PIN code.') + '</small></div>' +
         '<button type="button" class="secondary-btn" id="fwAddressClearPin">Clear pin</button>';
     } else {
       element.innerHTML = '<div><strong>📍 Location not selected</strong><small>Use GPS, search or tap the map to choose your delivery point.</small></div>';
@@ -501,33 +513,19 @@
   }
 
   async function reverseGeocode(latitude, longitude) {
-    const response = await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=18&lat=' +
+    const response = await fetch('/api/geocode/reverse?lat=' +
       encodeURIComponent(latitude) + '&lon=' + encodeURIComponent(longitude), {
       headers: { Accept: 'application/json' }
     });
-    if (!response.ok) throw new Error('Could not read this location.');
-    return response.json();
-  }
-
-  function fieldsFromGeocode(result, latitude, longitude, source, accuracy) {
-    const a = result && result.address || {};
-    return {
-      latitude: Number(latitude), longitude: Number(longitude),
-      accuracyMeters: accuracy == null ? null : Number(accuracy),
-      locationSource: source, locationUpdatedAt: new Date().toISOString(),
-      placeId: result && result.place_id ? String(result.place_id) : '',
-      placeName: result && result.display_name ? result.display_name : '',
-      houseFlat: [a.house_number, a.building].filter(Boolean).join(' ').trim(),
-      building: a.building || '',
-      street: a.road || a.pedestrian || a.residential || '',
-      area: [a.neighbourhood, a.suburb, a.quarter].filter(Boolean).filter(function (item, index, list) { return list.indexOf(item) === index; }).slice(0, 2).join(', '),
-      locality: a.city_district || a.locality || '',
-      city: a.city || a.town || a.village || a.municipality || '',
-      district: a.district || a.county || a.state_district || '',
-      state: a.state || '',
-      pincode: a.postcode || '',
-      landmark: a.amenity || a.shop || ''
-    };
+    if (!response.ok) {
+      const data = await response.json().catch(function () { return null; });
+      throw new Error(data && data.error ? data.error : 'Could not read this location.');
+    }
+    const data = await response.json();
+    if (!data || !data.address || typeof data.address !== 'object') {
+      throw new Error('The address lookup service returned no usable address details.');
+    }
+    return data;
   }
 
   async function selectLocation(latitude, longitude, source, accuracy) {
@@ -535,12 +533,14 @@
       toast('Please choose a valid delivery location.');
       return;
     }
-    const requestId=++locationRequestId;
-    editorCoordinates = {
-      latitude: Number(latitude), longitude: Number(longitude),
-      accuracyMeters: accuracy == null ? null : Number(accuracy),
-      locationSource: source, locationUpdatedAt: new Date().toISOString()
-    };
+
+    // Keep the last good pin until the new reverse-geocode result succeeds.
+    // This prevents saving the previous address text against unverified new coordinates.
+    const previousCoordinates = editorCoordinates ? Object.assign({}, editorCoordinates) : null;
+    const previous = readEditor();
+    const requestId = ++locationRequestId;
+    locationLookupPending = true;
+
     if (map && marker) {
       marker.setOpacity(1);
       marker.setLatLng([Number(latitude), Number(longitude)]);
@@ -548,31 +548,62 @@
       setTimeout(function () { if (map) map.invalidateSize(); }, 50);
     }
     renderLocationStatus();
+
     try {
       const result = await reverseGeocode(latitude, longitude);
       if (requestId !== locationRequestId) return;
-      const data = fieldsFromGeocode(result, latitude, longitude, source, accuracy);
+      const mapper = window.FreshWayAddressGeocode;
+      if (!mapper || typeof mapper.fromReverseResult !== 'function' || typeof mapper.mergeSelection !== 'function') {
+        throw new Error('The address editor needs to refresh before selecting a location.');
+      }
+      const geocoded = mapper.fromReverseResult(result, latitude, longitude, source, accuracy);
+      const data = mapper.mergeSelection(previous, geocoded, editorLabel);
+
+      // Only customer-specific fields survive the pin change. Every geographic
+      // field is replaced by this lookup, including blanks for unknown values.
       editorCoordinates = data;
-      // Reverse geocoding may fill blank fields, but never erase or silently replace customer-entered details.
-      const preserve = labelFields.map(function (pair) { return pair[1]; });
-      const previous = readEditor();
-      preserve.forEach(function (key) { data[key] = previous[key] || (editingAddress && editingAddress[key]) || data[key] || ''; });
-      data.label = previous.label || (editingAddress && editingAddress.label) || data.label || editorLabel;
-      Object.assign(editorCoordinates, {
-        latitude: data.latitude, longitude: data.longitude, accuracyMeters: data.accuracyMeters,
-        locationSource: data.locationSource, placeId: data.placeId, locationUpdatedAt: data.locationUpdatedAt
+      labelFields.forEach(function (pair) {
+        if (pair[1] !== 'recipientName' && pair[1] !== 'deliveryPhone' && pair[1] !== 'note') {
+          setValue(pair[0], data[pair[1]] == null ? '' : data[pair[1]]);
+        }
       });
-      labelFields.forEach(function (pair) { if (data[pair[1]] !== undefined && pair[1] !== 'recipientName' && pair[1] !== 'deliveryPhone' && pair[1] !== 'note') setValue(pair[0], data[pair[1]]); });
-      setValue('fwAddrName', previous.recipientName || (editingAddress && editingAddress.recipientName) || '');
-      setValue('fwAddrPhone', normalizePhone(previous.deliveryPhone || (editingAddress && editingAddress.deliveryPhone) || ''));
+      setValue('fwAddrName', data.recipientName);
+      setValue('fwAddrPhone', normalizePhone(data.deliveryPhone));
+      locationLookupPending = false;
     } catch (_) {
       if (requestId !== locationRequestId) return;
-      toast('Pin selected. Complete any address fields that could not be filled automatically.');
+      locationLookupPending = false;
+      editorCoordinates = previousCoordinates;
+      if (map && marker) {
+        if (previousCoordinates && validCoords(previousCoordinates.latitude, previousCoordinates.longitude)) {
+          marker.setOpacity(1);
+          marker.setLatLng([previousCoordinates.latitude, previousCoordinates.longitude]);
+          map.setView([previousCoordinates.latitude, previousCoordinates.longitude], 17);
+        } else {
+          marker.setOpacity(0);
+          map.setView([20.5937, 78.9629], 5);
+        }
+        setTimeout(function () { if (map) map.invalidateSize(); }, 50);
+      }
+      renderLocationStatus();
+      checkForMatchingAddress();
+      toast('Address lookup failed. Your previous address and pin were kept. Try again or search for this location.');
+      return;
     }
+
     if (requestId !== locationRequestId) return;
     renderLocationStatus();
     checkForMatchingAddress();
-    toast('Location selected. Existing address details were kept; verify they match the pin before saving.');
+    const missing = [];
+    if (!value('fwAddrHouse')) missing.push('house/flat or plot number');
+    if (!value('fwAddrArea')) missing.push('area/colony');
+    if (!value('fwAddrCity')) missing.push('city');
+    if (!/^\d{6}$/.test(value('fwAddrPincode'))) missing.push('6-digit PIN code');
+    if (missing.length) {
+      toast('Location updated. The map could not identify the ' + missing.join(', ') + '. Enter them before saving.');
+    } else {
+      toast('Location and address details updated. Verify the house/flat number and PIN code before saving.');
+    }
   }
 
   function readEditor() {
@@ -701,6 +732,7 @@
     const phoneField = $('#fwAddrPhone');
     const normalizedFieldPhone = normalizePhone(phoneField && phoneField.value);
     if (phoneField && normalizedFieldPhone) phoneField.value = normalizedFieldPhone;
+    if (locationLookupPending) return toast('Wait for the address lookup to finish before saving.');
     const address = readEditor();
     if (!address.recipientName || address.recipientName.length < 2) return toast('Enter the recipient name.');
     if (!/^\d{10}$/.test(address.deliveryPhone)) return toast('Enter a valid 10-digit delivery contact number.');
