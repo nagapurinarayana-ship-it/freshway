@@ -3,7 +3,79 @@ import { json, n, pageOf, limitOf, like, STATUSES, normalizeStatus, orderSort, l
 const PAYMENTS=['Not Collected','Collected','Refunded','Cancelled'];
 const normalizePayment=v=>{const value=n(v);return value==='Pending'?'Not Collected':value};
 
-export async function orders(env,u){const page=pageOf(u),limit=limitOf(u),offset=(page-1)*limit,search=n(u.searchParams.get('search')),status=normalizeStatus(n(u.searchParams.get('status'))),payment=normalizePayment(u.searchParams.get('payment')),plan=n(u.searchParams.get('plan')),from=n(u.searchParams.get('from')),to=n(u.searchParams.get('to')),customer=n(u.searchParams.get('customer')),minAmount=n(u.searchParams.get('minAmount')),maxAmount=n(u.searchParams.get('maxAmount'));const testOrders=u.searchParams.get('testOrders')==='1';const where=[testOrders?'o.is_test_order=1':'o.is_test_order=0'],p=[];if(search){where.push('(o.id LIKE ? OR o.customer_name LIKE ? OR o.customer_phone LIKE ? OR a.house LIKE ? OR a.area LIKE ? OR a.city LIKE ? OR a.pincode LIKE ?)');const s=like(search);p.push(s,s,s,s,s,s,s)}if(customer){where.push('(o.customer_name LIKE ? OR o.customer_phone LIKE ? OR o.customer_id=?)');p.push(like(customer),like(customer),customer)}if(status&&status!=='all'){if(!STATUSES.includes(status))throw new Error('Invalid order status filter.');where.push(status==='New'?"o.delivery_status IN ('New','Ordered')":'o.delivery_status=?');if(status!=='New')p.push(status)}if(payment&&payment!=='all'){if(!PAYMENTS.includes(payment))throw new Error('Invalid payment status filter.');where.push('o.payment_status=?');p.push(payment)}if(plan&&plan!=='all'){where.push('o.delivery_plan=?');p.push(plan)}const fs=localDateStart(from),te=localDateEnd(to);if(fs){where.push('o.created_at>=?');p.push(fs)}if(te){where.push('o.created_at<=?');p.push(te)}if(minAmount&&Number.isFinite(Number(minAmount))){where.push('o.total>=?');p.push(Number(minAmount))}if(maxAmount&&Number.isFinite(Number(maxAmount))){where.push('o.total<=?');p.push(Number(maxAmount))}const base=`FROM orders o LEFT JOIN addresses a ON a.id=o.address_id LEFT JOIN order_address_snapshots s ON s.order_id=o.id WHERE ${where.join(' AND ')}`;const total=Number((await env.DB.prepare(`SELECT COUNT(*) count ${base}`).bind(...p).first())?.count||0);const rows=(await env.DB.prepare(`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.is_test_order,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.payment_collected_at,COALESCE(s.house_flat,a.house) house,COALESCE(s.area,a.area) area,COALESCE(s.city,a.city) city,COALESCE(s.pincode,a.pincode) pincode,COALESCE(s.landmark,a.landmark) landmark,COALESCE(s.delivery_note,a.note) note,s.recipient_name,s.delivery_phone,s.building,s.floor,s.street,s.locality,s.district,s.state,s.latitude,s.longitude,s.accuracy_meters,s.location_source,s.place_id,s.location_updated_at ${base} ORDER BY ${orderSort(u)} LIMIT ? OFFSET ?`).bind(...p,limit,offset).all()).results||[];if(!rows.length)return{orders:[],pagination:{page,limit,total,pages:Math.max(1,Math.ceil(total/limit))}};const ids=rows.map(r=>r.id),ph=ids.map(()=>'?').join(',');const items=(await env.DB.prepare(`SELECT order_id,product_id,name,unit,qty,price,line_total FROM order_items WHERE order_id IN (${ph}) ORDER BY id`).bind(...ids).all()).results||[];const map=new Map(rows.map(r=>[r.id,{id:r.id,customerId:r.customer_id,customer:{name:r.recipient_name||r.customer_name,phone:r.delivery_phone||r.customer_phone},address:{house:r.house,houseFlat:r.house,building:r.building,floor:r.floor,street:r.street,area:r.area,locality:r.locality,city:r.city,district:r.district,state:r.state,pincode:r.pincode,landmark:r.landmark,note:r.note,recipientName:r.recipient_name||r.customer_name,deliveryPhone:r.delivery_phone||r.customer_phone,latitude:r.latitude,longitude:r.longitude,accuracyMeters:r.accuracy_meters,locationSource:r.location_source,placeId:r.place_id,locationUpdatedAt:r.location_updated_at},items:[],isTestOrder:Number(r.is_test_order)===1,total:r.total,payment:r.payment_status,status:normalizeStatus(r.delivery_status),deliveryPlan:r.delivery_plan,createdAt:r.created_at,updatedAt:r.updated_at,paymentCollectedAt:r.payment_collected_at}]));for(const i of items)map.get(i.order_id)?.items.push({id:i.product_id,name:i.name,unit:i.unit,qty:i.qty,price:i.price,lineTotal:i.line_total});return{orders:[...map.values()],pagination:{page,limit,total,pages:Math.max(1,Math.ceil(total/limit))}}}
+export async function orders(env, u) {
+  const page=pageOf(u),limit=limitOf(u),offset=(page-1)*limit;
+  const search=n(u.searchParams.get('search')),status=normalizeStatus(n(u.searchParams.get('status')));
+  const payment=normalizePayment(u.searchParams.get('payment')),plan=n(u.searchParams.get('plan'));
+  const from=n(u.searchParams.get('from')),to=n(u.searchParams.get('to')),customer=n(u.searchParams.get('customer'));
+  const minAmount=n(u.searchParams.get('minAmount')),maxAmount=n(u.searchParams.get('maxAmount'));
+  const testOrders=u.searchParams.get('testOrders')==='1';
+  const where=[testOrders?'o.is_test_order=1':'o.is_test_order=0'],p=[];
+  if(search){
+    where.push('(o.id LIKE ? OR o.customer_name LIKE ? OR COALESCE(c.name,o.customer_name) LIKE ? OR COALESCE(c.phone,o.customer_phone) LIKE ? OR COALESCE(s.delivery_phone,a.delivery_phone) LIKE ? OR a.house LIKE ? OR a.area LIKE ? OR a.city LIKE ? OR a.pincode LIKE ?)');
+    const s=like(search);p.push(s,s,s,s,s,s,s,s,s);
+  }
+  if(customer){
+    where.push('(COALESCE(c.name,o.customer_name) LIKE ? OR COALESCE(c.phone,o.customer_phone) LIKE ? OR COALESCE(s.delivery_phone,a.delivery_phone) LIKE ? OR o.customer_id=?)');
+    const s=like(customer);p.push(s,s,s,customer);
+  }
+  if(status&&status!=='all'){
+    if(!STATUSES.includes(status))throw new Error('Invalid order status filter.');
+    where.push(status==='New'?"o.delivery_status IN ('New','Ordered')":'o.delivery_status=?');
+    if(status!=='New')p.push(status);
+  }
+  if(payment&&payment!=='all'){
+    if(!PAYMENTS.includes(payment))throw new Error('Invalid payment status filter.');
+    where.push('o.payment_status=?');p.push(payment);
+  }
+  if(plan&&plan!=='all'){where.push('o.delivery_plan=?');p.push(plan);}
+  const fs=localDateStart(from),te=localDateEnd(to);
+  if(fs){where.push('o.created_at>=?');p.push(fs);}
+  if(te){where.push('o.created_at<=?');p.push(te);}
+  if(minAmount&&Number.isFinite(Number(minAmount))){where.push('o.total>=?');p.push(Number(minAmount));}
+  if(maxAmount&&Number.isFinite(Number(maxAmount))){where.push('o.total<=?');p.push(Number(maxAmount));}
+  const base=\`FROM orders o
+    LEFT JOIN customers c ON c.id=o.customer_id
+    LEFT JOIN addresses a ON a.id=o.address_id
+    LEFT JOIN order_address_snapshots s ON s.order_id=o.id
+    WHERE \${where.join(' AND ')}\`;
+  const total=Number((await env.DB.prepare(\`SELECT COUNT(*) count \${base}\`).bind(...p).first())?.count||0);
+  const rows=(await env.DB.prepare(\`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.is_test_order,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.payment_collected_at,
+    COALESCE(c.name,o.customer_name) registered_name,COALESCE(c.phone,o.customer_phone) registered_phone,
+    COALESCE(s.house_flat,a.house) house,COALESCE(s.area,a.area) area,COALESCE(s.city,a.city) city,
+    COALESCE(s.pincode,a.pincode) pincode,COALESCE(s.landmark,a.landmark) landmark,
+    COALESCE(s.delivery_note,a.note) note,COALESCE(s.recipient_name,a.recipient_name,o.customer_name) recipient_name,
+    COALESCE(s.delivery_phone,a.delivery_phone) delivery_phone,s.building,s.floor,s.street,s.locality,s.district,s.state,
+    s.latitude,s.longitude,s.accuracy_meters,s.location_source,s.place_id,s.location_updated_at
+    \${base} ORDER BY \${orderSort(u)} LIMIT ? OFFSET ?\`).bind(...p,limit,offset).all()).results||[];
+  if(!rows.length)return{orders:[],pagination:{page,limit,total,pages:Math.max(1,Math.ceil(total/limit))}};
+  const ids=rows.map(row=>row.id),ph=ids.map(()=>'?').join(',');
+  const items=(await env.DB.prepare(\`SELECT order_id,product_id,name,unit,qty,price,line_total FROM order_items WHERE order_id IN (\${ph}) ORDER BY id\`).bind(...ids).all()).results||[];
+  const map=new Map(rows.map(row=>[row.id,{
+    id:row.id,customerId:row.customer_id,
+    customer:{
+      name:row.registered_name||row.customer_name,
+      phone:row.registered_phone||row.customer_phone,
+      registeredPhone:row.registered_phone||row.customer_phone,
+      recipientName:row.recipient_name||row.customer_name,
+      deliveryPhone:row.delivery_phone||''
+    },
+    address:{
+      house:row.house,houseFlat:row.house,building:row.building,floor:row.floor,street:row.street,area:row.area,
+      locality:row.locality,city:row.city,district:row.district,state:row.state,pincode:row.pincode,landmark:row.landmark,
+      note:row.note,recipientName:row.recipient_name||row.customer_name,deliveryPhone:row.delivery_phone||'',
+      latitude:row.latitude,longitude:row.longitude,accuracyMeters:row.accuracy_meters,locationSource:row.location_source,
+      placeId:row.place_id,locationUpdatedAt:row.location_updated_at
+    },
+    items:[],isTestOrder:Number(row.is_test_order)===1,total:row.total,payment:row.payment_status,
+    status:normalizeStatus(row.delivery_status),deliveryPlan:row.delivery_plan,createdAt:row.created_at,
+    updatedAt:row.updated_at,paymentCollectedAt:row.payment_collected_at
+  }]));
+  for(const item of items)map.get(item.order_id)?.items.push({
+    id:item.product_id,name:item.name,unit:item.unit,qty:item.qty,price:item.price,lineTotal:item.line_total
+  });
+  return{orders:[...map.values()],pagination:{page,limit,total,pages:Math.max(1,Math.ceil(total/limit))}};
+}
 
 export async function updateOrder(env,id,payload){
   const status=payload.status?normalizeStatus(n(payload.status)):'';
