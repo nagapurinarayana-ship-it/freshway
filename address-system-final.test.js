@@ -36,7 +36,7 @@ assert.match(source, /if \(locationLookupPending\) return toast/, 'save must be 
 assert.match(source, /editorCoordinates = previousCoordinates/, 'failed geocoding must restore the last verified pin');
 assert.match(geocode, /houseFlat: first\(a\.house_number, a\.house_name\)/);
 assert.match(geocode, /pincode: indianPincode\(a\.postcode\)/);
-assert.match(geocode, /landmark: ''/);
+assert.match(geocode, /landmark: first\(result && result\.name, a\.amenity, a\.shop\)/);
 assert.match(geocode, /recipientName: text\(old\.recipientName\)/);
 assert.match(geocode, /note: text\(old\.note\)/);
 assert.match(source, /addressLoadError = error\.message/);
