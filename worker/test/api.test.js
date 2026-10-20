@@ -263,3 +263,37 @@ test('saved-address deletion soft-deletes rows so order foreign keys remain vali
   assert.ok(queries.every(sql => !/DELETE FROM addresses WHERE/.test(sql)));
   assert.ok(queries.some(sql => /deleted_at IS NULL/.test(sql)));
 });
+
+test('saved-address API maps the persisted house column to checkout houseFlat', async () => {
+  const savedRow = {
+    id: 42, customer_id: 'customer-1', label: 'Other',
+    recipient_name: 'Test Customer', delivery_phone: '919876543210',
+    house: '1-12/23/c', area: 'Brundavan Colony', city: 'Boduppal',
+    pincode: '505209', is_default: 1
+  };
+  const listEnv = {
+    ...env,
+    DB: {
+      prepare(sql) {
+        assert.match(sql, /SELECT \* FROM addresses WHERE customer_id=\?/);
+        return {
+          bind(customerId) {
+            assert.equal(customerId, 'customer-1');
+            return { async all() { return { results: [savedRow] }; } };
+          }
+        };
+      }
+    }
+  };
+  const response = await handleAddress(
+    new Request('https://api.example.test/api/addresses', { method: 'GET' }),
+    listEnv,
+    'customer-1',
+    'list'
+  );
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.addresses.length, 1);
+  assert.equal(data.addresses[0].houseFlat, '1-12/23/c');
+  assert.equal(data.addresses[0].isDefault, true);
+});

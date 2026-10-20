@@ -25,7 +25,7 @@ function response(data, status, env) {
   }});
 }
 function publicAddress(r) {
-  return { id:r.id,label:r.label,recipientName:r.recipient_name,deliveryPhone:r.delivery_phone,houseFlat:r.house_flat,
+  return { id:r.id,label:r.label,recipientName:r.recipient_name,deliveryPhone:r.delivery_phone,houseFlat:r.house_flat || r.house || '',
     building:r.building,floor:r.floor,street:r.street,area:r.area,locality:r.locality,city:r.city,district:r.district,
     state:r.state,pincode:r.pincode,landmark:r.landmark,note:r.note,latitude:r.latitude,longitude:r.longitude,
     accuracyMeters:r.accuracy_meters,locationSource:r.location_source,placeId:r.place_id,locationUpdatedAt:r.location_updated_at,isDefault:!!r.is_default };
