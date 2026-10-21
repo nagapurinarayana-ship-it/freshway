@@ -10,7 +10,8 @@ assert.doesNotMatch(customerHtml, /class=["'][^"']*\badmin-link\b/i, 'customer p
 const ownerLiveSmokeSource = readRepoFile('pwa-owner-live-smoke.mjs').toString('utf8');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261020-owner-alert-login-ready-v1';"), 'production Owner smoke must demand the current admin.js version');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261020-owner-push-login-ready-v2';"), 'production Owner smoke must demand the current push setup version');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v15';"), 'production Owner smoke must demand the current service-worker cache');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261021-shop-map-pin-v1';"), 'production Owner smoke must demand the current business profile and shop pin editor');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v16';"), 'production Owner smoke must demand the current service-worker cache');
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerAppShell/);
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerServiceWorker/);
 const ownerManifestSource = readRepoFile('admin/manifest.webmanifest').toString('utf8');
