@@ -6,7 +6,7 @@ if (!BASE_URL) throw new Error('OWNER_PWA_BASE_URL is required for Owner PWA dep
 const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261020-owner-alert-login-ready-v1';
 const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261020-owner-push-login-ready-v2';
 const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261021-shop-map-pin-v1';
-const EXPECTED_OWNER_CACHE = 'fw-owner-v16';
+const EXPECTED_OWNER_CACHE = 'fw-owner-v17';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
