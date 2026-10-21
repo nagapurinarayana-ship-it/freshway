@@ -124,7 +124,7 @@ assert.match(productView,/productNameAliases/);
 console.log('premium category selection, navigation and customer-facing product naming contracts OK');
 
 assert.match(source,/fw-category-selected/,'selected category applies a scoped compact layout');
-assert.match(styles,/body\\.fw-category-selected \\.product-card\\{height:196px/,'category product cards are compact enough for a four-item first view');
-assert.match(styles,/body\\.fw-category-selected \\.product-image\\{height:76px/,'category product images use a compact height');
+assert.ok(styles.includes('body.fw-category-selected .product-card{height:196px'),'category product cards are compact enough for a four-item first view');
+assert.ok(styles.includes('body.fw-category-selected .product-image{height:76px'),'category product images use a compact height');
 assert.match(styles,/max-height:800px/,'short mobile screens receive an additional compact layout');
 console.log('four-product category fold-fit contract OK');
