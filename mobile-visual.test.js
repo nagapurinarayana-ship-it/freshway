@@ -3,6 +3,7 @@ const fs=require('node:fs');
 
 const view=fs.readFileSync('frontend/customer/product-view.js','utf8');
 const css=fs.readFileSync('styles.css','utf8');
+const categoryFoldStyles=fs.readFileSync('frontend/customer/category-fold-fit.css','utf8');
 const adminCss=fs.readFileSync('admin.css','utf8');
 const sw=fs.readFileSync('sw.js','utf8');
 const index=fs.readFileSync('index.html','utf8');
