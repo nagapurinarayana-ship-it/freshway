@@ -48,7 +48,7 @@ const required = {
   order_items: ['id', 'order_id', 'product_id', 'name', 'unit', 'qty', 'price', 'line_total', 'stock_reserved_qty'],
   order_address_snapshots: ['order_id', 'customer_id', 'address_id', 'recipient_name', 'delivery_phone', 'house_flat', 'area', 'city', 'pincode', 'delivery_note', 'place_name', 'place_id', 'latitude', 'longitude', 'location_updated_at'],
   home_promotions: ['id', 'image_data', 'image_mime_type', 'alt_text', 'display_order', 'active'],
-  store_profile: ['id', 'store_name', 'phone', 'whatsapp', 'share_title', 'share_description'],
+  store_profile: ['id', 'store_name', 'phone', 'whatsapp', 'address', 'shop_latitude', 'shop_longitude', 'share_title', 'share_description'],
   auth_rate_limits: ['key', 'window_start', 'count']
 };
 

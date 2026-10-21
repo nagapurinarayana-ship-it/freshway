@@ -198,6 +198,8 @@ CREATE TABLE IF NOT EXISTS store_profile (
   whatsapp TEXT NOT NULL DEFAULT '',
   email TEXT NOT NULL DEFAULT '',
   address TEXT NOT NULL DEFAULT '',
+  shop_latitude REAL,
+  shop_longitude REAL,
   business_hours TEXT NOT NULL DEFAULT '',
   delivery_info TEXT NOT NULL DEFAULT '',
   share_title TEXT NOT NULL DEFAULT 'FreshWay | Fresh Groceries & Everyday Essentials Delivered Locally',
