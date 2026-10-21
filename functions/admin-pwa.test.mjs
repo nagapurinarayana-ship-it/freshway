@@ -147,7 +147,7 @@ for (const asset of requiredOwnerAssets) {
     assert.match(assetCacheControl, /must-revalidate/i, 'Owner media must revalidate after expiry: ' + asset);
   }
   assert.equal(fetched[0].pathname, '/' + asset, 'asset alias must resolve to the canonical static file: ' + asset);
-  assert.equal(fetched[0].search, asset.endsWith('.js') ? '?v=qa-1' : '', 'asset query string must be preserved: ' + asset);
+  assert.equal(fetched[0].search, versionedCodeAsset ? '?v=qa-1' : '', 'asset query string must be preserved: ' + asset);
 }
 
 {
