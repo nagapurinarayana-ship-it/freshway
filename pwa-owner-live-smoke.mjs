@@ -32,6 +32,18 @@ function assertFreshResponse(response, label) {
   assert.match(response.headers.get('x-robots-tag') || '', /noindex/i, `${label} must be excluded from search indexing`);
 }
 
+function hasStyleReference(html, pageUrl, expectedPath) {
+  const expected = new URL(expectedPath, pageUrl);
+  return [...html.matchAll(/<link\b[^>]*\bhref=["']([^"']+)["'][^>]*>/gi)].some(([, href]) => {
+    try {
+      const actual = new URL(href, pageUrl);
+      return actual.pathname === expected.pathname && actual.search === expected.search;
+    } catch (_) {
+      return false;
+    }
+  });
+}
+
 function hasScriptReference(html, pageUrl, expectedPath) {
   const expected = new URL(expectedPath, pageUrl);
   return [...html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)].some(([, src]) => {
@@ -57,7 +69,7 @@ async function fetchCurrentOwnerAppShell(attempts = 60) {
         lastError = new Error('/admin/ returned HTTP ' + response.status);
       } else {
         const html = await response.text();
-        const currentCss = html.includes(EXPECTED_OWNER_CSS);
+        const currentCss = hasStyleReference(html, response.url, EXPECTED_OWNER_CSS);
         const currentAdmin = hasScriptReference(html, response.url, EXPECTED_OWNER_ADMIN_SCRIPT);
         const currentAlerts = hasScriptReference(html, response.url, EXPECTED_OWNER_ALERTS_SCRIPT);
         const currentStoreProfile = hasScriptReference(html, response.url, EXPECTED_OWNER_STORE_PROFILE_SCRIPT);
@@ -111,7 +123,7 @@ const installScriptUrl = new URL(installScriptMatch[1], pageResponse.url);
 assert.equal(installScriptUrl.origin, new URL(pageResponse.url).origin, 'Owner bootstrap must remain same-origin');
 assert.ok(installScriptUrl.pathname.startsWith('/admin/'), 'Owner bootstrap must stay inside the /admin/ scope');
 assert.match(html, /FreshWay — Owner/);
-assert.ok(html.includes(EXPECTED_OWNER_CSS), 'Owner app must load the latest Owner CSS version');
+assert.ok(hasStyleReference(html, pageResponse.url, EXPECTED_OWNER_CSS), 'Owner app must load the latest Owner CSS version');
   assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_ADMIN_SCRIPT), 'Owner app must load the latest login-aware admin script');
 assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_ALERTS_SCRIPT), 'Owner app must load the latest login-aware push setup script');
 assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_STORE_PROFILE_SCRIPT), 'Owner app must load the latest business profile and shop pin editor');
