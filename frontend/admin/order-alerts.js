@@ -265,7 +265,7 @@
   }
 
   async function deleteOneOwnerAlert(id, button) {
-    if (!/^\\d+$/.test(String(id || ''))) return;
+    if (!/^\d+$/.test(String(id || ''))) return;
     if (!window.confirm('Delete this notification from Owner history? This will not delete its order or disable future alerts.')) return;
     const status = $('#ownerAlertHistoryStatus');
     if (button) button.disabled = true;
