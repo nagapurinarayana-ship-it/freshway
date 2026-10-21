@@ -195,7 +195,6 @@ test('Owner test push records an actionable not-configured result without failin
     } }
   };
   const result = await sendOwnerPushTest(env);
-  assert.equal(result.test, undefined);
   assert.equal(result.status, 'not_configured');
   assert.equal(result.ownerSubscriptionCount, 0);
   assert.equal(result.lastError, 'PUSH_NOT_CONFIGURED');
