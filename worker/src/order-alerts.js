@@ -221,8 +221,8 @@ export async function deleteAllOwnerOrderAlerts(env) {
 /** Return safe, non-secret diagnostics for the authenticated Owner notifications screen. */
 export async function getOwnerPushDiagnostics(env) {
   const [countRow, latestAlert] = await Promise.all([
-    env.DB.prepare("SELECT COUNT(*) AS count FROM owner_push_subscriptions WHERE owner_key='default'").first(),
-    env.DB.prepare("SELECT event_type,status,recipient_count,success_count,failure_count,last_error,created_at,updated_at FROM notification_events WHERE audience='owner' ORDER BY id DESC LIMIT 1").first()
+    env.DB.prepare('SELECT COUNT(*) AS count FROM owner_push_subscriptions WHERE owner_key=?').bind('default').first(),
+    env.DB.prepare('SELECT event_type,status,recipient_count,success_count,failure_count,last_error,created_at,updated_at FROM notification_events WHERE audience=? ORDER BY id DESC LIMIT 1').bind('owner').first()
   ]);
   return {
     pushConfigured: pushConfigured(env),
