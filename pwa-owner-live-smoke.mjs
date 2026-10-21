@@ -5,10 +5,10 @@ if (!BASE_URL) throw new Error('OWNER_PWA_BASE_URL is required for Owner PWA dep
 
 const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261021-owner-alert-history-v1';
 const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261021-owner-alert-history-v1';
-const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261021-owner-alert-history-v1';
+const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1';
 const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1';
 const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261021-open-map-fix-v1';
-const EXPECTED_OWNER_CACHE = 'fw-owner-v21';
+const EXPECTED_OWNER_CACHE = 'fw-owner-v22';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -152,6 +152,7 @@ assert.match(html, /FreshWay — Owner/);
 assert.ok(hasStyleReference(html, pageResponse.url, EXPECTED_OWNER_CSS), 'Owner app must load the latest Owner CSS version');
   assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_ADMIN_SCRIPT), 'Owner app must load the latest login-aware admin script');
 assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_ALERTS_SCRIPT), 'Owner app must load the latest login-aware push setup script');
+assert.match(html, /id="ownerOrderAlertTest"/, 'Owner app must expose the push delivery test control');
 assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_STORE_PROFILE_SCRIPT), 'Owner app must load the latest business profile and shop pin editor');
 assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_LIFECYCLE_SCRIPT), 'Owner app must load the cache-busted order lifecycle map handler');
 
