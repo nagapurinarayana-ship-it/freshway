@@ -234,7 +234,7 @@ export async function getOwnerPushDiagnostics(env) {
 /** Send a genuine server-to-push-service test through the same delivery path as new orders. */
 export async function sendOwnerPushTest(env) {
   const nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  return dispatchOrderAlert(env, {
+  const result = await dispatchOrderAlert(env, {
     audience: 'owner',
     customerId: '',
     orderId: '',
@@ -244,4 +244,10 @@ export async function sendOwnerPushTest(env) {
     body: 'This is a test push. If you see it, this Owner device received a notification.',
     url: '/admin/#notifications'
   });
+  const diagnostics = await getOwnerPushDiagnostics(env).catch(() => null);
+  return {
+    ...result,
+    ownerSubscriptionCount: Number(diagnostics?.ownerSubscriptionCount || 0),
+    lastError: diagnostics?.latestAlert?.last_error || null
+  };
 }
