@@ -131,8 +131,6 @@ event.waitUntil((async () => {
     data: { url: data.url || '/', ...(data.data || {}) }
   });
 
-  // If the customer app is already open, refresh server-owned order state
-  // immediately rather than waiting for the next polling/focus refresh.
   const alert = data.data || {};
   if (alert.audience !== 'customer' || !alert.orderId) return;
   const pages = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
