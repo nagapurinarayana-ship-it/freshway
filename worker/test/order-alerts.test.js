@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildOrderPlacedAlerts, dispatchOrderAlert, saveOwnerSubscription, deleteOwnerSubscription, listOwnerOrderAlerts, deleteOwnerOrderAlert, deleteAllOwnerOrderAlerts } from '../src/order-alerts.js';
+import { buildOrderPlacedAlerts, dispatchOrderAlert, saveOwnerSubscription, deleteOwnerSubscription, listOwnerOrderAlerts, deleteOwnerOrderAlert, deleteAllOwnerOrderAlerts, getOwnerPushDiagnostics, sendOwnerPushTest } from '../src/order-alerts.js';
 import { buildOrderChangeAlerts } from '../src/admin-notifications.js';
 
 test('new order alerts tell the customer the order was received and alert the Owner separately', () => {
@@ -125,4 +125,81 @@ test('Owner push subscription writes are scoped to the Owner partition and valid
   assert.equal(statements[0].args[0], 'https://push.example.test/sub/1');
   await assert.rejects(() => saveOwnerSubscription(env, { subscription: { ...subscription.subscription, endpoint: 'http://bad.example/sub' } }), /Invalid push endpoint/);
   assert.deepEqual(await deleteOwnerSubscription(env, { endpoint: 'https://push.example.test/sub/1' }), { ok: true });
+});
+
+
+test('Owner push diagnostics expose subscription counts and latest safe delivery result', async () => {
+  const env = {
+    VAPID_PUBLIC_KEY: 'public-key',
+    VAPID_PRIVATE_KEY: 'private-key',
+    VAPID_SUBJECT: 'mailto:ops@example.test',
+    DB: { prepare(sql) {
+      return {
+        bind() { return this; },
+        async first() {
+          if (sql.includes('COUNT(*)')) return { count: 2 };
+          if (sql.includes('notification_events')) {
+            return { event_type: 'new_order', status: 'failed', recipient_count: 2, success_count: 0,
+              failure_count: 2, last_error: 'HTTP_403:2', created_at: '2026-10-21 12:00:00', updated_at: '2026-10-21 12:00:01' };
+          }
+          throw new Error('Unexpected SQL: ' + sql);
+        }
+      };
+    } }
+  };
+  const result = await getOwnerPushDiagnostics(env);
+  assert.equal(result.pushConfigured, true);
+  assert.equal(result.ownerSubscriptionCount, 2);
+  assert.equal(result.latestAlert.status, 'failed');
+  assert.equal(result.latestAlert.last_error, 'HTTP_403:2');
+  assert.equal(Object.hasOwn(result, 'publicKey'), false, 'diagnostics must not return VAPID keys');
+});
+
+test('Owner test push records an actionable not-configured result without failing', async () => {
+  const events = new Map();
+  const updates = [];
+  const env = {
+    DB: { prepare(sql) {
+      let args = [];
+      return {
+        bind(...values) { args = values; return this; },
+        async run() {
+          if (sql.includes('INSERT INTO notification_events')) {
+            const id = events.size + 1;
+            events.set(args[0], { id, event_type: args[4], status: 'sending', args });
+            return { meta: { changes: 1 } };
+          }
+          if (sql.includes('UPDATE notification_events')) {
+            updates.push(args);
+            const event = [...events.values()][0];
+            event.status = args[0];
+            event.last_error = args[4];
+            event.recipient_count = args[1];
+            event.success_count = args[2];
+            event.failure_count = args[3];
+            return { meta: { changes: 1 } };
+          }
+          throw new Error('Unexpected SQL: ' + sql);
+        },
+        async first() {
+          if (sql.includes('SELECT id FROM notification_events')) return events.get(args[0]) ? { id: events.get(args[0]).id } : null;
+          if (sql.includes('COUNT(*)')) return { count: 0 };
+          if (sql.includes('notification_events')) {
+            const event = [...events.values()][0];
+            return event ? { event_type: event.event_type, status: event.status, recipient_count: event.recipient_count,
+              success_count: event.success_count, failure_count: event.failure_count, last_error: event.last_error } : null;
+          }
+          throw new Error('Unexpected SQL: ' + sql);
+        }
+      };
+    } }
+  };
+  const result = await sendOwnerPushTest(env);
+  assert.equal(result.test, undefined);
+  assert.equal(result.status, 'not_configured');
+  assert.equal(result.ownerSubscriptionCount, 0);
+  assert.equal(result.lastError, 'PUSH_NOT_CONFIGURED');
+  assert.equal(events.size, 1);
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0][0], 'not_configured');
 });
