@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v63';
+const CACHE = 'freshway-v64';
 const APP_SHELL = [
 '/',
 '/index.html',
@@ -74,8 +74,8 @@ const isStaticAsset = ['script','style','image','font','manifest'].includes(dest
 if (!isNavigation && !isStaticAsset) return;
 event.respondWith((async () => {
   const isLogo = url.pathname === '/freshway-logo-clean.svg';
-  const freshCode = ['script','style'].includes(destination);
-  const request = isLogo ? new Request(event.request, { cache: 'reload' }) : freshCode ? new Request(event.request, { cache: 'no-store' }) : event.request;
+  const isVersionedCode = ['script','style'].includes(destination) && url.searchParams.has('v');
+  const request = isLogo ? new Request(event.request, { cache: 'reload' }) : new Request(event.request, { cache: 'no-store' });
   const cache = await caches.open(CACHE);
   if (isNavigation && ['/', '/index.html'].includes(url.pathname)) {
     const key = url.pathname === '/index.html' ? '/index.html' : '/';
@@ -100,7 +100,12 @@ event.respondWith((async () => {
     console.error('FreshWay asset fetch failed:', event.request.url, error);
     throw error;
   });
-  if (cached && !freshCode) {
+  // Versioned scripts/styles are immutable by contract: the release query string
+  // is the cache key, so a cache hit needs no blocking or background network fetch.
+  if (cached && isVersionedCode) return cached;
+  // Mutable media uses stale-while-revalidate to render immediately while refreshing
+  // its stable URL in the background.
+  if (cached) {
     event.waitUntil(update.catch(() => undefined));
     return cached;
   }
