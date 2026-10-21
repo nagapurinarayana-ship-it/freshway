@@ -18,7 +18,6 @@
   let historyHasMore = true;
   let lastPublicKey = null;
   let subscriptionSetupPromise = null;
-  let automaticSetupAttempted = false;
 
   async function ensureOwnerSubscription({ requestPermission = false } = {}) {
     if (subscriptionSetupPromise) return subscriptionSetupPromise;
@@ -80,6 +79,10 @@
     if (!button || !status) return;
     try {
       const info = await api('/admin/push/public-key');
+      const latest = info.latestAlert;
+      const latestSummary = latest
+        ? ` Latest server alert: ${String(latest.event_type || 'order alert')} = ${String(latest.status || 'unknown')}${latest.last_error ? ' (' + String(latest.last_error) + ')' : ''}.`
+        : ' No Owner push delivery has been recorded yet.';
       if (testButton) testButton.disabled = !info.pushConfigured;
       lastPublicKey = info.publicKey || null;
       if (!lastPublicKey || !info.pushConfigured) {
@@ -110,7 +113,7 @@
         await api('/admin/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription: subscription.toJSON() }) });
         button.textContent = 'Disable alerts on this device';
         button.dataset.enabled = '1';
-        status.textContent = `Owner subscription is active on this device. Server has ${Number(info.ownerSubscriptionCount || 0)} registered Owner device(s). Use “Send test notification” to verify delivery.`;
+        status.textContent = `Owner subscription is active on this device. Server has ${Number(info.ownerSubscriptionCount || 0)} registered Owner device(s). Use “Send test notification” to verify delivery.${latestSummary}`;
         return;
       }
 
@@ -121,7 +124,7 @@
         : 'Enable order alerts on this device';
       status.textContent = Notification.permission === 'granted'
         ? `Android notification permission is granted, but this Owner app has no local push subscription. The customer app's subscription is separate. Server currently has ${ownerCount} Owner device subscription(s). Tap “Finish enabling Owner alerts” here; a new subscription must be created from this button.`
-        : `Enable push to receive new-order and order-change alerts when Owner is not open. Server currently has ${ownerCount} Owner device subscription(s).`;
+        : `Enable push to receive new-order and order-change alerts when Owner is not open. Server currently has ${ownerCount} Owner device subscription(s).${latestSummary}`;
     } catch (error) {
       status.textContent = error.message || 'Could not check push-alert status.';
       button.disabled = false;
