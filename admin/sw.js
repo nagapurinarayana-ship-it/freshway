@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v21';
+const CACHE = 'fw-owner-v22';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -8,7 +8,7 @@ const SHELL = [
   '/admin/owner-pwa-install.css?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261021-owner-alert-history-v1',
   '/admin/admin.js?v=20261021-owner-alert-history-v1',
-  '/admin/frontend/admin/order-alerts.js?v=20261021-owner-alert-history-v1',
+  '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
   '/admin/frontend/phone-display.js?v=20261009-phone-display-v1',
   '/admin/frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1',
   '/admin/frontend/catalogue-media.js?v=20261008-ui-media-v1',
@@ -30,7 +30,7 @@ const REQUIRED_SHELL = [
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261021-owner-alert-history-v1',
   '/admin/admin.js?v=20261021-owner-alert-history-v1',
-  '/admin/frontend/admin/order-alerts.js?v=20261021-owner-alert-history-v1',
+  '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
   '/admin/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1',
   '/admin/frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1',
   '/admin/owner-lifecycle.js?v=20261021-open-map-fix-v1'
