@@ -63,7 +63,7 @@ const styles=fs.readFileSync('styles.css','utf8');
 assert.match(styles,/grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/);
 assert.match(styles,/\.product-image img\{[^}]*object-fit:contain/);
 assert.match(styles,/\.product-card\{min-width:0;overflow:hidden\}/);
-assert.match(styles,/\.fw-category-icon\{width:76px;height:76px/);
+assert.match(styles,/\.fw-category-icon\{width:44px;height:44px/);
 assert.match(styles,/\.fw-category-back\{min-height:54px/);
 assert.match(styles,/\.product-image\{height:132px/);
 assert.match(styles,/\.product-actions \.qty-control\{flex:0 0 auto;min-width:98px\}/);
@@ -106,7 +106,8 @@ assert.match(adminSource,/else if\(id==='orders'\)await Promise\.all\(\[loadSumm
 
 assert.match(source,/All categories/);
 assert.match(source,/heading\.classList\.remove\('fw-category-home-hidden'\)/);
-assert.match(source,/home\.insertBefore\(c,\s*searchWrap\.nextSibling\)/,'categories must be rendered directly beneath search, before the promo banner');
+assert.match(source,/const insertAfter=hero\|\|searchWrap/,'the promotional banner is the stable anchor for category placement');
+assert.match(source,/home\.insertBefore\(c,\s*insertAfter\.nextSibling\)/,'category tiles stay below the promotional banner so adding categories cannot move it');
 assert.match(source,/heading\.classList\.add\('fw-category-home-hidden'\)/,'product heading stays hidden before selecting a category');
 assert.match(source,/if\(!selected\)\{grid\.classList\.add\('fw-category-home-hidden'\);return\}/,'products stay hidden until category selection');
 assert.match(source,/fw-category-grid'\+\(usable\.length===1\?' is-single':''\)/,'single category uses a compact full-width tile');

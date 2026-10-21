@@ -1,8 +1,8 @@
-const CACHE = 'freshway-v64';
+const CACHE = 'freshway-v65';
 const APP_SHELL = [
 '/',
 '/index.html',
-'/styles.css?v=20261021-mobile-viewport-fit-v1',
+'/styles.css?v=20261021-home-fold-fit-v2',
 '/address-system.css?v=20260907-address-v2',
 '/frontend/customer/address-book.css?v=20261020-address-ui-hardening-v2',
 '/frontend/customer/checkout-submit.js?v=20261020-selected-address-checkout-v2',
@@ -10,14 +10,14 @@ const APP_SHELL = [
 '/frontend/customer/orders-view.js?v=20261020-order-alert-links-v1',
 '/frontend/phone-display.js?v=20261009-phone-display-v1',
 '/frontend/customer/product-view.js?v=20261019-catalogue-premium-v1',
-'/frontend/customer/catalogue.js?v=20261021-category-refresh-restore-v2',
+'/frontend/customer/catalogue.js?v=20261021-home-category-tiles-v3',
 '/notifications.js?v=20261020-normalized-auth-phone-v2',
 '/address-fix.js?v=20261009-address-fallback-safety-v5',
 '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3',
 '/address-system-final.js?v=20261021-guest-address-map-search-v3',
 '/frontend/customer/pwa-install.css?v=20261007-install-v2',
 '/frontend/customer/seo.js?v=20261007-seo-v1',
-'/frontend/customer/promotions.js?v=20261020-promo-natural-fit-v2',
+'/frontend/customer/promotions.js?v=20261021-promo-fixed-frame-v3',
 '/frontend/customer/store-info.js?v=20261021-shop-map-link-v1',
 '/frontend/customer/profile.js?v=20261009-customer-profile-v2',
 '/icons/icon-192.svg?v=20261008-brand-v1',
