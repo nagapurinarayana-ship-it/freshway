@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v17';
+const CACHE = 'fw-owner-v18';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -10,7 +10,7 @@ const SHELL = [
   '/admin/admin.js?v=20261020-owner-alert-login-ready-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261020-owner-push-login-ready-v2',
   '/admin/frontend/phone-display.js?v=20261009-phone-display-v1',
-  '/admin/frontend/admin/store-profile.js?v=20261021-google-maps-picker-v1',
+  '/admin/frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1',
   '/admin/frontend/catalogue-media.js?v=20261008-ui-media-v1',
   '/admin/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1',
   '/admin/frontend/admin/owner-lifecycle-autosave.js?v=20260909-owner-lifecycle-v1',
@@ -32,7 +32,7 @@ const REQUIRED_SHELL = [
   '/admin/admin.js?v=20261020-owner-alert-login-ready-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261020-owner-push-login-ready-v2',
   '/admin/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1',
-  '/admin/frontend/admin/store-profile.js?v=20261021-google-maps-picker-v1'
+  '/admin/frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1'
 ];
 
 self.addEventListener('install', event => {
