@@ -112,18 +112,21 @@ test('owner lifecycle script cache-busting version matches the service-worker sh
   assert.doesNotMatch(ownerServiceWorkerSource, /20260909-refresh-v3/, 'no stale owner-lifecycle URL rewrite should remain');
 });
 
-test('service worker loads online documents and executable code from the network first, with cache fallback', () => {
-  assert.match(serviceWorkerSource, /if \(isNavigation && \['\/', '\/index\.html'\]\.includes\(url\.pathname\)\)/);
-  assert.match(serviceWorkerSource, /url\.pathname === '\/admin\.html' \|\| url\.pathname\.startsWith\('\/admin\/'\)/);
+test('service worker keeps documents fresh and serves versioned code from cache', () => {
+  assert.ok(serviceWorkerSource.includes("if (isNavigation && ['/', '/index.html'].includes(url.pathname))"));
+  assert.ok(serviceWorkerSource.includes("if (url.pathname === '/admin.html' || url.pathname.startsWith('/admin/'))"));
   assert.match(ownerServiceWorkerSource, /const CACHE = 'fw-owner-v[0-9]+'/);
-  assert.match(serviceWorkerSource, /const freshCode = \['script','style'\]\.includes\(destination\)/);
-  assert.match(serviceWorkerSource, /freshCode \? new Request\(event\.request, \{ cache: 'no-store' \}\)/);
-  assert.match(serviceWorkerSource, /const cached = await cache\.match\(event\.request\)/);
-  assert.match(serviceWorkerSource, /if \(cached && !freshCode\)/);
-  assert.match(serviceWorkerSource, /return \(await cache\.match\(event\.request\)\) \|\| Response\.error\(\)/);
+  assert.ok(serviceWorkerSource.includes("const isVersionedCode = ['script','style'].includes(destination) && url.searchParams.has('v')"));
+  assert.ok(serviceWorkerSource.includes("if (cached && isVersionedCode) return cached"));
+  assert.ok(serviceWorkerSource.includes("if (cached) {"));
+  assert.ok(serviceWorkerSource.includes("const cached = await cache.match(event.request)"));
+  assert.ok(serviceWorkerSource.includes("return (await cache.match(event.request)) || Response.error()"));
   assert.match(serviceWorkerSource, /const CACHE = 'freshway-v[0-9]+'/);
+  assert.doesNotMatch(serviceWorkerSource, /freshway-v63/, 'the old customer service-worker cache version must not be expected');
+  assert.doesNotMatch(ownerServiceWorkerSource, /fw-owner-v20/, 'the old Owner service-worker cache version must not be expected');
+  assert.ok(ownerServiceWorkerSource.includes("if (cached && isVersionedCode) return cached"));
+  assert.ok(ownerServiceWorkerSource.includes("if (isDocument || isManifest)"));
 });
-
 
 test('owner order UI distinguishes failed writes from post-save refresh failures', () => {
   const queueStart = ownerLifecycleSource.indexOf('function queueSave(');

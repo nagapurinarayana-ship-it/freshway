@@ -4,6 +4,58 @@
   X-Frame-Options: SAMEORIGIN
   Permissions-Policy: camera=(), microphone=()
 
+# JavaScript and CSS references in the customer shell carry explicit ?v= release
+# identifiers. These URLs are safe to cache for a long time; bump ?v= on edits.
+# Keep the root service worker (/sw.js) on its separate no-store rule below.
+/styles.css
+  Cache-Control: public, max-age=31536000, immutable
+
+/address-system.css
+  Cache-Control: public, max-age=31536000, immutable
+
+/app.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/notifications.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/address-fix.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/address-system-final.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/frontend/*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/frontend/*.css
+  Cache-Control: public, max-age=31536000, immutable
+
+# Stable-path media are cacheable for one day, with mandatory revalidation.
+/*.svg
+  Cache-Control: public, max-age=86400, must-revalidate
+
+/*.webp
+  Cache-Control: public, max-age=86400, must-revalidate
+
+/*.png
+  Cache-Control: public, max-age=86400, must-revalidate
+
+/*.jpg
+  Cache-Control: public, max-age=86400, must-revalidate
+
+/*.jpeg
+  Cache-Control: public, max-age=86400, must-revalidate
+
+/*.avif
+  Cache-Control: public, max-age=86400, must-revalidate
+
+/*.ico
+  Cache-Control: public, max-age=86400, must-revalidate
+
+/*.woff2
+  Cache-Control: public, max-age=86400, must-revalidate
+
 /manifest.webmanifest
   Content-Type: application/manifest+json
   Cache-Control: public, max-age=0, must-revalidate

@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v63';
+const CACHE = 'freshway-v64';
 const APP_SHELL = [
 '/',
 '/index.html',
@@ -74,8 +74,8 @@ const isStaticAsset = ['script','style','image','font','manifest'].includes(dest
 if (!isNavigation && !isStaticAsset) return;
 event.respondWith((async () => {
   const isLogo = url.pathname === '/freshway-logo-clean.svg';
-  const freshCode = ['script','style'].includes(destination);
-  const request = isLogo ? new Request(event.request, { cache: 'reload' }) : freshCode ? new Request(event.request, { cache: 'no-store' }) : event.request;
+  const isVersionedCode = ['script','style'].includes(destination) && url.searchParams.has('v');
+  const request = isLogo ? new Request(event.request, { cache: 'reload' }) : new Request(event.request, { cache: 'no-store' });
   const cache = await caches.open(CACHE);
   if (isNavigation && ['/', '/index.html'].includes(url.pathname)) {
     const key = url.pathname === '/index.html' ? '/index.html' : '/';
@@ -89,6 +89,7 @@ event.respondWith((async () => {
     }
   }
   const cached = await cache.match(event.request);
+  if (cached && isVersionedCode) return cached;
   const update = fetch(request).then(response => {
     if (response.ok) {
       cache.put(event.request, response.clone()).catch(error =>
@@ -100,7 +101,7 @@ event.respondWith((async () => {
     console.error('FreshWay asset fetch failed:', event.request.url, error);
     throw error;
   });
-  if (cached && !freshCode) {
+  if (cached) {
     event.waitUntil(update.catch(() => undefined));
     return cached;
   }

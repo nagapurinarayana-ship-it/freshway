@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v20';
+const CACHE = 'fw-owner-v21';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -74,24 +74,50 @@ self.addEventListener('fetch', event => {
   // A path-scoped service worker must never handle customer pages or API writes.
   if (!url.pathname.startsWith('/admin/')) return;
   const isDocument = request.mode === 'navigate' || request.destination === 'document';
+  const isManifest = request.destination === 'manifest';
   const isCode = ['script', 'style'].includes(request.destination);
+  const isVersionedCode = isCode && url.searchParams.has('v');
 
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
     const key = url.pathname === '/admin/' || url.pathname === '/admin/index.html' ? '/admin/' : request;
+    const cached = await cache.match(key) || await cache.match(request);
+    // Versioned code is immutable by contract. Avoid the network entirely on a hit.
+    if (cached && isVersionedCode) return cached;
 
-    try {
-      const response = await fetch(new Request(request, { cache: 'no-store' }));
+    const fetchCurrent = () => fetch(new Request(request, { cache: 'no-store' }));
+    const update = fetchCurrent().then(response => {
       if (response.ok && (isDocument || ['script','style','image','font','manifest'].includes(request.destination))) {
         cache.put(key, response.clone()).catch(error => console.error('Owner cache update failed:', request.url, error));
       }
       return response;
-    } catch (error) {
+    }).catch(error => {
       console.error('FreshWay Owner request failed:', request.url, error);
-      const cached = await cache.match(key) || await cache.match(request);
-      if (cached) return cached;
-      if (isDocument) return await cache.match('/admin/') || Response.error();
-      return Response.error();
+      throw error;
+    });
+
+    // Documents and the manifest stay network-first so deployments/install metadata
+    // are discovered promptly; cached copies are fallback-only for these resources.
+    if (isDocument || isManifest) {
+      try {
+        return await update;
+      } catch (_) {
+        if (cached) return cached;
+        if (isDocument) return await cache.match('/admin/') || Response.error();
+        return Response.error();
+      }
+    }
+
+    // Stable-path assets render from cache immediately and refresh in the background.
+    if (cached) {
+      event.waitUntil(update.catch(() => undefined));
+      return cached;
+    }
+
+    try {
+      return await update;
+    } catch (_) {
+      return await cache.match(key) || await cache.match(request) || Response.error();
     }
   })());
 });

@@ -8,9 +8,30 @@ const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261021-owner-alert-hist
 const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261021-owner-alert-history-v1';
 const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1';
 const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261021-open-map-fix-v1';
-const EXPECTED_OWNER_CACHE = 'fw-owner-v20';
+const EXPECTED_OWNER_CACHE = 'fw-owner-v21';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+function assertCacheableOwnerAsset(response, label, path) {
+  assert.equal(response.status, 200, label + ' must return HTTP 200');
+  const cacheControl = response.headers.get('cache-control') || '';
+  if (/\.(?:js|css)$/i.test(path)) {
+    assert.match(cacheControl, /public/i, label + ' must be public-cacheable');
+    assert.match(cacheControl, /max-age=31536000/i, label + ' must use the versioned one-year cache lifetime');
+    assert.match(cacheControl, /immutable/i, label + ' must declare immutable');
+    assert.match(path, /[?&]v=[^&]+/, label + ' code URL must contain its release version');
+  } else if (/\.(?:svg|webp|png|jpe?g|avif|ico|woff2?)$/i.test(path) && /[?&]v=[^&]+/.test(path)) {
+    assert.match(cacheControl, /public/i, label + ' versioned media must be cacheable');
+    assert.match(cacheControl, /max-age=31536000/i, label + ' versioned media must use a long-lived cache');
+    assert.match(cacheControl, /immutable/i, label + ' versioned media must declare immutable');
+  } else if (/\.(?:svg|webp|png|jpe?g|avif|ico|woff2?)$/i.test(path)) {
+    assert.match(cacheControl, /public/i, label + ' media must be cacheable');
+    assert.match(cacheControl, /max-age=86400/i, label + ' media must use a bounded cache lifetime');
+    assert.match(cacheControl, /must-revalidate/i, label + ' media must revalidate after expiry');
+  } else {
+    assertFreshResponse(response, label);
+  }
+}
 
 async function fetchOwnerRoute(path, attempts = 60) {
   let lastError;
@@ -161,7 +182,7 @@ assert.ok(worker.includes(EXPECTED_OWNER_ALERTS_SCRIPT), 'Owner service worker s
 assert.ok(worker.includes(EXPECTED_OWNER_STORE_PROFILE_SCRIPT), 'Owner service worker shell must cache the latest shop location editor');
 assert.ok(worker.includes(EXPECTED_OWNER_LIFECYCLE_SCRIPT), 'Owner service worker shell must cache the latest order lifecycle map handler');
 const installScriptResponse = await fetchOwnerRoute(installScriptUrl.pathname + installScriptUrl.search);
-assertFreshResponse(installScriptResponse, 'Owner install/bootstrap script');
+assertCacheableOwnerAsset(installScriptResponse, 'Owner install/bootstrap script', installScriptUrl.pathname + installScriptUrl.search);
 assert.match(installScriptResponse.headers.get('content-type') || '', /javascript/i);
 const installScript = await installScriptResponse.text();
 assert.match(installScript, /navigator\.serviceWorker\.register\(\s*['"]\/admin\/sw\.js['"]\s*,\s*\{\s*scope:\s*['"]\/admin\/['"]\s*,\s*updateViaCache:\s*['"]none['"]\s*\}\s*\)/, 'Owner bootstrap must register the scoped service worker with cache bypass');
@@ -186,7 +207,8 @@ assert.ok(shellPaths.every(path => path.startsWith('/admin/')), 'Every Owner ser
 
 const assetResponses = await Promise.all(shellPaths.map(async path => {
   const response = await fetch(BASE_URL + path, { cache: 'no-store', redirect: 'follow' });
-  assertFreshResponse(response, 'Owner shell asset ' + path);
+  if (path === '/admin/' || path.endsWith('.webmanifest')) assertFreshResponse(response, 'Owner shell asset ' + path);
+  else assertCacheableOwnerAsset(response, 'Owner shell asset ' + path, path);
   const type = response.headers.get('content-type') || '';
   if (path.endsWith('.js')) assert.match(type, /javascript/i, path);
   if (path.endsWith('.css')) assert.match(type, /text\/css/i, path);

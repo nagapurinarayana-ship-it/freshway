@@ -13,7 +13,7 @@ assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ADMIN_SCRIPT = '/a
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261021-owner-alert-history-v1';"), 'production Owner smoke must demand the current push setup version');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1';"), 'production Owner smoke must demand the current business profile and shop pin editor');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261021-open-map-fix-v1';"), 'production Owner smoke must demand the cache-busted order lifecycle map handler');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v20';"), 'production Owner smoke must demand the current service-worker cache');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v21';"), 'production Owner smoke must demand the current service-worker cache');
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerAppShell/);
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerServiceWorker/);
 const ownerManifestSource = readRepoFile('admin/manifest.webmanifest').toString('utf8');
@@ -80,6 +80,19 @@ function makeContext(path, method = 'GET') {
   };
 }
 
+function assertVersionedCodeReferences(html, label) {
+  for (const [, tag] of html.matchAll(/<(script|link)\b[^>]*>/gi)) {
+    const isScript = tag.toLowerCase().startsWith('<script');
+    const isStylesheet = tag.toLowerCase().startsWith('<link') && /\brel=["']stylesheet["']/i.test(tag);
+    if (!isScript && !isStylesheet) continue;
+    const match = tag.match(isScript ? /\bsrc=["']([^"']+)["']/i : /\bhref=["']([^"']+)["']/i);
+    if (!match || !/\.(?:js|css)(?:\?|$)/i.test(match[1]) || /^[a-z][a-z0-9+.-]*:/i.test(match[1])) continue;
+    assert.match(match[1], /[?&]v=[^&]+/, label + ' code asset must carry a version query: ' + match[1]);
+  }
+}
+assertVersionedCodeReferences(customerHtml, 'Customer app');
+assertVersionedCodeReferences(sourceHtml, 'Owner app');
+
 function relativeAssetReferences(html) {
   return [...html.matchAll(/\b(src|href)=["']([^"']+)["']/gi)]
     .map(([, attribute, value]) => ({ attribute, value }))
@@ -118,18 +131,29 @@ function relativeAssetReferences(html) {
 }
 
 for (const asset of requiredOwnerAssets) {
-  const versionedPath = '/admin/' + asset + (asset.endsWith('.js') ? '?v=qa-1' : '');
+  const versionedCodeAsset = /\.(?:js|css)$/i.test(asset);
+  const versionedPath = '/admin/' + asset + (versionedCodeAsset ? '?v=qa-1' : '');
   const { context, fetched } = makeContext(versionedPath);
   const response = await onRequest(context);
   assert.equal(response.status, 200, 'Owner-scoped asset should be served: ' + versionedPath);
-  assert.match(response.headers.get('cache-control') || '', /no-store/i);
+  const assetCacheControl = response.headers.get('cache-control') || '';
+  if (versionedCodeAsset) {
+    assert.match(assetCacheControl, /public/i, 'versioned Owner code must be public-cacheable: ' + asset);
+    assert.match(assetCacheControl, /max-age=31536000/i, 'versioned Owner code must use a long-lived cache: ' + asset);
+    assert.match(assetCacheControl, /immutable/i, 'versioned Owner code must be immutable: ' + asset);
+  } else {
+    assert.match(assetCacheControl, /public/i, 'Owner media must be public-cacheable: ' + asset);
+    assert.match(assetCacheControl, /max-age=86400/i, 'Owner media must use a bounded cache lifetime: ' + asset);
+    assert.match(assetCacheControl, /must-revalidate/i, 'Owner media must revalidate after expiry: ' + asset);
+  }
   assert.equal(fetched[0].pathname, '/' + asset, 'asset alias must resolve to the canonical static file: ' + asset);
-  assert.equal(fetched[0].search, asset.endsWith('.js') ? '?v=qa-1' : '', 'asset query string must be preserved: ' + asset);
+  assert.equal(fetched[0].search, versionedCodeAsset ? '?v=qa-1' : '', 'asset query string must be preserved: ' + asset);
 }
 
 {
-  const { context, fetched } = makeContext('/admin/sw.js');
+  const { context, fetched } = makeContext('/admin/sw.js?v=qa-1');
   const response = await onRequest(context);
+  assert.match(response.headers.get('cache-control') || '', /no-store/i, 'service worker must remain fresh even if v is supplied');
   assert.equal(response.headers.get('service-worker-allowed'), '/admin/');
   assert.match(response.headers.get('content-type') || '', /javascript/i);
   assert.equal(await response.text(), ownerWorkerSource);
