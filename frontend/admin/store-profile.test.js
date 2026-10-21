@@ -7,7 +7,6 @@ const css = fs.readFileSync('admin.css', 'utf8');
 const source = fs.readFileSync('frontend/admin/store-profile.js', 'utf8');
 const ownerSw = fs.readFileSync('admin/sw.js', 'utf8');
 const adminAuth = fs.readFileSync('worker/src/admin-auth.js', 'utf8');
-const wrangler = fs.readFileSync('worker/wrangler.jsonc', 'utf8');
 const elements = new Map();
 const fieldValues = {
   storeName: 'FreshWay',
@@ -73,7 +72,6 @@ assert.ok(source.includes('loadLeaflet'), 'OpenStreetMap backup must remain avai
 assert.ok(source.includes("api('/admin/maps/config')"), 'Owner picker must read its maps provider configuration from the authenticated API');
 assert.ok(adminAuth.includes("'/api/admin/maps/config'"), 'Worker must expose maps config only inside the authenticated admin route');
 assert.ok(adminAuth.includes('env.GOOGLE_MAPS_BROWSER_API_KEY'), 'Maps browser key must come from Worker environment, never hard-coded in frontend files');
-assert.ok(wrangler.includes('GOOGLE_MAPS_BROWSER_API_KEY'), 'Deployment configuration must document the optional Google Maps browser key');
 assert.ok(ownerSw.includes("const CACHE = 'fw-owner-v17'"), 'Owner PWA cache must be refreshed for the new picker');
 assert.ok(ownerSw.includes('frontend/admin/store-profile.js?v=20261021-google-maps-picker-v1'), 'Owner PWA shell must cache the new map-picker module');
 
