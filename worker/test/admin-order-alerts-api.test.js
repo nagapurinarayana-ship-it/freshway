@@ -84,7 +84,7 @@ test('signed Owner can read push configuration, subscribe/unsubscribe and read t
 
   const history = await request('/api/admin/order-alerts?limit=10');
   assert.equal(history.status, 200);
-  assert.deepEqual(await history.json(), { alerts: [] });
+  assert.deepEqual(await history.json(), { alerts: [], hasMore: false, nextBefore: null });
 
   const unsubscribe = await request('/api/admin/push/subscribe', { method: 'DELETE', body: JSON.stringify({ endpoint: subscription.endpoint }) });
   assert.equal(unsubscribe.status, 200);
