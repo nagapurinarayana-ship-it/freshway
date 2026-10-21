@@ -3,7 +3,23 @@ const fs=require('node:fs');
 
 const admin=fs.readFileSync('admin.js','utf8');
 const html=fs.readFileSync('admin.html','utf8');
+const customerHtml=fs.readFileSync('index.html','utf8');
+const headers=fs.readFileSync('_headers','utf8');
 const sw=fs.readFileSync('sw.js','utf8');
+const ownerSw=fs.readFileSync('admin/sw.js','utf8');
+const ownerRouter=fs.readFileSync('functions/admin/[[path]].js','utf8');
+function assertVersionedCodeReferences(source,label){
+  for(const [,tag] of source.matchAll(/<(script|link)\b[^>]*>/gi)){
+    const isScript=tag.toLowerCase().startsWith('<script');
+    const isStylesheet=tag.toLowerCase().startsWith('<link')&&/\brel=["']stylesheet["']/i.test(tag);
+    if(!isScript&&!isStylesheet)continue;
+    const match=tag.match(isScript?/\bsrc=["']([^"']+)["']/i:/\bhref=["']([^"']+)["']/i);
+    if(!match||!/\.(?:js|css)(?:\?|$)/i.test(match[1])||/^[a-z][a-z0-9+.-]*:/i.test(match[1]))continue;
+    assert.match(match[1],/[?&]v=[^&]+/,label+' code asset must carry a version query: '+match[1]);
+  }
+}
+assertVersionedCodeReferences(customerHtml,'Customer app');
+assertVersionedCodeReferences(html,'Owner app');
 const auth=fs.readFileSync('worker/src/admin-auth.js','utf8');
 const response=fs.readFileSync('worker/src/admin-response.js','utf8');
 
@@ -17,14 +33,16 @@ assert.match(html,/admin\.js\?v=20261021-owner-alert-history-v1/);
 assert.match(html,/admin\.css\?v=20261021-owner-alert-history-v1/);
 assert.doesNotMatch(html,/\.exact-location/);
 
-assert.match(sw,/const CACHE = 'freshway-v\d+'/);
+assert.match(sw,/const CACHE = 'freshway-v64'/);
 assert.match(sw,/const cached = await cache\.match\(event\.request\)/);
 assert.match(sw,/event\.waitUntil\(update\.catch\(\(\) => undefined\)\)/);
 assert.match(sw,/url\.pathname === '\/admin\.html' \|\| url\.pathname\.startsWith\('\/admin\/'\)/);
 assert.match(sw,/keys\.filter\(key => key\.startsWith\('freshway-'\) && key !== CACHE\)/);
 assert.doesNotMatch(sw,/\/admin\.css\?v=/);
 assert.doesNotMatch(sw,/\/admin\.js\?v=/);
-assert.match(sw,/if \(cached && !freshCode\)/);
+assert.match(sw,/if \(cached && isVersionedCode\) return cached/);
+assert.match(sw,/if \(cached\) \{/);
+assert.doesNotMatch(sw,/cached && !freshCode/);
 assert.match(sw,/cache: 'no-store'/);
 assert.doesNotMatch(sw,/\.catch\(\(\) => \{\}\)/);
 
@@ -34,7 +52,14 @@ assert.doesNotMatch(auth,/response\(\{ok:true,version:ADMIN_AUTH_VERSION,session
 assert.match(auth,/SameSite=Lax/);
 assert.match(response,/SameSite=Lax/);
 
-const ownerSw = fs.readFileSync('admin/sw.js','utf8');
+assert.match(ownerSw,/const CACHE = 'fw-owner-v21'/);
+assert.match(ownerSw,/if \(cached && isVersionedCode\) return cached/);
+assert.match(ownerSw,/if \(isDocument \|\| isManifest\)/);
+assert.match(ownerRouter,/OWNER_VERSIONED_ASSET_CACHE_CONTROL/);
+assert.match(ownerRouter,/OWNER_MEDIA_CACHE_CONTROL/);
+assert.match(headers,/\/app\.js\n  Cache-Control: public, max-age=31536000, immutable/);
+assert.match(headers,/\/frontend\/\*\.js\n  Cache-Control: public, max-age=31536000, immutable/);
+assert.match(headers,/\/sw\.js\n[\s\S]*?Cache-Control: no-store, max-age=0/);
 assert.match(ownerSw,/const CACHE = 'fw-owner-v\d+'/);
 assert.match(ownerSw,/key\.startsWith\('fw-owner-'\)/);
 assert.doesNotMatch(ownerSw,/caches\.delete\(key\).*freshway-/);
