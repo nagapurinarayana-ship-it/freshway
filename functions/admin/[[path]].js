@@ -1,4 +1,6 @@
 const OWNER_CACHE_CONTROL = 'no-store, max-age=0, must-revalidate';
+const OWNER_VERSIONED_ASSET_CACHE_CONTROL = 'public, max-age=31536000, immutable';
+const OWNER_MEDIA_CACHE_CONTROL = 'public, max-age=86400, must-revalidate';
 
 // Only expose the existing, public Owner shell assets below /admin/. This lets
 // the /admin/-scoped service worker control/cache the complete Owner UI without
@@ -27,9 +29,9 @@ const OWNER_ASSETS = new Map([
   ['icons/icon-512.svg', '/icons/icon-512.svg']
 ]);
 
-function responseWithHeaders(response, { worker = false, manifest = false } = {}) {
+function responseWithHeaders(response, { worker = false, manifest = false, cacheControl = OWNER_CACHE_CONTROL } = {}) {
   const headers = new Headers(response.headers);
-  headers.set('cache-control', OWNER_CACHE_CONTROL);
+  headers.set('cache-control', cacheControl);
   headers.set('x-robots-tag', 'noindex, nofollow');
   if (worker) {
     headers.set('content-type', 'application/javascript; charset=utf-8');
@@ -53,11 +55,21 @@ async function fetchAsset(context, url, assetPath, method, options = {}) {
   const assetUrl = new URL(assetPath, url.origin);
   assetUrl.search = url.search;
   const asset = await context.env.ASSETS.fetch(new Request(assetUrl, { method: 'GET' }));
+  const hasVersion = Boolean(String(url.searchParams.get('v') || '').trim());
+  const codeAsset = /\.(?:js|css)$/i.test(assetPath);
+  const mediaAsset = /\.(?:svg|webp|png|jpe?g|avif|ico|woff2?)$/i.test(assetPath);
+  // The Owner HTML carries versioned public asset URLs. Cache those by version,
+  // while keeping its HTML, service worker, manifest, and all non-static routes fresh.
+  const cacheControl = !options.worker && !options.manifest && codeAsset && hasVersion
+    ? OWNER_VERSIONED_ASSET_CACHE_CONTROL
+    : !options.worker && !options.manifest && mediaAsset
+      ? (hasVersion ? OWNER_VERSIONED_ASSET_CACHE_CONTROL : OWNER_MEDIA_CACHE_CONTROL)
+      : OWNER_CACHE_CONTROL;
   const response = responseWithHeaders(new Response(asset.body, {
     status: asset.status,
     statusText: asset.statusText,
     headers: asset.headers
-  }), options);
+  }), { ...options, cacheControl });
   return method === 'HEAD'
     ? new Response(null, { status: response.status, statusText: response.statusText, headers: response.headers })
     : response;
