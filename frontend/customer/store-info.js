@@ -7,7 +7,16 @@
   const telHref=value=>{const d=digits(value);return d?'tel:+'+(d.length===10?'91':'')+d:''};
   const waHref=value=>{const d=digits(value);return d?'https://wa.me/'+(d.length===10?'91'+d:d):''};
   const mailHref=value=>{const e=clean(value);return/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)?'mailto:'+e:''};
-  const mapHref=value=>{const a=clean(value);return a?'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(a):''};
+  const validShopCoordinates=(latitude,longitude)=>{
+    if(latitude==null||latitude===''||longitude==null||longitude==='')return false;
+    const lat=Number(latitude),lon=Number(longitude);
+    return Number.isFinite(lat)&&Number.isFinite(lon)&&lat>=-90&&lat<=90&&lon>=-180&&lon<=180&&!(lat===0&&lon===0);
+  };
+  const mapHref=(address,latitude,longitude)=>{
+    if(validShopCoordinates(latitude,longitude))return 'https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(Number(latitude)+','+Number(longitude));
+    const a=clean(address);
+    return a?'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(a):'';
+  };
 
   function action(label,value,href,icon,extra=''){
     if(!href)return null;
@@ -65,7 +74,14 @@
     const details=document.createElement('div');details.className='store-info-grid';
     const address=infoSection('BUSINESS ADDRESS',profile.address,'📍','store-info-address');
     if(address){
-      const map=action('Open in Maps',profile.address,mapHref(profile.address),'🗺️','store-map-action');
+      const hasShopPin=validShopCoordinates(profile.shopLatitude,profile.shopLongitude);
+      const map=action(
+        hasShopPin?'Get directions':'Open in Maps',
+        profile.address,
+        mapHref(profile.address,profile.shopLatitude,profile.shopLongitude),
+        '🗺️',
+        'store-map-action'
+      );
       if(map)address.appendChild(map);
       details.appendChild(address);
     }
@@ -107,5 +123,5 @@
     return profile;
   }
 
-  window.FreshWayCustomerStoreInfo=Object.freeze({show,renderAbout,renderContact,get lastProfile(){return lastProfile;}});
+  window.FreshWayCustomerStoreInfo=Object.freeze({show,renderAbout,renderContact,mapHref,validShopCoordinates,get lastProfile(){return lastProfile;}});
 })();
