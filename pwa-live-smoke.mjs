@@ -5,6 +5,7 @@ const VIEWPORT_STYLES_PATH = '/styles.css?v=20261021-mobile-viewport-fit-v1';
 const CUSTOMER_APP_PATH = '/app.js?v=20261021-home-navigation-refresh-v1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261021-guest-address-map-search-v3';
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v64';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchWithRetry(url, options = {}) {
@@ -38,6 +39,29 @@ function assertCurrentScriptReference(html, pageUrl, expectedPath, label) {
     expected.search,
     `${label} must reference the current version of ${expected.pathname}`
   );
+}
+
+function assertVersionedCodeReferences(html, pageUrl, label) {
+  const origin = new URL(pageUrl).origin;
+  for (const [, tag] of html.matchAll(/<(script|link)\\b[^>]*>/gi)) {
+    const isScript = tag.toLowerCase().startsWith('<script');
+    const isStylesheet = tag.toLowerCase().startsWith('<link') && /\\brel=["']stylesheet["']/i.test(tag);
+    if (!isScript && !isStylesheet) continue;
+    const attribute = isScript ? 'src' : 'href';
+    const match = tag.match(isScript ? /\\bsrc=["']([^"']+)["']/i : /\\bhref=["']([^"']+)["']/i);
+    if (!match) continue;
+    const url = new URL(match[1], pageUrl);
+    if (url.origin !== origin || !/\\.(?:js|css)$/i.test(url.pathname)) continue;
+    assert.ok(url.searchParams.get('v'), label + ' must version every local JS/CSS asset: ' + url.pathname);
+  }
+}
+
+function assertImmutableCodeCache(response, label) {
+  const cacheControl = response.headers.get('cache-control') || '';
+  assert.match(cacheControl, /public/i, label + ' must be browser-cacheable');
+  assert.match(cacheControl, /max-age=31536000/i, label + ' must use the versioned one-year cache lifetime');
+  assert.match(cacheControl, /immutable/i, label + ' must declare immutable');
+  assert.doesNotMatch(cacheControl, /no-store|no-cache/i, label + ' must not disable its cache');
 }
 
 function assertResponsiveViewportCss(css, label) {
@@ -82,6 +106,10 @@ async function waitForFullImageFitAssets(base) {
       const [indexHtml, adminHtml, sw] = await Promise.all([
         indexResponse.text(), adminResponse.text(), swResponse.text()
       ]);
+      assertVersionedCodeReferences(indexHtml, indexResponse.url, 'production home');
+      assertVersionedCodeReferences(adminHtml, adminResponse.url, 'production Owner');
+      assert.ok(sw.includes("const CACHE = '" + EXPECTED_CUSTOMER_CACHE + "';"), 'customer service worker must publish the current cache version');
+      assert.ok(sw.includes('if (cached && isVersionedCode) return cached'), 'versioned customer code should use a cache hit without a network request');
       assertCurrentScriptReference(indexHtml, indexResponse.url, appPath, 'production home');
       assertCurrentScriptReference(indexHtml, indexResponse.url, promotionPath, 'production home');
       assert.ok(indexHtml.includes(viewportStylesPath.slice(1)), 'production home must reference current mobile viewport styles');
@@ -112,6 +140,15 @@ async function waitForFullImageFitAssets(base) {
       assert.equal(addressGeocodeResponse.status, 200, 'current address geocode mapper must load');
       assert.equal(addressSystemResponse.status, 200, 'current address editor must load');
       assert.equal(catalogueResponse.status, 200, 'current Owner catalogue script must load');
+      for (const [label, response] of [
+        ['customer stylesheet', viewportStylesResponse],
+        ['customer app script', appResponse],
+        ['customer promotion script', promotionResponse],
+        ['customer catalogue script', customerCatalogueResponse],
+        ['address geocoder script', addressGeocodeResponse],
+        ['address editor script', addressSystemResponse],
+        ['Owner catalogue script', catalogueResponse]
+      ]) assertImmutableCodeCache(response, label);
 
       const [viewportStylesSource, appSource, promotionSource, customerCatalogueSource, addressGeocodeSource, addressSystemSource, catalogueSource] = await Promise.all([
         viewportStylesResponse.text(), appResponse.text(), promotionResponse.text(), customerCatalogueResponse.text(), addressGeocodeResponse.text(), addressSystemResponse.text(), catalogueResponse.text()
@@ -216,6 +253,10 @@ async function verifyCustomDomain() {
   const [homeHtml, adminHtml, sw] = await Promise.all([
     homeResponse.text(), adminResponse.text(), swResponse.text()
   ]);
+  assertVersionedCodeReferences(homeHtml, homeResponse.url, 'custom-domain home');
+  assertVersionedCodeReferences(adminHtml, adminResponse.url, 'custom-domain Owner');
+  assert.ok(sw.includes("const CACHE = '" + EXPECTED_CUSTOMER_CACHE + "';"), 'custom-domain service worker must publish the current cache version');
+  assert.ok(sw.includes('if (cached && isVersionedCode) return cached'), 'custom-domain service worker must use versioned cache hits');
   assert.equal(new URL(homeResponse.url).origin, customBase, 'home must remain on the custom domain');
   assert.match(homeHtml, /<link rel="canonical" href="https:\/\/fwcoldpressed\.in\/">/, 'custom-domain canonical URL must use the production domain');
   assert.match(homeHtml, /property="og:url" content="https:\/\/fwcoldpressed\.in\//, 'Open Graph URL must use the production domain');
@@ -255,6 +296,17 @@ async function verifyCustomDomain() {
   assert.equal(viewportStylesResponse.status, 200, 'mobile viewport stylesheet must load on the custom domain');
   assert.equal(addressGeocodeResponse.status, 200, 'address geocode mapper must load on the custom domain');
   assert.equal(addressSystemResponse.status, 200, 'address editor must load on the custom domain');
+  for (const [label, response] of [
+    ['custom-domain customer catalogue script', customerCatalogueResponse],
+    ['custom-domain viewport stylesheet', viewportStylesResponse],
+    ['custom-domain customer app script', appResponse],
+    ['custom-domain geocoder script', addressGeocodeResponse],
+    ['custom-domain address editor', addressSystemResponse]
+  ]) assertImmutableCodeCache(response, label);
+  const shareCacheControl = shareImageResponse.headers.get('cache-control') || '';
+  assert.match(shareCacheControl, /public/i, 'WhatsApp share image must be cacheable');
+  assert.match(shareCacheControl, /max-age=86400/i, 'WhatsApp share image must use a bounded cache lifetime');
+  assert.match(shareCacheControl, /must-revalidate/i, 'WhatsApp share image must revalidate after expiry');
   assertResponsiveViewportCss(await viewportStylesResponse.text(), 'custom domain');
   const customerCatalogueSource = await customerCatalogueResponse.text();
   const appSource = await appResponse.text();
