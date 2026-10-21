@@ -8,6 +8,7 @@ const customerHtml = readRepoFile('index.html').toString('utf8');
 assert.doesNotMatch(customerHtml, /href=["']\/admin(?:\.html|\/?)['"]/i, 'customer app must not expose an Owner dashboard link');
 assert.doesNotMatch(customerHtml, /class=["'][^"']*\badmin-link\b/i, 'customer profile must not render an Owner dashboard shortcut');
 const ownerLiveSmokeSource = readRepoFile('pwa-owner-live-smoke.mjs').toString('utf8');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261021-owner-alert-history-v1';"), 'production Owner smoke must demand the current Owner CSS version');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261021-owner-alert-history-v1';"), 'production Owner smoke must demand the current admin.js version');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261021-owner-alert-history-v1';"), 'production Owner smoke must demand the current push setup version');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1';"), 'production Owner smoke must demand the current business profile and shop pin editor');
@@ -96,7 +97,8 @@ function relativeAssetReferences(html) {
   assert.match(body, /id="owner-alert-history"/, 'Owner alert history must have a dedicated screen');
   assert.match(body, /View all notifications/, 'Owner notifications must show a compact preview with a View all action');
   assert.match(body, /id="clearOwnerAlertHistory"/, 'Owner notification history must offer delete-all controls');
-  assert.match(body, /data-delete-owner-alert/, 'Owner notification history renderer must provide per-alert deletion controls');
+  const ownerAlertsSource = readRepoFile('frontend/admin/order-alerts.js').toString('utf8');
+  assert.match(ownerAlertsSource, /data-delete-owner-alert/, 'Owner notification history renderer must provide per-alert deletion controls');
   assert.match(body, /data-owner-install/, "Owner app must expose install controls");
   assert.match(body, /class="primary owner-install-hero"[^>]*data-owner-install/, "Owner install action must be visible in the mobile dashboard when installable");
   assert.ok(body.includes('src="/admin/owner-pwa-install.js?v=20261019-install-prompt-v2'));
