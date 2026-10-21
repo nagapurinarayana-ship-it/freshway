@@ -82,6 +82,9 @@ self.addEventListener('fetch', event => {
     const cache = await caches.open(CACHE);
     const key = url.pathname === '/admin/' || url.pathname === '/admin/index.html' ? '/admin/' : request;
     const cached = await cache.match(key) || await cache.match(request);
+    // Versioned code is immutable by contract. Avoid the network entirely on a hit.
+    if (cached && isVersionedCode) return cached;
+
     const fetchCurrent = () => fetch(new Request(request, { cache: 'no-store' }));
     const update = fetchCurrent().then(response => {
       if (response.ok && (isDocument || ['script','style','image','font','manifest'].includes(request.destination))) {
@@ -104,10 +107,6 @@ self.addEventListener('fetch', event => {
         return Response.error();
       }
     }
-
-    // Versioned code assets are immutable by contract. A new release URL causes a
-    // cache miss and fetches the new asset; a hit returns instantly without a request.
-    if (cached && isVersionedCode) return cached;
 
     // Stable-path assets render from cache immediately and refresh in the background.
     if (cached) {
