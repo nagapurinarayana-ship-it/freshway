@@ -76,7 +76,12 @@ test('signed Owner can read push configuration, subscribe/unsubscribe and read t
 
   const keyResponse = await request('/api/admin/push/public-key');
   assert.equal(keyResponse.status, 200);
-  assert.deepEqual(await keyResponse.json(), { publicKey: 'public-vapid-key', pushConfigured: true });
+  assert.deepEqual(await keyResponse.json(), {
+    publicKey: 'public-vapid-key',
+    pushConfigured: true,
+    ownerSubscriptionCount: 0,
+    latestAlert: null
+  });
 
   const subscription = { endpoint: 'https://push.example/owner-device', keys: { p256dh: 'p256dh-key', auth: 'auth-key' }, expirationTime: null };
   const subscribe = await request('/api/admin/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription }) });

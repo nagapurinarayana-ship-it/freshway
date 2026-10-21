@@ -18,7 +18,6 @@
   let historyHasMore = true;
   let lastPublicKey = null;
   let subscriptionSetupPromise = null;
-  let automaticSetupAttempted = false;
 
   async function ensureOwnerSubscription({ requestPermission = false } = {}) {
     if (subscriptionSetupPromise) return subscriptionSetupPromise;
@@ -76,12 +75,19 @@
   async function loadStatus() {
     const button = $('#ownerOrderAlertToggle');
     const status = $('#ownerOrderAlertStatus');
+    const testButton = $('#ownerOrderAlertTest');
     if (!button || !status) return;
     try {
       const info = await api('/admin/push/public-key');
+      const latest = info.latestAlert;
+      const latestSummary = latest
+        ? ` Latest server alert: ${String(latest.event_type || 'order alert')} = ${String(latest.status || 'unknown')}${latest.last_error ? ' (' + String(latest.last_error) + ')' : ''}.`
+        : ' No Owner push delivery has been recorded yet.';
+      if (testButton) testButton.disabled = !info.pushConfigured;
       lastPublicKey = info.publicKey || null;
       if (!lastPublicKey || !info.pushConfigured) {
         button.disabled = true;
+        if (testButton) testButton.disabled = true;
         button.textContent = 'Push alerts unavailable';
         status.textContent = 'Push credentials are not configured for this environment. Alerts will still be recorded in the list below.';
         return;
@@ -96,7 +102,7 @@
       if (Notification.permission === 'denied') {
         button.textContent = 'Notifications blocked';
         button.dataset.enabled = '0';
-        status.textContent = 'Notifications are blocked for fwcoldpressed.in. Allow them in browser site settings, then return here and tap Enable order alerts.';
+        status.textContent = `Notifications are blocked for fwcoldpressed.in. Allow them in browser site settings, then return here and tap Enable order alerts. Server has ${Number(info.ownerSubscriptionCount || 0)} Owner subscription(s).`;
         return;
       }
 
@@ -107,33 +113,18 @@
         await api('/admin/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription: subscription.toJSON() }) });
         button.textContent = 'Disable alerts on this device';
         button.dataset.enabled = '1';
-        status.textContent = 'Owner order alerts are enabled and this device subscription is registered with FreshWay.';
+        status.textContent = `Owner subscription is active on this device. Server has ${Number(info.ownerSubscriptionCount || 0)} registered Owner device(s). Use “Send test notification” to verify delivery.${latestSummary}`;
         return;
       }
 
       button.dataset.enabled = '0';
-      if (Notification.permission === 'granted' && !automaticSetupAttempted) {
-        // The customer PWA may already have obtained this origin's permission.
-        // Register Owner's separate /admin/ worker and subscription without asking again.
-        automaticSetupAttempted = true;
-        try {
-          await ensureOwnerSubscription();
-          button.textContent = 'Disable alerts on this device';
-          button.dataset.enabled = '1';
-          status.textContent = 'Owner order alerts are enabled and this device subscription is registered with FreshWay.';
-          return;
-        } catch (error) {
-          status.textContent = 'Notifications are allowed, but Owner still needs its own push subscription. Tap “Finish enabling Owner alerts” to complete setup. ' + (error.message || '');
-          button.textContent = 'Finish enabling Owner alerts';
-          return;
-        }
-      }
+      const ownerCount = Number(info.ownerSubscriptionCount || 0);
       button.textContent = Notification.permission === 'granted'
         ? 'Finish enabling Owner alerts'
         : 'Enable order alerts on this device';
       status.textContent = Notification.permission === 'granted'
-        ? 'Android notification permission is already granted, but Owner needs its own push subscription. Tap to finish setup.'
-        : 'Enable push to receive new-order and order-change alerts when Owner is not open.';
+        ? `Android notification permission is granted, but this Owner app has no local push subscription. The customer app's subscription is separate. Server currently has ${ownerCount} Owner device subscription(s). Tap “Finish enabling Owner alerts” here; a new subscription must be created from this button.`
+        : `Enable push to receive new-order and order-change alerts when Owner is not open. Server currently has ${ownerCount} Owner device subscription(s).${latestSummary}`;
     } catch (error) {
       status.textContent = error.message || 'Could not check push-alert status.';
       button.disabled = false;
@@ -165,6 +156,34 @@
       button.dataset.enabled = '0';
     } finally {
       button.disabled = false;
+    }
+  }
+
+  async function testPush() {
+    const button = $('#ownerOrderAlertTest');
+    const status = $('#ownerOrderAlertStatus');
+    if (!button || !status) return;
+    button.disabled = true;
+    const originalText = button.textContent;
+    button.textContent = 'Sending test…';
+    status.textContent = 'Sending a test push through the same server path used for new orders…';
+    try {
+      const result = await api('/admin/push/test', { method: 'POST', body: JSON.stringify({}) });
+      await loadAlerts();
+      if (result.status === 'sent' && Number(result.sent) > 0) {
+        status.textContent = `Push service accepted the test for ${Number(result.sent)} Owner device(s). This confirms server delivery acceptance, not Android display; check the notification shade. If it is missing, verify this device's Owner subscription and Android site notification settings.`;
+      } else if (result.status === 'no_subscriptions' || Number(result.ownerSubscriptionCount || 0) === 0) {
+        status.textContent = 'TEST FAILED: the server has no registered Owner push subscription. Tap “Finish enabling Owner alerts” on this device, then retry the test.';
+      } else if (result.status === 'not_configured') {
+        status.textContent = 'TEST FAILED: Web Push credentials are not configured for this environment.';
+      } else {
+        status.textContent = `TEST FAILED: ${statusText(result.status)}. ${result.lastError ? 'Delivery detail: ' + result.lastError + '.' : 'Refresh alert history for the latest recorded result.'}`;
+      }
+    } catch (error) {
+      status.textContent = error.message || 'Could not send the Owner test notification.';
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
     }
   }
 
@@ -303,6 +322,7 @@
     if (!$('#ownerOrderAlertToggle') || window.__freshWayOrderAlertsBound) return;
     window.__freshWayOrderAlertsBound = true;
     $('#ownerOrderAlertToggle').addEventListener('click', () => $('#ownerOrderAlertToggle').dataset.enabled === '1' ? disable() : enable());
+    $('#ownerOrderAlertTest')?.addEventListener('click', () => void testPush());
     $('#ownerOrderAlertsRefresh')?.addEventListener('click', async () => { await loadAlerts(); await loadStatus(); });
     $('#ownerAlertHistoryRefresh')?.addEventListener('click', () => void loadOwnerAlertHistory({ reset: true }));
     $('#clearOwnerAlertHistory')?.addEventListener('click', deleteAllOwnerAlerts);
