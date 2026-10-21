@@ -159,6 +159,12 @@
         attribution: '© OpenStreetMap contributors'
       }).addTo(leafletMap);
       leafletMap.on('click', function (event) {
+        if (leafletMap.getZoom() < 16) {
+          removeSearchPreview();
+          leafletMap.setView([event.latlng.lat, event.latlng.lng], 18);
+          updatePinStatus('Zoomed into that area. Tap the exact shop entrance again to set the pin; a town-level point is not precise enough.');
+          return;
+        }
         setShopPin(event.latlng.lat, event.latlng.lng,
           'Map point selected. Confirm this is the actual shop entrance, not just the town centre.');
       });
@@ -270,8 +276,11 @@
     removeSearchPreview();
     searchPreviewMarker = window.L.circleMarker(
       [position.latitude, position.longitude],
-      { radius: 7, color: '#9a6413', fillColor: '#f4c45f', fillOpacity: 0.9, weight: 2 }
+      { radius: 7, color: '#9a6413', fillColor: '#f4c45f', fillOpacity: 0.9, weight: 2, bubblingMouseEvents: false }
     ).addTo(leafletMap);
+    searchPreviewMarker.on('click', function () {
+      updatePinStatus('This amber circle is only an approximate search result. Tap the actual shop entrance on the map to save its coordinates.');
+    });
     leafletMap.setView([position.latitude, position.longitude], 18);
     updatePinStatus('Approximate search result shown. The amber circle is only a search reference, not your saved shop pin. Tap the exact entrance on the map to confirm it.');
   }
@@ -329,7 +338,7 @@
     const data = await api('/admin/store-profile');
     const profile = data?.storeProfile || {};
     apply(profile);
-    await ensureMap();
+    ensureMap();
     return profile;
   }
 
