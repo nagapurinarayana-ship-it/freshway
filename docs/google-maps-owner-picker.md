@@ -1,21 +1,21 @@
-# FreshWay Owner Google Maps picker setup
+# FreshWay Owner free shop map picker
 
-The Owner settings page prefers Google Maps when the optional Worker environment binding `GOOGLE_MAPS_BROWSER_API_KEY` is configured. Until then, the current OpenStreetMap picker remains available. Customer directions continue using Google Maps URLs and saved shop coordinates; no API key is needed for those directions URLs.
+FreshWay uses OpenStreetMap with Leaflet for the Owner shop-location picker. This option does not require a paid maps API, Google API key, or billing account.
 
-## Google Cloud setup
+## How to set the exact shop pin
 
-1. In Google Cloud Console, select or create a billing-enabled project.
-2. Enable **Maps JavaScript API** and **Places API**. The picker uses Google Places suggestions when available and Google Maps Geocoder as a compatibility fallback.
-3. Create a browser API key and apply **HTTP referrer restrictions** for the actual FreshWay Owner/customer origins that should load maps. Start with the production domain and add only the specific preview domains you use.
-4. Apply API restrictions for the Maps JavaScript API and Places API (and Geocoding API if you explicitly enable/use that service in your project). Configure sensible quotas and billing alerts.
-5. In the Cloudflare dashboard, open the `freshway-api` Worker settings and add `GOOGLE_MAPS_BROWSER_API_KEY` as a Worker secret. Do not commit the key to GitHub. It is a browser key, so HTTP-referrer and API restrictions are essential even though the backend only returns it to an authenticated Owner session.
-6. Deploy the Worker and Pages app, then sign into `/admin/` and open Settings. The status should indicate Google Maps is ready when the key is accepted.
-7. Search for the actual shop, select a result only to navigate the map, zoom to building/entrance level, tap the exact entrance, verify the marker, save, reopen Settings and test the customer directions link on an Android phone.
+1. Open the Owner app and go to Settings.
+2. Keep the human-readable business address unchanged.
+3. Search for the shop address, locality, landmark or PIN code.
+4. Select a search result only to move the map; search results are approximate and are not saved automatically.
+5. Zoom in to the building, tap the actual shop entrance, verify the marker and save.
+6. Reopen Settings and test the customer directions link on an Android phone.
 
-## Safety and fallback
+The shop latitude and longitude are stored separately from the business address. Customer directions use the saved coordinates when present and fall back to the address if no pin has been saved. No order, checkout, pricing, notification or customer-address workflows depend on this picker.
 
-- A searched place result is an approximate reference only; it is not stored automatically.
-- The human-readable business address and saved latitude/longitude remain separate.
-- If the key is missing, the existing OpenStreetMap picker stays active.
-- If Google Maps fails to load, the Owner picker attempts to use the backup map.
-- The customer directions link continues to use saved coordinates when present and falls back to the address when no pin has been saved.
+## Free-service limits
+
+- Leaflet is open-source map software; OpenStreetMap supplies the map data.
+- The public OpenStreetMap tile service is community-funded and has a usage policy. It is not an unlimited commercial tile CDN; use normal caching and avoid bulk downloads or prefetching.
+- Search is provided by the configured public geocoding/search endpoint and is also subject to its usage policy and rate limits. Search should be used interactively, not as a bulk geocoding service.
+- If FreshWay traffic grows, keep the same open-source map UI and switch to a compliant free-tier or self-hosted tile/search service if needed. Do not add a paid API without explicit approval.
