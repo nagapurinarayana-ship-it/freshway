@@ -5,7 +5,8 @@ if (!BASE_URL) throw new Error('OWNER_PWA_BASE_URL is required for Owner PWA dep
 
 const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261020-owner-alert-login-ready-v1';
 const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261020-owner-push-login-ready-v2';
-const EXPECTED_OWNER_CACHE = 'fw-owner-v15';
+const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261021-shop-map-pin-v1';
+const EXPECTED_OWNER_CACHE = 'fw-owner-v16';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -57,8 +58,9 @@ async function fetchCurrentOwnerAppShell(attempts = 60) {
         const html = await response.text();
         const currentAdmin = hasScriptReference(html, response.url, EXPECTED_OWNER_ADMIN_SCRIPT);
         const currentAlerts = hasScriptReference(html, response.url, EXPECTED_OWNER_ALERTS_SCRIPT);
-        if (currentAdmin && currentAlerts) return { response, html };
-        lastError = new Error('/admin/ still serves stale Owner assets (attempt ' + attempt + '/' + attempts + '); expected ' + EXPECTED_OWNER_ADMIN_SCRIPT + ' and ' + EXPECTED_OWNER_ALERTS_SCRIPT);
+        const currentStoreProfile = hasScriptReference(html, response.url, EXPECTED_OWNER_STORE_PROFILE_SCRIPT);
+        if (currentAdmin && currentAlerts && currentStoreProfile) return { response, html };
+        lastError = new Error('/admin/ still serves stale Owner assets (attempt ' + attempt + '/' + attempts + '); expected ' + EXPECTED_OWNER_ADMIN_SCRIPT + ', ' + EXPECTED_OWNER_ALERTS_SCRIPT + ' and ' + EXPECTED_OWNER_STORE_PROFILE_SCRIPT);
       }
     } catch (error) {
       lastError = error;
@@ -82,7 +84,8 @@ async function fetchCurrentOwnerServiceWorker(attempts = 60) {
         const currentCache = worker.includes("const CACHE = '" + EXPECTED_OWNER_CACHE + "';");
         const currentAdmin = worker.includes(EXPECTED_OWNER_ADMIN_SCRIPT);
         const currentAlerts = worker.includes(EXPECTED_OWNER_ALERTS_SCRIPT);
-        if (currentCache && currentAdmin && currentAlerts) return { response, worker };
+        const currentStoreProfile = worker.includes(EXPECTED_OWNER_STORE_PROFILE_SCRIPT);
+        if (currentCache && currentAdmin && currentAlerts && currentStoreProfile) return { response, worker };
         lastError = new Error('/admin/sw.js still serves stale Owner cache/assets (attempt ' + attempt + '/' + attempts + '); expected ' + EXPECTED_OWNER_CACHE + ' and current Owner script URLs');
       }
     } catch (error) {
@@ -107,6 +110,7 @@ assert.ok(installScriptUrl.pathname.startsWith('/admin/'), 'Owner bootstrap must
 assert.match(html, /FreshWay — Owner/);
 assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_ADMIN_SCRIPT), 'Owner app must load the latest login-aware admin script');
 assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_ALERTS_SCRIPT), 'Owner app must load the latest login-aware push setup script');
+assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_STORE_PROFILE_SCRIPT), 'Owner app must load the latest business profile and shop pin editor');
 
 for (const [, value] of html.matchAll(/\b(?:src|href)=["']([^"']+)["']/gi)) {
   if (value.startsWith('#') || value === '/' || /^[a-z][a-z0-9+.-]*:/i.test(value)) continue;
@@ -133,6 +137,7 @@ assert.equal(workerResponse.headers.get('service-worker-allowed'), '/admin/');
 assert.ok(worker.includes("const CACHE = '" + EXPECTED_OWNER_CACHE + "';"), 'Owner service worker must publish the latest cache version');
 assert.ok(worker.includes(EXPECTED_OWNER_ADMIN_SCRIPT), 'Owner service worker shell must cache the latest Owner script');
 assert.ok(worker.includes(EXPECTED_OWNER_ALERTS_SCRIPT), 'Owner service worker shell must cache the latest push setup script');
+assert.ok(worker.includes(EXPECTED_OWNER_STORE_PROFILE_SCRIPT), 'Owner service worker shell must cache the latest shop location editor');
 const installScriptResponse = await fetchOwnerRoute(installScriptUrl.pathname + installScriptUrl.search);
 assertFreshResponse(installScriptResponse, 'Owner install/bootstrap script');
 assert.match(installScriptResponse.headers.get('content-type') || '', /javascript/i);
