@@ -60,6 +60,7 @@ assert.doesNotMatch(media, new RegExp('api/admin|r2|D1', 'i'));
 assert.match(productView,/FreshWayCatalogueMedia/);
 assert.match(productView,/image_data&&p\.image_mime_type/);
 const styles=fs.readFileSync('styles.css','utf8');
+const categoryFoldStyles=fs.readFileSync('frontend/customer/category-fold-fit.css','utf8');
 assert.match(styles,/grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/);
 assert.match(styles,/\.product-image img\{[^}]*object-fit:contain/);
 assert.match(styles,/\.product-card\{min-width:0;overflow:hidden\}/);
@@ -124,7 +125,7 @@ assert.match(productView,/productNameAliases/);
 console.log('premium category selection, navigation and customer-facing product naming contracts OK');
 
 assert.match(source,/fw-category-selected/,'selected category applies a scoped compact layout');
-assert.ok(styles.includes('body.fw-category-selected .product-card{height:196px'),'category product cards are compact enough for a four-item first view');
-assert.ok(styles.includes('body.fw-category-selected .product-image{height:76px'),'category product images use a compact height');
-assert.match(styles,/max-height:800px/,'short mobile screens receive an additional compact layout');
+assert.ok(categoryFoldStyles.includes('body.fw-category-selected .product-card{height:196px'),'category product cards are compact enough for a four-item first view');
+assert.ok(categoryFoldStyles.includes('body.fw-category-selected .product-image{height:76px'),'category product images use a compact height');
+assert.match(categoryFoldStyles,/max-height:800px/,'short mobile screens receive an additional compact layout');
 console.log('four-product category fold-fit contract OK');
