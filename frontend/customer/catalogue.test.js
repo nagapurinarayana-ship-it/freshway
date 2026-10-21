@@ -7,7 +7,10 @@ const freshness=fs.readFileSync('frontend/customer/state-freshness.js','utf8');
 const ordersData=fs.readFileSync('frontend/customer/orders-data.js','utf8');
 
 assert.match(source,/window\.FreshWayCustomerAPI\?\.request/);
-assert.match(source,/selected=\(window\.history\.state\?\.__freshwayCustomer&&window\.history\.state\.view==='home'\?window\.history\.state\.category:null\)\|\|null/,'refresh restores the selected category from the current history entry');
+assert.match(source,/selected=\(window\.history\.state\?\.__freshwayCustomer&&window\.history\.state\.view==='home'\?window\.history\.state\.category:null\)\|\|getStoredCategory\(\)\|\|null/,'refresh restores the selected category from history or session storage');
+assert.match(source,/sessionStorage\.setItem\(CATEGORY_STORAGE_KEY,String\(selected\)\)/,'selected category is persisted for reload restoration');
+assert.match(source,/sessionStorage\.removeItem\(CATEGORY_STORAGE_KEY\)/,'explicitly returning to Home clears the persisted category');
+assert.match(source,/history==='none'&&state\.view==='home'&&state\.category!==selected/,'restored category selection is synchronized back into browser history');
 assert.match(source,/history:selected\?'replace':'none'/,'a deleted category clears stale selection from history instead of restoring it on every refresh');
 assert.match(source,/Promise\.allSettled\(\[/);
 assert.doesNotMatch(source,/fetch\(['"]\/api\/(categories|products)/);
@@ -128,4 +131,5 @@ assert.match(source,/fw-category-selected/,'selected category applies a scoped c
 assert.ok(categoryFoldStyles.includes('body.fw-category-selected .product-card{height:196px'),'category product cards are compact enough for a four-item first view');
 assert.ok(categoryFoldStyles.includes('body.fw-category-selected .product-image{height:76px'),'category product images use a compact height');
 assert.match(categoryFoldStyles,/max-height:800px/,'short mobile screens receive an additional compact layout');
+assert.match(categoryFoldStyles,/\.product-image img\{[^}]*width:auto!important;height:auto!important[^}]*max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center!important/,'category product images retain their full source aspect ratio instead of stretching/cropping');
 console.log('four-product category fold-fit contract OK');
