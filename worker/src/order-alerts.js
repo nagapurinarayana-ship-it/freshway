@@ -101,6 +101,7 @@ export async function dispatchOrderAlert(env, alert) {
   let sent = 0;
   let failed = 0;
   const dead = [];
+  const failureReasons = {};
   const payload = JSON.stringify({
     title, body, url,
     tag: eventKey,
@@ -119,11 +120,15 @@ export async function dispatchOrderAlert(env, alert) {
       } catch (error) {
         failed++;
         const statusCode = Number(error?.statusCode || 0);
+        const rawReason = statusCode ? `HTTP_${statusCode}` : cleanText(error?.code || error?.name || 'UNKNOWN', 32);
+        const reason = rawReason.toUpperCase().replace(/[^A-Z0-9_-]/g, '_').slice(0, 40) || 'UNKNOWN';
+        failureReasons[reason] = (failureReasons[reason] || 0) + 1;
         if ([404, 410].includes(statusCode)) dead.push(subscription.endpoint);
       }
     }));
   } catch (error) {
     failed = subscriptions.length;
+    failureReasons.SEND_SETUP_ERROR = Math.max(1, subscriptions.length);
     console.error('FreshWay order alert send failed:', error?.message || error);
   }
 
@@ -138,7 +143,9 @@ export async function dispatchOrderAlert(env, alert) {
   try {
     await updateEvent(env, eventId, {
       status, recipientCount: subscriptions.length, successCount: sent, failureCount: failed,
-      lastError: failed ? 'ONE_OR_MORE_PUSH_DELIVERIES_FAILED' : null
+      lastError: failed
+        ? Object.entries(failureReasons).map(([reason, count]) => `${reason}:${count}`).join(',').slice(0, 240) || 'ONE_OR_MORE_PUSH_DELIVERIES_FAILED'
+        : null
     });
   } catch (error) {
     console.error('FreshWay order alert result could not be saved:', error?.message || error);
@@ -208,4 +215,33 @@ export async function deleteAllOwnerOrderAlerts(env) {
     "DELETE FROM notification_events WHERE audience='owner'"
   ).run();
   return { ok: true, deleted: Number(result?.meta?.changes || 0) };
+}
+
+
+/** Return safe, non-secret diagnostics for the authenticated Owner notifications screen. */
+export async function getOwnerPushDiagnostics(env) {
+  const [countRow, latestAlert] = await Promise.all([
+    env.DB.prepare("SELECT COUNT(*) AS count FROM owner_push_subscriptions WHERE owner_key='default'").first(),
+    env.DB.prepare("SELECT event_type,status,recipient_count,success_count,failure_count,last_error,created_at,updated_at FROM notification_events WHERE audience='owner' ORDER BY id DESC LIMIT 1").first()
+  ]);
+  return {
+    pushConfigured: pushConfigured(env),
+    ownerSubscriptionCount: Number(countRow?.count || 0),
+    latestAlert: latestAlert || null
+  };
+}
+
+/** Send a genuine server-to-push-service test through the same delivery path as new orders. */
+export async function sendOwnerPushTest(env) {
+  const nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return dispatchOrderAlert(env, {
+    audience: 'owner',
+    customerId: '',
+    orderId: '',
+    eventType: 'push_test',
+    eventKey: `owner:push-test:${nonce}`,
+    title: 'FreshWay Owner · Test notification',
+    body: 'This is a test push. If you see it, this Owner device received a notification.',
+    url: '/admin/#notifications'
+  });
 }
