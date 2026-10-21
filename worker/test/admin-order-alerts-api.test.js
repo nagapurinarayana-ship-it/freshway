@@ -107,3 +107,59 @@ test('signed Owner can read push configuration, subscribe/unsubscribe and read t
   assert.equal(unsubscribe.status, 200);
   assert.match(env.DB.sqlCalls.join('\n'), /DELETE FROM owner_push_subscriptions/);
 });
+
+
+test('Owner alert history hasMore is false at an exact page boundary with no older rows', async () => {
+  async function readHistory({ hasOlder }) {
+    const sqlCalls = [];
+    const env = baseEnv();
+    env.DB = {
+      sqlCalls,
+      prepare(sql) {
+        sqlCalls.push(sql);
+        return {
+          bind(...values) {
+            return {
+              async first() {
+                if (sql.includes('SELECT count,window_start FROM auth_rate_limits')) return null;
+                if (sql.includes("SELECT id FROM notification_events WHERE audience='owner' AND id < ? LIMIT 1")) {
+                  assert.deepEqual(values, [19]);
+                  return hasOlder ? { id: 18 } : null;
+                }
+                return null;
+              },
+              async all() {
+                if (sql.includes("FROM notification_events WHERE audience='owner'") && sql.includes('ORDER BY id DESC LIMIT ?')) {
+                  assert.deepEqual(values, [2]);
+                  return { results: [
+                    { id: 20, order_id: 'FW-20', event_type: 'order_placed', title: 'New order', body: 'Order placed', status: 'sent', recipient_count: 1, success_count: 1, failure_count: 0, created_at: '2026-10-21 10:00:00' },
+                    { id: 19, order_id: 'FW-19', event_type: 'order_placed', title: 'New order', body: 'Order placed', status: 'sent', recipient_count: 1, success_count: 1, failure_count: 0, created_at: '2026-10-21 09:00:00' }
+                  ] };
+                }
+                return { results: [] };
+              },
+              async run() { return { meta: { changes: 1 }, values }; }
+            };
+          },
+          async run() { return { meta: { changes: 1 }, values: [] }; }
+        };
+      },
+      async batch() { return [] }
+    };
+    const cookie = await signedIn(env);
+    const response = await adminAuth.fetch(new Request('https://fwcoldpressed.in/api/admin/order-alerts?limit=2', {
+      headers: { Origin: 'https://fwcoldpressed.in', Cookie: cookie, 'Content-Type': 'application/json' }
+    }), env, { waitUntil() {} });
+    assert.equal(response.status, 200);
+    return { body: await response.json(), sqlCalls };
+  }
+
+  const exactBoundary = await readHistory({ hasOlder: false });
+  assert.equal(exactBoundary.body.hasMore, false);
+  assert.equal(exactBoundary.body.nextBefore, 19);
+  assert.equal(exactBoundary.sqlCalls.some(sql => sql.includes('id < ? LIMIT 1')), true);
+
+  const moreAvailable = await readHistory({ hasOlder: true });
+  assert.equal(moreAvailable.body.hasMore, true);
+  assert.equal(moreAvailable.body.nextBefore, 19);
+});
