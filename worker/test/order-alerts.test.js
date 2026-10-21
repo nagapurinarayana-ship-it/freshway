@@ -113,7 +113,7 @@ test('Owner alert history uses keyset pagination and deletion is restricted to O
 
   assert.deepEqual(await deleteAllOwnerOrderAlerts(env), { ok: true, deleted: 2 });
   assert.match(statements[3].sql, /DELETE FROM notification_events WHERE audience='owner'/);
-  assert.doesNotMatch(statements[4].sql, /customer/i);
+  assert.doesNotMatch(statements[3].sql, /customer/i);
 });
 test('Owner push subscription writes are scoped to the Owner partition and validate secure endpoints', async () => {
   const statements = [];
