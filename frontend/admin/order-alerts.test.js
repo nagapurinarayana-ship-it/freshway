@@ -25,7 +25,7 @@ assert.match(source, /latestSummary/);
 assert.match(source, /freshway:admin-authenticated/);
 assert.match(adminUi, /freshway:admin-authenticated/);
 assert.match(source, /Finish enabling Owner alerts/);
-assert.match(source, /Owner needs its own push subscription/);
+assert.match(source, /customer app's subscription is separate/);
 assert.match(source, /\/admin\/push\/subscribe/);
 assert.match(source, /\/admin\/order-alerts\?limit=3/);
 assert.match(source, /\/admin\/order-alerts\?limit=20/);
