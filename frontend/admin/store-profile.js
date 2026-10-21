@@ -17,6 +17,11 @@
   let leafletMap = null;
   let pinMarker = null;
   let searchPreviewMarker = null;
+  let mapProvider = 'openstreetmap';
+  let googleMapsPromise = null;
+  let googleMap = null;
+  let googlePinMarker = null;
+  let googleSearchPreviewMarker = null;
   let searchResults = [];
   let searchRequestId = 0;
   let pickerEventsBound = false;
@@ -78,11 +83,38 @@
       try { leafletMap.removeLayer(searchPreviewMarker); } catch (_) {}
     }
     searchPreviewMarker = null;
+    if (googleSearchPreviewMarker) {
+      try { googleSearchPreviewMarker.setMap(null); } catch (_) {}
+    }
+    googleSearchPreviewMarker = null;
   }
 
   function syncPinMarker() {
-    if (!leafletMap || !window.L) return;
     removeSearchPreview();
+    if (mapProvider === 'google' && googleMap && window.google?.maps) {
+      if (!selectedShopPin) {
+        if (googlePinMarker) googlePinMarker.setMap(null);
+        googlePinMarker = null;
+        return;
+      }
+      const position = { lat: selectedShopPin.latitude, lng: selectedShopPin.longitude };
+      if (googlePinMarker) {
+        googlePinMarker.setPosition(position);
+      } else {
+        googlePinMarker = new window.google.maps.Marker({
+          map: googleMap,
+          position,
+          draggable: true,
+          title: 'Confirmed FreshWay shop entrance'
+        });
+        googlePinMarker.addListener('dragend', function () {
+          const moved = googlePinMarker.getPosition();
+          if (moved) setShopPin(moved.lat(), moved.lng(), 'Pin moved. Confirm that it points to the actual shop entrance, then save changes.');
+        });
+      }
+      return;
+    }
+    if (!leafletMap || !window.L) return;
     if (!selectedShopPin) {
       if (pinMarker) {
         leafletMap.removeLayer(pinMarker);
@@ -96,8 +128,8 @@
     } else {
       pinMarker = window.L.marker(position, { draggable: true, title: 'Confirmed shop entrance pin' }).addTo(leafletMap);
       pinMarker.on('dragend', function () {
-        const position = pinMarker.getLatLng();
-        setShopPin(position.lat, position.lng, 'Pin moved. Confirm that it points to the actual shop entrance, then save changes.');
+        const moved = pinMarker.getLatLng();
+        setShopPin(moved.lat, moved.lng, 'Pin moved. Confirm that it points to the actual shop entrance, then save changes.');
       });
     }
   }
@@ -111,11 +143,97 @@
     selectedShopPin = pin;
     removeSearchPreview();
     syncPinMarker();
-    if (leafletMap) leafletMap.setView([pin.latitude, pin.longitude], Math.max(leafletMap.getZoom(), 18));
+    if (mapProvider === 'google' && googleMap) {
+      googleMap.setCenter({ lat: pin.latitude, lng: pin.longitude });
+      googleMap.setZoom(Math.max(googleMap.getZoom() || 0, 18));
+    } else if (leafletMap) {
+      leafletMap.setView([pin.latitude, pin.longitude], Math.max(leafletMap.getZoom(), 18));
+    }
     updatePinStatus((statusMessage || 'Shop pin selected.') +
       ' Coordinates: ' + pin.latitude.toFixed(6) + ', ' + pin.longitude.toFixed(6) +
       '. These changes apply when you press Save changes.');
     return true;
+  }
+
+  function loadGoogleMaps(apiKey) {
+    if (window.google?.maps?.Map) return Promise.resolve(window.google.maps);
+    if (googleMapsPromise) return googleMapsPromise;
+    googleMapsPromise = new Promise(function (resolve, reject) {
+      const script = document.createElement('script');
+      const url = new URL('https://maps.googleapis.com/maps/api/js');
+      url.searchParams.set('key', apiKey);
+      url.searchParams.set('v', 'weekly');
+      url.searchParams.set('libraries', 'places');
+      script.src = url.toString();
+      script.async = true;
+      script.defer = true;
+      script.onload = function () {
+        if (window.google?.maps?.Map) resolve(window.google.maps);
+        else reject(new Error('Google Maps loaded without initializing.'));
+      };
+      script.onerror = function () {
+        googleMapsPromise = null;
+        reject(new Error('Google Maps could not load. The backup map will remain available.'));
+      };
+      document.head.appendChild(script);
+    });
+    return googleMapsPromise.catch(function (error) {
+      googleMapsPromise = null;
+      throw error;
+    });
+  }
+
+  function initializeGoogleMap() {
+    const element = get('storeLocationMap');
+    if (!element || !window.google?.maps?.Map) return;
+    if (!googleMap) {
+      const center = selectedShopPin
+        ? { lat: selectedShopPin.latitude, lng: selectedShopPin.longitude }
+        : { lat: 20.5937, lng: 78.9629 };
+      googleMap = new window.google.maps.Map(element, {
+        center,
+        zoom: selectedShopPin ? 18 : 5,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: true,
+        clickableIcons: false,
+        gestureHandling: 'greedy'
+      });
+      googleMap.addListener('click', function (event) {
+        if (!event.latLng) return;
+        if ((googleMap.getZoom() || 0) < 16) {
+          removeSearchPreview();
+          googleMap.setCenter(event.latLng);
+          googleMap.setZoom(18);
+          updatePinStatus('Zoomed into that area. Tap the exact shop entrance again to set the pin; a town-level point is not precise enough.');
+          return;
+        }
+        setShopPin(event.latLng.lat(), event.latLng.lng(),
+          'Map point selected. Confirm this is the actual shop entrance, not just the town centre.');
+      });
+    } else {
+      googleMap.setCenter(selectedShopPin
+        ? { lat: selectedShopPin.latitude, lng: selectedShopPin.longitude }
+        : googleMap.getCenter());
+    }
+    syncPinMarker();
+    if (!selectedShopPin) focusGoogleMapOnAddress();
+  }
+
+  function focusGoogleMapOnAddress() {
+    const address = clean(get('storeAddress')?.value);
+    if (!googleMap || !address || !window.google?.maps?.Geocoder) return;
+    new window.google.maps.Geocoder().geocode({
+      address,
+      componentRestrictions: { country: 'IN' }
+    }).then(function (result) {
+      if (!selectedShopPin && result.results?.[0]?.geometry?.location && googleMap) {
+        googleMap.setCenter(result.results[0].geometry.location);
+        googleMap.setZoom(15);
+      }
+    }).catch(function () {
+      // Address geocoding only helps set the initial view; it never creates a saved pin.
+    });
   }
 
   function loadLeaflet() {
@@ -175,12 +293,43 @@
     setTimeout(function () { if (leafletMap) leafletMap.invalidateSize(); }, 150);
   }
 
-  async function ensureMap() {
+  async function ensureMap(api) {
+    let config = null;
+    try {
+      config = await api('/admin/maps/config');
+    } catch (_) {
+      // Older API deployments will safely continue with the existing map.
+    }
+    if (config?.googleMapsApiKey) {
+      try {
+        await loadGoogleMaps(String(config.googleMapsApiKey));
+        mapProvider = 'google';
+        initializeGoogleMap();
+        updatePinStatus(selectedShopPin
+          ? 'Google Maps is ready. Verify that the marker is on the actual shop entrance before saving.'
+          : 'Google Maps is ready. Search for the shop, zoom in and tap the actual entrance; search matches are not saved automatically.');
+        return;
+      } catch (error) {
+        mapProvider = 'openstreetmap';
+        try {
+          await loadLeaflet();
+          initializeMap();
+          updatePinStatus((error.message || 'Google Maps is unavailable.') + ' Using the backup map for now; existing coordinates and address are unchanged.');
+          return;
+        } catch (_) {
+          updatePinStatus(error.message || 'Google Maps and the backup map are unavailable. The existing address and saved pin remain unchanged.');
+          return;
+        }
+      }
+    }
+
+    mapProvider = 'openstreetmap';
     try {
       await loadLeaflet();
       initializeMap();
+      updatePinStatus('Google Maps is not configured yet. The existing backup map is active; your business address and saved pin are unchanged. Configure the restricted Google Maps browser key to enable Google Maps here.');
     } catch (error) {
-      updatePinStatus(error.message || 'Map unavailable. The current address text is unchanged; exact directions need a confirmed map pin.');
+      updatePinStatus(error.message || 'Map unavailable. The current business address text is unchanged; exact directions need a confirmed map pin.');
     }
   }
 
@@ -203,6 +352,59 @@
       resultsBox.appendChild(message);
     }
     try {
+      if (mapProvider === 'google' && googleMap && window.google?.maps) {
+        const placesApi = window.google.maps.places?.AutocompleteSuggestion;
+        if (placesApi?.fetchAutocompleteSuggestions) {
+          const response = await placesApi.fetchAutocompleteSuggestions({
+            input: query,
+            includedRegionCodes: ['in']
+          });
+          searchResults = (response.suggestions || [])
+            .filter(item => item?.placePrediction)
+            .slice(0, 5)
+            .map(item => ({
+              display_name: item.placePrediction.text?.toString() || 'Google Maps place result',
+              placePrediction: item.placePrediction
+            }));
+        } else {
+          const response = await new window.google.maps.Geocoder().geocode({
+            address: query,
+            componentRestrictions: { country: 'IN' }
+          });
+          searchResults = (response.results || []).slice(0, 5).map(item => ({
+            display_name: item.formatted_address || item.name || query,
+            lat: item.geometry?.location?.lat(),
+            lon: item.geometry?.location?.lng()
+          }));
+        }
+        if (requestId !== searchRequestId) return;
+        if (resultsBox) resultsBox.replaceChildren();
+        if (!searchResults.length) {
+          if (resultsBox) {
+            const empty = document.createElement('p');
+            empty.textContent = 'No Google Maps results found. Try the full address, a nearby landmark or PIN code.';
+            resultsBox.appendChild(empty);
+          }
+          updatePinStatus('No matching Google Maps result. Try a more specific address or move the map manually. Nothing has been saved.');
+          return;
+        }
+        if (resultsBox) {
+          const hint = document.createElement('p');
+          hint.textContent = 'Choose a Google Maps result to zoom in, then tap the exact shop entrance. Search results alone are never saved as the shop pin.';
+          resultsBox.appendChild(hint);
+          searchResults.forEach(function (item, index) {
+            const resultButton = document.createElement('button');
+            resultButton.type = 'button';
+            resultButton.className = 'ghost';
+            resultButton.textContent = item.display_name;
+            resultButton.dataset.shopSearchIndex = String(index);
+            resultsBox.appendChild(resultButton);
+          });
+        }
+        updatePinStatus('Google Maps results are approximate. Choose the correct place, zoom in and tap the actual shop entrance to confirm its coordinates.');
+        return;
+      }
+
       const params = new URLSearchParams({
         format: 'jsonv2',
         addressdetails: '1',
@@ -268,9 +470,46 @@
     }
   }
 
-  function chooseSearchResult(index) {
+  async function chooseSearchResult(index) {
     const item = searchResults[Number(index)];
-    if (!item || !leafletMap || !window.L) return;
+    if (!item) return;
+    if (mapProvider === 'google' && googleMap && window.google?.maps) {
+      let position = validPin(item.lat, item.lon);
+      try {
+        if (item.placePrediction) {
+          const place = item.placePrediction.toPlace();
+          await place.fetchFields({ fields: ['location', 'formattedAddress', 'displayName'] });
+          const location = place.location;
+          if (location) position = validPin(location.lat(), location.lng());
+        }
+      } catch (_) {
+        updatePinStatus('Could not load that Google Maps place. Choose another result or place the pin manually.');
+        return;
+      }
+      if (!position) {
+        updatePinStatus('That Google Maps result has no usable coordinates. Choose another result or place the pin manually.');
+        return;
+      }
+      removeSearchPreview();
+      googleSearchPreviewMarker = new window.google.maps.Marker({
+        map: googleMap,
+        position: { lat: position.latitude, lng: position.longitude },
+        title: 'Approximate Google Maps search result',
+        icon: {
+          path: window.google.maps.SymbolPath.CIRCLE,
+          scale: 7,
+          fillColor: '#f4c45f',
+          fillOpacity: 0.9,
+          strokeColor: '#9a6413',
+          strokeWeight: 2
+        }
+      });
+      googleMap.setCenter({ lat: position.latitude, lng: position.longitude });
+      googleMap.setZoom(18);
+      updatePinStatus('Google Maps search result shown. This marker is only an approximate reference, not your saved shop pin. Tap the actual entrance on the map to confirm it.');
+      return;
+    }
+    if (!leafletMap || !window.L) return;
     const position = validPin(item.lat, item.lon);
     if (!position) return;
     removeSearchPreview();
@@ -312,6 +551,10 @@
       leafletMap.removeLayer(pinMarker);
       pinMarker = null;
     }
+    if (googlePinMarker) {
+      googlePinMarker.setMap(null);
+      googlePinMarker = null;
+    }
     updatePinStatus('Shop pin cleared in this form. Press Save changes to use address-based map search until a new exact pin is saved.');
   }
 
@@ -338,7 +581,7 @@
     const data = await api('/admin/store-profile');
     const profile = data?.storeProfile || {};
     apply(profile);
-    ensureMap();
+    ensureMap(api);
     return profile;
   }
 
