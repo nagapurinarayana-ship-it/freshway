@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v19';
+const CACHE = 'fw-owner-v20';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -15,7 +15,7 @@ const SHELL = [
   '/admin/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1',
   '/admin/frontend/admin/owner-lifecycle-autosave.js?v=20260909-owner-lifecycle-v1',
   '/admin/frontend/admin/push.js?v=20260908-push-v1',
-  '/admin/owner-lifecycle.js?v=20261020-compact-location-row-v1',
+  '/admin/owner-lifecycle.js?v=20261021-open-map-fix-v1',
   '/admin/owner-address-final.js?v=20260909-address-final-v6',
   '/admin/freshway-logo-master.webp?v=20261008-master-v1',
   '/admin/freshway-logo-clean.svg?v=20261008-brand-v1',
@@ -32,7 +32,8 @@ const REQUIRED_SHELL = [
   '/admin/admin.js?v=20261021-owner-alert-history-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-alert-history-v1',
   '/admin/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1',
-  '/admin/frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1'
+  '/admin/frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1',
+  '/admin/owner-lifecycle.js?v=20261021-open-map-fix-v1'
 ];
 
 self.addEventListener('install', event => {

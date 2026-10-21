@@ -28,7 +28,7 @@ assert.match(source, /\/admin\/order-alerts\?limit=20/);
 assert.match(source, /Disable alerts on this device/);
 assert.match(worker, /addEventListener\('push'/);
 assert.match(worker, /addEventListener\('notificationclick'/);
-assert.match(worker, /fw-owner-v19/);
+assert.match(worker, /fw-owner-v20/);
 assert.match(route, /\/api\/admin\/push\/public-key/);
 assert.match(route, /\/api\/admin\/push\/subscribe/);
 assert.match(route, /\/api\/admin\/order-alerts/);

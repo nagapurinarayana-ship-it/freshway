@@ -7,7 +7,8 @@ const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261021-owner-alert-history-v1';
 const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261021-owner-alert-history-v1';
 const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261021-owner-alert-history-v1';
 const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1';
-const EXPECTED_OWNER_CACHE = 'fw-owner-v19';
+const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261021-open-map-fix-v1';
+const EXPECTED_OWNER_CACHE = 'fw-owner-v20';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -73,8 +74,9 @@ async function fetchCurrentOwnerAppShell(attempts = 60) {
         const currentAdmin = hasScriptReference(html, response.url, EXPECTED_OWNER_ADMIN_SCRIPT);
         const currentAlerts = hasScriptReference(html, response.url, EXPECTED_OWNER_ALERTS_SCRIPT);
         const currentStoreProfile = hasScriptReference(html, response.url, EXPECTED_OWNER_STORE_PROFILE_SCRIPT);
-        if (currentCss && currentAdmin && currentAlerts && currentStoreProfile) return { response, html };
-        lastError = new Error('/admin/ still serves stale Owner assets (attempt ' + attempt + '/' + attempts + '); expected ' + EXPECTED_OWNER_CSS + ', ' + EXPECTED_OWNER_ADMIN_SCRIPT + ', ' + EXPECTED_OWNER_ALERTS_SCRIPT + ' and ' + EXPECTED_OWNER_STORE_PROFILE_SCRIPT);
+        const currentLifecycle = hasScriptReference(html, response.url, EXPECTED_OWNER_LIFECYCLE_SCRIPT);
+        if (currentCss && currentAdmin && currentAlerts && currentStoreProfile && currentLifecycle) return { response, html };
+        lastError = new Error('/admin/ still serves stale Owner assets (attempt ' + attempt + '/' + attempts + '); expected ' + EXPECTED_OWNER_CSS + ', ' + EXPECTED_OWNER_ADMIN_SCRIPT + ', ' + EXPECTED_OWNER_ALERTS_SCRIPT + ', ' + EXPECTED_OWNER_STORE_PROFILE_SCRIPT + ' and ' + EXPECTED_OWNER_LIFECYCLE_SCRIPT);
       }
     } catch (error) {
       lastError = error;
@@ -100,7 +102,8 @@ async function fetchCurrentOwnerServiceWorker(attempts = 60) {
         const currentAdmin = worker.includes(EXPECTED_OWNER_ADMIN_SCRIPT);
         const currentAlerts = worker.includes(EXPECTED_OWNER_ALERTS_SCRIPT);
         const currentStoreProfile = worker.includes(EXPECTED_OWNER_STORE_PROFILE_SCRIPT);
-        if (currentCache && currentCss && currentAdmin && currentAlerts && currentStoreProfile) return { response, worker };
+        const currentLifecycle = worker.includes(EXPECTED_OWNER_LIFECYCLE_SCRIPT);
+        if (currentCache && currentCss && currentAdmin && currentAlerts && currentStoreProfile && currentLifecycle) return { response, worker };
         lastError = new Error('/admin/sw.js still serves stale Owner cache/assets (attempt ' + attempt + '/' + attempts + '); expected ' + EXPECTED_OWNER_CACHE + ' and current Owner script URLs');
       }
     } catch (error) {
@@ -127,6 +130,7 @@ assert.ok(hasStyleReference(html, pageResponse.url, EXPECTED_OWNER_CSS), 'Owner 
   assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_ADMIN_SCRIPT), 'Owner app must load the latest login-aware admin script');
 assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_ALERTS_SCRIPT), 'Owner app must load the latest login-aware push setup script');
 assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_STORE_PROFILE_SCRIPT), 'Owner app must load the latest business profile and shop pin editor');
+assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_LIFECYCLE_SCRIPT), 'Owner app must load the cache-busted order lifecycle map handler');
 
 for (const [, value] of html.matchAll(/\b(?:src|href)=["']([^"']+)["']/gi)) {
   if (value.startsWith('#') || value === '/' || /^[a-z][a-z0-9+.-]*:/i.test(value)) continue;
@@ -155,6 +159,7 @@ assert.ok(worker.includes(EXPECTED_OWNER_CSS), 'Owner service worker shell must 
   assert.ok(worker.includes(EXPECTED_OWNER_ADMIN_SCRIPT), 'Owner service worker shell must cache the latest Owner script');
 assert.ok(worker.includes(EXPECTED_OWNER_ALERTS_SCRIPT), 'Owner service worker shell must cache the latest push setup script');
 assert.ok(worker.includes(EXPECTED_OWNER_STORE_PROFILE_SCRIPT), 'Owner service worker shell must cache the latest shop location editor');
+assert.ok(worker.includes(EXPECTED_OWNER_LIFECYCLE_SCRIPT), 'Owner service worker shell must cache the latest order lifecycle map handler');
 const installScriptResponse = await fetchOwnerRoute(installScriptUrl.pathname + installScriptUrl.search);
 assertFreshResponse(installScriptResponse, 'Owner install/bootstrap script');
 assert.match(installScriptResponse.headers.get('content-type') || '', /javascript/i);
