@@ -7,12 +7,45 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  actions: read
+  contents: read
+
 jobs:
   pwa-live-smoke:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Wait for production Worker release for this commit
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPOSITORY: ${{ github.repository }}
+          GH_COMMIT_SHA: ${{ github.sha }}
+          GH_COMMITS_JSON: ${{ toJSON(github.event.commits) }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          worker_changed="$(node -e "const commits=JSON.parse(process.env.GH_COMMITS_JSON||'[]')||[];const files=commits.flatMap(c=>[...(c.added||[]),...(c.modified||[]),...(c.removed||[])]);process.stdout.write(files.some(p=>p.startsWith('worker/')||p==='.github/workflows/deploy-worker.yml')?'yes':'no')")"
+          if [ "$worker_changed" != "yes" ]; then
+            echo "No Worker code or release-workflow changes in this push; skipping the Worker release wait."
+            exit 0
+          fi
+
+          echo "Worker changes detected. Waiting for the matching production release before running live smoke tests."
+          run_id=""
+          for attempt in $(seq 1 60); do
+            run_id="$(gh run list --repo "$GH_REPOSITORY" --workflow "FreshWay Worker release" --commit "$GH_COMMIT_SHA" --json databaseId --limit 10 | node -e "const runs=JSON.parse(require('node:fs').readFileSync(0,'utf8'));process.stdout.write(runs.length?String(runs[0].databaseId):'')")"
+            if [ -n "$run_id" ]; then break; fi
+            sleep 5
+          done
+          if [ -z "$run_id" ]; then
+            echo "::error::Could not find the Worker release workflow run for commit $GH_COMMIT_SHA."
+            exit 1
+          fi
+          gh run watch "$run_id" --repo "$GH_REPOSITORY" --exit-status
 
       - name: Wait for production deployment
         if: github.event_name != 'pull_request'
