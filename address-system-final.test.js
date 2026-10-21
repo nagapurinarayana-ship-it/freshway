@@ -67,7 +67,7 @@ assert.ok(index.includes('address-book.css?v=20261020-address-ui-hardening-v2'),
 assert.ok(sw.includes('/frontend/customer/address-book.css?v=20261020-address-ui-hardening-v2'), 'service worker must cache the current address CSS');
 assert.ok(index.includes('notifications.js?v=20261020-normalized-auth-phone-v2'), 'HTML must load the auth phone normalizer');
 assert.ok(sw.includes('/notifications.js?v=20261020-normalized-auth-phone-v2'), 'service worker must cache the auth phone normalizer');
-assert.match(sw, /freshway-v63/);
+assert.match(sw, /freshway-v64/);
 assert.match(css, /#toast\s*\{[^}]*white-space:\s*normal/s);
 assert.match(css, /\.fw-address-incomplete\s*\{/);
 console.log('checkout address completion, geocoding preservation, error feedback, accessibility and asset cache tests passed');
