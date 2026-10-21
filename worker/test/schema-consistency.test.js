@@ -91,7 +91,7 @@ test('historical order phone reconciliation preserves delivery contacts in snaps
 
 
 test('shop map pin columns exist in fresh schema and the additive production migration', () => {
-  const profileTable = schema.match(/CREATE TABLE IF NOT EXISTS store_profile \\(([\\s\\S]*?)\\n\\);/)?.[1];
+  const profileTable = schema.split('CREATE TABLE IF NOT EXISTS store_profile (')[1]?.split('\\n);')[0];
   assert.ok(profileTable, 'schema.sql must define store_profile');
   assert.match(profileTable, /shop_latitude REAL/);
   assert.match(profileTable, /shop_longitude REAL/);
