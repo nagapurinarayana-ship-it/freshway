@@ -21,7 +21,8 @@ function responseDb() {
             },
             async run() { return { meta: { changes: 1 }, values }; }
           };
-        }
+        },
+        async run() { return { meta: { changes: 1 }, values: [] }; }
       };
     },
     async batch() { return [] }
