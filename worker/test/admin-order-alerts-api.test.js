@@ -92,9 +92,9 @@ test('signed Owner can read push configuration, subscribe/unsubscribe and read t
   const deleteAll = await request('/api/admin/order-alerts', { method: 'DELETE' });
   assert.equal(deleteAll.status, 200);
   assert.deepEqual(await deleteAll.json(), { ok: true, deleted: 1 });
-  const deleteQueries = env.DB.sqlCalls.filter(sql => /^\\s*DELETE FROM notification_events/i.test(sql));
+  const deleteQueries = env.DB.sqlCalls.filter(sql => /^\s*DELETE FROM notification_events/i.test(sql));
   assert.equal(deleteQueries.length, 2);
-  assert.match(deleteQueries[0], /WHERE id=\\? AND audience='owner'/);
+  assert.match(deleteQueries[0], /WHERE id=\? AND audience='owner'/);
   assert.match(deleteQueries[1], /WHERE audience='owner'/);
   assert.doesNotMatch(deleteQueries.join(' '), /customer_id|owner_push_subscriptions/i);
   const unsubscribe = await request('/api/admin/push/subscribe', { method: 'DELETE', body: JSON.stringify({ endpoint: subscription.endpoint }) });
