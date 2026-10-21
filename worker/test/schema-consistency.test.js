@@ -7,6 +7,7 @@ const migration = readFileSync(new URL('../migrations/0022_test_order_classifica
 const accountPhoneMigration = readFileSync(new URL('../migrations/0023_registered_account_phone.sql', import.meta.url), 'utf8');
 const authVersionMigration = readFileSync(new URL('../migrations/0024_customer_auth_version.sql', import.meta.url), 'utf8');
 const orderAlertsMigration = readFileSync(new URL('../migrations/0025_order_alerts.sql', import.meta.url), 'utf8');
+const storeCoordinatesMigration = readFileSync(new URL('../migrations/0026_store_profile_shop_coordinates.sql', import.meta.url), 'utf8');
 
 const ordersTable = schema.match(
   /CREATE TABLE IF NOT EXISTS orders \(([\s\S]*?)\n\);/
@@ -86,6 +87,16 @@ test('historical order phone reconciliation preserves delivery contacts in snaps
   assert.ok(accountPhoneMigration.includes('c.phone'));
   assert.ok(accountPhoneMigration.includes('orders.customer_id'));
   assert.ok(schema.includes('delivery_phone TEXT NOT NULL'));
+});
+
+
+test('shop map pin columns exist in fresh schema and the additive production migration', () => {
+  const profileTable = schema.match(/CREATE TABLE IF NOT EXISTS store_profile \\(([\\s\\S]*?)\\n\\);/)?.[1];
+  assert.ok(profileTable, 'schema.sql must define store_profile');
+  assert.match(profileTable, /shop_latitude REAL/);
+  assert.match(profileTable, /shop_longitude REAL/);
+  assert.match(storeCoordinatesMigration, /ALTER TABLE store_profile ADD COLUMN shop_latitude REAL/);
+  assert.match(storeCoordinatesMigration, /ALTER TABLE store_profile ADD COLUMN shop_longitude REAL/);
 });
 
 test('transactional order alert schema matches the production migration', () => {
