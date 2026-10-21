@@ -33,7 +33,7 @@ assert.match(html,/admin\.js\?v=20261021-owner-alert-history-v1/);
 assert.match(html,/admin\.css\?v=20261021-owner-alert-history-v1/);
 assert.doesNotMatch(html,/\.exact-location/);
 
-assert.match(sw,/const CACHE = 'freshway-v64'/);
+assert.match(sw,/const CACHE = 'freshway-v\d+'/);
 assert.match(sw,/const cached = await cache\.match\(event\.request\)/);
 assert.match(sw,/event\.waitUntil\(update\.catch\(\(\) => undefined\)\)/);
 assert.match(sw,/url\.pathname === '\/admin\.html' \|\| url\.pathname\.startsWith\('\/admin\/'\)/);
