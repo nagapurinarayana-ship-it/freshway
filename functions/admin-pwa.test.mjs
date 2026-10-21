@@ -16,6 +16,8 @@ assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_LIFECYCLE_SCRIPT =
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v21';"), 'production Owner smoke must demand the current service-worker cache');
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerAppShell/);
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerServiceWorker/);
+assert.ok(ownerLiveSmokeSource.includes("const pathname = String(path).split('?')[0];"), 'Owner cache smoke must classify assets by pathname, not URL including query');
+assert.ok(ownerLiveSmokeSource.includes("const hasVersion = /[?&]v=[^&]+/.test(String(path));"), 'Owner cache smoke must distinguish versioned assets by query');
 const ownerManifestSource = readRepoFile('admin/manifest.webmanifest').toString('utf8');
 const ownerWorkerSource = readRepoFile('admin/sw.js').toString('utf8');
 const ownerInstallSource = readRepoFile('owner-pwa-install.js').toString('utf8');

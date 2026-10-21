@@ -14,17 +14,19 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function assertCacheableOwnerAsset(response, label, path) {
   assert.equal(response.status, 200, label + ' must return HTTP 200');
+  const pathname = String(path).split('?')[0];
+  const hasVersion = /[?&]v=[^&]+/.test(String(path));
   const cacheControl = response.headers.get('cache-control') || '';
-  if (/\.(?:js|css)$/i.test(path)) {
+  if (/\.(?:js|css)$/i.test(pathname)) {
     assert.match(cacheControl, /public/i, label + ' must be public-cacheable');
     assert.match(cacheControl, /max-age=31536000/i, label + ' must use the versioned one-year cache lifetime');
     assert.match(cacheControl, /immutable/i, label + ' must declare immutable');
-    assert.match(path, /[?&]v=[^&]+/, label + ' code URL must contain its release version');
-  } else if (/\.(?:svg|webp|png|jpe?g|avif|ico|woff2?)$/i.test(path) && /[?&]v=[^&]+/.test(path)) {
+    assert.ok(hasVersion, label + ' code URL must contain its release version');
+  } else if (/\.(?:svg|webp|png|jpe?g|avif|ico|woff2?)$/i.test(pathname) && hasVersion) {
     assert.match(cacheControl, /public/i, label + ' versioned media must be cacheable');
     assert.match(cacheControl, /max-age=31536000/i, label + ' versioned media must use a long-lived cache');
     assert.match(cacheControl, /immutable/i, label + ' versioned media must declare immutable');
-  } else if (/\.(?:svg|webp|png|jpe?g|avif|ico|woff2?)$/i.test(path)) {
+  } else if (/\.(?:svg|webp|png|jpe?g|avif|ico|woff2?)$/i.test(pathname)) {
     assert.match(cacheControl, /public/i, label + ' media must be cacheable');
     assert.match(cacheControl, /max-age=86400/i, label + ' media must use a bounded cache lifetime');
     assert.match(cacheControl, /must-revalidate/i, label + ' media must revalidate after expiry');
