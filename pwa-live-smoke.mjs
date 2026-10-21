@@ -5,7 +5,7 @@ const VIEWPORT_STYLES_PATH = '/styles.css?v=20261021-home-fold-fit-v2';
 const CUSTOMER_APP_PATH = '/app.js?v=20261021-home-navigation-refresh-v1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261021-guest-address-map-search-v3';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v65';
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v66';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchWithRetry(url, options = {}) {
@@ -75,8 +75,8 @@ function assertResponsiveViewportCss(css, label) {
 async function waitForFullImageFitAssets(base) {
   const viewportStylesPath = VIEWPORT_STYLES_PATH;
   const appPath = CUSTOMER_APP_PATH;
-  const promotionPath = '/frontend/customer/promotions.js?v=20261021-promo-fixed-frame-v3';
-  const customerCataloguePath = '/frontend/customer/catalogue.js?v=20261021-home-category-tiles-v3';
+  const promotionPath = '/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4';
+  const customerCataloguePath = '/frontend/customer/catalogue.js?v=20261021-home-category-tiles-v4';
   const addressGeocodePath = ADDRESS_GEOCODE_PATH;
   const addressSystemPath = ADDRESS_SYSTEM_PATH;
   const cataloguePath = '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1';
@@ -158,7 +158,9 @@ async function waitForFullImageFitAssets(base) {
       assert.ok(customerCatalogueSource.includes("selected=(window.history.state?.__freshwayCustomer&&window.history.state.view==='home'?window.history.state.category:null)||null"), 'refresh must restore the selected category from history');
       assert.ok(customerCatalogueSource.includes("history:selected?'replace':'none'"), 'removed categories must not remain selected in browser history');
       assertResponsiveViewportCss(viewportStylesSource, 'production');
-      assert.match(promotionSource, /\.fw-promo-viewport\{[^}]*aspect-ratio:16\/7/);
+      assert.match(promotionSource, /\.fw-promo-viewport\{[^}]*max-height:38svh/);
+      assert.match(promotionSource, /sourceImage\.naturalWidth/);
+      assert.match(promotionSource, /sourceImage\.naturalHeight/);
       assert.match(promotionSource, /object-fit:contain/);
       assert.match(customerCatalogueSource,/const insertAfter=hero\|\|searchWrap/);
       assert.match(customerCatalogueSource,/home\.insertBefore\(c,\s*insertAfter\.nextSibling\)/);
@@ -266,14 +268,14 @@ async function verifyCustomDomain() {
   assert.ok(homeHtml.includes(VIEWPORT_STYLES_PATH.slice(1)), 'custom-domain home must reference the current mobile viewport stylesheet');
   assert.ok(sw.includes(VIEWPORT_STYLES_PATH), 'custom-domain service worker must cache the current mobile viewport stylesheet');
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/app.js?v=20261021-home-navigation-refresh-v1', 'custom-domain home');
-  assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/promotions.js?v=20261021-promo-fixed-frame-v3', 'custom-domain home');
-  assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/catalogue.js?v=20261021-home-category-tiles-v3', 'custom-domain home');
+  assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4', 'custom-domain home');
+  assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/catalogue.js?v=20261021-home-category-tiles-v4', 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, ADDRESS_GEOCODE_PATH, 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, ADDRESS_SYSTEM_PATH, 'custom-domain home');
   assertCurrentScriptReference(adminHtml, adminResponse.url, '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1', 'custom-domain Owner');
   assert.ok(sw.includes('/app.js?v=20261021-home-navigation-refresh-v1'), 'custom-domain service worker must cache the current app navigation script');
-  assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261021-promo-fixed-frame-v3'), 'custom-domain service worker must cache the current promotion script');
-  assert.ok(sw.includes('/frontend/customer/catalogue.js?v=20261021-home-category-tiles-v3'), 'custom-domain service worker must cache the current customer catalogue script');
+  assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4'), 'custom-domain service worker must cache the current promotion script');
+  assert.ok(sw.includes('/frontend/customer/catalogue.js?v=20261021-home-category-tiles-v4'), 'custom-domain service worker must cache the current customer catalogue script');
   assert.ok(sw.includes(ADDRESS_GEOCODE_PATH), 'custom-domain service worker must cache the current address geocode mapper');
   assert.ok(sw.includes(ADDRESS_SYSTEM_PATH), 'custom-domain service worker must cache the current address editor');
 
@@ -286,7 +288,7 @@ async function verifyCustomDomain() {
     fetchWithRetry(`${customBase}/api/health`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/api/products`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/api/categories`, { cache: 'no-store' }),
-    fetchWithRetry(`${customBase}/frontend/customer/catalogue.js?v=20261021-home-category-tiles-v3`, { cache: 'no-store' }),
+    fetchWithRetry(`${customBase}/frontend/customer/catalogue.js?v=20261021-home-category-tiles-v4`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}${VIEWPORT_STYLES_PATH}`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}${CUSTOMER_APP_PATH}`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}${ADDRESS_GEOCODE_PATH}`, { cache: 'no-store' }),

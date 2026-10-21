@@ -63,7 +63,7 @@ const styles=fs.readFileSync('styles.css','utf8');
 assert.match(styles,/grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\)/);
 assert.match(styles,/\.product-image img\{[^}]*object-fit:contain/);
 assert.match(styles,/\.product-card\{min-width:0;overflow:hidden\}/);
-assert.match(styles,/\.fw-category-icon\{width:44px;height:44px/);
+assert.match(styles,/\.fw-category-icon\{width:54px;height:54px/);
 assert.match(styles,/\.fw-category-back\{min-height:54px/);
 assert.match(styles,/\.product-image\{height:132px/);
 assert.match(styles,/\.product-actions \.qty-control\{flex:0 0 auto;min-width:98px\}/);
