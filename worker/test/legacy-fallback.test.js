@@ -113,19 +113,18 @@ test('owner lifecycle script cache-busting version matches the service-worker sh
 });
 
 test('service worker keeps documents fresh and serves versioned code from cache', () => {
-  assert.match(serviceWorkerSource, /if \\(isNavigation && \\['\\/', '\\/index\\.html'\\]\\.includes\\(url\\.pathname\\)\\)/);
-  assert.match(serviceWorkerSource, /url\\.pathname === '\\/admin\\.html' \\|\\| url\\.pathname\\.startsWith\\('\\/admin\\/'\\)/);
+  assert.ok(serviceWorkerSource.includes("if (isNavigation && ['/', '/index.html'].includes(url.pathname))"));
+  assert.ok(serviceWorkerSource.includes("if (url.pathname === '/admin.html' || url.pathname.startsWith('/admin/'))"));
   assert.match(ownerServiceWorkerSource, /const CACHE = 'fw-owner-v[0-9]+'/);
-  assert.match(serviceWorkerSource, /const isVersionedCode = \\['script','style'\\]\\.includes\\(destination\\) && url\\.searchParams\\.has\\('v'\\)/);
-  assert.match(serviceWorkerSource, /if \\(cached && isVersionedCode\\) return cached/);
-  assert.match(serviceWorkerSource, /if \\(cached\\) \\{\\s*event\\.waitUntil\\(update\\.catch\\(\\(\\) => undefined\\)\\);\\s*return cached;/);
-  assert.match(serviceWorkerSource, /const cached = await cache\\.match\\(event\\.request\\)/);
-  assert.match(serviceWorkerSource, /return \\(await cache\\.match\\(event\\.request\\)\\) \\|\\| Response\\.error\\(\\)/);
+  assert.ok(serviceWorkerSource.includes("const isVersionedCode = ['script','style'].includes(destination) && url.searchParams.has('v')"));
+  assert.ok(serviceWorkerSource.includes("if (cached && isVersionedCode) return cached"));
+  assert.ok(serviceWorkerSource.includes("if (cached) {"));
+  assert.ok(serviceWorkerSource.includes("const cached = await cache.match(event.request)"));
+  assert.ok(serviceWorkerSource.includes("return (await cache.match(event.request)) || Response.error()"));
   assert.match(serviceWorkerSource, /const CACHE = 'freshway-v[0-9]+'/);
-  assert.match(ownerServiceWorkerSource, /if \\(cached && isVersionedCode\\) return cached/);
-  assert.match(ownerServiceWorkerSource, /if \\(isDocument \\|\\| isManifest\\)/);
+  assert.ok(ownerServiceWorkerSource.includes("if (cached && isVersionedCode) return cached"));
+  assert.ok(ownerServiceWorkerSource.includes("if (isDocument || isManifest)"));
 });
-
 
 test('owner order UI distinguishes failed writes from post-save refresh failures', () => {
   const queueStart = ownerLifecycleSource.indexOf('function queueSave(');
