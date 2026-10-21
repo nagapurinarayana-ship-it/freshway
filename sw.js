@@ -1,8 +1,8 @@
-const CACHE = 'freshway-v66';
+const CACHE = 'freshway-v67';
 const APP_SHELL = [
 '/',
 '/index.html',
-'/styles.css?v=20261021-home-fold-fit-v2',
+'/styles.css?v=20261021-four-products-fit-v1',
 '/address-system.css?v=20260907-address-v2',
 '/frontend/customer/address-book.css?v=20261020-address-ui-hardening-v2',
 '/frontend/customer/checkout-submit.js?v=20261020-selected-address-checkout-v2',
@@ -10,7 +10,7 @@ const APP_SHELL = [
 '/frontend/customer/orders-view.js?v=20261020-order-alert-links-v1',
 '/frontend/phone-display.js?v=20261009-phone-display-v1',
 '/frontend/customer/product-view.js?v=20261019-catalogue-premium-v1',
-'/frontend/customer/catalogue.js?v=20261021-home-category-tiles-v4',
+'/frontend/customer/catalogue.js?v=20261021-four-products-fit-v1',
 '/notifications.js?v=20261020-normalized-auth-phone-v2',
 '/address-fix.js?v=20261009-address-fallback-safety-v5',
 '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3',
