@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildOrderPlacedAlerts, dispatchOrderAlert, saveOwnerSubscription, deleteOwnerSubscription } from '../src/order-alerts.js';
+import { buildOrderPlacedAlerts, dispatchOrderAlert, saveOwnerSubscription, deleteOwnerSubscription, listOwnerOrderAlerts, deleteOwnerOrderAlert, deleteAllOwnerOrderAlerts } from '../src/order-alerts.js';
 import { buildOrderChangeAlerts } from '../src/admin-notifications.js';
 
 test('new order alerts tell the customer the order was received and alert the Owner separately', () => {
@@ -85,6 +85,36 @@ test('alert event keys deduplicate duplicate dispatch attempts and absent VAPID 
   assert.equal(updates[0][0], 'not_configured');
 });
 
+test('Owner alert history uses keyset pagination and deletion is restricted to Owner records', async () => {
+  const statements = [];
+  const env = { DB: { prepare(sql) {
+    const statement = { sql, args: [], bind(...args) { this.args = args; return this; },
+      async all() { statements.push({ sql: this.sql, args: this.args, kind: 'all' }); return { results: [{ id: 18 }, { id: 17 }] }; },
+      async run() { statements.push({ sql: this.sql, args: this.args, kind: 'run' }); return { meta: { changes: this.sql.includes('WHERE id=') ? 1 : 3 } }; }
+    };
+    return statement;
+  } } };
+
+  const firstPage = await listOwnerOrderAlerts(env, 2);
+  assert.deepEqual(firstPage.map(row => row.id), [18, 17]);
+  assert.match(statements[0].sql, /audience='owner'/);
+  assert.match(statements[0].sql, /ORDER BY id DESC LIMIT \?/);
+  assert.deepEqual(statements[0].args, [2]);
+
+  await listOwnerOrderAlerts(env, 20, 17);
+  assert.match(statements[1].sql, /audience='owner' AND id < \?/);
+  assert.deepEqual(statements[1].args, [17, 20]);
+  await assert.rejects(() => listOwnerOrderAlerts(env, 20, '17 OR 1=1'), /Invalid Owner alert cursor/);
+
+  assert.deepEqual(await deleteOwnerOrderAlert(env, 18), { ok: true, deleted: 1 });
+  assert.match(statements[2].sql, /DELETE FROM notification_events WHERE id=\? AND audience='owner'/);
+  assert.deepEqual(statements[2].args, [18]);
+  await assert.rejects(() => deleteOwnerOrderAlert(env, '18 OR 1=1'), /Invalid Owner alert id/);
+
+  assert.deepEqual(await deleteAllOwnerOrderAlerts(env), { ok: true, deleted: 3 });
+  assert.match(statements[3].sql, /DELETE FROM notification_events WHERE audience='owner'/);
+  assert.doesNotMatch(statements[3].sql, /customer/i);
+});
 test('Owner push subscription writes are scoped to the Owner partition and validate secure endpoints', async () => {
   const statements = [];
   const env = { DB: { prepare(sql) { return { bind(...args) { statements.push({ sql, args }); return this; }, async run() { return { meta: { changes: 1 } }; } }; } } };

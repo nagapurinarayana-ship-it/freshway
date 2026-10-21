@@ -163,3 +163,25 @@ button,input,textarea,select{touch-action:manipulation}
   .shop-location-footer{align-items:flex-start}
   .shop-location-footer p{font-size:9px}
 }
+
+/* Owner notification history: compact preview, dedicated paginated screen and safe delete actions. */
+.owner-alert-preview-actions{display:flex;justify-content:flex-end;margin-top:8px}
+.owner-alert-history-head{align-items:flex-start}
+.owner-alert-back{margin-bottom:10px}
+.owner-alert-history-panel .section-head{align-items:flex-start}
+.owner-alert-history-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.owner-alert-history-status{min-height:18px;margin:8px 0;color:var(--muted);font-size:10px;line-height:1.5}
+.fw-order-alert-actions{display:grid;justify-items:end;align-content:start;gap:8px}
+.fw-order-alert-actions .alert-delete{min-height:34px;padding:6px 10px;border:1px solid #f0c5c2;border-radius:9px;background:#fff7f6;color:#a12d26;font:inherit;font-size:10px;font-weight:800;cursor:pointer}
+.fw-order-alert-actions .alert-delete:disabled{opacity:.55;cursor:wait}
+.danger-action{min-height:40px;padding:9px 13px;border:1px solid #f0c5c2;border-radius:10px;background:#fff7f6;color:#a12d26;font:inherit;font-size:10px;font-weight:900;cursor:pointer}
+.danger-action:disabled{opacity:.55;cursor:wait}
+#ownerAlertHistoryMore{width:100%;margin-top:12px}
+@media(max-width:560px){
+  .owner-alert-history-panel .section-head{display:grid;grid-template-columns:1fr}
+  .owner-alert-history-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}
+  .owner-alert-history-actions button{width:100%}
+  .owner-alert-history-panel .fw-order-alert{grid-template-columns:26px minmax(0,1fr)}
+  .owner-alert-history-panel .fw-order-alert-actions{grid-column:2;display:flex;align-items:center;justify-items:start;justify-content:flex-start;flex-wrap:wrap}
+  .owner-alert-history-panel .fw-order-alert-actions .alert-delete{min-height:38px}
+}

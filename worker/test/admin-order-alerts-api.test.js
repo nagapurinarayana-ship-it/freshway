@@ -21,7 +21,8 @@ function responseDb() {
             },
             async run() { return { meta: { changes: 1 }, values }; }
           };
-        }
+        },
+        async run() { return { meta: { changes: 1 }, values: [] }; }
       };
     },
     async batch() { return [] }
@@ -84,8 +85,19 @@ test('signed Owner can read push configuration, subscribe/unsubscribe and read t
 
   const history = await request('/api/admin/order-alerts?limit=10');
   assert.equal(history.status, 200);
-  assert.deepEqual(await history.json(), { alerts: [] });
+  assert.deepEqual(await history.json(), { alerts: [], hasMore: false, nextBefore: null });
 
+  const deleteOne = await request('/api/admin/order-alerts/42', { method: 'DELETE' });
+  assert.equal(deleteOne.status, 200);
+  assert.deepEqual(await deleteOne.json(), { ok: true, deleted: 1 });
+  const deleteAll = await request('/api/admin/order-alerts', { method: 'DELETE' });
+  assert.equal(deleteAll.status, 200);
+  assert.deepEqual(await deleteAll.json(), { ok: true, deleted: 1 });
+  const deleteQueries = env.DB.sqlCalls.filter(sql => /^\s*DELETE FROM notification_events/i.test(sql));
+  assert.equal(deleteQueries.length, 2);
+  assert.match(deleteQueries[0], /WHERE id=\? AND audience='owner'/);
+  assert.match(deleteQueries[1], /WHERE audience='owner'/);
+  assert.doesNotMatch(deleteQueries.join(' '), /customer_id|owner_push_subscriptions/i);
   const unsubscribe = await request('/api/admin/push/subscribe', { method: 'DELETE', body: JSON.stringify({ endpoint: subscription.endpoint }) });
   assert.equal(unsubscribe.status, 200);
   assert.match(env.DB.sqlCalls.join('\n'), /DELETE FROM owner_push_subscriptions/);

@@ -12,7 +12,10 @@
     sending: 'Sending', log_failed: 'Could not record alert', logged_without_id: 'Recorded', duplicate: 'Already processed'
   })[status] || String(status || 'Recorded').replaceAll('_', ' ');
   const icon = status => ['sent'].includes(status) ? '✓' : ['partial', 'sending'].includes(status) ? '◷' : '!' ;
-  let loading = false;
+  let previewLoading = false;
+  let historyLoading = false;
+  let historyBefore = null;
+  let historyHasMore = true;
   let lastPublicKey = null;
   let subscriptionSetupPromise = null;
   let automaticSetupAttempted = false;
@@ -189,30 +192,110 @@
     }
   }
 
+  function renderAlert(alert, { allowDelete = false } = {}) {
+    const order = alert.order_id ? `<small>Order ${esc(alert.order_id)}</small>` : '';
+    const count = Number(alert.success_count || 0);
+    const failures = Number(alert.failure_count || 0);
+    const delivery = alert.status === 'sent' ? `Accepted for ${count} device${count === 1 ? '' : 's'}`
+      : alert.status === 'partial' ? `Accepted for ${count}; ${failures} failed`
+        : statusText(alert.status);
+    const deleteAction = allowDelete
+      ? `<button class="alert-delete" type="button" data-delete-owner-alert="${Number(alert.id)}" aria-label="Delete notification: ${esc(alert.title)}">Delete</button>`
+      : '';
+    return `<article class="fw-order-alert"><div class="fw-order-alert-icon" aria-hidden="true">${icon(alert.status)}</div><div class="fw-order-alert-copy"><strong>${esc(alert.title)}</strong>${order}<p>${esc(alert.body)}</p><small>${esc(alert.created_at || '')} · ${esc(delivery)}</small></div><div class="fw-order-alert-actions"><span class="fw-order-alert-state ${esc(alert.status)}">${esc(alert.status === 'sent' ? 'Sent' : alert.status === 'partial' ? 'Partial' : 'Review')}</span>${deleteAction}</div></article>`;
+  }
+
   async function loadAlerts() {
     const list = $('#ownerOrderAlertList');
-    if (!list || loading) return;
-    loading = true;
+    if (!list || previewLoading) return;
+    previewLoading = true;
     list.setAttribute('aria-busy', 'true');
     try {
-      const data = await api('/admin/order-alerts?limit=25');
+      const data = await api('/admin/order-alerts?limit=3');
       const alerts = Array.isArray(data.alerts) ? data.alerts : [];
-      list.innerHTML = alerts.length ? alerts.map(alert => {
-        const order = alert.order_id ? `<small>Order ${esc(alert.order_id)}</small>` : '';
-        const count = Number(alert.success_count || 0);
-        const failures = Number(alert.failure_count || 0);
-        const delivery = alert.status === 'sent' ? `Accepted for ${count} device${count === 1 ? '' : 's'}`
-          : alert.status === 'partial' ? `Accepted for ${count}; ${failures} failed`
-            : statusText(alert.status);
-        return `<article class="fw-order-alert"><div class="fw-order-alert-icon" aria-hidden="true">${icon(alert.status)}</div><div class="fw-order-alert-copy"><strong>${esc(alert.title)}</strong>${order}<p>${esc(alert.body)}</p><small>${esc(alert.created_at || '')} · ${esc(delivery)}</small></div><span class="fw-order-alert-state ${esc(alert.status)}">${esc(alert.status === 'sent' ? 'Sent' : alert.status === 'partial' ? 'Partial' : 'Review')}</span></article>`;
-      }).join('') : '<div class="empty">No order alerts yet. New orders and real status changes will appear here.</div>';
+      list.innerHTML = alerts.length
+        ? alerts.map(alert => renderAlert(alert)).join('')
+        : '<div class="empty">No order alerts yet. New orders and real status changes will appear here.</div>';
     } catch (error) {
       list.innerHTML = `<div class="empty">${esc(error.message || 'Could not load order alerts.')} <button type="button" class="ghost" id="ownerOrderAlertsRetry">Retry</button></div>`;
     } finally {
       list.removeAttribute('aria-busy');
-      loading = false;
+      previewLoading = false;
       const retry = $('#ownerOrderAlertsRetry');
       if (retry) retry.onclick = loadAlerts;
+    }
+  }
+
+  async function loadOwnerAlertHistory({ reset = false } = {}) {
+    const list = $('#ownerAlertHistoryList');
+    const more = $('#ownerAlertHistoryMore');
+    const status = $('#ownerAlertHistoryStatus');
+    if (!list || historyLoading) return;
+    if (reset) {
+      historyBefore = null;
+      historyHasMore = true;
+      list.innerHTML = '';
+    }
+    if (!historyHasMore) return;
+    historyLoading = true;
+    if (more) more.disabled = true;
+    list.setAttribute('aria-busy', 'true');
+    if (status) status.textContent = reset ? 'Loading notification history…' : 'Loading more notifications…';
+    try {
+      const cursor = historyBefore ? `&before=${encodeURIComponent(historyBefore)}` : '';
+      const data = await api(`/admin/order-alerts?limit=20${cursor}`);
+      const alerts = Array.isArray(data.alerts) ? data.alerts : [];
+      if (reset) list.innerHTML = '';
+      if (alerts.length) list.insertAdjacentHTML('beforeend', alerts.map(alert => renderAlert(alert, { allowDelete: true })).join(''));
+      historyBefore = data.nextBefore || (alerts.length ? alerts[alerts.length - 1].id : historyBefore);
+      historyHasMore = Boolean(data.hasMore && alerts.length);
+      if (!list.children.length) list.innerHTML = '<div class="empty">No Owner notification history. New order and order-change alerts will appear here.</div>';
+      if (status) status.textContent = alerts.length
+        ? `Showing ${list.querySelectorAll('.fw-order-alert').length} notification records.`
+        : 'No more notification records.';
+    } catch (error) {
+      if (status) status.textContent = error.message || 'Could not load notification history.';
+      if (reset) list.innerHTML = '<div class="empty">Could not load notification history. Tap Refresh to try again.</div>';
+      historyHasMore = true;
+    } finally {
+      list.removeAttribute('aria-busy');
+      historyLoading = false;
+      if (more) { more.hidden = !historyHasMore; more.disabled = false; }
+    }
+  }
+
+  async function deleteOneOwnerAlert(id, button) {
+    if (!/^\d+$/.test(String(id || ''))) return;
+    if (!window.confirm('Delete this notification from Owner history? This will not delete its order or disable future alerts.')) return;
+    const status = $('#ownerAlertHistoryStatus');
+    if (button) button.disabled = true;
+    if (status) status.textContent = 'Deleting notification…';
+    try {
+      const result = await api(`/admin/order-alerts/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      await Promise.all([loadAlerts(), loadOwnerAlertHistory({ reset: true })]);
+      if (status) status.textContent = result.deleted ? 'Notification deleted from Owner history.' : 'This notification was already removed.';
+    } catch (error) {
+      if (status) status.textContent = error.message || 'Could not delete this notification.';
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function deleteAllOwnerAlerts() {
+    if (!window.confirm('Delete ALL Owner order-alert history? This removes only stored Owner alert records. Orders, customer notification history, and push subscriptions will remain unchanged.')) return;
+    const button = $('#clearOwnerAlertHistory');
+    const status = $('#ownerAlertHistoryStatus');
+    if (button) button.disabled = true;
+    if (status) status.textContent = 'Deleting Owner alert history…';
+    try {
+      const result = await api('/admin/order-alerts', { method: 'DELETE' });
+      historyBefore = null;
+      historyHasMore = true;
+      await Promise.all([loadAlerts(), loadOwnerAlertHistory({ reset: true })]);
+      if (status) status.textContent = `Deleted ${Number(result.deleted || 0)} Owner notification record${Number(result.deleted || 0) === 1 ? '' : 's'}. Orders and push settings were not changed.`;
+    } catch (error) {
+      if (status) status.textContent = error.message || 'Could not delete Owner notification history.';
+    } finally {
+      if (button) button.disabled = false;
     }
   }
 
@@ -221,18 +304,34 @@
     window.__freshWayOrderAlertsBound = true;
     $('#ownerOrderAlertToggle').addEventListener('click', () => $('#ownerOrderAlertToggle').dataset.enabled === '1' ? disable() : enable());
     $('#ownerOrderAlertsRefresh')?.addEventListener('click', async () => { await loadAlerts(); await loadStatus(); });
+    $('#ownerAlertHistoryRefresh')?.addEventListener('click', () => void loadOwnerAlertHistory({ reset: true }));
+    $('#clearOwnerAlertHistory')?.addEventListener('click', deleteAllOwnerAlerts);
+    $('#ownerAlertHistoryMore')?.addEventListener('click', () => void loadOwnerAlertHistory());
+    $('#ownerAlertHistoryList')?.addEventListener('click', event => {
+      const button = event.target.closest('[data-delete-owner-alert]');
+      if (button) void deleteOneOwnerAlert(button.dataset.deleteOwnerAlert, button);
+    });
     const notifications = $('#notifications');
+    const historyScreen = $('#owner-alert-history');
     if (notifications) new MutationObserver(() => {
       if (notifications.classList.contains('active')) { void loadStatus(); void loadAlerts(); }
     }).observe(notifications, { attributes: true, attributeFilter: ['class'] });
+    if (historyScreen) new MutationObserver(() => {
+      if (historyScreen.classList.contains('active')) void loadOwnerAlertHistory({ reset: true });
+    }).observe(historyScreen, { attributes: true, attributeFilter: ['class'] });
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && notifications?.classList.contains('active')) { void loadStatus(); void loadAlerts(); }
+      if (document.hidden) return;
+      if (notifications?.classList.contains('active')) { void loadStatus(); void loadAlerts(); }
+      if (historyScreen?.classList.contains('active')) void loadOwnerAlertHistory({ reset: true });
     });
     window.addEventListener('freshway:admin-authenticated', () => {
       void loadStatus();
       void loadAlerts();
+      if (historyScreen?.classList.contains('active')) void loadOwnerAlertHistory({ reset: true });
     });
     void loadStatus();
+    if (notifications?.classList.contains('active')) void loadAlerts();
+    if (historyScreen?.classList.contains('active')) void loadOwnerAlertHistory({ reset: true });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup, { once: true });
