@@ -90,7 +90,7 @@ test('Owner alert history uses keyset pagination and deletion is restricted to O
   const env = { DB: { prepare(sql) {
     const statement = { sql, args: [], bind(...args) { this.args = args; return this; },
       async all() { statements.push({ sql: this.sql, args: this.args, kind: 'all' }); return { results: [{ id: 18 }, { id: 17 }] }; },
-      async run() { statements.push({ sql: this.sql, args: this.args, kind: 'run' }); return { meta: { changes: 2 } }; }
+      async run() { statements.push({ sql: this.sql, args: this.args, kind: 'run' }); return { meta: { changes: this.sql.includes('WHERE id=') ? 1 : 3 } }; }
     };
     return statement;
   } } };
@@ -106,12 +106,12 @@ test('Owner alert history uses keyset pagination and deletion is restricted to O
   assert.deepEqual(statements[1].args, [17, 20]);
   await assert.rejects(() => listOwnerOrderAlerts(env, 20, '17 OR 1=1'), /Invalid Owner alert cursor/);
 
-  assert.deepEqual(await deleteOwnerOrderAlert(env, 18), { ok: true, deleted: 2 });
+  assert.deepEqual(await deleteOwnerOrderAlert(env, 18), { ok: true, deleted: 1 });
   assert.match(statements[2].sql, /DELETE FROM notification_events WHERE id=\? AND audience='owner'/);
   assert.deepEqual(statements[2].args, [18]);
   await assert.rejects(() => deleteOwnerOrderAlert(env, '18 OR 1=1'), /Invalid Owner alert id/);
 
-  assert.deepEqual(await deleteAllOwnerOrderAlerts(env), { ok: true, deleted: 2 });
+  assert.deepEqual(await deleteAllOwnerOrderAlerts(env), { ok: true, deleted: 3 });
   assert.match(statements[3].sql, /DELETE FROM notification_events WHERE audience='owner'/);
   assert.doesNotMatch(statements[3].sql, /customer/i);
 });
