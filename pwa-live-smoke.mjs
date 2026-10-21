@@ -43,15 +43,15 @@ function assertCurrentScriptReference(html, pageUrl, expectedPath, label) {
 
 function assertVersionedCodeReferences(html, pageUrl, label) {
   const origin = new URL(pageUrl).origin;
-  for (const [, tag] of html.matchAll(/<(script|link)\\b[^>]*>/gi)) {
+  for (const [, tag] of html.matchAll(/<(script|link)\b[^>]*>/gi)) {
     const isScript = tag.toLowerCase().startsWith('<script');
-    const isStylesheet = tag.toLowerCase().startsWith('<link') && /\\brel=["']stylesheet["']/i.test(tag);
+    const isStylesheet = tag.toLowerCase().startsWith('<link') && /\brel=["']stylesheet["']/i.test(tag);
     if (!isScript && !isStylesheet) continue;
     const attribute = isScript ? 'src' : 'href';
-    const match = tag.match(isScript ? /\\bsrc=["']([^"']+)["']/i : /\\bhref=["']([^"']+)["']/i);
+    const match = tag.match(isScript ? /\bsrc=["']([^"']+)["']/i : /\bhref=["']([^"']+)["']/i);
     if (!match) continue;
     const url = new URL(match[1], pageUrl);
-    if (url.origin !== origin || !/\\.(?:js|css)$/i.test(url.pathname)) continue;
+    if (url.origin !== origin || !/\.(?:js|css)$/i.test(url.pathname)) continue;
     assert.ok(url.searchParams.get('v'), label + ' must version every local JS/CSS asset: ' + url.pathname);
   }
 }
