@@ -131,5 +131,5 @@ assert.match(source,/fw-category-selected/,'selected category applies a scoped c
 assert.ok(categoryFoldStyles.includes('body.fw-category-selected .product-card{height:196px'),'category product cards are compact enough for a four-item first view');
 assert.ok(categoryFoldStyles.includes('body.fw-category-selected .product-image{height:76px'),'category product images use a compact height');
 assert.match(categoryFoldStyles,/max-height:800px/,'short mobile screens receive an additional compact layout');
-assert.match(categoryFoldStyles,/\.product-image img\{[^}]*width:auto!important;height:auto!important[^}]*max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center!important/,'category product images retain their full source aspect ratio instead of stretching/cropping');
+assert.match(categoryFoldStyles,/\.product-image img\{[^}]*width:auto!important;height:100%!important;aspect-ratio:1\/1[^}]*max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center!important/,'category product images render as centered square artwork without stretching/cropping');
 console.log('four-product category fold-fit contract OK');
