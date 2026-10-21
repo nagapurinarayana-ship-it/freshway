@@ -151,3 +151,33 @@ html.fw-cart-bar-visible main{padding-bottom:calc(184px + env(safe-area-inset-bo
 .store-info-about{margin-top:0}
 
 .order-card.notification-target-order{border-color:#0f7a4b;box-shadow:0 0 0 3px rgba(15,122,75,.12)}
+
+
+/* Selected-category fold fit: keep a four-product category visible on common mobile viewports. */
+body.fw-category-selected main{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px))}
+body.fw-category-selected .location-card{padding:8px 11px;margin-bottom:8px}
+body.fw-category-selected .location-card strong{font-size:12px;line-height:1.2}
+body.fw-category-selected .search-wrap{height:40px;margin-bottom:8px}
+body.fw-category-selected .fw-category-back{margin-bottom:6px;min-height:36px;padding:0;background:transparent;border:0;box-shadow:none}
+body.fw-category-selected .fw-category-back button{min-height:34px;padding:0 11px}
+body.fw-category-selected .section-heading{margin:0 0 7px;align-items:center}
+body.fw-category-selected .section-heading h2{font-size:20px;line-height:1.1}
+body.fw-category-selected .section-heading .eyebrow{font-size:8px}
+body.fw-category-selected .section-heading .count-pill{padding:5px 8px}
+body.fw-category-selected .product-grid{gap:8px;align-items:stretch}
+body.fw-category-selected .product-card{height:196px;min-height:0;padding:7px;border-radius:15px;display:flex;flex-direction:column;overflow:hidden}
+body.fw-category-selected .product-image{height:76px;min-height:0;max-height:76px;aspect-ratio:auto;padding:4px;margin-bottom:6px;border-radius:11px;flex:0 0 76px}
+body.fw-category-selected .product-image img{width:100%;height:100%;object-fit:contain}
+body.fw-category-selected .product-card h3{font-size:11px;line-height:1.15;min-height:26px;margin:0 0 5px;-webkit-line-clamp:2}
+body.fw-category-selected .product-actions{margin-top:auto;padding-top:5px;gap:5px;flex-direction:column;align-items:stretch}
+body.fw-category-selected .product-action-info{display:flex;justify-content:space-between;width:100%;gap:4px;min-width:0}
+body.fw-category-selected .product-price{font-size:13px;white-space:nowrap}
+body.fw-category-selected .product-price small{font-size:9px}
+body.fw-category-selected .stock-pill{font-size:8px;padding:3px 5px;white-space:nowrap}
+body.fw-category-selected .product-action-control,body.fw-category-selected .product-action-control>.add-btn,body.fw-category-selected .product-action-control>.qty-control{width:100%;min-width:0}
+body.fw-category-selected .product-action-control>.add-btn{min-height:29px;height:29px;padding:5px 8px;border-radius:9px;font-size:10px}
+body.fw-category-selected .product-action-control>.qty-control{min-height:29px;height:29px;justify-content:space-between}
+body.fw-category-selected .product-action-control>.qty-control button{height:27px;width:30px;min-width:30px}
+body.fw-category-selected .product-action-control>.qty-control span{flex:1;width:auto;min-width:20px}
+@media(max-height:800px){body.fw-category-selected .product-card{height:180px}body.fw-category-selected .product-image{height:64px;max-height:64px;flex-basis:64px}body.fw-category-selected .product-card h3{min-height:24px;margin-bottom:3px}body.fw-category-selected .product-actions{padding-top:4px;gap:4px}}
+@media(max-width:380px){body.fw-category-selected .product-card{height:184px;padding:6px}body.fw-category-selected .product-image{height:68px;max-height:68px;flex-basis:68px}body.fw-category-selected .product-price{font-size:12px}}
