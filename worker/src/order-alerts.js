@@ -171,9 +171,41 @@ export async function deleteOwnerSubscription(env, payload) {
   return { ok: true };
 }
 
-export async function listOwnerOrderAlerts(env, limit = 30) {
+export async function listOwnerOrderAlerts(env, limit = 30, beforeId = null) {
   const safeLimit = Math.max(1, Math.min(100, Number.parseInt(limit, 10) || 30));
-  const { results } = await env.DB.prepare(`SELECT id,order_id,event_type,title,body,status,recipient_count,success_count,failure_count,created_at
-    FROM notification_events WHERE audience='owner' ORDER BY id DESC LIMIT ?`).bind(safeLimit).all();
-  return results || [];
+  const rawCursor = String(beforeId ?? '').trim();
+  let cursor = null;
+  if (rawCursor) {
+    if (!/^\d+$/.test(rawCursor) || !Number.isSafeInteger(Number(rawCursor)) || Number(rawCursor) < 1) {
+      throw new Error('Invalid Owner alert cursor.');
+    }
+    cursor = Number(rawCursor);
+  }
+
+  const query = cursor
+    ? `SELECT id,order_id,event_type,title,body,status,recipient_count,success_count,failure_count,created_at
+       FROM notification_events WHERE audience='owner' AND id < ? ORDER BY id DESC LIMIT ?`
+    : `SELECT id,order_id,event_type,title,body,status,recipient_count,success_count,failure_count,created_at
+       FROM notification_events WHERE audience='owner' ORDER BY id DESC LIMIT ?`;
+  const statement = env.DB.prepare(query);
+  const result = cursor ? await statement.bind(cursor, safeLimit).all() : await statement.bind(safeLimit).all();
+  return result?.results || [];
+}
+
+export async function deleteOwnerOrderAlert(env, id) {
+  const rawId = String(id ?? '').trim();
+  if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(Number(rawId)) || Number(rawId) < 1) {
+    throw new Error('Invalid Owner alert id.');
+  }
+  const result = await env.DB.prepare(
+    "DELETE FROM notification_events WHERE id=? AND audience='owner'"
+  ).bind(Number(rawId)).run();
+  return { ok: true, deleted: Number(result?.meta?.changes || 0) };
+}
+
+export async function deleteAllOwnerOrderAlerts(env) {
+  const result = await env.DB.prepare(
+    "DELETE FROM notification_events WHERE audience='owner'"
+  ).run();
+  return { ok: true, deleted: Number(result?.meta?.changes || 0) };
 }
