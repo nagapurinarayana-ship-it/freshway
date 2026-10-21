@@ -32,6 +32,8 @@ assert.match(lifecycle,/Map pin saved/);
 assert.doesNotMatch(lifecycle,/Exact delivery location/);
 assert.doesNotMatch(lifecycle,/modalExactMap/);
 assert.match(lifecycle,/id="modalDeliveryMap"/);
+assert.match(lifecycle,/bindLifecycle\(o,prev,nextId,hasCoords,mapQuery\)/,'Open map must receive the map query when lifecycle handlers are bound');
+assert.match(lifecycle,/function bindLifecycle\(o,prev,nextId,hasCoords,mapQuery\)/,'Map click handler must use a query passed into its scope');
 assert.match(lifecycle,/seenAddressParts/);
 assert.match(lifecycle,/addressParts\.join\(', '\)/);
 
