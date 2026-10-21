@@ -89,8 +89,6 @@ event.respondWith((async () => {
     }
   }
   const cached = await cache.match(event.request);
-  // Versioned scripts/styles are immutable by contract: the release query string
-  // is the cache key, so a cache hit needs no blocking or background network fetch.
   if (cached && isVersionedCode) return cached;
   const update = fetch(request).then(response => {
     if (response.ok) {
@@ -103,8 +101,6 @@ event.respondWith((async () => {
     console.error('FreshWay asset fetch failed:', event.request.url, error);
     throw error;
   });
-  // Mutable media uses stale-while-revalidate to render immediately while refreshing
-  // its stable URL in the background.
   if (cached) {
     event.waitUntil(update.catch(() => undefined));
     return cached;
