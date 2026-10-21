@@ -17,7 +17,6 @@
     "APP_ORIGIN": "https://fwcoldpressed.in",
     "APP_ORIGINS": "https://fwcoldpressed.in,https://freshway-f32.pages.dev"
   },
-  // Optional Worker secret: GOOGLE_MAPS_BROWSER_API_KEY. Configure a referrer-restricted browser key for Maps JavaScript API and Places API to enable Google Maps in Owner settings. When unset, the existing OpenStreetMap picker remains available.
   "secrets": {
     "required": [
       "ADMIN_TOKEN",
