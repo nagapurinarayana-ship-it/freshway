@@ -6,7 +6,7 @@ const html = fs.readFileSync('admin.html', 'utf8');
 const adminSource = fs.readFileSync('admin.js', 'utf8');
 const source = fs.readFileSync('frontend/admin/invoice-settings.js', 'utf8');
 assert.match(html, /admin\.js\?v=20261022-invoice-api-fallback-v2/);
-assert.match(html, /frontend\/admin\/invoice-settings\.js\?v=20261022-invoice-api-fallback-v2/);
+assert.match(html, /frontend\/admin\/invoice-settings\.js\?v=20261022-invoice-profile-fallback-v3/);
 assert.match(adminSource, /FreshWayOwnerInvoiceSettings\)loads\.push\(window\.FreshWayOwnerInvoiceSettings\.load\(\{api\}\)\)/);
 assert.match(adminSource, /await Promise\.all\(loads\)/);
 assert.match(source, /window\.FreshWayOwnerInvoiceSettingsApi\|\|window\.api/, 'Save must fall back to the shared Owner API if the settings loader has not registered its API yet');
