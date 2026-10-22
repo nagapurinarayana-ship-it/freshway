@@ -15,8 +15,8 @@
     }
     const status=String(o.status||'').trim().toLowerCase();
     if(status==='cancelled'||status==='canceled')return '<p class="muted invoice-pending">No invoice was issued for this cancelled order.</p>';
-    if(status==='delivered'||status==='out for delivery')return '<p class="muted invoice-pending">This historical order has no issued invoice available to download.</p>';
-    return '<p class="muted invoice-pending">Invoice PDF will appear here once invoice issuance is enabled and your order is dispatched.</p>';
+    if(status==='delivered'||status==='out for delivery'||status==='dispatched')return '<p class="muted invoice-pending">No invoice is available for download for this order yet. If this order has already been dispatched, please contact FreshWay support.</p>';
+    return '<p class="muted invoice-pending">Your order is awaiting dispatch. The invoice PDF will be available here after dispatch.</p>';
   };
   const render=(document,list,{esc,formatDate,money,statusLabel,planText})=>{
     const el=document.querySelector('#customerOrders');
