@@ -298,6 +298,17 @@ CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_customer_issued ON invoices(customer_id, issue_date DESC);
 CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice ON invoice_items(invoice_id,id);
 CREATE INDEX IF NOT EXISTS idx_auth_rate_limits_window ON auth_rate_limits(window_start);
+CREATE TABLE IF NOT EXISTS customer_auth_otps (
+  id TEXT PRIMARY KEY,
+  phone TEXT NOT NULL,
+  code_hash TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  consumed_at INTEGER,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_customer_auth_otps_phone_created ON customer_auth_otps(phone, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_customer_auth_otps_expiry ON customer_auth_otps(expires_at);
 INSERT OR IGNORE INTO store_profile (id) VALUES (1);
 -- INSERT OR IGNORE INTO products is intentionally omitted: the V1 catalogue is admin-managed.
 INSERT OR IGNORE INTO categories (id,name,slug,icon,description,display_order,active) VALUES
