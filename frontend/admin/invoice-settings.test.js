@@ -85,5 +85,12 @@ element('invoiceFooter').handlers.input();
   assert.equal(element('invoiceLegalName').value, 'FreshWay Foods', 'late initial GET must not erase saved settings');
   assert.equal(element('invoiceBusinessAddress').value, 'Shop 1, Main Road');
   assert.equal(element('invoiceFooter').value, 'Keep this footer');
-  console.log('Owner invoice save button async-binding regression OK');
+
+  // Exercise the exact reported failure mode: the settings-specific API has
+  // not been registered, but the shared authenticated Owner API is available.
+  sandbox.window.FreshWayOwnerInvoiceSettingsApi = undefined;
+  sandbox.window.api = api;
+  await button.handlers.click({ preventDefault() {} });
+  assert.equal(patchCalls.length, 2, 'Save must fall back to window.api when the module-specific API is missing');
+  console.log('Owner invoice save button API fallback and async-binding regression OK');
 })().catch(error => { console.error(error); process.exitCode = 1; });
