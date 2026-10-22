@@ -1,5 +1,5 @@
 import { json, n, pageOf, limitOf, like, STATUSES, normalizeStatus, orderSort, localDateStart, localDateEnd } from './admin-shared.js';
-import { prepareInvoiceIssue, getInvoiceSummary } from './invoice-service.js';
+import { prepareInvoiceIssue, getInvoiceSummary, getInvoiceSettings } from './invoice-service.js';
 
 const PAYMENTS=['Not Collected','Collected','Refunded','Cancelled'];
 const normalizePayment=v=>{const value=n(v);return value==='Pending'?'Not Collected':value};
@@ -102,7 +102,8 @@ export async function updateOrder(env,id,payload){
   sets.push('updated_at=CURRENT_TIMESTAMP');
   const sql='UPDATE orders SET '+sets.join(',')+' WHERE '+guards.join(' AND ');
   const shouldIssueInvoice=!isTestOrder&&!!status&&['Out for Delivery','Delivered'].includes(status);
-  const invoiceIssue=shouldIssueInvoice?await prepareInvoiceIssue(env,id,status):null;
+  const invoiceSettings=shouldIssueInvoice?await getInvoiceSettings(env):null;
+  const invoiceIssue=shouldIssueInvoice&&invoiceSettings?.enabled?await prepareInvoiceIssue(env,id,status):null;
   let invoiceSummary=null;
   if(invoiceIssue){
     if(typeof env.DB.batch!=='function')throw new Error('This environment does not support atomic invoice issuance.');
