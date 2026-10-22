@@ -160,6 +160,34 @@ export async function getInvoiceRecord(env,orderId){
   try{seller=JSON.parse(inv.seller_snapshot||'{}');buyer=JSON.parse(inv.buyer_snapshot||'{}');totals=JSON.parse(inv.totals_snapshot||'{}')}catch(_){throw new Error('Stored invoice snapshot is invalid.')}
   return {id:inv.id,orderId:inv.order_id,customerId:inv.customer_id,invoiceNumber:inv.invoice_number,documentType:inv.document_type,financialYear:inv.financial_year,issueDate:inv.issue_date,seller,buyer,totals,items:items.map(i=>({productId:i.product_id,name:i.name,unit:i.unit,qty:i.qty,unitPricePaise:i.unit_price_paise,grossPaise:i.gross_paise,hsnCode:i.hsn_code,gstRateBps:i.gst_rate_bps,taxablePaise:i.taxable_paise,cgstPaise:i.cgst_paise,sgstPaise:i.sgst_paise,igstPaise:i.igst_paise}))};
 }
+// Issue missing invoices for orders that were already dispatched/delivered before
+// invoice issuance was enabled. Never create invoices for new, cancelled, test,
+// or refunded orders; refunded orders require a separately reviewed credit-note flow.
+export async function issueMissingInvoices(env,{limit=100}={}){
+  const settings=await getInvoiceSettings(env);
+  if(!settings.enabled)return {enabled:false,issued:0,alreadyIssued:0,failed:[],skippedNew:0,skippedRefunded:0};
+  const boundedLimit=Math.max(1,Math.min(250,Math.floor(Number(limit)||100)));
+  const {results:refundedRows}=await env.DB.prepare("SELECT COUNT(*) AS count FROM orders o LEFT JOIN invoices i ON i.order_id=o.id WHERE o.is_test_order=0 AND o.delivery_status IN ('Out for Delivery','Delivered') AND o.payment_status='Refunded' AND i.order_id IS NULL").all();
+  const {results:orders}=await env.DB.prepare("SELECT o.id,o.delivery_status FROM orders o LEFT JOIN invoices i ON i.order_id=o.id WHERE o.is_test_order=0 AND o.delivery_status IN ('Out for Delivery','Delivered') AND COALESCE(o.payment_status,'')<>'Refunded' AND i.order_id IS NULL ORDER BY o.created_at ASC,o.id ASC LIMIT ?").bind(boundedLimit).all();
+  const report={enabled:true,issued:0,alreadyIssued:0,failed:[],skippedNew:0,skippedRefunded:Number(refundedRows?.[0]?.count||0),remaining:0};
+  for(const order of orders||[]){
+    try{
+      const issue=await prepareInvoiceIssue(env,order.id,order.delivery_status);
+      if(!issue){report.alreadyIssued++;continue;}
+      if(typeof env.DB.batch!=='function')throw new Error('This environment does not support atomic invoice issuance.');
+      await env.DB.batch(issue.statements);
+      const summary=await getInvoiceSummary(env,order.id);
+      if(summary)report.issued++;
+      else report.failed.push({orderId:order.id,error:'Invoice could not be confirmed after issuance.'});
+    }catch(error){
+      report.failed.push({orderId:order.id,error:String(error?.message||'Invoice issuance failed.').slice(0,300)});
+    }
+  }
+  const {results:remainingRows}=await env.DB.prepare("SELECT COUNT(*) AS count FROM orders o LEFT JOIN invoices i ON i.order_id=o.id WHERE o.is_test_order=0 AND o.delivery_status IN ('Out for Delivery','Delivered') AND COALESCE(o.payment_status,'')<>'Refunded' AND i.order_id IS NULL").all();
+  report.remaining=Number(remainingRows?.[0]?.count||0);
+  return report;
+}
+
 export async function getInvoiceSummary(env,orderId){
   const row=await env.DB.prepare('SELECT invoice_number,document_type,issue_date FROM invoices WHERE order_id=? LIMIT 1').bind(orderId).first();
   return row?{number:row.invoice_number,documentType:row.document_type,issuedAt:row.issue_date}:null;
