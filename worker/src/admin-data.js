@@ -19,7 +19,8 @@ const routes = [
   { match: (u,m) => u.pathname === '/api/admin/store-profile' && m === 'GET', run: async (r,e,u) => ({storeProfile:await getStoreProfile(e)}) },
   { match: (u,m) => u.pathname === '/api/admin/store-profile' && m === 'PATCH', run: async (r,e,u) => ({storeProfile:await updateStoreProfile(e,await r.json())}) },
   { match: (u,m) => u.pathname === '/api/admin/invoice-settings' && m === 'GET', run: async (r,e,u) => ({invoiceSettings:await getInvoiceSettings(e)}) },
-  { match: (u,m) => u.pathname === '/api/admin/invoice-settings' && m === 'PATCH', run: async (r,e,u) => { const invoiceSettings=await updateInvoiceSettings(e,await r.json()); const invoiceBackfill=invoiceSettings.enabled?await backfillMissingInvoices(e):null; return {invoiceSettings,invoiceBackfill}; } }
+  { match: (u,m) => u.pathname === '/api/admin/invoice-settings' && m === 'PATCH', run: async (r,e,u) => { const invoiceSettings=await updateInvoiceSettings(e,await r.json()); const invoiceBackfill=invoiceSettings.enabled?await backfillMissingInvoices(e):null; return {invoiceSettings,invoiceBackfill}; } },
+  { match: (u,m) => u.pathname === '/api/admin/invoices/backfill' && m === 'POST', run: async (r,e,u) => ({invoiceBackfill:await backfillMissingInvoices(e)}) }
 ];
 
 export async function handleAdminData(request,env){
