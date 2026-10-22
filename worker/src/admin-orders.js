@@ -1,4 +1,5 @@
 import { json, n, pageOf, limitOf, like, STATUSES, normalizeStatus, orderSort, localDateStart, localDateEnd } from './admin-shared.js';
+import { prepareInvoiceIssue, getInvoiceSummary, getInvoiceSettings } from './invoice-service.js';
 
 const PAYMENTS=['Not Collected','Collected','Refunded','Cancelled'];
 const normalizePayment=v=>{const value=n(v);return value==='Pending'?'Not Collected':value};
@@ -38,6 +39,7 @@ export async function orders(env, u) {
     LEFT JOIN customers c ON c.id=o.customer_id
     LEFT JOIN addresses a ON a.id=o.address_id
     LEFT JOIN order_address_snapshots s ON s.order_id=o.id
+    LEFT JOIN invoices i ON i.order_id=o.id
     WHERE ${where.join(' AND ')}`;
   const total=Number((await env.DB.prepare(`SELECT COUNT(*) count ${base}`).bind(...p).first())?.count||0);
   const rows=(await env.DB.prepare(`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.is_test_order,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.payment_collected_at,
@@ -46,7 +48,8 @@ export async function orders(env, u) {
     COALESCE(s.pincode,a.pincode) pincode,COALESCE(s.landmark,a.landmark) landmark,
     COALESCE(s.delivery_note,a.note) note,COALESCE(s.recipient_name,a.recipient_name,o.customer_name) recipient_name,
     COALESCE(s.delivery_phone,a.delivery_phone) delivery_phone,s.building,s.floor,s.street,s.locality,s.district,s.state,
-    s.latitude,s.longitude,s.accuracy_meters,s.location_source,s.place_id,s.location_updated_at
+    s.latitude,s.longitude,s.accuracy_meters,s.location_source,s.place_id,s.location_updated_at,
+    i.invoice_number,i.document_type invoice_document_type,i.issue_date invoice_issue_date
     ${base} ORDER BY ${orderSort(u)} LIMIT ? OFFSET ?`).bind(...p,limit,offset).all()).results||[];
   if(!rows.length)return{orders:[],pagination:{page,limit,total,pages:Math.max(1,Math.ceil(total/limit))}};
   const ids=rows.map(row=>row.id),ph=ids.map(()=>'?').join(',');
@@ -69,7 +72,8 @@ export async function orders(env, u) {
     },
     items:[],isTestOrder:Number(row.is_test_order)===1,total:row.total,payment:row.payment_status,
     status:normalizeStatus(row.delivery_status),deliveryPlan:row.delivery_plan,createdAt:row.created_at,
-    updatedAt:row.updated_at,paymentCollectedAt:row.payment_collected_at
+    updatedAt:row.updated_at,paymentCollectedAt:row.payment_collected_at,
+    invoice:row.invoice_number?{number:row.invoice_number,documentType:row.invoice_document_type,issuedAt:row.invoice_issue_date}:null
   }]));
   for(const item of items)map.get(item.order_id)?.items.push({
     id:item.product_id,name:item.name,unit:item.unit,qty:item.qty,price:item.price,lineTotal:item.line_total
@@ -97,7 +101,20 @@ export async function updateOrder(env,id,payload){
   if(!sets.length)throw new Error('No order change supplied.');
   sets.push('updated_at=CURRENT_TIMESTAMP');
   const sql='UPDATE orders SET '+sets.join(',')+' WHERE '+guards.join(' AND ');
-  const result=await env.DB.prepare(sql).bind(...params,...guardParams).run();
-  if(!result.meta?.changes)throw new Error('ORDER_CONFLICT: This order changed while you were saving. Refresh the order and try again.');
-  return{ok:true,status:status||normalizeStatus(current.delivery_status),payment:payment||current.payment_status,deliveryPlan:deliveryPlan||current.delivery_plan,isTestOrder,testClassificationChanged:hasTestFlag&&isTestOrder!==currentTest}
+  const shouldIssueInvoice=!isTestOrder&&!!status&&['Out for Delivery','Delivered'].includes(status);
+  const invoiceSettings=shouldIssueInvoice?await getInvoiceSettings(env):null;
+  const invoiceIssue=shouldIssueInvoice&&invoiceSettings?.enabled?await prepareInvoiceIssue(env,id,status):null;
+  let invoiceSummary=null;
+  if(invoiceIssue){
+    if(typeof env.DB.batch!=='function')throw new Error('This environment does not support atomic invoice issuance.');
+    const results=await env.DB.batch([env.DB.prepare(sql).bind(...params,...guardParams),...invoiceIssue.statements]);
+    if(!results[0]?.meta?.changes)throw new Error('ORDER_CONFLICT: This order changed while you were saving. Refresh the order and try again.');
+    invoiceSummary=await getInvoiceSummary(env,id);
+    if(!invoiceSummary)throw new Error('Invoice issuance did not complete. The order transition was rolled back; check Billing & tax settings and product tax details.');
+  }else{
+    const result=await env.DB.prepare(sql).bind(...params,...guardParams).run();
+    if(!result.meta?.changes)throw new Error('ORDER_CONFLICT: This order changed while you were saving. Refresh the order and try again.');
+    if(shouldIssueInvoice)invoiceSummary=await getInvoiceSummary(env,id);
+  }
+  return{ok:true,status:status||normalizeStatus(current.delivery_status),payment:payment||current.payment_status,deliveryPlan:deliveryPlan||current.delivery_plan,isTestOrder,testClassificationChanged:hasTestFlag&&isTestOrder!==currentTest,invoice:invoiceSummary}
 }

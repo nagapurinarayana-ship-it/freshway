@@ -185,3 +185,13 @@ button,input,textarea,select{touch-action:manipulation}
   .owner-alert-history-panel .fw-order-alert-actions{grid-column:2;display:flex;align-items:center;justify-items:start;justify-content:flex-start;flex-wrap:wrap}
   .owner-alert-history-panel .fw-order-alert-actions .alert-delete{min-height:38px}
 }
+
+/* Invoice configuration uses the existing Owner settings design system. */
+.invoice-settings-panel .invoice-settings-warning{margin:14px 0 4px;padding:13px 14px;border:1px solid #ead6a5;border-radius:12px;background:#fff9e9;color:#654d1d;font-size:12px;line-height:1.55}
+.invoice-settings-panel .invoice-settings-warning strong{display:block;margin-bottom:4px}
+.invoice-settings-panel .invoice-toggle{display:grid;grid-template-columns:20px minmax(0,1fr);align-items:start;column-gap:9px;row-gap:5px}
+.invoice-settings-panel .invoice-toggle>input[type=checkbox]{width:18px;height:18px;min-width:18px;margin:2px 0 0;accent-color:var(--green,#0f7a4b)}
+.invoice-settings-panel .invoice-toggle>span{font-weight:700}
+.invoice-settings-panel .invoice-toggle>small{grid-column:2;color:var(--muted,#708078);font-size:11px;line-height:1.5}
+.invoice-settings-panel #invoiceSettingsStatus{font-size:12px;color:var(--muted,#708078)}
+.invoice-settings-panel #invoiceSettingsStatus.error{color:#b83d3d}

@@ -55,7 +55,7 @@ async function validateOrderItems(env, rawItems) {
     unique.set(id, nextQty);
   }
   const ids = [...unique.keys()]; const placeholders = ids.map(() => '?').join(',');
-  const { results: dbProducts } = await env.DB.prepare(`SELECT id,name,unit,price,emoji,stock_managed,stock_quantity,low_stock_threshold FROM products WHERE active=1 AND id IN (${placeholders})`).bind(...ids).all();
+  const { results: dbProducts } = await env.DB.prepare(`SELECT id,name,unit,price,emoji,stock_managed,stock_quantity,low_stock_threshold,hsn_code,gst_rate_bps,gst_rate_confirmed FROM products WHERE active=1 AND id IN (${placeholders})`).bind(...ids).all();
   if (!dbProducts || dbProducts.length !== ids.length) throw new Error('One or more products are no longer available. Please refresh and try again.');
   const items = dbProducts.map(p => { const qty=unique.get(p.id); if(Number(p.stock_managed)===1&&Number(p.stock_quantity)<qty)throw new Error(`Not enough stock for ${p.name}. Please reduce the quantity and try again.`); return { ...p, qty, lineTotal:p.price*qty, stockReservedQty:Number(p.stock_managed)===1?qty:0 }; });
   return { items, total: items.reduce((sum, item) => sum + item.lineTotal, 0) };
@@ -105,7 +105,7 @@ async function createOrder(env, payload, ctx) {
   const addressId = addressResult?.meta?.last_row_id; if (!addressId) throw new Error('Could not save delivery address.');
   const id = orderId(), createdAt = now();
   const stockUpdates=items.filter(item=>item.stockReservedQty>0).map(item=>env.DB.prepare('UPDATE products SET stock_quantity=stock_quantity-? WHERE id=? AND stock_managed=1').bind(item.stockReservedQty,item.id));
-  const statements=[...stockUpdates,env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at) VALUES (?,?,?,?,?,?, 'Not Collected','New','Tomorrow',?,?,?)`).bind(id,customerId,addressId,customerName,phone,total,clientOrderId||null,createdAt,createdAt),...items.map(item=>env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total,stock_reserved_qty) VALUES (?,?,?,?,?,?,?,?)`).bind(id,item.id,item.name,item.unit,item.qty,item.price,item.lineTotal,item.stockReservedQty))];
+  const statements=[...stockUpdates,env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at) VALUES (?,?,?,?,?,?, 'Not Collected','New','Tomorrow',?,?,?)`).bind(id,customerId,addressId,customerName,phone,total,clientOrderId||null,createdAt,createdAt),...items.map(item=>env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total,stock_reserved_qty,hsn_code,gst_rate_bps,gst_rate_confirmed) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).bind(id,item.id,item.name,item.unit,item.qty,item.price,item.lineTotal,item.stockReservedQty,item.hsn_code||'',Number(item.gst_rate_bps||0),Number(item.gst_rate_confirmed||0)))];
   try { await env.DB.batch(statements); } catch (error) {
     await env.DB.prepare('DELETE FROM addresses WHERE id=?').bind(addressId).run();
     if (clientOrderId && /unique|constraint/i.test(error?.message || '')) {

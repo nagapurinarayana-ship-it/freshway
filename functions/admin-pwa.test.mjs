@@ -8,12 +8,12 @@ const customerHtml = readRepoFile('index.html').toString('utf8');
 assert.doesNotMatch(customerHtml, /href=["']\/admin(?:\.html|\/?)['"]/i, 'customer app must not expose an Owner dashboard link');
 assert.doesNotMatch(customerHtml, /class=["'][^"']*\badmin-link\b/i, 'customer profile must not render an Owner dashboard shortcut');
 const ownerLiveSmokeSource = readRepoFile('pwa-owner-live-smoke.mjs').toString('utf8');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261021-owner-alert-history-v1';"), 'production Owner smoke must demand the current Owner CSS version');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261021-owner-alert-history-v1';"), 'production Owner smoke must demand the current admin.js version');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261022-invoice-ui-v1';"), 'production Owner smoke must demand the current Owner CSS version');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261022-invoice-ui-v1';"), 'production Owner smoke must demand the current admin.js version');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1';"), 'production Owner smoke must demand the current push setup version');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1';"), 'production Owner smoke must demand the current business profile and shop pin editor');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261021-open-map-fix-v1';"), 'production Owner smoke must demand the cache-busted order lifecycle map handler');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v22';"), 'production Owner smoke must demand the current service-worker cache');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v23';"), 'production Owner smoke must demand the current service-worker cache');
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerAppShell/);
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerServiceWorker/);
 assert.ok(ownerLiveSmokeSource.includes("const pathname = String(path).split('?')[0];"), 'Owner cache smoke must classify assets by pathname, not URL including query');
@@ -30,6 +30,7 @@ const requiredOwnerAssets = [
   'freshway-logo-clean.svg',
   'frontend/phone-display.js',
   'frontend/admin/store-profile.js',
+  'frontend/admin/invoice-settings.js',
   'frontend/catalogue-media.js',
   'frontend/admin/catalogue.js',
   'frontend/admin/owner-lifecycle-autosave.js',
