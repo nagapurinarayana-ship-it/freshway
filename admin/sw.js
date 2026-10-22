@@ -31,7 +31,7 @@ const REQUIRED_SHELL = [
   '/admin/manifest.webmanifest',
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261022-invoice-ui-v1',
-  '/admin/admin.js?v=20261022-invoice-ui-v1',
+  '/admin/admin.js?v=20261022-invoice-save-button-fix-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
   '/admin/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1',
   '/admin/frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1',
