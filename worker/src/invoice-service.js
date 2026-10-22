@@ -165,3 +165,34 @@ export async function getInvoiceSummary(env,orderId){
   return row?{number:row.invoice_number,documentType:row.document_type,issuedAt:row.issue_date}:null;
 }
 export { json as invoiceJson };
+
+/**
+ * Issue missing invoices for already-dispatched/delivered production orders.
+ * Each order is validated and committed independently so one legacy order with
+ * inconsistent totals cannot prevent other eligible invoices from being issued.
+ */
+export async function backfillMissingInvoices(env){
+  const settings=await getInvoiceSettings(env);
+  if(!settings.enabled)return{enabled:false,scanned:0,issued:0,skipped:0,failed:[]};
+  const rows=(await env.DB.prepare(`SELECT o.id,o.delivery_status FROM orders o
+    WHERE COALESCE(o.is_test_order,0)=0
+      AND o.delivery_status IN ('Out for Delivery','Delivered')
+      AND NOT EXISTS(SELECT 1 FROM invoices i WHERE i.order_id=o.id)
+    ORDER BY o.created_at ASC,o.id ASC`).all()).results||[];
+  let issued=0,skipped=0;
+  const failed=[];
+  for(const order of rows){
+    try{
+      const issue=await prepareInvoiceIssue(env,order.id,order.delivery_status);
+      if(!issue){skipped++;continue;}
+      if(typeof env.DB.batch!=='function')throw new Error('Atomic invoice issuance is unavailable.');
+      await env.DB.batch(issue.statements);
+      const summary=await getInvoiceSummary(env,order.id);
+      if(summary)issued++;
+      else{skipped++;failed.push({orderId:order.id,reason:'The invoice was not committed. Check the order and invoice settings.'});}
+    }catch(error){
+      failed.push({orderId:order.id,reason:String(error?.message||'Invoice validation failed.').slice(0,240)});
+    }
+  }
+  return{enabled:true,scanned:rows.length,issued,skipped,failed};
+}
