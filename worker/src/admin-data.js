@@ -30,7 +30,7 @@ export async function handleAdminData(request,env){
   }catch(e){
     const message=String(e?.message||'Admin data request failed.');
     if(/^ORDER_CONFLICT:/.test(message))return json({error:message.replace(/^ORDER_CONFLICT:\s*/,''),code:'ORDER_CONFLICT'},409);
-    if(/^(Invalid |Enter |Choose |Invoice |GSTIN |Seller |Add a valid HSN|Confirm the GST|Set the approved GST|The delivery address|V1 requires|A GSTIN|Order not found|No order change|Delivery plan|Payment|Cash can|Only collected|Collected cash|Cannot change)/i.test(message))return json({error:message},400);
+    if(/^(Invalid |Choose a valid invoice|Invoice issuance is not enabled|Invoice series prefix|Enter the legal business name used on invoices|Enter the complete business address used on invoices|Enter the seller state|Enter a valid two-digit seller GST state code|Enter a valid 15-character GSTIN|Seller state code must match|Seller state name and GST state code do not match|V1 requires|A GSTIN is entered|Add a valid HSN|Confirm the GST classification|Set the approved GST rate|The delivery address needs a valid state|This order has no invoice items|Invoices cannot be issued|Order not found|No order change|Delivery plan|Payment|Cash can|Only collected|Collected cash|Cannot change)/i.test(message))return json({error:message},400);
     const errorId=crypto.randomUUID();
     console.error(JSON.stringify({event:'freshway_admin_data_error',errorId,method:request.method,path:u.pathname,message,stack:e?.stack||''}));
     return json({error:'The server could not save this change. Refresh the order and verify its saved state before retrying.',code:'INTERNAL_ERROR',errorId},500);
