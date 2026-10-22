@@ -35,7 +35,7 @@ test('historical invoice backfill is safe and idempotent when no eligible orders
     async all(){assert.match(sql,/delivery_status IN \('Out for Delivery','Delivered'\)/);assert.match(sql,/NOT EXISTS/);return{results:[]}}
   }}}};
   const result=await backfillMissingInvoices(env);
-  assert.deepEqual(result,{enabled:true,scanned:0,issued:0,skipped:0,failed:[]});
+  assert.deepEqual(result,{enabled:true,scanned:0,issued:0,skipped:0,skippedRefunded:0,failed:[]});
 });
 test('invoice issuance defaults to disabled',async()=>{
   const settings=await getInvoiceSettings(fakeEnv());
