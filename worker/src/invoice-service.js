@@ -129,8 +129,8 @@ export async function prepareInvoiceIssue(env,orderId,targetStatus){
     .bind(invoiceId,orderId,order.customer_id,settings.seriesPrefix,financialYear,settings.documentType,financialYear,issuedAt,JSON.stringify(sellerSnapshot),JSON.stringify(buyerSnapshot),JSON.stringify(totalsSnapshot),financialYear,orderId,targetStatus,orderId);
 
 
-  const itemStatements=items.map(item=>env.DB.prepare('INSERT INTO invoice_items(invoice_id,product_id,name,unit,qty,unit_price_paise,gross_paise,hsn_code,gst_rate_bps,taxable_paise,cgst_paise,sgst_paise,igst_paise) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM invoices WHERE order_id=? AND id=?)')
-    .bind(invoiceId,item.productId,item.name,item.unit,item.qty,item.unitPricePaise,item.grossPaise,item.hsnCode,item.gstRateBps,item.taxablePaise,item.cgstPaise,item.sgstPaise,item.igstPaise,orderId,invoiceId));
+  const itemStatements=items.map(item=>env.DB.prepare('INSERT INTO invoice_items(invoice_id,product_id,name,unit,qty,unit_price_paise,gross_paise,hsn_code,gst_rate_bps,taxable_paise,cgst_paise,sgst_paise,igst_paise) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM invoices WHERE order_id=? AND id=?) AND NOT EXISTS(SELECT 1 FROM invoice_items WHERE invoice_id=? AND product_id=?)')
+    .bind(invoiceId,item.productId,item.name,item.unit,item.qty,item.unitPricePaise,item.grossPaise,item.hsnCode,item.gstRateBps,item.taxablePaise,item.cgstPaise,item.sgstPaise,item.igstPaise,orderId,invoiceId,invoiceId,item.productId));
   return {statements:[updateSequence,insertInvoice,...itemStatements],invoiceId,financialYear};
 }
 export async function getInvoiceRecord(env,orderId){
