@@ -1,8 +1,10 @@
 -- Invoice documents and tax snapshots. Additive only: existing orders and products are preserved.
 ALTER TABLE products ADD COLUMN hsn_code TEXT NOT NULL DEFAULT '';
 ALTER TABLE products ADD COLUMN gst_rate_bps INTEGER NOT NULL DEFAULT 0 CHECK(gst_rate_bps >= 0 AND gst_rate_bps <= 4000);
+ALTER TABLE products ADD COLUMN gst_rate_confirmed INTEGER NOT NULL DEFAULT 0 CHECK(gst_rate_confirmed IN (0,1));
 ALTER TABLE order_items ADD COLUMN hsn_code TEXT NOT NULL DEFAULT '';
 ALTER TABLE order_items ADD COLUMN gst_rate_bps INTEGER NOT NULL DEFAULT 0 CHECK(gst_rate_bps >= 0 AND gst_rate_bps <= 4000);
+ALTER TABLE order_items ADD COLUMN gst_rate_confirmed INTEGER NOT NULL DEFAULT 0 CHECK(gst_rate_confirmed IN (0,1));
 
 CREATE TABLE IF NOT EXISTS invoice_settings (
   id INTEGER PRIMARY KEY CHECK(id = 1),
