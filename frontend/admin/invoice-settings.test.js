@@ -5,10 +5,11 @@ const vm = require('node:vm');
 const html = fs.readFileSync('admin.html', 'utf8');
 const adminSource = fs.readFileSync('admin.js', 'utf8');
 const source = fs.readFileSync('frontend/admin/invoice-settings.js', 'utf8');
-assert.match(html, /admin\.js\?v=20261022-invoice-save-button-fix-v1/);
-assert.match(html, /frontend\/admin\/invoice-settings\.js\?v=20261022-invoice-save-button-fix-v1/);
+assert.match(html, /admin\.js\?v=20261022-invoice-api-fallback-v2/);
+assert.match(html, /frontend\/admin\/invoice-settings\.js\?v=20261022-invoice-api-fallback-v2/);
 assert.match(adminSource, /FreshWayOwnerInvoiceSettings\)loads\.push\(window\.FreshWayOwnerInvoiceSettings\.load\(\{api\}\)\)/);
 assert.match(adminSource, /await Promise\.all\(loads\)/);
+assert.match(source, /window\.FreshWayOwnerInvoiceSettingsApi\|\|window\.api/, 'Save must fall back to the shared Owner API if the settings loader has not registered its API yet');
 
 const elements = new Map();
 function element(id) {
@@ -84,5 +85,12 @@ element('invoiceFooter').handlers.input();
   assert.equal(element('invoiceLegalName').value, 'FreshWay Foods', 'late initial GET must not erase saved settings');
   assert.equal(element('invoiceBusinessAddress').value, 'Shop 1, Main Road');
   assert.equal(element('invoiceFooter').value, 'Keep this footer');
-  console.log('Owner invoice save button async-binding regression OK');
+
+  // Exercise the exact reported failure mode: the settings-specific API has
+  // not been registered, but the shared authenticated Owner API is available.
+  sandbox.window.FreshWayOwnerInvoiceSettingsApi = undefined;
+  sandbox.window.api = api;
+  await button.handlers.click({ preventDefault() {} });
+  assert.equal(patchCalls.length, 2, 'Save must fall back to window.api when the module-specific API is missing');
+  console.log('Owner invoice save button API fallback and async-binding regression OK');
 })().catch(error => { console.error(error); process.exitCode = 1; });

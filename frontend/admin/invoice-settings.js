@@ -48,8 +48,12 @@
     if(button){button.disabled=true;button.textContent='Saving…'}
     setStatus('Saving invoice configuration…');
     try{
-      const api=window.FreshWayOwnerInvoiceSettingsApi;
-      if(typeof api!=='function')throw new Error('Owner API is unavailable. Refresh the page and try again.');
+      // The Owner settings screen can be reached before its async loader has
+      // registered the module-specific API reference. Fall back to the shared
+      // authenticated Owner API exposed by admin.js so Save never depends on
+      // navigating away and back to Settings first.
+      const api=window.FreshWayOwnerInvoiceSettingsApi||window.api;
+      if(typeof api!=='function')throw new Error('Owner API is unavailable. Refresh the page and sign in again.');
       const data=await api('/admin/invoice-settings',{method:'PATCH',body:JSON.stringify(collect())});
       const saved=data?.invoiceSettings||{};
       apply(saved);
