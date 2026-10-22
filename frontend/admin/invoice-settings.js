@@ -98,8 +98,14 @@
         const issued=Number(backfill.issued)||0;
         const scanned=Number(backfill.scanned)||0;
         const failed=Array.isArray(backfill.failed)?backfill.failed.length:0;
-        const summary=issued+' missing invoice'+(issued===1?'':'s')+' generated for eligible dispatched/delivered orders ('+scanned+' checked).';
-        setStatus(summary+(failed?' '+failed+' order'+(failed===1?' needs':'s need')+' review in Owner logs.':''));
+        if(scanned===0){
+          setStatus('Invoice issuance is enabled. No missing invoices were found among dispatched/delivered orders. New orders receive invoices when moved to Out for Delivery or Delivered.');
+        }else{
+          const summary='Invoice issuance is enabled. '+issued+' missing invoice'+(issued===1?'':'s')+' generated for eligible dispatched/delivered orders ('+scanned+' checked).';
+          const firstFailure=Array.isArray(backfill.failed)?backfill.failed[0]:null;
+          const failureDetails=firstFailure?' First failure: '+String(firstFailure.orderId||'Order')+' — '+String(firstFailure.reason||'Invoice validation failed.'): '';
+          setStatus(summary+(failed?' '+failed+' order'+(failed===1?' needs':'s need')+' review.':'')+failureDetails,failed>0);
+        }
       }
     }catch(error){
       setStatus(error?.message||'Could not save invoice configuration.',true);
