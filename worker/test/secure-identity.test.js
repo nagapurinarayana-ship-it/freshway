@@ -54,36 +54,18 @@ test('customer logout clears the HttpOnly session cookie', async () => {
   assert.match(response.headers.get('set-cookie') || '', /HttpOnly/);
 });
 
-test('customer can create a 6-digit passcode account', async () => {
-  const response = await request('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Test Customer', phone: '9876543210', passcode: '246810' }) });
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get('set-cookie') || '', /freshway-customer-session=/);
-  assert.equal(customer.phone, '919876543210');
-  assert.equal(customer.name, 'Test Customer');
-  assert.notEqual(customer.passcode_hash, '246810');
-  assert.match(customer.passcode_hash || '', /^[0-9a-f]{64}$/);
-});
-
-test('customer can log in again with mobile number and passcode', async () => {
-  const response = await request('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '9876543210', passcode: '246810' }) });
-  assert.equal(response.status, 200);
-  assert.equal((await response.json()).customerId, 'customer-1');
-});
-
-test('customer can log in with +91-prefixed mobile number after normalization', async () => {
-  const response = await request('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '+91 9876543210', passcode: '246810' }) });
-  assert.equal(response.status, 200);
-  assert.equal((await response.json()).customerId, 'customer-1');
-});
-
-test('wrong passcode is rejected', async () => {
-  const response = await request('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '9876543210', passcode: '000000' }) });
-  assert.equal(response.status, 401);
-});
-
-test('passcode must be exactly six digits', async () => {
-  const response = await request('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Test Customer', phone: '9123456789', passcode: '12345' }) });
-  assert.equal(response.status, 400);
+test('legacy passcode login, registration, and recovery endpoints are disabled', async () => {
+  const requests = [
+    ['/api/auth/register', { name: 'Test Customer', phone: '9876543210', passcode: '246810' }],
+    ['/api/auth/login', { phone: '9876543210', passcode: '246810' }],
+    ['/api/auth/passcode-reset/start', { phone: '9876543210' }],
+    ['/api/auth/passcode-reset/complete', { phone: '9876543210', code: '123456', passcode: '135790' }]
+  ];
+  for (const [path, body] of requests) {
+    const response = await request(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    assert.equal(response.status, 410, path + ' must require passwordless WhatsApp OTP');
+    assert.match((await response.json()).error, /WhatsApp OTP/i);
+  }
 });
 
 test('order identity uses the registered account phone and keeps delivery contact in the snapshot', () => {
@@ -116,75 +98,3 @@ test('customer registration update keeps the registered mobile immutable', async
   assert.equal(customer.phone, registeredPhone);
 });
 
-test('an already registered mobile cannot create a second account', async () => {
-  const previousId = customer.id, previousHash = customer.passcode_hash;
-  const response = await request('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'Second Account', phone: '9876543210', passcode: '112233' }) });
-  assert.equal(response.status, 409);
-  assert.equal(customer.id, previousId);
-  assert.equal(customer.passcode_hash, previousHash);
-});
-
-test('forgot passcode fails safely when SMS verification is not configured', async () => {
-  const response = await request('/api/auth/passcode-reset/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '9876543210' }) });
-  assert.equal(response.status, 503);
-  assert.match((await response.json()).error, /temporarily unavailable/i);
-});
-
-test('forgot passcode sends SMS verification without exposing whether a number is registered', async t => {
-  const configured = {
-    ...env,
-    TWILIO_ACCOUNT_SID: 'AC' + 'a'.repeat(32),
-    TWILIO_AUTH_TOKEN: 'test-auth-token',
-    TWILIO_VERIFY_SERVICE_SID: 'VA' + 'b'.repeat(32)
-  };
-  const mock = t.mock.method(globalThis, 'fetch', async (url, options) => {
-    assert.match(String(url), /\/Verifications$/);
-    assert.equal(options.method, 'POST');
-    assert.match(options.headers.authorization, /^Basic /);
-    assert.ok(options.body.includes('To=%2B919876543210'));
-    assert.ok(options.body.includes('Channel=sms'));
-    return Response.json({ status: 'pending' }, { status: 201 });
-  });
-  const response = await request('/api/auth/passcode-reset/start', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phone: '9876543210' })
-  }, configured);
-  assert.equal(response.status, 200);
-  assert.match((await response.json()).message, /If this mobile is registered/i);
-  assert.equal(mock.mock.callCount(), 1);
-});
-
-test('approved SMS reset changes passcode and invalidates old sessions', async t => {
-  const oldHash = customer.passcode_hash;
-  const configured = {
-    ...env,
-    TWILIO_ACCOUNT_SID: 'AC' + 'a'.repeat(32),
-    TWILIO_AUTH_TOKEN: 'test-auth-token',
-    TWILIO_VERIFY_SERVICE_SID: 'VA' + 'b'.repeat(32)
-  };
-  const mock = t.mock.method(globalThis, 'fetch', async (url, options) => {
-    assert.match(String(url), /\/VerificationCheck$/);
-    assert.match(options.body, /Code=654321/);
-    return Response.json({ status: 'approved' }, { status: 200 });
-  });
-  const response = await request('/api/auth/passcode-reset/complete', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phone: '9876543210', code: '654321', passcode: '135790' })
-  }, configured);
-  assert.equal(response.status, 200);
-  const payload = await response.json();
-  assert.equal(payload.customerId, 'customer-1');
-  assert.equal(payload.registeredPhone, '919876543210');
-  assert.equal(customer.phone, '919876543210');
-  assert.notEqual(customer.passcode_hash, oldHash);
-  assert.equal(customer.auth_version, 1);
-  assert.equal(mock.mock.callCount(), 1);
-  const oldSession = await request('/api/auth/session', { method: 'GET', headers: { Cookie: sessionCookie() } }, configured);
-  assert.equal(oldSession.status, 401);
-  const oldLogin = await request('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '9876543210', passcode: '246810' }) }, configured);
-  assert.equal(oldLogin.status, 401);
-  const newLogin = await request('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '9876543210', passcode: '135790' }) }, configured);
-  assert.equal(newLogin.status, 200);
-});
