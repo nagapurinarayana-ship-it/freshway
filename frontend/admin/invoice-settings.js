@@ -3,6 +3,7 @@
   'use strict';
   const $=selector=>document.querySelector(selector);
   let busy=false;
+  let editRevision=0;
   const bool=value=>value===true||Number(value)===1;
   function setStatus(message,isError=false){
     const el=$('#invoiceSettingsStatus');
@@ -76,14 +77,26 @@
       });
     }
   }
+  function bindFieldEdits(){
+    for(const id of ['invoiceEnabled','invoiceDocumentType','invoiceSeriesPrefix','invoiceLegalName','invoiceBusinessAddress','invoiceStateName','invoiceStateCode','invoiceGstin','invoiceFooter','invoicePricesIncludeTax']){
+      const el=$('#'+id);
+      if(!el||el.dataset.invoiceEditBound)continue;
+      el.dataset.invoiceEditBound='1';
+      el.addEventListener('input',()=>{editRevision++;});
+      el.addEventListener('change',()=>{editRevision++;});
+    }
+  }
   async function load({api}){
     if(typeof api!=='function')throw new Error('Owner API is unavailable.');
     window.FreshWayOwnerInvoiceSettingsApi=api;
     // Bind synchronously before any network request. The button is visible
     // while the Owner settings requests are in flight, so it must not be inert.
     bindSaveButton();
+    bindFieldEdits();
+    const revisionAtRequest=editRevision;
     const data=await api('/admin/invoice-settings');
-    if(!busy)apply(data?.invoiceSettings);
+    // A late initial GET must not overwrite edits made while it was in flight.
+    if(!busy&&revisionAtRequest===editRevision)apply(data?.invoiceSettings);
     const gstin=$('#invoiceGstin'),state=$('#invoiceStateCode');
     if(gstin&&state&&!gstin.dataset.autofillBound){
       gstin.dataset.autofillBound='1';
