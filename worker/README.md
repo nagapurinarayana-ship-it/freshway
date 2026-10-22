@@ -78,6 +78,7 @@ Public customer endpoints:
 - `POST /api/customers/register`
 - `POST /api/orders`
 - `GET /api/orders?customerId=<customer-id>`
+- `GET /api/orders/:id/invoice` (authenticated, customer-owned PDF download; only issued invoices are available)
 - `GET /api/push/public-key`
 - `POST /api/push/subscribe`
 
@@ -85,6 +86,9 @@ Admin endpoints require `Authorization: Bearer <ADMIN_TOKEN>`:
 
 - `GET /api/admin/orders`
 - `PATCH /api/admin/orders/:id`
+- `GET /api/admin/orders/:id/invoice` (Owner-only PDF download)
+- `GET /api/admin/invoice-settings`
+- `PATCH /api/admin/invoice-settings`
 - `GET /api/admin/products`
 - `POST /api/admin/products`
 - `PATCH /api/admin/products/:id`
@@ -101,6 +105,18 @@ npx wrangler deploy
 ```
 
 The static customer/admin pages use relative `/api/*` URLs. In production, route `/api/*` from the same FreshWay domain to this Worker and set `APP_ORIGIN` to that exact customer origin. Do not leave the placeholder value in production.
+
+## Invoice PDFs and billing configuration
+
+Invoice PDF download is available from each order card in the customer's **My orders** view once an invoice record exists. The Owner can download the same issued document from the order-detail panel. Invoice responses are authenticated, scoped to the owning customer or authorized Owner session, and marked private/no-store.
+
+Migration `0024_invoice_documents.sql` is additive: it creates invoice settings, yearly number sequences and immutable invoice/item snapshots, and adds HSN/GST-classification fields to product and order-item records. Apply this migration to an existing database using the repository's approved D1 migration procedure before deploying code that depends on it. A new database initialized from the current `schema.sql` already has the same structures; do not apply the column-adding migration again to that database.
+
+Invoice issuance is disabled by default. In Owner → Settings → Billing & tax, configure the legal seller name/address, the appropriate document type and invoice series. Enabling a GST tax invoice also requires the GSTIN/state to agree and each product to have an HSN code and an explicitly confirmed rate. Confirm tax treatment and product classifications with the business accountant; never estimate GST rates. Product price and checkout-total logic are not changed by invoice setup.
+
+When invoice issuance is enabled, moving a non-test order to **Out for Delivery** creates the invoice record in the same D1 batch as the order transition. The Owner flow fails safely if setup or item data is incomplete. A direct move to **Delivered** can issue an invoice for an order that bypassed the dispatch state, provided the same validation succeeds. Test orders never receive invoices. A repeated download returns the same stored invoice number and snapshot; downloading does not change payment status or prove that cash has been collected.
+
+GST documents must not be enabled until the correct document type, GSTIN, HSN and applicable GST rates have been verified for the real business. Existing catalogue items intentionally start with tax-rate confirmation unset.
 
 ## V1 business rules
 
