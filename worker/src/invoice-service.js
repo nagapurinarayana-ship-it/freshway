@@ -174,9 +174,16 @@ export { json as invoiceJson };
 export async function backfillMissingInvoices(env){
   const settings=await getInvoiceSettings(env);
   if(!settings.enabled)return{enabled:false,scanned:0,issued:0,skipped:0,failed:[]};
+  const refundedRows=(await env.DB.prepare(`SELECT COUNT(*) AS count FROM orders o
+    WHERE COALESCE(o.is_test_order,0)=0
+      AND o.delivery_status IN ('Out for Delivery','Delivered')
+      AND o.payment_status='Refunded'
+      AND NOT EXISTS(SELECT 1 FROM invoices i WHERE i.order_id=o.id)`).all()).results||[];
+  const skippedRefunded=Number(refundedRows[0]?.count||0);
   const rows=(await env.DB.prepare(`SELECT o.id,o.delivery_status FROM orders o
     WHERE COALESCE(o.is_test_order,0)=0
       AND o.delivery_status IN ('Out for Delivery','Delivered')
+      AND COALESCE(o.payment_status,'')<>'Refunded'
       AND NOT EXISTS(SELECT 1 FROM invoices i WHERE i.order_id=o.id)
     ORDER BY o.created_at ASC,o.id ASC`).all()).results||[];
   let issued=0,skipped=0;
@@ -194,5 +201,5 @@ export async function backfillMissingInvoices(env){
       failed.push({orderId:order.id,reason:String(error?.message||'Invoice validation failed.').slice(0,240)});
     }
   }
-  return{enabled:true,scanned:rows.length,issued,skipped,failed};
+  return{enabled:true,scanned:rows.length,issued,skipped,skippedRefunded,failed};
 }
