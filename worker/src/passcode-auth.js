@@ -136,6 +136,7 @@ async function startWhatsAppOtp(request, env) {
   const now = Math.floor(Date.now() / 1000);
   const expiresAt = now + 300;
   const codeHash = await otpDigest(env, challengeId, phone, code);
+  await env.DB.prepare('DELETE FROM customer_auth_otps WHERE expires_at<? OR (consumed_at IS NOT NULL AND consumed_at<?)').bind(now, now - 86400).run();
   await env.DB.prepare('UPDATE customer_auth_otps SET consumed_at=? WHERE phone=? AND consumed_at IS NULL').bind(now, phone).run();
   await env.DB.prepare('INSERT INTO customer_auth_otps (id,phone,code_hash,expires_at,attempts,consumed_at,created_at) VALUES (?,?,?,?,0,NULL,?)')
     .bind(challengeId, phone, codeHash, expiresAt, now).run();
