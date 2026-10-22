@@ -35,16 +35,22 @@ export async function getInvoiceSettings(env){
     footer:row?.footer||'',pricesIncludeTax:Number(row?.prices_include_tax??1)===1,updatedAt:row?.updated_at||null
   };
 }
-function validateSettings(s){
+function validateSettings(s,store={}){
   if(!TYPES.has(s.documentType))throw new Error('Choose a valid invoice document type.');
-  if(!s.legalName)throw new Error('Enter the legal business name used on invoices.');
-  if(!s.businessAddress)throw new Error('Enter the complete business address used on invoices.');
   if(!/^[A-Z0-9]{1,2}$/.test(s.seriesPrefix))throw new Error('Invoice series prefix must contain one or two letters or numbers.');
-  if(!s.pricesIncludeTax)throw new Error('V1 requires catalogue prices to be tax-inclusive. Tax-exclusive checkout totals are not supported.');
   if(s.documentType==='commercial_invoice'){
     if(s.gstin)throw new Error('A GSTIN is entered. Select the document type confirmed for your GST registration instead of issuing a non-GST commercial invoice.');
+    // A non-GST order record uses the store profile as the single source of
+    // truth. Separate legal-name/address overrides are optional for this type.
+    if(!trim(s.legalName||store.storeName,160))throw new Error('Enter the store name in Business information.');
+    if(!trim(s.businessAddress||store.address,600))throw new Error('Enter the complete business address used on invoices or in Store Profile.');
     return;
   }
+  // GST documents must not silently substitute a trade name/address for
+  // verified legal seller details.
+  if(!s.legalName)throw new Error('Enter the legal business name used on invoices.');
+  if(!s.businessAddress)throw new Error('Enter the complete business address used on invoices.');
+  if(!s.pricesIncludeTax)throw new Error('V1 requires catalogue prices to be tax-inclusive. Tax-exclusive checkout totals are not supported.');
   if(!s.stateName)throw new Error('Enter the seller state.');
   if(!/^\d{2}$/.test(s.stateCode))throw new Error('Enter a valid two-digit seller GST state code.');
   if(!validGstin(s.gstin))throw new Error('Enter a valid 15-character GSTIN for the selected GST document.');
@@ -72,17 +78,25 @@ export async function updateInvoiceSettings(env,payload={}){
   let enableWarning='';
   if(!TYPES.has(s.documentType))s.documentType='commercial_invoice';
   if(!s.seriesPrefix||!/^[A-Z0-9]{1,2}$/.test(s.seriesPrefix))s.seriesPrefix='FW';
+  // The Owner requested simple order records with only the store identity and
+  // address required. When GST mode was left selected without a GSTIN, make
+  // the safe document type explicit instead of keeping invoices permanently
+  // disabled or ever issuing a GST document without registration details.
+  if(s.enabled&&s.documentType!=='commercial_invoice'&&!s.gstin){
+    s.documentType='commercial_invoice';
+    enableWarning='No GSTIN was provided, so this is enabled as a non-GST commercial invoice/order record. No GST is shown or added.';
+  }
   if(s.enabled){
-    try{validateSettings(s);}
+    try{validateSettings(s,await getStoreProfile(env));}
     catch(error){s.enabled=false;enableWarning=String(error?.message||'Complete the required billing details before enabling invoices.');}
   }
   await env.DB.prepare('INSERT INTO invoice_settings(id,enabled,document_type,legal_name,business_address,state_name,state_code,gstin,series_prefix,footer,prices_include_tax,updated_at) VALUES(1,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET enabled=excluded.enabled,document_type=excluded.document_type,legal_name=excluded.legal_name,business_address=excluded.business_address,state_name=excluded.state_name,state_code=excluded.state_code,gstin=excluded.gstin,series_prefix=excluded.series_prefix,footer=excluded.footer,prices_include_tax=excluded.prices_include_tax,updated_at=CURRENT_TIMESTAMP')
     .bind(s.enabled?1:0,s.documentType,s.legalName,s.businessAddress,s.stateName,s.stateCode,s.gstin,s.seriesPrefix,s.footer,s.pricesIncludeTax?1:0).run();
   return {...await getInvoiceSettings(env),...(enableWarning?{enableWarning}:{})};
 }
-function validateIssueConfig(settings,items,address){
+function validateIssueConfig(settings,items,address,store){
   if(!settings.enabled)throw new Error('Invoice issuance is not enabled. Finish Owner → Settings → Billing & tax before dispatching this order.');
-  validateSettings(settings);
+  validateSettings(settings,store);
   if(!items.length)throw new Error('This order has no invoice items.');
   if(settings.documentType!=='commercial_invoice'){
     for(const item of items){
@@ -118,7 +132,7 @@ export async function prepareInvoiceIssue(env,orderId,targetStatus){
   const store=await getStoreProfile(env);
   const itemRows=(await env.DB.prepare('SELECT product_id,name,unit,qty,price,line_total,hsn_code,gst_rate_bps,gst_rate_confirmed FROM order_items WHERE order_id=? ORDER BY id').bind(orderId).all()).results||[];
   const address={house:order.house,building:order.building,floor:order.floor,street:order.street,area:order.area,locality:order.locality,city:order.city,district:order.district,state:order.state,pincode:order.pincode,landmark:order.landmark,note:order.note,recipientName:order.recipient_name,deliveryPhone:order.delivery_phone};
-  validateIssueConfig(settings,itemRows,address);
+  validateIssueConfig(settings,itemRows,address,store);
   const buyerStateCode=settings.documentType==='gst_tax_invoice'?codeFromState(address.state):'';
   const items=itemRows.map(item=>buildItemTax(item,settings,settings.stateCode,buyerStateCode));
   const grossTotal=sumBy(items,'grossPaise'),orderTotal=amountPaisa(order.total);
@@ -126,7 +140,7 @@ export async function prepareInvoiceIssue(env,orderId,targetStatus){
   const totals={grossPaise:grossTotal,taxablePaise:sumBy(items,'taxablePaise'),cgstPaise:sumBy(items,'cgstPaise'),sgstPaise:sumBy(items,'sgstPaise'),igstPaise:sumBy(items,'igstPaise'),totalPaise:grossTotal};
   const issuedAt=new Date().toISOString(),financialYear=toFinancialYear(issuedAt);
   const invoiceId='inv-'+String(orderId).replace(/[^A-Za-z0-9_-]/g,'').slice(0,100);
-  const sellerSnapshot={storeName:store.storeName,legalName:settings.legalName,address:settings.businessAddress,stateName:settings.stateName,stateCode:settings.stateCode,gstin:settings.gstin,phone:store.phone,email:store.email,documentType:settings.documentType,footer:settings.footer};
+  const sellerSnapshot={storeName:store.storeName,legalName:settings.legalName||store.storeName,address:settings.businessAddress||store.address,stateName:settings.stateName,stateCode:settings.stateCode,gstin:settings.gstin,phone:store.phone,email:store.email,documentType:settings.documentType,footer:settings.footer};
   const buyerSnapshot={name:order.registered_name||order.customer_name,phone:order.registered_phone||order.customer_phone,recipientName:address.recipientName||order.customer_name,deliveryPhone:address.deliveryPhone||order.customer_phone,address,stateCode:buyerStateCode,placeOfSupply:settings.documentType==='gst_tax_invoice'?address.state:''};
   const totalsSnapshot={...totals,currency:'INR',pricesIncludeTax:true};
   const updateSequence=env.DB.prepare('INSERT INTO invoice_sequences(financial_year,last_number,updated_at) SELECT ?,1,CURRENT_TIMESTAMP WHERE EXISTS(SELECT 1 FROM orders WHERE id=? AND delivery_status=? AND is_test_order=0) AND NOT EXISTS(SELECT 1 FROM invoices WHERE order_id=?) ON CONFLICT(financial_year) DO UPDATE SET last_number=invoice_sequences.last_number+1,updated_at=CURRENT_TIMESTAMP WHERE EXISTS(SELECT 1 FROM orders WHERE id=? AND delivery_status=? AND is_test_order=0) AND NOT EXISTS(SELECT 1 FROM invoices WHERE order_id=?)').bind(financialYear,orderId,targetStatus,orderId,orderId,targetStatus,orderId);
