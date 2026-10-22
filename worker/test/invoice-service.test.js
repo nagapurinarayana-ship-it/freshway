@@ -155,4 +155,9 @@ test('prepareInvoiceIssue binds every invoice insert parameter', async () => {
   assert.equal(insert.params[12],'FW-12345678-ABC');
   assert.equal(insert.params[13],'Out for Delivery');
   assert.equal(insert.params[14],'FW-12345678-ABC');
+  const itemInsert=prepared.find(statement=>statement.sql.startsWith('INSERT INTO invoice_items'));
+  assert.ok(itemInsert,'invoice line items must be prepared');
+  assert.equal(itemInsert.params.length,17,'all invoice-item SQL placeholders must be bound');
+  assert.match(itemInsert.sql,/NOT EXISTS\(SELECT 1 FROM invoice_items WHERE invoice_id=\? AND product_id=\?\)/,'retries must not duplicate invoice line items');
+  assert.deepEqual(itemInsert.params.slice(-2),['inv-FW-12345678-ABC','oil-1']);
 });
