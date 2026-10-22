@@ -108,7 +108,9 @@ export async function prepareInvoiceIssue(env,orderId,targetStatus){
   if(!order)throw new Error('Order not found.');
   if(Number(order.is_test_order||0)===1)throw new Error('Invoices cannot be issued for test orders.');
   if(String(order.delivery_status||'')==='Cancelled')throw new Error('Invoices cannot be issued for cancelled orders.');
-  const settings=await getInvoiceSettings(env),store=await getStoreProfile(env);
+  const settings=await getInvoiceSettings(env);
+  if(!settings.enabled)return null;
+  const store=await getStoreProfile(env);
   const itemRows=(await env.DB.prepare('SELECT product_id,name,unit,qty,price,line_total,hsn_code,gst_rate_bps,gst_rate_confirmed FROM order_items WHERE order_id=? ORDER BY id').bind(orderId).all()).results||[];
   const address={house:order.house,building:order.building,floor:order.floor,street:order.street,area:order.area,locality:order.locality,city:order.city,district:order.district,state:order.state,pincode:order.pincode,landmark:order.landmark,note:order.note,recipientName:order.recipient_name,deliveryPhone:order.delivery_phone};
   validateIssueConfig(settings,itemRows,address);
