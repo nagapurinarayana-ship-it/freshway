@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS products (
   low_stock_threshold INTEGER NOT NULL DEFAULT 5 CHECK(low_stock_threshold >= 0),
   hsn_code TEXT NOT NULL DEFAULT '',
   gst_rate_bps INTEGER NOT NULL DEFAULT 0 CHECK(gst_rate_bps >= 0 AND gst_rate_bps <= 4000),
+  gst_rate_confirmed INTEGER NOT NULL DEFAULT 0 CHECK(gst_rate_confirmed IN (0,1)),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -111,6 +112,7 @@ CREATE TABLE IF NOT EXISTS order_items (
   stock_reserved_qty INTEGER NOT NULL DEFAULT 0 CHECK(stock_reserved_qty >= 0),
   hsn_code TEXT NOT NULL DEFAULT '',
   gst_rate_bps INTEGER NOT NULL DEFAULT 0 CHECK(gst_rate_bps >= 0 AND gst_rate_bps <= 4000),
+  gst_rate_confirmed INTEGER NOT NULL DEFAULT 0 CHECK(gst_rate_confirmed IN (0,1)),
   FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS order_address_snapshots (
