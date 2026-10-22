@@ -141,7 +141,9 @@ async function downloadOwnerInvoice(orderId,button){
     objectUrl=URL.createObjectURL(blob);
     const link=document.createElement('a');
     link.href=objectUrl;
-    link.download='FreshWay-invoice-'+String(orderId).replace(/[^A-Za-z0-9_-]/g,'-')+'.pdf';
+    const disposition=String(response.headers.get('content-disposition')||'');
+    const filename=disposition.match(/filename=\"?([^\";]+)\"?/i)?.[1];
+    link.download=filename||'FreshWay-invoice-'+String(orderId).replace(/[^A-Za-z0-9_-]/g,'-')+'.pdf';
     link.hidden=true;document.body.appendChild(link);link.click();link.remove();
     toast('Invoice download started');
   }catch(error){toast(error?.message||'Could not download this invoice.')}
