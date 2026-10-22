@@ -31,6 +31,23 @@ test('invoice issuance defaults to disabled',async()=>{
   assert.equal(settings.seriesPrefix,'FW');
 });
 
+test('allows saving all optional billing fields blank while invoice issuance stays disabled',async()=>{
+  const env=fakeEnv();
+  const settings=await updateInvoiceSettings(env,{
+    enabled:false,documentType:'commercial_invoice',legalName:'',
+    businessAddress:'',stateName:'',stateCode:'',gstin:'',footer:'',
+    seriesPrefix:'FW',pricesIncludeTax:true
+  });
+  assert.equal(settings.enabled,false);
+  assert.equal(settings.legalName,'');
+  assert.equal(settings.businessAddress,'');
+  assert.equal(settings.stateName,'');
+  assert.equal(settings.stateCode,'');
+  assert.equal(settings.gstin,'');
+  assert.equal(settings.footer,'');
+  assert.equal(settings.seriesPrefix,'FW');
+});
+
 test('allows a configured non-GST commercial invoice without a GST state code',async()=>{
   const env=fakeEnv();
   const settings=await updateInvoiceSettings(env,{
@@ -44,30 +61,46 @@ test('allows a configured non-GST commercial invoice without a GST state code',a
   assert.equal(settings.gstin,'');
 });
 
-test('does not enable a GST tax invoice with incomplete registration details',async()=>{
+test('saves incomplete GST settings but keeps invoice issuance disabled',async()=>{
   const env=fakeEnv();
-  await assert.rejects(()=>updateInvoiceSettings(env,{
+  const settings=await updateInvoiceSettings(env,{
     enabled:true,documentType:'gst_tax_invoice',legalName:'FreshWay Foods',
     businessAddress:'Shop 1, Main Road',stateName:'Telangana',stateCode:'36',
-    gstin:'',seriesPrefix:'FW',pricesIncludeTax:true
-  }),/valid 15-character GSTIN/);
+    gstin:'',seriesPrefix:'FW',pricesIncludeTax:true,footer:'Keep this footer'
+  });
+  assert.equal(settings.enabled,false);
+  assert.match(settings.enableWarning,/valid 15-character GSTIN/);
+  assert.equal(settings.documentType,'gst_tax_invoice');
+  assert.equal(settings.legalName,'FreshWay Foods');
+  assert.equal(settings.businessAddress,'Shop 1, Main Road');
+  assert.equal(settings.stateCode,'36');
+  assert.equal(settings.gstin,'');
+  assert.equal(settings.footer,'Keep this footer');
 });
 
-test('does not allow tax-exclusive checkout pricing in V1 invoice mode',async()=>{
+test('saves pricing preferences but keeps issuance disabled when V1 tax-inclusive guard fails',async()=>{
   const env=fakeEnv();
-  await assert.rejects(()=>updateInvoiceSettings(env,{
+  const settings=await updateInvoiceSettings(env,{
     enabled:true,documentType:'commercial_invoice',legalName:'FreshWay Foods',
     businessAddress:'Shop 1, Main Road',seriesPrefix:'FW',pricesIncludeTax:false
-  }),/tax-inclusive/);
+  });
+  assert.equal(settings.enabled,false);
+  assert.match(settings.enableWarning,/tax-inclusive/);
+  assert.equal(settings.pricesIncludeTax,false);
+  assert.equal(settings.legalName,'FreshWay Foods');
 });
 
-test('requires seller GST state code to agree with GSTIN',async()=>{
+test('saves seller tax details but keeps issuance disabled when state and GSTIN do not match',async()=>{
   const env=fakeEnv();
-  await assert.rejects(()=>updateInvoiceSettings(env,{
+  const settings=await updateInvoiceSettings(env,{
     enabled:true,documentType:'gst_tax_invoice',legalName:'FreshWay Foods',
     businessAddress:'Shop 1, Main Road',stateName:'Telangana',stateCode:'27',
     gstin:'36ABCDE1234F1Z5',seriesPrefix:'FW',pricesIncludeTax:true
-  }),/state code must match/);
+  });
+  assert.equal(settings.enabled,false);
+  assert.match(settings.enableWarning,/state code must match/);
+  assert.equal(settings.stateCode,'27');
+  assert.equal(settings.gstin,'36ABCDE1234F1Z5');
 });
 
 test('extracts inclusive GST and splits intra-state tax without changing gross total',()=>{
