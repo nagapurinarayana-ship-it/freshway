@@ -90,7 +90,7 @@ function validateIssueConfig(settings,items,address){
   }
   if(settings.documentType==='gst_tax_invoice'&&!codeFromState(address.state))throw new Error('The delivery address needs a valid state before a GST tax invoice can be issued.');
 }
-function buildItemTax(item,settings,sellerStateCode,buyerStateCode){
+export function buildItemTax(item,settings,sellerStateCode,buyerStateCode){
   const gross=amountPaisa(item.line_total),rate=settings.documentType==='gst_tax_invoice'?Number(item.gst_rate_bps||0):0;
   const taxable=rate?round(gross*10000/(10000+rate)):gross;
   const tax=Math.max(0,gross-taxable);
