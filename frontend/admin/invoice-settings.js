@@ -25,7 +25,21 @@
     assign('invoiceStateCode',s.stateCode);
     assign('invoiceGstin',s.gstin);
     assign('invoiceFooter',s.footer);
+    syncDocumentTypeHints();
     setStatus(bool(s.enabled)?'Invoice issuance is enabled. Changes here apply to future invoices only.':'Invoice issuance is disabled. Existing invoices remain unchanged.');
+  }
+  function syncDocumentTypeHints(){
+    const type=$('#invoiceDocumentType')?.value||'commercial_invoice';
+    const nonGst=type==='commercial_invoice';
+    const hints={
+      invoiceLegalNameHint:nonGst?'Optional for non-GST records. Leave blank to use the Store Profile name.':'Required for GST documents; enter the verified legal business name.',
+      invoiceBusinessAddressHint:nonGst?'Optional for non-GST records. Leave blank to use the Store Profile address.':'Required for GST documents; enter the complete verified seller address.',
+      invoiceStateNameHint:nonGst?'Not required for non-GST commercial records.':'Required for GST documents.',
+      invoiceStateCodeHint:nonGst?'Not required for non-GST commercial records.':'Required; must match the GSTIN.',
+      invoiceGstinHint:nonGst?'Leave blank for a non-GST commercial record. This document will not show or add GST.':'Required and must be a valid 15-character GSTIN.',
+      invoicePricesIncludeTaxHint:nonGst?'Does not add a tax amount or alter saved order totals for non-GST records.':'Required for GST documents; FreshWay never changes the saved checkout total.'
+    };
+    for(const [id,message] of Object.entries(hints)){const el=$('#'+id);if(el)el.textContent=message;}
   }
   function collect(){
     return {
@@ -54,11 +68,26 @@
       // navigating away and back to Settings first.
       const api=window.FreshWayOwnerInvoiceSettingsApi||window.api;
       if(typeof api!=='function')throw new Error('Owner API is unavailable. Refresh the page and sign in again.');
-      const data=await api('/admin/invoice-settings',{method:'PATCH',body:JSON.stringify(collect())});
+      const payload=collect();
+      let fallbackNotice='';
+      if(payload.enabled&&payload.documentType!=='commercial_invoice'&&!payload.gstin){
+        // Explicitly downgrade a blank-GSTIN attempt to the clearly labelled
+        // non-GST order record. Never emit a tax invoice without a GSTIN.
+        payload.documentType='commercial_invoice';
+        const typeField=$('#invoiceDocumentType');
+        if(typeField)typeField.value='commercial_invoice';
+        syncDocumentTypeHints();
+        fallbackNotice='GSTIN is blank, so this is being enabled as a non-GST commercial invoice/order record. No GST will be shown or added.';
+      }
+      const data=await api('/admin/invoice-settings',{method:'PATCH',body:JSON.stringify(payload)});
       const saved=data?.invoiceSettings||{};
       apply(saved);
-      if(saved.enableWarning){
+      if(saved.enableWarning&&bool(saved.enabled)){
+        setStatus('Saved. Invoice issuance is enabled as a non-GST commercial order record. '+saved.enableWarning,false);
+      }else if(saved.enableWarning){
         setStatus('Details saved. Invoice issuance remains OFF: '+saved.enableWarning,true);
+      }else if(fallbackNotice&&bool(saved.enabled)){
+        setStatus('Saved. Invoice issuance is enabled. '+fallbackNotice,false);
       }else{
         setStatus(bool(saved.enabled)
           ?'Saved. Invoice issuance is enabled.'
@@ -87,7 +116,7 @@
       if(!el||el.dataset.invoiceEditBound)continue;
       el.dataset.invoiceEditBound='1';
       el.addEventListener('input',()=>{editRevision++;});
-      el.addEventListener('change',()=>{editRevision++;});
+      el.addEventListener('change',()=>{editRevision++;if(id==='invoiceDocumentType')syncDocumentTypeHints();});
     }
   }
   async function load({api}){
