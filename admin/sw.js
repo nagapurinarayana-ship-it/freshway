@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v22';
+const CACHE = 'fw-owner-v23';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -6,13 +6,15 @@ const SHELL = [
   '/admin/icons/icon-512.svg',
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/owner-pwa-install.css?v=20261019-install-prompt-v2',
-  '/admin/admin.css?v=20261021-owner-alert-history-v1',
-  '/admin/admin.js?v=20261021-owner-alert-history-v1',
+  '/admin/admin.css?v=20261022-invoice-ui-v1',
+  '/admin/admin.js?v=20261022-invoice-ui-v1',
+  '/admin/frontend/admin/invoice-settings.js?v=20261022-invoice-settings-v1',
+  '/admin/frontend/admin/invoice-settings.js?v=20261022-invoice-settings-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
   '/admin/frontend/phone-display.js?v=20261009-phone-display-v1',
   '/admin/frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1',
   '/admin/frontend/catalogue-media.js?v=20261008-ui-media-v1',
-  '/admin/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1',
+  '/admin/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1',
   '/admin/frontend/admin/owner-lifecycle-autosave.js?v=20260909-owner-lifecycle-v1',
   '/admin/frontend/admin/push.js?v=20260908-push-v1',
   '/admin/owner-lifecycle.js?v=20261021-open-map-fix-v1',
@@ -28,10 +30,10 @@ const REQUIRED_SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
-  '/admin/admin.css?v=20261021-owner-alert-history-v1',
-  '/admin/admin.js?v=20261021-owner-alert-history-v1',
+  '/admin/admin.css?v=20261022-invoice-ui-v1',
+  '/admin/admin.js?v=20261022-invoice-ui-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
-  '/admin/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1',
+  '/admin/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1',
   '/admin/frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1',
   '/admin/owner-lifecycle.js?v=20261021-open-map-fix-v1'
 ];
