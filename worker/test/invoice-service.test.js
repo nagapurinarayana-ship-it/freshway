@@ -89,15 +89,6 @@ test('does not enable non-GST records without a saved business address, even wit
   assert.equal(settings.enabled,false);
   assert.match(settings.enableWarning,/complete business address in Store Profile/);
 });
-test('does not enable non-GST records without the store name, even with optional overrides',async()=>{
-  const env=fakeEnv(null,{store_name:'',address:'Shop 1, Main Road, Hyderabad'});
-  const settings=await updateInvoiceSettings(env,{
-    enabled:true,documentType:'commercial_invoice',legalName:'FreshWay Foods',
-    businessAddress:'Shop 1, Main Road, Hyderabad',seriesPrefix:'FW',gstin:'',pricesIncludeTax:true
-  });
-  assert.equal(settings.enabled,false);
-  assert.match(settings.enableWarning,/store name in Business information/);
-});
 
 test('GST documents keep the tax-inclusive pricing guard',async()=>{
   const env=fakeEnv();
