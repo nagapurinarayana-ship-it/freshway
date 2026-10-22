@@ -1,5 +1,7 @@
 import original from './index.js';
 import { handleAddress, saveOrderSnapshot } from './address-api.js';
+import { getInvoiceRecord } from './invoice-service.js';
+import { createInvoicePdf } from './invoice-pdf.js';
 
 const COOKIE = 'freshway-customer-session';
 const MAX_AGE = 60 * 60 * 24 * 30;
@@ -60,6 +62,16 @@ async function sessionCustomerId(request, env) {
 }
 function withSession(data, env, token) { const res = response(data, 200, env); const headers = new Headers(res.headers); headers.append('Set-Cookie', `${COOKIE}=${token}; Max-Age=${MAX_AGE}; Path=/; HttpOnly; Secure; SameSite=None`); return new Response(res.body, { status: res.status, headers }); }
 function clearSession(env) { return response({ ok: true }, 200, env, { 'Set-Cookie': `${COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=None` }); }
+function safeInvoiceFilename(invoice){return 'FreshWay-invoice-'+String(invoice.invoiceNumber||invoice.orderId||'order').replace(/[^A-Za-z0-9_-]/g,'-')+'.pdf'}
+async function customerInvoice(request,env,encodedOrderId){
+  const customerId=await sessionCustomerId(request,env);
+  if(!customerId||!(await customerExists(env,customerId)))return response({error:'Customer authentication required.'},401,env);
+  let orderId='';try{orderId=decodeURIComponent(encodedOrderId)}catch(_){return response({error:'Invoice not found.'},404,env)}
+  const invoice=await getInvoiceRecord(env,orderId);
+  if(!invoice||invoice.customerId!==customerId)return response({error:'Invoice is not available for this order.'},404,env);
+  const bytes=await createInvoicePdf(invoice),origin=corsOrigin(env,request.headers.get('Origin')||'');
+  return new Response(bytes,{status:200,headers:{'content-type':'application/pdf','content-disposition:'+'attachment; filename="'+safeInvoiceFilename(invoice)+'"','cache-control':'private, no-store','access-control-allow-origin':origin,'access-control-allow-credentials':'true','vary':'Origin','x-content-type-options':'nosniff'}});
+}
 async function rateLimit(env, key, limit) { const windowStart = Math.floor(Date.now() / 1000 / 600) * 600; const keyName = String(key).slice(0, 180); await env.DB.prepare(`INSERT INTO auth_rate_limits (key,window_start,count) VALUES (?,?,1) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN auth_rate_limits.window_start=? THEN auth_rate_limits.count+1 ELSE 1 END, window_start=?, updated_at=CURRENT_TIMESTAMP`).bind(keyName, windowStart, windowStart, windowStart).run(); const row = await env.DB.prepare('SELECT count,window_start FROM auth_rate_limits WHERE key=?').bind(keyName).first(); return !!row && Number(row.window_start) === windowStart && Number(row.count) <= limit; }
 function limited(env) { return response({ error: 'Too many attempts. Please try again later.' }, 429, env, { 'retry-after': '600' }); }
 async function derivePasscode(passcode, saltHex) { const baseKey = await crypto.subtle.importKey('raw', enc(passcode), 'PBKDF2', false, ['deriveBits']); return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: bytesFromHex(saltHex), iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' }, baseKey, 256)); }
@@ -162,12 +174,14 @@ async function customerOrdersFromSnapshots(request, env, customerId) {
     COALESCE(s.city,a.city) city,COALESCE(s.district,a.district) district,COALESCE(s.state,a.state) state,
     COALESCE(s.pincode,a.pincode) pincode,COALESCE(s.landmark,a.landmark) landmark,COALESCE(s.delivery_note,a.note) note,
     s.latitude,s.longitude,s.accuracy_meters,s.location_source,s.place_id,s.location_updated_at,
+    i.invoice_number,i.document_type invoice_document_type,i.issue_date invoice_issue_date,
     oi.product_id,oi.name,oi.unit,oi.qty,oi.price,oi.line_total
     FROM orders o
     LEFT JOIN customers c ON c.id=o.customer_id
     LEFT JOIN order_address_snapshots s ON s.order_id=o.id
     LEFT JOIN addresses a ON a.id=o.address_id
     LEFT JOIN order_items oi ON oi.order_id=o.id
+    LEFT JOIN invoices i ON i.order_id=o.id
     WHERE o.customer_id=? AND COALESCE(o.is_test_order,0)=0
     ORDER BY o.created_at DESC,oi.id ASC`).bind(customerId).all();
   const map = new Map();
@@ -185,7 +199,8 @@ async function customerOrdersFromSnapshots(request, env, customerId) {
       },
       items: [], total: row.total, payment: row.payment_status, status: row.delivery_status,
       deliveryPlan: row.delivery_plan, createdAt: row.created_at, updatedAt: row.updated_at,
-      paymentCollectedAt: row.payment_collected_at
+      paymentCollectedAt: row.payment_collected_at,
+      invoice: row.invoice_number?{number:row.invoice_number,documentType:row.invoice_document_type,issuedAt:row.invoice_issue_date}:null
     });
     if (row.product_id) map.get(row.id).items.push({
       id: row.product_id, name: row.name, unit: row.unit, qty: row.qty, price: row.price, lineTotal: row.line_total
