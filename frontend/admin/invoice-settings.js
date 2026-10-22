@@ -50,8 +50,15 @@
       const api=window.FreshWayOwnerInvoiceSettingsApi;
       if(typeof api!=='function')throw new Error('Owner API is unavailable. Refresh the page and try again.');
       const data=await api('/admin/invoice-settings',{method:'PATCH',body:JSON.stringify(collect())});
-      apply(data?.invoiceSettings);
-      setStatus(bool(data?.invoiceSettings?.enabled)?'Saved. Invoice issuance is enabled.':'Saved. Invoice issuance remains disabled.');
+      const saved=data?.invoiceSettings||{};
+      apply(saved);
+      if(saved.enableWarning){
+        setStatus('Details saved. Invoice issuance remains OFF: '+saved.enableWarning,true);
+      }else{
+        setStatus(bool(saved.enabled)
+          ?'Saved. Invoice issuance is enabled.'
+          :'Saved. Invoice issuance remains off. You can leave unfinished billing and tax details blank and complete them later.');
+      }
     }catch(error){
       setStatus(error?.message||'Could not save invoice configuration.',true);
     }finally{
