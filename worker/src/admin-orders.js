@@ -72,7 +72,8 @@ export async function orders(env, u) {
     },
     items:[],isTestOrder:Number(row.is_test_order)===1,total:row.total,payment:row.payment_status,
     status:normalizeStatus(row.delivery_status),deliveryPlan:row.delivery_plan,createdAt:row.created_at,
-    updatedAt:row.updated_at,paymentCollectedAt:row.payment_collected_at
+    updatedAt:row.updated_at,paymentCollectedAt:row.payment_collected_at,
+    invoice:row.invoice_number?{number:row.invoice_number,documentType:row.invoice_document_type,issuedAt:row.invoice_issue_date}:null
   }]));
   for(const item of items)map.get(item.order_id)?.items.push({
     id:item.product_id,name:item.name,unit:item.unit,qty:item.qty,price:item.price,lineTotal:item.line_total
