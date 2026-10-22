@@ -102,10 +102,10 @@ test('customer auth rejects an unexpected Origin', async () => {
   assert.match((await jsonResponse(response)).error, /origin not allowed/i);
 });
 
-test('customer registration requires a name and 6-digit passcode', async () => {
+test('legacy customer registration is disabled in favor of WhatsApp OTP', async () => {
   const response = await request('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '9876543210', passcode: '123456' }) }, passcodeHandler, authEnv);
-  assert.equal(response.status, 400);
-  assert.match((await jsonResponse(response)).error, /name/i);
+  assert.equal(response.status, 410);
+  assert.match((await jsonResponse(response)).error, /WhatsApp OTP/i);
 });
 
 test('customer session endpoint rejects missing sessions', async () => {
