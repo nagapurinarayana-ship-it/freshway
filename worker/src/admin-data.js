@@ -4,7 +4,7 @@ import { customers, customer } from './admin-customers.js';
 import { summary, reports } from './admin-reports.js';
 import { deleteProduct } from './admin-products.js';
 import { getStoreProfile, updateStoreProfile } from './store-profile.js';
-import { getInvoiceSettings, updateInvoiceSettings } from './invoice-service.js';
+import { getInvoiceSettings, updateInvoiceSettings, backfillMissingInvoices } from './invoice-service.js';
 
 // Route table is intentionally kept small: authentication/routing lives in admin-auth.js;
 // domain behavior lives in one feature module per resource.
@@ -19,7 +19,7 @@ const routes = [
   { match: (u,m) => u.pathname === '/api/admin/store-profile' && m === 'GET', run: async (r,e,u) => ({storeProfile:await getStoreProfile(e)}) },
   { match: (u,m) => u.pathname === '/api/admin/store-profile' && m === 'PATCH', run: async (r,e,u) => ({storeProfile:await updateStoreProfile(e,await r.json())}) },
   { match: (u,m) => u.pathname === '/api/admin/invoice-settings' && m === 'GET', run: async (r,e,u) => ({invoiceSettings:await getInvoiceSettings(e)}) },
-  { match: (u,m) => u.pathname === '/api/admin/invoice-settings' && m === 'PATCH', run: async (r,e,u) => ({invoiceSettings:await updateInvoiceSettings(e,await r.json())}) }
+  { match: (u,m) => u.pathname === '/api/admin/invoice-settings' && m === 'PATCH', run: async (r,e,u) => { const invoiceSettings=await updateInvoiceSettings(e,await r.json()); const invoiceBackfill=invoiceSettings.enabled?await backfillMissingInvoices(e):null; return {invoiceSettings,invoiceBackfill}; } }
 ];
 
 export async function handleAdminData(request,env){

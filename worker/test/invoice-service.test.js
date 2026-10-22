@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { getInvoiceSettings, updateInvoiceSettings, buildItemTax, prepareInvoiceIssue } from '../src/invoice-service.js';
+import { getInvoiceSettings, updateInvoiceSettings, buildItemTax, prepareInvoiceIssue, backfillMissingInvoices } from '../src/invoice-service.js';
 
 function fakeEnv(initial=null,storeProfile={store_name:'FreshWay',address:'Shop 1, Main Road, Hyderabad'}){
   let row=initial;
@@ -24,6 +24,19 @@ function fakeEnv(initial=null,storeProfile={store_name:'FreshWay',address:'Shop 
   return {DB:db};
 }
 
+test('historical invoice backfill is safe and idempotent when no eligible orders are missing invoices',async()=>{
+  const env={DB:{prepare(sql){return{
+    bind(){return this},
+    async first(){return sql.startsWith('SELECT enabled,document_type')?{
+      enabled:1,document_type:'commercial_invoice',legal_name:'',business_address:'',
+      state_name:'',state_code:'',gstin:'',series_prefix:'FW',footer:'',
+      prices_include_tax:0,updated_at:'2026-10-22'
+    }:null},
+    async all(){assert.match(sql,/delivery_status IN \('Out for Delivery','Delivered'\)/);assert.match(sql,/NOT EXISTS/);return{results:[]}}
+  }}}};
+  const result=await backfillMissingInvoices(env);
+  assert.deepEqual(result,{enabled:true,scanned:0,issued:0,skipped:0,failed:[]});
+});
 test('invoice issuance defaults to disabled',async()=>{
   const settings=await getInvoiceSettings(fakeEnv());
   assert.equal(settings.enabled,false);
