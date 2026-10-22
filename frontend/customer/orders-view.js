@@ -16,7 +16,7 @@
     const status=String(o.status||'').trim().toLowerCase();
     if(status==='cancelled'||status==='canceled')return '<p class="muted invoice-pending">No invoice was issued for this cancelled order.</p>';
     if(status==='delivered'||status==='out for delivery')return '<p class="muted invoice-pending">This historical order has no issued invoice available to download.</p>';
-    return '<p class="muted invoice-pending">Your invoice PDF will be available when your order is dispatched.</p>';
+    return '<p class="muted invoice-pending">Invoice PDF will appear here once invoice issuance is enabled and your order is dispatched.</p>';
   };
   const render=(document,list,{esc,formatDate,money,statusLabel,planText})=>{
     const el=document.querySelector('#customerOrders');
