@@ -42,8 +42,8 @@ function validateSettings(s,store={}){
     if(s.gstin)throw new Error('A GSTIN is entered. Select the document type confirmed for your GST registration instead of issuing a non-GST commercial invoice.');
     // A non-GST order record uses the store profile as the single source of
     // truth. Separate legal-name/address overrides are optional for this type.
-    if(!trim(s.legalName||store.storeName,160))throw new Error('Enter the store name in Business information.');
-    if(!trim(s.businessAddress||store.address,600))throw new Error('Enter the complete business address used on invoices or in Store Profile.');
+    if(!trim(store.storeName,120))throw new Error('Enter the store name in Business information.');
+    if(!trim(store.address,500))throw new Error('Enter the complete business address in Store Profile. Invoice overrides cannot replace the shop profile location.');
     return;
   }
   // GST documents must not silently substitute a trade name/address for
