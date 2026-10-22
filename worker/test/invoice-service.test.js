@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { getInvoiceSettings, updateInvoiceSettings } from '../src/invoice-service.js';
+import { getInvoiceSettings, updateInvoiceSettings, buildItemTax } from '../src/invoice-service.js';
 
 function fakeEnv(initial=null){
   let row=initial;
@@ -68,4 +68,28 @@ test('requires seller GST state code to agree with GSTIN',async()=>{
     businessAddress:'Shop 1, Main Road',stateName:'Telangana',stateCode:'27',
     gstin:'36ABCDE1234F1Z5',seriesPrefix:'FW',pricesIncludeTax:true
   }),/state code must match/);
+});
+
+test('extracts inclusive GST and splits intra-state tax without changing gross total',()=>{
+  const line=buildItemTax({product_id:'oil',name:'Oil',unit:'litre',qty:1,price:105,line_total:105,hsn_code:'151790',gst_rate_bps:500},{
+    documentType:'gst_tax_invoice'
+  },'36','36');
+  assert.equal(line.grossPaise,10500);
+  assert.equal(line.taxablePaise,10000);
+  assert.equal(line.cgstPaise,250);
+  assert.equal(line.sgstPaise,250);
+  assert.equal(line.igstPaise,0);
+  assert.equal(line.taxablePaise+line.cgstPaise+line.sgstPaise+line.igstPaise,line.grossPaise);
+});
+
+test('uses IGST for inter-state supply and never duplicates split tax',()=>{
+  const line=buildItemTax({product_id:'oil',name:'Oil',unit:'litre',qty:1,price:105,line_total:105,hsn_code:'151790',gst_rate_bps:500},{
+    documentType:'gst_tax_invoice'
+  },'36','27');
+  assert.equal(line.grossPaise,10500);
+  assert.equal(line.taxablePaise,10000);
+  assert.equal(line.cgstPaise,0);
+  assert.equal(line.sgstPaise,0);
+  assert.equal(line.igstPaise,500);
+  assert.equal(line.taxablePaise+line.igstPaise,line.grossPaise);
 });
