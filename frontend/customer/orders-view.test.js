@@ -13,8 +13,12 @@ const base={createdAt:'2026-09-08',items:[],total:240,address:{house:'1',area:'A
 api.render(document,[{...base,id:'FW-1',status:'New',deliveryPlan:'Today'}],helpers);
 assert.match(el.innerHTML,/FW-1/);
 assert.match(el.innerHTML,/Today/);
+assert.match(el.innerHTML,/awaiting dispatch/);
+assert.match(el.innerHTML,/invoice PDF will be available here after dispatch/i);
+assert.doesNotMatch(el.innerHTML,/once invoice issuance is enabled/i);
 api.render(document,[{...base,id:'FW-2',status:'Delivered',deliveryPlan:'Tomorrow'}],helpers);
 assert.match(el.innerHTML,/class="status delivered">Delivered/);
+assert.match(el.innerHTML,/already been dispatched/);
 assert.doesNotMatch(el.innerHTML,/Tomorrow/);
 api.render(document,[{...base,id:'FW-3',status:'Cancelled',deliveryPlan:'Today'}],helpers);
 assert.match(el.innerHTML,/class="status cancelled">Cancelled/);
