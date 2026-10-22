@@ -39,15 +39,21 @@ export async function createInvoicePdf(invoice){
     drawRight(page,'Financial year: '+invoice.financialYear,PAGE_W-MARGIN,y-15,8,regular,MUTED);
     y-=42;
     const colW=(PAGE_W-MARGIN*2-24)/2;
-    rect(page,MARGIN,y-65,colW,65,PALE);rect(page,MARGIN+colW+24,y-65,colW,65,PALE);
+    rect(page,MARGIN,y-92,colW,92,PALE);rect(page,MARGIN+colW+24,y-92,colW,92,PALE);
     drawText(page,'SELLER',MARGIN+10,y-14,7,bold,GREEN);
-    const sellerLines=[invoice.seller.legalName,invoice.seller.address,invoice.seller.stateName,invoice.seller.gstin?'GSTIN: '+invoice.seller.gstin:'',invoice.seller.phone?'Phone: '+invoice.seller.phone:''].filter(Boolean);
-    let sy=y-27;for(const t of sellerLines.slice(0,4)){for(const l of wrap(t,regular,7.5,colW-20).slice(0,2)){drawText(page,l,MARGIN+10,sy,7.5,regular,INK);sy-=10}}
+    const stateLabel=invoice.seller.stateName?(invoice.seller.stateCode?'State: '+invoice.seller.stateName+' ('+invoice.seller.stateCode+')':'State: '+invoice.seller.stateName):'';
+    const sellerLines=[invoice.seller.legalName,invoice.seller.address,stateLabel,invoice.seller.gstin?'GSTIN: '+invoice.seller.gstin:''].filter(Boolean);
+    const sellerTextLines=sellerLines.flatMap(t=>wrap(t,regular,7.3,colW-20)).slice(0,6);
+    let sy=y-27;for(const lineText of sellerTextLines){if(sy<y-84)break;drawText(page,lineText,MARGIN+10,sy,7.3,regular,INK);sy-=10}
     const rx=MARGIN+colW+24,b=invoice.buyer,a=b.address||{};
     drawText(page,'BILL TO / DELIVER TO',rx+10,y-14,7,bold,GREEN);
-    const buyerLines=[b.name,a.recipientName&&a.recipientName!==b.name?'Recipient: '+a.recipientName:'',b.phone?'Account: '+b.phone:'',a.deliveryPhone?'Delivery: '+a.deliveryPhone:'',[a.house,a.building,a.floor,a.street,a.area,a.locality,a.city,a.district,a.state,a.pincode,a.landmark].filter(Boolean).join(', ')].filter(Boolean);
-    let by=y-27;for(const t of buyerLines.slice(0,4)){for(const l of wrap(t,regular,7.5,colW-20).slice(0,2)){drawText(page,l,rx+10,by,7.5,regular,INK);by-=10}}
-    y-=84;
+    const addressText=[a.house,a.building,a.floor,a.street,a.area,a.locality,a.city,a.district,a.state,a.pincode,a.landmark].filter(Boolean).join(', ');
+    const contactText=[a.recipientName&&a.recipientName!==b.name?'Recipient: '+a.recipientName:'',a.deliveryPhone?'Delivery: '+a.deliveryPhone:''].filter(Boolean).join(' · ');
+    const placeText=b.placeOfSupply?'Place of supply: '+b.placeOfSupply+(b.stateCode?' ('+b.stateCode+')':''):'';
+    const buyerLines=[b.name,contactText,addressText,placeText].filter(Boolean);
+    const buyerTextLines=buyerLines.flatMap(t=>wrap(t,regular,7.3,colW-20)).slice(0,6);
+    let by=y-27;for(const lineText of buyerTextLines){if(by<y-84)break;drawText(page,lineText,rx+10,by,7.3,regular,INK);by-=10}
+    y-=111;
   };
   newPage();
   const gst=invoice.documentType==='gst_tax_invoice';
