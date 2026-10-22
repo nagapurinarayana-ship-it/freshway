@@ -25,7 +25,9 @@
       objectUrl=URL.createObjectURL(blob);
       const link=document.createElement('a');
       link.href=objectUrl;
-      link.download='FreshWay-invoice-'+safeFilename(orderId)+'.pdf';
+      const disposition=String(response.headers.get('content-disposition')||'');
+      const filename=disposition.match(/filename=\"?([^\";]+)\"?/i)?.[1];
+      link.download=filename||'FreshWay-invoice-'+safeFilename(orderId)+'.pdf';
       link.hidden=true;
       document.body.appendChild(link);
       link.click();
