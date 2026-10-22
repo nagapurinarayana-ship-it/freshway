@@ -81,9 +81,11 @@ function validateIssueConfig(settings,items,address){
   if(!items.length)throw new Error('This order has no invoice items.');
   if(settings.documentType!=='commercial_invoice'){
     for(const item of items){
-      if(!/^\d{4,8}$/.test(String(item.hsn_code||'')))throw new Error('Add a valid HSN code to '+item.name+' in Owner → Catalogue before issuing this invoice.');
-      if(Number(item.gst_rate_confirmed)!==1)throw new Error('Confirm the GST classification and rate with your accountant for '+item.name+' in Owner → Catalogue.');
-      if(!Number.isInteger(Number(item.gst_rate_bps))||Number(item.gst_rate_bps)<0||Number(item.gst_rate_bps)>4000)throw new Error('Set the approved GST rate for '+item.name+' in Owner → Catalogue.');
+      if(!/^\d{4,8}$/.test(String(item.hsn_code||'')))throw new Error('Add a valid HSN code to '+item.name+' in Owner → Catalogue before issuing this document.');
+      if(settings.documentType==='gst_tax_invoice'){
+        if(Number(item.gst_rate_confirmed)!==1)throw new Error('Confirm the GST classification and rate with your accountant for '+item.name+' in Owner → Catalogue.');
+        if(!Number.isInteger(Number(item.gst_rate_bps))||Number(item.gst_rate_bps)<0||Number(item.gst_rate_bps)>4000)throw new Error('Set the approved GST rate for '+item.name+' in Owner → Catalogue.');
+      }
     }
   }
   if(settings.documentType==='gst_tax_invoice'&&!codeFromState(address.state))throw new Error('The delivery address needs a valid state before a GST tax invoice can be issued.');
@@ -121,7 +123,7 @@ export async function prepareInvoiceIssue(env,orderId,targetStatus){
   const buyerSnapshot={name:order.registered_name||order.customer_name,phone:order.registered_phone||order.customer_phone,recipientName:address.recipientName||order.customer_name,deliveryPhone:address.deliveryPhone||order.customer_phone,address,stateCode:buyerStateCode,placeOfSupply:settings.documentType==='gst_tax_invoice'?address.state:''};
   const totalsSnapshot={...totals,currency:'INR',pricesIncludeTax:true};
   const updateSequence=env.DB.prepare('INSERT INTO invoice_sequences(financial_year,last_number,updated_at) SELECT ?,1,CURRENT_TIMESTAMP WHERE EXISTS(SELECT 1 FROM orders WHERE id=? AND delivery_status=? AND is_test_order=0) AND NOT EXISTS(SELECT 1 FROM invoices WHERE order_id=?) ON CONFLICT(financial_year) DO UPDATE SET last_number=invoice_sequences.last_number+1,updated_at=CURRENT_TIMESTAMP WHERE EXISTS(SELECT 1 FROM orders WHERE id=? AND delivery_status=? AND is_test_order=0) AND NOT EXISTS(SELECT 1 FROM invoices WHERE order_id=?)').bind(financialYear,orderId,targetStatus,orderId,orderId,targetStatus,orderId);
-  const insertInvoice=env.DB.prepare("INSERT INTO invoices(id,order_id,customer_id,invoice_number,document_type,financial_year,issue_date,seller_snapshot,buyer_snapshot,totals_snapshot) SELECT ?,?,?,printf('%s/%s/%06d',?,?,last_number),?,?,?,?,? FROM invoice_sequences WHERE financial_year=? AND EXISTS(SELECT 1 FROM orders WHERE id=? AND delivery_status=? AND is_test_order=0) AND NOT EXISTS(SELECT 1 FROM invoices WHERE order_id=?)")
+  const insertInvoice=env.DB.prepare("INSERT INTO invoices(id,order_id,customer_id,invoice_number,document_type,financial_year,issue_date,seller_snapshot,buyer_snapshot,totals_snapshot) SELECT ?,?,?,printf('%s/%s/%06d',?,?,last_number),?,?,?,?,?,? FROM invoice_sequences WHERE financial_year=? AND EXISTS(SELECT 1 FROM orders WHERE id=? AND delivery_status=? AND is_test_order=0) AND NOT EXISTS(SELECT 1 FROM invoices WHERE order_id=?)")
 
 
   const itemStatements=items.map(item=>env.DB.prepare('INSERT INTO invoice_items(invoice_id,product_id,name,unit,qty,unit_price_paise,gross_paise,hsn_code,gst_rate_bps,taxable_paise,cgst_paise,sgst_paise,igst_paise) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM invoices WHERE order_id=? AND id=?)')
