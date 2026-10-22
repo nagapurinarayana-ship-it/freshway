@@ -65,8 +65,8 @@ assert.ok(index.includes('address-system-final.js?v=20261021-guest-address-map-s
 assert.ok(sw.includes('/address-system-final.js?v=20261021-guest-address-map-search-v3'), 'service worker must cache the current address module');
 assert.ok(index.includes('address-book.css?v=20261020-address-ui-hardening-v2'), 'HTML must load the current address CSS');
 assert.ok(sw.includes('/frontend/customer/address-book.css?v=20261020-address-ui-hardening-v2'), 'service worker must cache the current address CSS');
-assert.ok(index.includes('notifications.js?v=20261020-normalized-auth-phone-v2'), 'HTML must load the auth phone normalizer');
-assert.ok(sw.includes('/notifications.js?v=20261020-normalized-auth-phone-v2'), 'service worker must cache the auth phone normalizer');
+assert.ok(index.includes('notifications.js?v=20261022-whatsapp-otp-v1'), 'HTML must load the auth phone normalizer');
+assert.ok(sw.includes('/notifications.js?v=20261022-whatsapp-otp-v1'), 'service worker must cache the auth phone normalizer');
 assert.match(sw, /const CACHE = 'freshway-v\d+'/);
 assert.match(css, /#toast\s*\{[^}]*white-space:\s*normal/s);
 assert.match(css, /\.fw-address-incomplete\s*\{/);
