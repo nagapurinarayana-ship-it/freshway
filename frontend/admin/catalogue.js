@@ -90,7 +90,7 @@
     if(stockManaged&&(!Number.isInteger(stockQuantity)||stockQuantity<0||!Number.isInteger(lowStockThreshold)||lowStockThreshold<0))return toast('Enter valid stock values');
     const image=window.__fwProductImage||{data:null,mime:null};
     const hsnCode=$('#fwPHsn').value.trim(),gstRateText=$('#fwPGstRate').value.trim(),gstRateConfirmed=$('#fwPGstConfirmed').checked;
-    if(hsnCode&&!/^\\d{4,8}$/.test(hsnCode))return toast('HSN code must contain 4 to 8 digits');
+    if(hsnCode&&!/^\d{4,8}$/.test(hsnCode))return toast('HSN code must contain 4 to 8 digits');
     if(gstRateText!==''&&(!Number.isFinite(Number(gstRateText))||Number(gstRateText)<0||Number(gstRateText)>40))return toast('Enter a GST rate between 0% and 40%');
     if(gstRateConfirmed&&(!hsnCode||gstRateText===''))return toast('Enter HSN and the accountant-confirmed GST rate before confirming');
     const payload={name:$('#fwPName').value.trim(),categoryId:$('#fwPCat').value,price:Number($('#fwPPrice').value),unit:$('#fwPUnit').value,emoji:$('#fwPEmoji').value.trim()||'🛒',displayOrder:Number($('#fwPOrder').value)||999,active:$('#fwPActive').value==='1',stockManaged,stockQuantity,lowStockThreshold,hsnCode,gstRateBps:Math.round(Number(gstRateText||0)*100),gstRateConfirmed,imageData:image.data,imageMimeType:image.mime};
