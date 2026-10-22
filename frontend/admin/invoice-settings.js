@@ -26,7 +26,7 @@
     assign('invoiceGstin',s.gstin);
     assign('invoiceFooter',s.footer);
     syncDocumentTypeHints();
-    setStatus(bool(s.enabled)?'Invoice issuance is enabled. Changes here apply to future invoices only.':'Invoice issuance is disabled. Existing invoices remain unchanged.');
+    setStatus(bool(s.enabled)?'Invoice issuance is enabled. Saving these settings will also generate missing invoices for eligible dispatched and delivered orders.':'Invoice issuance is disabled. Existing invoices remain unchanged.');
   }
   function syncDocumentTypeHints(){
     const type=$('#invoiceDocumentType')?.value||'commercial_invoice';
@@ -92,6 +92,14 @@
         setStatus(bool(saved.enabled)
           ?'Saved. Invoice issuance is enabled.'
           :'Saved. Invoice issuance remains off. You can leave unfinished billing and tax details blank and complete them later.');
+      }
+      const backfill=data?.invoiceBackfill;
+      if(bool(saved.enabled)&&backfill&&Number.isFinite(Number(backfill.issued))){
+        const issued=Number(backfill.issued)||0;
+        const scanned=Number(backfill.scanned)||0;
+        const failed=Array.isArray(backfill.failed)?backfill.failed.length:0;
+        const summary=issued+' missing invoice'+(issued===1?'':'s')+' generated for eligible dispatched/delivered orders ('+scanned+' checked).';
+        setStatus(summary+(failed?' '+failed+' order'+(failed===1?' needs':'s need')+' review in Owner logs.':''));
       }
     }catch(error){
       setStatus(error?.message||'Could not save invoice configuration.',true);
