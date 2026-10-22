@@ -39,14 +39,14 @@ function validateSettings(s){
   if(!TYPES.has(s.documentType))throw new Error('Choose a valid invoice document type.');
   if(!s.legalName)throw new Error('Enter the legal business name used on invoices.');
   if(!s.businessAddress)throw new Error('Enter the complete business address used on invoices.');
-  if(!s.stateName)throw new Error('Enter the seller state.');
-  if(!/^\d{2}$/.test(s.stateCode))throw new Error('Enter a valid two-digit seller GST state code.');
   if(!/^[A-Z0-9]{1,2}$/.test(s.seriesPrefix))throw new Error('Invoice series prefix must contain one or two letters or numbers.');
   if(!s.pricesIncludeTax)throw new Error('V1 requires catalogue prices to be tax-inclusive. Tax-exclusive checkout totals are not supported.');
   if(s.documentType==='commercial_invoice'){
     if(s.gstin)throw new Error('A GSTIN is entered. Select the document type confirmed for your GST registration instead of issuing a non-GST commercial invoice.');
     return;
   }
+  if(!s.stateName)throw new Error('Enter the seller state.');
+  if(!/^\d{2}$/.test(s.stateCode))throw new Error('Enter a valid two-digit seller GST state code.');
   if(!validGstin(s.gstin))throw new Error('Enter a valid 15-character GSTIN for the selected GST document.');
   if(s.gstin.slice(0,2)!==s.stateCode)throw new Error('Seller state code must match the first two digits of the GSTIN.');
   const actual=codeFromState(s.stateName);
