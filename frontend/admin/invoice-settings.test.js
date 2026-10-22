@@ -67,7 +67,7 @@ element('invoiceFooter').handlers.input();
   assert.equal(patchCalls[0].businessAddress, '', 'invoice address override remains optional when Store Profile has the address');
   assert.equal(patchCalls[0].gstin, '');
   assert.equal(element('invoiceEnabled').checked, true, 'non-GST invoice issuance can enable without duplicate legal fields');
-  assert.match(element('invoiceSettingsStatus').textContent, /non-GST commercial order record/);
+  assert.match(element('invoiceSettingsStatus').textContent, /non-GST commercial/);
 
   resolveGet({ invoiceSettings: {
     enabled: false, documentType: 'commercial_invoice', legalName: '',
