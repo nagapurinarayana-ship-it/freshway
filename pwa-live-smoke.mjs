@@ -79,7 +79,7 @@ async function waitForFullImageFitAssets(base) {
   const customerCataloguePath = '/frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2';
   const addressGeocodePath = ADDRESS_GEOCODE_PATH;
   const addressSystemPath = ADDRESS_SYSTEM_PATH;
-  const cataloguePath = '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1';
+  const cataloguePath = '/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1';
   let lastError;
 
   // Static deployments can lag the main-branch push; retry stale 200 responses too.
@@ -272,7 +272,7 @@ async function verifyCustomDomain() {
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2', 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, ADDRESS_GEOCODE_PATH, 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, ADDRESS_SYSTEM_PATH, 'custom-domain home');
-  assertCurrentScriptReference(adminHtml, adminResponse.url, '/frontend/admin/catalogue.js?v=20261009-full-image-fit-v1', 'custom-domain Owner');
+  assertCurrentScriptReference(adminHtml, adminResponse.url, '/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1', 'custom-domain Owner');
   assert.ok(sw.includes('/app.js?v=20261021-home-navigation-refresh-v1'), 'custom-domain service worker must cache the current app navigation script');
   assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4'), 'custom-domain service worker must cache the current promotion script');
   assert.ok(sw.includes('/frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2'), 'custom-domain service worker must cache the current customer catalogue script');
