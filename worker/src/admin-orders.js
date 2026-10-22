@@ -39,6 +39,7 @@ export async function orders(env, u) {
     LEFT JOIN customers c ON c.id=o.customer_id
     LEFT JOIN addresses a ON a.id=o.address_id
     LEFT JOIN order_address_snapshots s ON s.order_id=o.id
+    LEFT JOIN invoices i ON i.order_id=o.id
     WHERE ${where.join(' AND ')}`;
   const total=Number((await env.DB.prepare(`SELECT COUNT(*) count ${base}`).bind(...p).first())?.count||0);
   const rows=(await env.DB.prepare(`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.is_test_order,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.payment_collected_at,
@@ -47,7 +48,8 @@ export async function orders(env, u) {
     COALESCE(s.pincode,a.pincode) pincode,COALESCE(s.landmark,a.landmark) landmark,
     COALESCE(s.delivery_note,a.note) note,COALESCE(s.recipient_name,a.recipient_name,o.customer_name) recipient_name,
     COALESCE(s.delivery_phone,a.delivery_phone) delivery_phone,s.building,s.floor,s.street,s.locality,s.district,s.state,
-    s.latitude,s.longitude,s.accuracy_meters,s.location_source,s.place_id,s.location_updated_at
+    s.latitude,s.longitude,s.accuracy_meters,s.location_source,s.place_id,s.location_updated_at,
+    i.invoice_number,i.document_type invoice_document_type,i.issue_date invoice_issue_date
     ${base} ORDER BY ${orderSort(u)} LIMIT ? OFFSET ?`).bind(...p,limit,offset).all()).results||[];
   if(!rows.length)return{orders:[],pagination:{page,limit,total,pages:Math.max(1,Math.ceil(total/limit))}};
   const ids=rows.map(row=>row.id),ph=ids.map(()=>'?').join(',');
