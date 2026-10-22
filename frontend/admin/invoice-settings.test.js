@@ -55,14 +55,7 @@ element('invoiceEnabled').checked = true;
 element('invoiceEnabled').handlers.change();
 element('invoiceDocumentType').value = 'gst_tax_invoice';
 element('invoiceDocumentType').handlers.change();
-element('invoiceLegalName').value = 'FreshWay Foods';
-element('invoiceLegalName').handlers.input();
-element('invoiceBusinessAddress').value = 'Shop 1, Main Road';
-element('invoiceBusinessAddress').handlers.input();
-element('invoiceStateName').value = 'Telangana';
-element('invoiceStateName').handlers.input();
-element('invoiceStateCode').value = '36';
-element('invoiceStateCode').handlers.input();
+// Keep optional seller overrides blank: non-GST records use the saved Store Profile.
 element('invoiceFooter').value = 'Keep this footer';
 element('invoiceFooter').handlers.input();
 
