@@ -81,6 +81,7 @@
       }
       const data=await api('/admin/invoice-settings',{method:'PATCH',body:JSON.stringify(payload)});
       const saved=data?.invoiceSettings||{};
+      const backfill=data?.invoiceBackfill;
       apply(saved);
       if(saved.enableWarning&&bool(saved.enabled)){
         setStatus('Saved. Invoice issuance is enabled as a non-GST commercial order record. '+saved.enableWarning,false);
@@ -93,6 +94,14 @@
           ?'Saved. Invoice issuance is enabled.'
           :'Saved. Invoice issuance remains off. You can leave unfinished billing and tax details blank and complete them later.');
       }
+      if(backfill?.enabled){
+        const details=[];
+        if(backfill.issued)details.push(backfill.issued+' existing invoice(s) issued');
+        if(backfill.remaining)details.push(backfill.remaining+' eligible order(s) still need attention');
+        if(backfill.skippedRefunded)details.push(backfill.skippedRefunded+' refunded order(s) left for credit-note review');
+        if(backfill.failed?.length)details.push('First issue: '+backfill.failed[0].orderId+' — '+backfill.failed[0].error);
+        if(details.length)setStatus((($('#invoiceSettingsStatus')?.textContent)||'Saved.')+' Existing-order check: '+details.join('; ')+'.',!!backfill.failed?.length||!!backfill.remaining);
+      }
     }catch(error){
       setStatus(error?.message||'Could not save invoice configuration.',true);
     }finally{
@@ -100,7 +109,35 @@
       if(button){button.disabled=false;button.textContent='Save billing and tax details'}
     }
   }
+  async function backfillMissingInvoices(){
+    const button=$('#invoiceBackfillBtn');
+    if(busy)return;
+    const api=window.FreshWayOwnerInvoiceSettingsApi||window.api;
+    if(typeof api!=='function'){setStatus('Owner API is unavailable. Refresh the page and sign in again.',true);return;}
+    busy=true;
+    if(button){button.disabled=true;button.textContent='Checking orders…';}
+    setStatus('Checking dispatched and delivered orders for missing invoices…');
+    try{
+      const data=await api('/admin/invoices/backfill',{method:'POST',body:JSON.stringify({})});
+      const report=data?.invoiceBackfill||{};
+      if(!report.enabled){setStatus('Enable invoice issuance and save settings before issuing missing invoices.',true);return;}
+      const details=[];
+      if(report.issued)details.push(report.issued+' invoice(s) issued');
+      if(!report.issued&&!report.failed?.length)details.push('No new invoices were needed');
+      if(report.remaining)details.push(report.remaining+' eligible order(s) still need attention');
+      if(report.skippedRefunded)details.push(report.skippedRefunded+' refunded order(s) excluded for credit-note review');
+      if(report.failed?.length)details.push('First issue: '+report.failed[0].orderId+' — '+report.failed[0].error);
+      setStatus('Invoice backfill complete. '+details.join('; ')+'.',!!report.failed?.length||!!report.remaining);
+    }catch(error){
+      setStatus(error?.message||'Could not issue missing invoices.',true);
+    }finally{
+      busy=false;
+      if(button){button.disabled=false;button.textContent='Issue missing invoices';}
+    }
+  }
   function bindSaveButton(){
+    const backfillButton=$('#invoiceBackfillBtn');
+    if(backfillButton&&!backfillButton.dataset.invoiceBound){backfillButton.dataset.invoiceBound='1';backfillButton.addEventListener('click',backfillMissingInvoices);}
     const button=$('#invoiceSettingsSaveBtn');
     if(button&&!button.dataset.invoiceBound){
       button.dataset.invoiceBound='1';
