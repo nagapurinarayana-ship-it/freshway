@@ -159,13 +159,13 @@ test('prepareInvoiceIssue binds every invoice insert parameter', async () => {
             landmark:'',note:''
           };
           if(sql.startsWith('SELECT enabled,document_type'))return {
-            enabled:1,document_type:'commercial_invoice',legal_name:'FreshWay Foods',
-            business_address:'Shop 1, Main Road, Hyderabad',state_name:'',state_code:'',
-            gstin:'',series_prefix:'FW',footer:'',prices_include_tax:1,updated_at:'2026-10-22'
+            enabled:1,document_type:'commercial_invoice',legal_name:'',
+            business_address:'',state_name:'',state_code:'',
+            gstin:'',series_prefix:'FW',footer:'',prices_include_tax:0,updated_at:'2026-10-22'
           };
           if(sql.startsWith('SELECT store_name,about,phone'))return {
             store_name:'FreshWay',about:'',phone:'',whatsapp:'',email:'',
-            address:'',shop_latitude:null,shop_longitude:null,business_hours:'',
+            address:'Shop 1, Main Road, Hyderabad',shop_latitude:null,shop_longitude:null,business_hours:'',
             delivery_info:'',share_title:'FreshWay',share_description:'Fresh groceries'
           };
           throw new Error('Unexpected first() SQL: '+sql);
@@ -193,7 +193,8 @@ test('prepareInvoiceIssue binds every invoice insert parameter', async () => {
   assert.equal(insert.params[5],'commercial_invoice');
   assert.equal(insert.params[6],issue.financialYear);
   assert.ok(insert.params[7],'issue date must be bound');
-  assert.equal(JSON.parse(insert.params[8]).legalName,'FreshWay Foods');
+  assert.equal(JSON.parse(insert.params[8]).legalName,'FreshWay','non-GST invoice falls back to the saved store name');
+  assert.equal(JSON.parse(insert.params[8]).address,'Shop 1, Main Road, Hyderabad','non-GST invoice falls back to the saved store address');
   assert.equal(JSON.parse(insert.params[9]).name,'Test Customer');
   assert.equal(JSON.parse(insert.params[10]).totalPaise,10000);
   assert.equal(insert.params[11],issue.financialYear);
