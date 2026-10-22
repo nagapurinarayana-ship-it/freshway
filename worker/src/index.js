@@ -55,7 +55,7 @@ async function validateOrderItems(env, rawItems) {
     unique.set(id, nextQty);
   }
   const ids = [...unique.keys()]; const placeholders = ids.map(() => '?').join(',');
-  const { results: dbProducts } = await env.DB.prepare(`SELECT id,name,unit,price,emoji,stock_managed,stock_quantity,low_stock_threshold FROM products WHERE active=1 AND id IN (${placeholders})`).bind(...ids).all();
+  const { results: dbProducts } = await env.DB.prepare(`SELECT id,name,unit,price,emoji,stock_managed,stock_quantity,low_stock_threshold,hsn_code,gst_rate_bps FROM products WHERE active=1 AND id IN (${placeholders})`).bind(...ids).all();
   if (!dbProducts || dbProducts.length !== ids.length) throw new Error('One or more products are no longer available. Please refresh and try again.');
   const items = dbProducts.map(p => { const qty=unique.get(p.id); if(Number(p.stock_managed)===1&&Number(p.stock_quantity)<qty)throw new Error(`Not enough stock for ${p.name}. Please reduce the quantity and try again.`); return { ...p, qty, lineTotal:p.price*qty, stockReservedQty:Number(p.stock_managed)===1?qty:0 }; });
   return { items, total: items.reduce((sum, item) => sum + item.lineTotal, 0) };
