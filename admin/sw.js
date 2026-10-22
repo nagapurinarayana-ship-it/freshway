@@ -9,7 +9,6 @@ const SHELL = [
   '/admin/admin.css?v=20261022-invoice-ui-v1',
   '/admin/admin.js?v=20261022-invoice-ui-v1',
   '/admin/frontend/admin/invoice-settings.js?v=20261022-invoice-settings-v1',
-  '/admin/frontend/admin/invoice-settings.js?v=20261022-invoice-settings-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
   '/admin/frontend/phone-display.js?v=20261009-phone-display-v1',
   '/admin/frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1',
