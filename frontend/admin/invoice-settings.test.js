@@ -10,6 +10,8 @@ assert.match(html, /frontend\/admin\/invoice-settings\.js\?v=20261022-invoice-ba
 assert.match(adminSource, /FreshWayOwnerInvoiceSettings\)loads\.push\(window\.FreshWayOwnerInvoiceSettings\.load\(\{api\}\)\)/);
 assert.match(adminSource, /await Promise\.all\(loads\)/);
 assert.match(source, /window\.FreshWayOwnerInvoiceSettingsApi\|\|window\.api/, 'Save must fall back to the shared Owner API if the settings loader has not registered its API yet');
+assert.ok(html.includes('id="invoiceBackfillBtn"'), 'Owner Settings must expose an explicit retry for missing invoices on existing dispatched orders');
+assert.match(source, /\/admin\/invoices\/backfill/, 'backfill control must call the authenticated backfill endpoint');
 
 const elements = new Map();
 function element(id) {
