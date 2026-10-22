@@ -44,10 +44,9 @@ const api = (path, options = {}) => {
   assert.equal(options.method, 'PATCH');
   patchCalls.push(JSON.parse(options.body));
   return Promise.resolve({ invoiceSettings: {
-    enabled: false, documentType: 'gst_tax_invoice', legalName: 'FreshWay Foods',
-    businessAddress: 'Shop 1, Main Road', stateName: 'Telangana', stateCode: '36',
-    gstin: '', seriesPrefix: 'FW', footer: 'Keep this footer', pricesIncludeTax: true,
-    enableWarning: 'Enter a valid 15-character GSTIN.'
+    enabled: true, documentType: 'commercial_invoice', legalName: '',
+    businessAddress: '', stateName: '', stateCode: '',
+    gstin: '', seriesPrefix: 'FW', footer: 'Keep this footer', pricesIncludeTax: false
   }});
 };
 
