@@ -10,6 +10,8 @@ assert.match(html, /frontend\/admin\/invoice-settings\.js\?v=20261022-invoice-ba
 assert.match(adminSource, /FreshWayOwnerInvoiceSettings\)loads\.push\(window\.FreshWayOwnerInvoiceSettings\.load\(\{api\}\)\)/);
 assert.match(adminSource, /await Promise\.all\(loads\)/);
 assert.match(source, /window\.FreshWayOwnerInvoiceSettingsApi\|\|window\.api/, 'Save must fall back to the shared Owner API if the settings loader has not registered its API yet');
+assert.ok(html.includes('id="invoiceBackfillBtn"'), 'Owner Settings must expose an explicit retry for missing invoices');
+assert.match(source, /\/admin\/invoices\/backfill/, 'retry action must call the authenticated backfill endpoint');
 
 const elements = new Map();
 function element(id) {
@@ -35,6 +37,7 @@ const button = element('invoiceSettingsSaveBtn');
 
 // The button is wired synchronously when the script loads, not after GET finishes.
 assert.equal(typeof button.handlers.click, 'function');
+assert.equal(typeof element('invoiceBackfillBtn').handlers.click, 'function', 'missing-invoice retry button must be wired immediately');
 
 let resolveGet;
 const patchCalls = [];
