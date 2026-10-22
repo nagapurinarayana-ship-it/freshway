@@ -99,7 +99,8 @@
         const scanned=Number(backfill.scanned)||0;
         const failed=Array.isArray(backfill.failed)?backfill.failed.length:0;
         if(scanned===0){
-          setStatus('Invoice issuance is enabled. No missing invoices were found among dispatched/delivered orders. New orders receive invoices when moved to Out for Delivery or Delivered.');
+          const refunded=Number(backfill.skippedRefunded)||0;
+          setStatus('Invoice issuance is enabled. No eligible missing invoices were found among dispatched/delivered orders. New orders receive invoices when moved to Out for Delivery or Delivered.'+(refunded?' '+refunded+' refunded order'+(refunded===1?' was':'s were')+' left for credit-note review.':''));
         }else{
           const summary='Invoice issuance is enabled. '+issued+' missing invoice'+(issued===1?'':'s')+' generated for eligible dispatched/delivered orders ('+scanned+' checked).';
           const firstFailure=Array.isArray(backfill.failed)?backfill.failed[0]:null;
