@@ -66,13 +66,24 @@
       if(button){button.disabled=false;button.textContent='Save billing and tax details'}
     }
   }
+  function bindSaveButton(){
+    const button=$('#invoiceSettingsSaveBtn');
+    if(button&&!button.dataset.invoiceBound){
+      button.dataset.invoiceBound='1';
+      button.addEventListener('click',event=>{
+        event?.preventDefault?.();
+        return save();
+      });
+    }
+  }
   async function load({api}){
     if(typeof api!=='function')throw new Error('Owner API is unavailable.');
     window.FreshWayOwnerInvoiceSettingsApi=api;
+    // Bind synchronously before any network request. The button is visible
+    // while the Owner settings requests are in flight, so it must not be inert.
+    bindSaveButton();
     const data=await api('/admin/invoice-settings');
-    apply(data?.invoiceSettings);
-    const button=$('#invoiceSettingsSaveBtn');
-    if(button&&!button.dataset.invoiceBound){button.dataset.invoiceBound='1';button.addEventListener('click',save)}
+    if(!busy)apply(data?.invoiceSettings);
     const gstin=$('#invoiceGstin'),state=$('#invoiceStateCode');
     if(gstin&&state&&!gstin.dataset.autofillBound){
       gstin.dataset.autofillBound='1';
@@ -83,5 +94,7 @@
     }
     return data?.invoiceSettings||null;
   }
+  // admin.html is a static shell; wire this button as soon as this script loads.
+  bindSaveButton();
   window.FreshWayOwnerInvoiceSettings=Object.freeze({load,save,collect});
 })();
