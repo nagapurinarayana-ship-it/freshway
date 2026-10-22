@@ -70,11 +70,12 @@ element('invoiceFooter').handlers.input();
 (async () => {
   await button.handlers.click({ preventDefault() {} });
   assert.equal(patchCalls.length, 1, 'save should call PATCH even while initial GET is pending');
-  assert.equal(patchCalls[0].legalName, 'FreshWay Foods');
-  assert.equal(patchCalls[0].businessAddress, 'Shop 1, Main Road');
+  assert.equal(patchCalls[0].documentType, 'commercial_invoice', 'missing GSTIN must select the safe non-GST document type');
+  assert.equal(patchCalls[0].legalName, '', 'legal name remains optional for non-GST commercial records');
+  assert.equal(patchCalls[0].businessAddress, '', 'invoice address override remains optional when Store Profile has the address');
   assert.equal(patchCalls[0].gstin, '');
-  assert.equal(element('invoiceEnabled').checked, false, 'invalid incomplete setup must stay disabled');
-  assert.match(element('invoiceSettingsStatus').textContent, /Details saved/);
+  assert.equal(element('invoiceEnabled').checked, true, 'non-GST invoice issuance can enable without duplicate legal fields');
+  assert.match(element('invoiceSettingsStatus').textContent, /non-GST commercial order record/);
 
   resolveGet({ invoiceSettings: {
     enabled: false, documentType: 'commercial_invoice', legalName: '',
@@ -82,8 +83,8 @@ element('invoiceFooter').handlers.input();
     seriesPrefix: 'FW', footer: '', pricesIncludeTax: true
   }});
   await loading;
-  assert.equal(element('invoiceLegalName').value, 'FreshWay Foods', 'late initial GET must not erase saved settings');
-  assert.equal(element('invoiceBusinessAddress').value, 'Shop 1, Main Road');
+  assert.equal(element('invoiceLegalName').value, '', 'late initial GET must not erase saved settings');
+  assert.equal(element('invoiceBusinessAddress').value, '');
   assert.equal(element('invoiceFooter').value, 'Keep this footer');
 
   // Exercise the exact reported failure mode: the settings-specific API has
