@@ -1,4 +1,5 @@
 import { json, n, pageOf, limitOf, like, STATUSES, normalizeStatus, orderSort, localDateStart, localDateEnd } from './admin-shared.js';
+import { prepareInvoiceIssue, getInvoiceSummary } from './invoice-service.js';
 
 const PAYMENTS=['Not Collected','Collected','Refunded','Cancelled'];
 const normalizePayment=v=>{const value=n(v);return value==='Pending'?'Not Collected':value};
@@ -97,7 +98,12 @@ export async function updateOrder(env,id,payload){
   if(!sets.length)throw new Error('No order change supplied.');
   sets.push('updated_at=CURRENT_TIMESTAMP');
   const sql='UPDATE orders SET '+sets.join(',')+' WHERE '+guards.join(' AND ');
-  const result=await env.DB.prepare(sql).bind(...params,...guardParams).run();
-  if(!result.meta?.changes)throw new Error('ORDER_CONFLICT: This order changed while you were saving. Refresh the order and try again.');
-  return{ok:true,status:status||normalizeStatus(current.delivery_status),payment:payment||current.payment_status,deliveryPlan:deliveryPlan||current.delivery_plan,isTestOrder,testClassificationChanged:hasTestFlag&&isTestOrder!==currentTest}
+  const mainStatement=env.DB.prepare(sql).bind(...params,...guardParams);
+  const shouldIssueInvoice=!isTestOrder&&!!status&&['Out for Delivery','Delivered'].includes(status);
+  const invoiceIssue=shouldIssueInvoice?await prepareInvoiceIssue(env,id,status):null;
+  const statements=[mainStatement,...(invoiceIssue?.statements||[])];
+  const results=await env.DB.batch(statements);
+  if(!results[0]?.meta?.changes)throw new Error('ORDER_CONFLICT: This order changed while you were saving. Refresh the order and try again.');
+  if(shouldIssueInvoice&&!await getInvoiceSummary(env,id))throw new Error('Invoice issuance did not complete. The order transition was rolled back; check Billing & tax settings and product tax details.');
+  return{ok:true,status:status||normalizeStatus(current.delivery_status),payment:payment||current.payment_status,deliveryPlan:deliveryPlan||current.delivery_plan,isTestOrder,testClassificationChanged:hasTestFlag&&isTestOrder!==currentTest,invoice:shouldIssueInvoice?await getInvoiceSummary(env,id):null}
 }
