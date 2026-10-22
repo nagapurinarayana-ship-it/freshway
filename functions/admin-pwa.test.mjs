@@ -9,7 +9,7 @@ assert.doesNotMatch(customerHtml, /href=["']\/admin(?:\.html|\/?)['"]/i, 'custom
 assert.doesNotMatch(customerHtml, /class=["'][^"']*\badmin-link\b/i, 'customer profile must not render an Owner dashboard shortcut');
 const invoiceSettingsSource = readRepoFile('frontend/admin/invoice-settings.js').toString('utf8');
 const invoiceServiceSource = readRepoFile('worker/src/invoice-service.js').toString('utf8');
-assert.ok(sourceHtml.includes('invoice-settings.js?v=20261022-invoice-settings-v2'), 'Owner app must reference the refreshed optional invoice settings script');
+assert.ok(sourceHtml.includes('invoice-settings.js?v=20261022-invoice-save-button-fix-v1'), 'Owner app must reference the refreshed optional invoice settings script');
 assert.ok(sourceHtml.includes('You can save these details in stages and leave any field blank for now.'), 'Owner invoice setup must explain that partial details can be saved');
 assert.doesNotMatch(sourceHtml, /id="invoiceSeriesPrefix"[^>]*\brequired\b/, 'Invoice series prefix must remain optional and default to FW');
 assert.ok(invoiceSettingsSource.includes('saved.enableWarning'), 'Owner UI must explain why attempted invoice activation remains disabled');
@@ -17,13 +17,13 @@ assert.ok(invoiceSettingsSource.includes('You can leave unfinished billing and t
 assert.ok(invoiceServiceSource.includes('let enableWarning=') && invoiceServiceSource.includes('enableWarning?{enableWarning}:{}'), 'Worker must save partial settings and return a safe activation warning');
 const ownerLiveSmokeSource = readRepoFile('pwa-owner-live-smoke.mjs').toString('utf8');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261022-invoice-ui-v1';"), 'production Owner smoke must demand the current Owner CSS version');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261022-invoice-ui-v1';"), 'production Owner smoke must demand the current admin.js version');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT = '/admin/frontend/admin/invoice-settings.js?v=20261022-invoice-settings-v2';"), 'production Owner smoke must demand the current optional invoice settings script');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261022-invoice-save-button-fix-v1';"), 'production Owner smoke must demand the current admin.js version');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT = '/admin/frontend/admin/invoice-settings.js?v=20261022-invoice-save-button-fix-v1';"), 'production Owner smoke must demand the current optional invoice settings script');
 
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1';"), 'production Owner smoke must demand the current push setup version');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1';"), 'production Owner smoke must demand the current business profile and shop pin editor');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261021-open-map-fix-v1';"), 'production Owner smoke must demand the cache-busted order lifecycle map handler');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v24';"), 'production Owner smoke must demand the current service-worker cache');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v25';"), 'production Owner smoke must demand the current service-worker cache');
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerAppShell/);
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerServiceWorker/);
 assert.ok(ownerLiveSmokeSource.includes("const pathname = String(path).split('?')[0];"), 'Owner cache smoke must classify assets by pathname, not URL including query');
