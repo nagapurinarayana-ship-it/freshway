@@ -321,6 +321,7 @@
     get('storeLocationSearchButton')?.addEventListener('click', searchLocations);
     get('storeLocationGpsButton')?.addEventListener('click', useCurrentLocation);
     get('storeLocationClearButton')?.addEventListener('click', clearShopPin);
+    get('storeLocationSaveButton')?.addEventListener('click', saveSelectedShopPin);
     get('storeLocationSearch')?.addEventListener('keydown', function (event) {
       if (event.key === 'Enter') {
         event.preventDefault();
@@ -343,16 +344,50 @@
   }
 
   async function save({ api }) {
+    const payload = collect();
+    if (!clean(payload.storeName)) throw new Error('Enter the store name before saving business information.');
+    if (!clean(payload.address)) throw new Error('Enter the complete business address before saving. The map pin is stored separately.');
+    const requestedPin = validPin(payload.shopLatitude, payload.shopLongitude);
     const data = await api('/admin/store-profile', {
       method: 'PATCH',
-      body: JSON.stringify(collect())
+      body: JSON.stringify(payload)
     });
-    const profile = data?.storeProfile || {};
+    if (!data?.storeProfile) throw new Error('The server did not confirm the saved business information. Refresh and check the saved settings before retrying.');
+    const profile = data.storeProfile;
+    if (requestedPin) {
+      const persistedPin = validPin(profile.shopLatitude, profile.shopLongitude);
+      if (!persistedPin ||
+          Math.abs(persistedPin.latitude - requestedPin.latitude) > 0.000001 ||
+          Math.abs(persistedPin.longitude - requestedPin.longitude) > 0.000001) {
+        throw new Error('The server did not confirm that the shop pin was saved. Your selected pin remains in this form; check the connection and retry.');
+      }
+    }
     apply(profile);
     updatePinStatus(selectedShopPin
-      ? 'Saved. The exact shop pin and business address have been stored separately.'
-      : 'Saved without a shop pin. Customers will use the existing address-based map link.');
+      ? 'Saved and confirmed by the server. Shop pin: ' + selectedShopPin.latitude.toFixed(6) + ', ' + selectedShopPin.longitude.toFixed(6) + '.'
+      : 'Business information saved without an exact shop pin. Search for the shop and select its actual entrance to save delivery directions.');
     return profile;
+  }
+
+  async function saveSelectedShopPin() {
+    const button = get('storeLocationSaveButton');
+    if (!selectedShopPin) {
+      updatePinStatus('First search for the shop, zoom in and tap the actual shop entrance. Then press Save shop pin.');
+      return;
+    }
+    const api = window.api;
+    if (typeof api !== 'function') {
+      updatePinStatus('Owner API is unavailable. Refresh the page and sign in again before saving the pin.');
+      return;
+    }
+    if (button) { button.disabled = true; button.textContent = 'Saving pin…'; }
+    try {
+      await save({ api });
+    } catch (error) {
+      updatePinStatus(error?.message || 'Could not save the shop pin. The selected point has not been confirmed by the server.');
+    } finally {
+      if (button) { button.disabled = false; button.textContent = 'Save shop pin'; }
+    }
   }
 
   bindPickerEvents();

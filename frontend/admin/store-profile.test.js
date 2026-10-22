@@ -64,13 +64,15 @@ assert.ok(html.includes('id="storeAddress"'), 'existing business address field m
 assert.ok(html.includes('id="storeLocationMap"'), 'Owner settings must expose a dedicated map picker');
 assert.ok(html.includes('id="storeLocationSearchButton"'), 'Owner must be able to search for the shop');
 assert.ok(html.includes('id="storeLocationClearButton"'), 'Owner must be able to clear an incorrect pin');
-assert.ok(html.includes('frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1'), 'Owner must load the free OpenStreetMap picker module');
+assert.ok(html.includes('id="storeLocationSaveButton"'), 'Owner must be able to explicitly save and confirm a selected shop pin');
+assert.match(html, /id="storeAddress"[^>]*required/, 'the business address must be mandatory for store setup and commercial invoices');
+assert.ok(html.includes('frontend/admin/store-profile.js?v=20261022-pin-save-v2'), 'Owner must load the free OpenStreetMap picker module');
 assert.ok(source.includes('loadLeaflet'), 'Free OpenStreetMap picker must remain available');
 assert.ok(!source.includes('loadGoogleMaps'), 'Owner picker must not require a paid Google Maps API');
 assert.ok(!source.includes("api('/admin/maps/config')"), 'Owner picker must not depend on a paid map provider config endpoint');
-assert.ok(ownerSw.includes('frontend/admin/store-profile.js?v=20261021-free-osm-picker-v1'), 'Owner PWA shell must cache the free map-picker module');
+assert.ok(ownerSw.includes('frontend/admin/store-profile.js?v=20261022-pin-save-v2'), 'Owner PWA shell must cache the free map-picker module');
 assert.ok(source.includes('loadLeaflet'), 'OpenStreetMap picker must be available without paid map APIs');
-assert.ok(ownerSw.includes("const CACHE = 'fw-owner-v26'"), 'Owner PWA cache must be refreshed for the new picker');
+assert.ok(ownerSw.includes("const CACHE = 'fw-owner-v27'"), 'Owner PWA cache must be refreshed for the new picker');
 
 assert.match(css, /\.shop-location-map\s*\{/);
 assert.match(source, /The saved pin stays unchanged until you do/);
