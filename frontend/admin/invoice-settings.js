@@ -104,7 +104,9 @@
           const summary='Invoice issuance is enabled. '+issued+' missing invoice'+(issued===1?'':'s')+' generated for eligible dispatched/delivered orders ('+scanned+' checked).';
           const firstFailure=Array.isArray(backfill.failed)?backfill.failed[0]:null;
           const failureDetails=firstFailure?' First failure: '+String(firstFailure.orderId||'Order')+' — '+String(firstFailure.reason||'Invoice validation failed.'): '';
-          setStatus(summary+(failed?' '+failed+' order'+(failed===1?' needs':'s need')+' review.':'')+failureDetails,failed>0);
+          const refunded=Number(backfill.skippedRefunded)||0;
+          const refundedDetails=refunded?' '+refunded+' refunded order'+(refunded===1?' was':'s were')+' left for credit-note review.':'';
+          setStatus(summary+(failed?' '+failed+' order'+(failed===1?' needs':'s need')+' review.':'')+failureDetails+refundedDetails,failed>0);
         }
       }
     }catch(error){
@@ -114,7 +116,43 @@
       if(button){button.disabled=false;button.textContent='Save billing and tax details'}
     }
   }
+  async function backfillMissingInvoicesNow(){
+    const button=$('#invoiceBackfillBtn');
+    if(busy)return;
+    const api=window.FreshWayOwnerInvoiceSettingsApi||window.api;
+    if(typeof api!=='function'){setStatus('Owner API is unavailable. Refresh the page and sign in again.',true);return;}
+    busy=true;
+    if(button){button.disabled=true;button.textContent='Checking orders…';}
+    setStatus('Checking dispatched and delivered orders for missing invoices…');
+    try{
+      const data=await api('/admin/invoices/backfill',{method:'POST',body:JSON.stringify({})});
+      const report=data?.invoiceBackfill||{};
+      if(!report.enabled){setStatus('Enable invoice issuance and save settings before issuing missing invoices.',true);return;}
+      const issued=Number(report.issued)||0;
+      const scanned=Number(report.scanned)||0;
+      const skippedRefunded=Number(report.skippedRefunded)||0;
+      const failed=Array.isArray(report.failed)?report.failed:[];
+      let message='Invoice backfill complete. '+issued+' missing invoice'+(issued===1?'':'s')+' generated for eligible dispatched/delivered orders ('+scanned+' checked).';
+      if(skippedRefunded)message+=' '+skippedRefunded+' refunded order'+(skippedRefunded===1?' was':'s were')+' left for credit-note review.';
+      if(failed.length)message+=' First failure: '+String(failed[0].orderId||'Order')+' — '+String(failed[0].reason||'Invoice validation failed')+'.';
+      else if(!issued)message+=' No new invoices were needed.';
+      setStatus(message,failed.length>0);
+    }catch(error){
+      setStatus(error?.message||'Could not issue missing invoices.',true);
+    }finally{
+      busy=false;
+      if(button){button.disabled=false;button.textContent='Issue missing invoices';}
+    }
+  }
   function bindSaveButton(){
+    const backfillButton=$('#invoiceBackfillBtn');
+    if(backfillButton&&!backfillButton.dataset.invoiceBackfillBound){
+      backfillButton.dataset.invoiceBackfillBound='1';
+      backfillButton.addEventListener('click',event=>{
+        event?.preventDefault?.();
+        return backfillMissingInvoicesNow();
+      });
+    }
     const button=$('#invoiceSettingsSaveBtn');
     if(button&&!button.dataset.invoiceBound){
       button.dataset.invoiceBound='1';
