@@ -10,6 +10,7 @@ assert.doesNotMatch(customerHtml, /class=["'][^"']*\badmin-link\b/i, 'customer p
 const invoiceSettingsSource = readRepoFile('frontend/admin/invoice-settings.js').toString('utf8');
 const invoiceServiceSource = readRepoFile('worker/src/invoice-service.js').toString('utf8');
 assert.ok(sourceHtml.includes('invoice-settings.js?v=20261022-invoice-backfill-v4'), 'Owner app must reference the refreshed optional invoice settings script');
+assert.ok(sourceHtml.includes('id="invoiceBackfillBtn"'), 'Owner settings must expose a retry action for missing invoices');
 assert.ok(sourceHtml.includes('For a non-GST commercial order record, only the Store Profile name and complete business address are required; other invoice fields may stay blank.'), 'Owner invoice setup must explain the required Store Profile identity/address and optional duplicate fields');
 assert.doesNotMatch(sourceHtml, /id="invoiceSeriesPrefix"[^>]*\brequired\b/, 'Invoice series prefix must remain optional and default to FW');
 assert.ok(invoiceSettingsSource.includes('saved.enableWarning'), 'Owner UI must explain why attempted invoice activation remains disabled');
