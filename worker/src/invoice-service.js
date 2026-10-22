@@ -66,14 +66,19 @@ export async function updateInvoiceSettings(env,payload={}){
     footer:trim(payload.footer??current.footer,500),
     pricesIncludeTax:payload.pricesIncludeTax===undefined?current.pricesIncludeTax:payload.pricesIncludeTax===true
   };
-  if(s.enabled)validateSettings(s);
-  else {
-    if(!TYPES.has(s.documentType))throw new Error('Choose a valid invoice document type.');
-    if(s.seriesPrefix&&!/^[A-Z0-9]{1,2}$/.test(s.seriesPrefix))throw new Error('Invoice series prefix must contain one or two letters or numbers.');
+  // Owners may save partial configuration at any time. If they ask to
+  // enable issuance before details are complete, persist their entries but
+  // keep issuance disabled and return the reason to the UI.
+  let enableWarning='';
+  if(!TYPES.has(s.documentType))s.documentType='commercial_invoice';
+  if(!s.seriesPrefix||!/^[A-Z0-9]{1,2}$/.test(s.seriesPrefix))s.seriesPrefix='FW';
+  if(s.enabled){
+    try{validateSettings(s);}
+    catch(error){s.enabled=false;enableWarning=String(error?.message||'Complete the required billing details before enabling invoices.');}
   }
   await env.DB.prepare('INSERT INTO invoice_settings(id,enabled,document_type,legal_name,business_address,state_name,state_code,gstin,series_prefix,footer,prices_include_tax,updated_at) VALUES(1,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET enabled=excluded.enabled,document_type=excluded.document_type,legal_name=excluded.legal_name,business_address=excluded.business_address,state_name=excluded.state_name,state_code=excluded.state_code,gstin=excluded.gstin,series_prefix=excluded.series_prefix,footer=excluded.footer,prices_include_tax=excluded.prices_include_tax,updated_at=CURRENT_TIMESTAMP')
     .bind(s.enabled?1:0,s.documentType,s.legalName,s.businessAddress,s.stateName,s.stateCode,s.gstin,s.seriesPrefix,s.footer,s.pricesIncludeTax?1:0).run();
-  return getInvoiceSettings(env);
+  return {...await getInvoiceSettings(env),...(enableWarning?{enableWarning}:{})};
 }
 function validateIssueConfig(settings,items,address){
   if(!settings.enabled)throw new Error('Invoice issuance is not enabled. Finish Owner → Settings → Billing & tax before dispatching this order.');
