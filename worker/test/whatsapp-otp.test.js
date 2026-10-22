@@ -156,8 +156,9 @@ test('new customer must verify WhatsApp OTP and provide a name before account cr
 
 test('incorrect WhatsApp OTP is rejected without creating an account', async t => {
   const { env, customers } = createEnv();
-  const { challengeId } = await issueCode(t, env);
-  const response = await request('/api/auth/otp/verify', { phone: '9876543210', challengeId, code: '000000' }, env);
+  const { challengeId, code } = await issueCode(t, env);
+  const wrongCode = code === '000000' ? '000001' : '000000';
+  const response = await request('/api/auth/otp/verify', { phone: '9876543210', challengeId, code: wrongCode }, env);
   assert.equal(response.status, 401);
   assert.equal(customers.size, 0);
 });
