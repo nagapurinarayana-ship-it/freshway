@@ -20,19 +20,14 @@ SET legal_name = CASE WHEN TRIM(COALESCE(legal_name, '')) = '' THEN 'Sunshine En
     gstin = CASE WHEN TRIM(COALESCE(gstin, '')) = '' THEN '36AEXFS4597F1Z6' ELSE gstin END,
     footer = CASE WHEN TRIM(COALESCE(footer, '')) = '' THEN 'Thank You For Shopping With Freshway' ELSE footer END,
     document_type = CASE
-      WHEN enabled = 0
-        AND document_type = 'commercial_invoice'
-        AND TRIM(COALESCE(legal_name, '')) = ''
-        AND TRIM(COALESCE(business_address, '')) = ''
-        AND TRIM(COALESCE(state_name, '')) = ''
-        AND TRIM(COALESCE(state_code, '')) = ''
+      WHEN document_type = 'commercial_invoice'
         AND TRIM(COALESCE(gstin, '')) = ''
-        AND TRIM(COALESCE(footer, '')) = ''
       THEN 'gst_tax_invoice'
       ELSE document_type
     END,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = 1
+  AND enabled = 0
   AND (
     TRIM(COALESCE(legal_name, '')) = ''
     OR TRIM(COALESCE(business_address, '')) = ''
@@ -40,14 +35,4 @@ WHERE id = 1
     OR TRIM(COALESCE(state_code, '')) = ''
     OR TRIM(COALESCE(gstin, '')) = ''
     OR TRIM(COALESCE(footer, '')) = ''
-    OR (
-      enabled = 0
-      AND document_type = 'commercial_invoice'
-      AND TRIM(COALESCE(legal_name, '')) = ''
-      AND TRIM(COALESCE(business_address, '')) = ''
-      AND TRIM(COALESCE(state_name, '')) = ''
-      AND TRIM(COALESCE(state_code, '')) = ''
-      AND TRIM(COALESCE(gstin, '')) = ''
-      AND TRIM(COALESCE(footer, '')) = ''
-    )
   );
