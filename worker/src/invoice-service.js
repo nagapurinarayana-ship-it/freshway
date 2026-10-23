@@ -221,7 +221,7 @@ export { json as invoiceJson };
  */
 export async function backfillMissingInvoices(env){
   const settings=await getInvoiceSettings(env);
-  if(!settings.enabled)return{enabled:false,scanned:0,issued:0,skipped:0,failed:[]};
+  if(!settings.enabled)return{enabled:false,scanned:0,issued:0,skipped:0,fallbackIssued:0,failed:[]};
   const refundedRows=(await env.DB.prepare(`SELECT COUNT(*) AS count FROM orders o
     WHERE COALESCE(o.is_test_order,0)=0
       AND o.delivery_status IN ('Out for Delivery','Delivered')
@@ -234,7 +234,7 @@ export async function backfillMissingInvoices(env){
       AND COALESCE(o.payment_status,'')<>'Refunded'
       AND NOT EXISTS(SELECT 1 FROM invoices i WHERE i.order_id=o.id)
     ORDER BY o.created_at ASC,o.id ASC`).all()).results||[];
-  let issued=0,skipped=0;
+  let issued=0,skipped=0,fallbackIssued=0;
   const failed=[];
   for(const order of rows){
     try{
@@ -243,11 +243,11 @@ export async function backfillMissingInvoices(env){
       if(typeof env.DB.batch!=='function')throw new Error('Atomic invoice issuance is unavailable.');
       await env.DB.batch(issue.statements);
       const summary=await getInvoiceSummary(env,order.id);
-      if(summary)issued++;
+      if(summary){issued++;if(issue.fallbackReason)fallbackIssued++;}
       else{skipped++;failed.push({orderId:order.id,reason:'The invoice was not committed. Check the order and invoice settings.'});}
     }catch(error){
       failed.push({orderId:order.id,reason:String(error?.message||'Invoice validation failed.').slice(0,240)});
     }
   }
-  return{enabled:true,scanned:rows.length,issued,skipped,skippedRefunded,failed};
+  return{enabled:true,scanned:rows.length,issued,skipped,skippedRefunded,fallbackIssued,failed};
 }
