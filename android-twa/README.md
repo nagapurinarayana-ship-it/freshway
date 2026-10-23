@@ -39,10 +39,11 @@ The command is interactive. Confirm the same production domain, package ID, cust
 ```bash
 cp twa-manifest.json generated/twa-manifest.json
 npm run update
+npm run check:generated
 npm run build
 ```
 
-On Windows, copy `twa-manifest.json` to `generated/twa-manifest.json` using File Explorer or PowerShell before running `npm run update`.
+On Windows, copy `twa-manifest.json` to `generated/twa-manifest.json` using File Explorer or PowerShell before running `npm run update`. The generated-project check fails unless package identity stays fixed and compile/target SDK levels are both at least 36.
 
 The generated output is intentionally git-ignored. The APK/AAB is not checked in. Build and install locally, inspect the generated Gradle configuration and test on physical Android devices before considering any Play Console upload.
 
