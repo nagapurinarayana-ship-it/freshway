@@ -108,7 +108,7 @@ export async function updateOrder(env,id,payload){
   if(!result.meta?.changes)throw new Error('ORDER_CONFLICT: This order changed while you were saving. Refresh the order and try again.');
 
   const shouldIssueInvoice=!isTestOrder&&!!status&&['Out for Delivery','Delivered'].includes(status);
-  let invoiceSummary=null,invoiceWarning='';
+  let invoiceSummary=null,invoiceWarning='',invoiceFallbackReason='';
   if(shouldIssueInvoice){
     try{
       const invoiceSettings=await getInvoiceSettings(env);
@@ -119,6 +119,7 @@ export async function updateOrder(env,id,payload){
           await env.DB.batch(invoiceIssue.statements);
           invoiceSummary=await getInvoiceSummary(env,id);
           if(!invoiceSummary)throw new Error('Invoice issuance could not be confirmed.');
+          if(invoiceIssue.fallbackReason)invoiceFallbackReason=invoiceIssue.fallbackReason;
         }else{
           invoiceSummary=await getInvoiceSummary(env,id);
         }
@@ -127,5 +128,5 @@ export async function updateOrder(env,id,payload){
       invoiceWarning=String(error?.message||'Invoice could not be issued. Review Billing & tax and product details.');
     }
   }
-  return{ok:true,status:status||normalizeStatus(current.delivery_status),payment:payment||current.payment_status,deliveryPlan:deliveryPlan||current.delivery_plan,isTestOrder,testClassificationChanged:hasTestFlag&&isTestOrder!==currentTest,invoice:invoiceSummary,...(invoiceWarning?{invoiceWarning}:{})}
+  return{ok:true,status:status||normalizeStatus(current.delivery_status),payment:payment||current.payment_status,deliveryPlan:deliveryPlan||current.delivery_plan,isTestOrder,testClassificationChanged:hasTestFlag&&isTestOrder!==currentTest,invoice:invoiceSummary,...(invoiceFallbackReason?{invoiceFallbackReason}:{}),...(invoiceWarning?{invoiceWarning}:{})}
 }
