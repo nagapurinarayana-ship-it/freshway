@@ -5,6 +5,10 @@ const GREEN=rgb(0.16,0.42,0.30),PALE=rgb(0.92,0.97,0.94),INK=rgb(0.12,0.16,0.14)
 const safe=value=>String(value??'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[₹]/g,'INR ').replace(/[^\x20-\x7E]/g,' ').replace(/\s+/g,' ').trim();
 const money=paise=>'INR '+(Number(paise||0)/100).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const dateText=value=>{const d=new Date(value||Date.now());return Number.isNaN(d.getTime())?safe(value):d.toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'})};
+export function formatInvoicePhone(value){
+  const digits=String(value??'').replace(/\\D/g,'');
+  return digits.length===12&&digits.startsWith('91')?digits.slice(2):digits;
+}
 const wrap=(text,font,size,width)=>{
   const words=safe(text).split(' '),lines=[];let line='';
   for(const word of words){if(!word)continue;const next=line?line+' '+word:word;if(font.widthOfTextAtSize(next,size)<=width){line=next;continue}
@@ -48,9 +52,10 @@ export async function createInvoicePdf(invoice){
     const rx=MARGIN+colW+24,b=invoice.buyer,a=b.address||{};
     drawText(page,'BILL TO / DELIVER TO',rx+10,y-14,7,bold,GREEN);
     const addressText=[a.house,a.building,a.floor,a.street,a.area,a.locality,a.city,a.district,a.state,a.pincode,a.landmark].filter(Boolean).join(', ');
-    const contactText=[a.recipientName&&a.recipientName!==b.name?'Recipient: '+a.recipientName:'',a.deliveryPhone?'Delivery: '+a.deliveryPhone:''].filter(Boolean).join(' · ');
+    const customerPhone=formatInvoicePhone(b.phone),deliveryPhone=formatInvoicePhone(a.deliveryPhone);
+    const contactText=[a.recipientName&&a.recipientName!==b.name?'Recipient: '+a.recipientName:'',deliveryPhone&&deliveryPhone!==customerPhone?'Delivery: '+deliveryPhone:''].filter(Boolean).join(' · ');
     const placeText=b.placeOfSupply?'Place of supply: '+b.placeOfSupply+(b.stateCode?' ('+b.stateCode+')':''):'';
-    const buyerLines=[b.name,contactText,addressText,placeText].filter(Boolean);
+    const buyerLines=[b.name,customerPhone?'Customer phone: '+customerPhone:'',contactText,addressText,placeText].filter(Boolean);
     const buyerTextLines=buyerLines.flatMap(t=>wrap(t,regular,7.3,colW-20)).slice(0,6);
     let by=y-27;for(const lineText of buyerTextLines){if(by<y-84)break;drawText(page,lineText,rx+10,by,7.3,regular,INK);by-=10}
     y-=111;
