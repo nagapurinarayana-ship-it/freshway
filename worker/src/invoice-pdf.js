@@ -64,18 +64,24 @@ const productLabel=(name,unit)=>{
 // Draw ₹ as vector strokes because the embedded standard PDF fonts do not
 // include the Unicode rupee glyph. This keeps the symbol visible in Android PDF viewers.
 function drawRupee(page,x,baseline,size,color){
-  const stroke=Math.max(0.65,size*0.085);
-  const line=(x1,y1,x2,y2)=>page.drawLine({start:{x:x1,y:y1},end:{x:x2,y:y2},color,thickness:stroke});
+  // Compact vector ₹ mark matching the familiar printed Indian rupee glyph:
+  // two top bars, an open curved bowl, and a separate diagonal lower leg.
+  // Keep this vector-based so Android PDF viewers do not depend on font glyphs.
+  const stroke=Math.max(0.72,size*0.09);
+  const line=(x1,y1,x2,y2)=>page.drawLine({start:{x:x1,y:y1},end:{x:x2,y:y2},color,thickness:stroke,opacity:1});
   const s=size;
-  line(x+0.02*s,baseline+0.84*s,x+0.96*s,baseline+0.84*s);
-  line(x+0.02*s,baseline+0.60*s,x+0.91*s,baseline+0.60*s);
-  line(x+0.21*s,baseline+0.89*s,x+0.21*s,baseline+0.10*s);
-  line(x+0.21*s,baseline+0.88*s,x+0.59*s,baseline+0.88*s);
-  line(x+0.59*s,baseline+0.88*s,x+0.73*s,baseline+0.80*s);
-  line(x+0.73*s,baseline+0.80*s,x+0.77*s,baseline+0.71*s);
-  line(x+0.77*s,baseline+0.71*s,x+0.70*s,baseline+0.62*s);
-  line(x+0.70*s,baseline+0.62*s,x+0.21*s,baseline+0.54*s);
-  line(x+0.40*s,baseline+0.51*s,x+0.90*s,baseline+0.10*s);
+  // Parallel headline bars.
+  line(x+0.02*s,baseline+0.91*s,x+0.98*s,baseline+0.91*s);
+  line(x+0.02*s,baseline+0.66*s,x+0.92*s,baseline+0.66*s);
+  // Left stem and the open upper bowl, leaving the lower-right side open.
+  line(x+0.24*s,baseline+0.91*s,x+0.24*s,baseline+0.39*s);
+  line(x+0.24*s,baseline+0.88*s,x+0.58*s,baseline+0.88*s);
+  line(x+0.58*s,baseline+0.88*s,x+0.73*s,baseline+0.80*s);
+  line(x+0.73*s,baseline+0.80*s,x+0.78*s,baseline+0.70*s);
+  line(x+0.78*s,baseline+0.70*s,x+0.72*s,baseline+0.59*s);
+  line(x+0.72*s,baseline+0.59*s,x+0.24*s,baseline+0.51*s);
+  // Diagonal foot; the stem does not continue through this leg.
+  line(x+0.38*s,baseline+0.45*s,x+0.91*s,baseline+0.08*s);
 }
 async function createReceiptPdf(invoice){
   const doc=await PDFDocument.create();
