@@ -18,6 +18,7 @@ With FreshWay, customers can:
 - Review order status and available invoice/receipt documents.
 - Manage account details and sign out.
 - Choose whether to enable supported notifications.
+- Submit an account-deletion request from the app or the public deletion page.
 
 Availability, catalogue items, delivery areas and delivery timing depend on FreshWay's current operations. Confirm the delivery area and business terms shown in the live app before publishing this description.
 
@@ -31,7 +32,7 @@ Availability, catalogue items, delivery areas and delivery timing depend on Fres
 - [ ] App category, content rating, target audience, ads declaration and app-access instructions: answer from actual product behavior, not assumptions.
 
 ## Review notes
-- Do not claim account deletion is completed: the current branch captures and reviews requests but does not yet perform data erasure/de-identification.
+- Account deletion is a request-and-review workflow. Once an Owner has reviewed the request and documented the retention basis, completion redacts operational account/address details, clears authentication credentials and push subscriptions, invalidates existing sessions, and preserves issued invoice snapshots. Do not claim that every record is immediately or permanently erased.
 - Do not claim that SMS verification is available until the production provider configuration is confirmed.
 - Do not claim that notifications or WhatsApp messages are always enabled; they depend on customer consent and production configuration.
 - Use the final approved Android application ID and signed AAB only after the TWA and Digital Asset Links checks pass.
