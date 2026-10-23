@@ -12,17 +12,25 @@ export async function fulfillAccountDeletion(env, requestId, adminNote) {
   const customer = await env.DB.prepare('SELECT id,phone,deleted_at FROM customers WHERE id=? LIMIT 1').bind(deletion.customer_id).first();
   if (!customer) return { ok: false, status: 409, error: 'The linked customer record no longer exists. Review this request manually.' };
   const customerId = String(deletion.customer_id);
-  const phone = String(customer.phone || deletion.phone_snapshot || '');
-  const phone10 = phone.replace(/\D/g, '').slice(-10);
-  await env.DB.batch([
+  const phoneDigits = String(customer.phone || deletion.phone_snapshot || '').replace(/\D/g, '');
+  const normalizedPhone = phoneDigits.length === 10 ? '91' + phoneDigits : phoneDigits.length === 12 && phoneDigits.startsWith('91') ? phoneDigits : '';
+  const statements = [
     env.DB.prepare('DELETE FROM push_subscriptions WHERE customer_id=?').bind(customerId),
     env.DB.prepare('DELETE FROM notification_events WHERE customer_id=? OR order_id IN (SELECT id FROM orders WHERE customer_id=?)').bind(customerId, customerId),
     env.DB.prepare("UPDATE order_address_snapshots SET customer_id=NULL,address_id=NULL,recipient_name='Deleted customer',delivery_phone='',house_flat='Removed',building=NULL,floor=NULL,street=NULL,area='Removed',locality=NULL,city='Removed',district=NULL,state=NULL,pincode='000000',landmark=NULL,delivery_note=NULL,latitude=NULL,longitude=NULL,accuracy_meters=NULL,location_source=NULL,place_name=NULL,place_id=NULL,location_updated_at=NULL WHERE order_id IN (SELECT id FROM orders WHERE customer_id=?)").bind(customerId),
     env.DB.prepare("UPDATE addresses SET house='Removed',area='Removed',city='Removed',pincode='000000',landmark=NULL,note=NULL,label='Removed',recipient_name=NULL,delivery_phone=NULL,building=NULL,floor=NULL,street=NULL,locality=NULL,district=NULL,state=NULL,latitude=NULL,longitude=NULL,accuracy_meters=NULL,location_source=NULL,place_id=NULL,location_updated_at=NULL,is_default=0,deleted_at=COALESCE(deleted_at,CURRENT_TIMESTAMP) WHERE customer_id=?").bind(customerId),
     env.DB.prepare("UPDATE orders SET customer_name='Deleted customer',customer_phone='',updated_at=CURRENT_TIMESTAMP WHERE customer_id=?").bind(customerId),
     env.DB.prepare("UPDATE customers SET name=NULL,phone=NULL,passcode_salt=NULL,passcode_hash=NULL,auth_version=COALESCE(auth_version,0)+1,whatsapp_opt_in=0,deleted_at=COALESCE(deleted_at,CURRENT_TIMESTAMP),updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(customerId),
-    env.DB.prepare("UPDATE account_deletion_requests SET status='completed',phone_snapshot='REDACTED',admin_note=?,updated_at=CURRENT_TIMESTAMP,processed_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_review'").bind(note, requestId),
-    env.DB.prepare('DELETE FROM auth_rate_limits WHERE key LIKE ? OR key LIKE ?').bind('%' + phone + '%', '%' + phone10 + '%')
-  ]);
+    env.DB.prepare("UPDATE account_deletion_requests SET status='completed',phone_snapshot='REDACTED',admin_note=?,updated_at=CURRENT_TIMESTAMP,processed_at=CURRENT_TIMESTAMP WHERE id=? AND status='in_review'").bind(note, requestId)
+  ];
+  if (normalizedPhone) statements.push(env.DB.prepare('DELETE FROM auth_rate_limits WHERE key IN (?,?,?,?,?,?)').bind(
+    'auth:register:phone:' + normalizedPhone,
+    'auth:login:phone:' + normalizedPhone,
+    'auth:reset:start:phone:' + normalizedPhone,
+    'auth:reset:complete:phone:' + normalizedPhone,
+    'deletion:start:phone:' + normalizedPhone,
+    'deletion:verify:phone:' + normalizedPhone
+  ));
+  await env.DB.batch(statements);
   return { ok: true, status: 'completed', alreadyCompleted: false };
 }
