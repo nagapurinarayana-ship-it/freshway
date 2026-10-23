@@ -106,6 +106,8 @@
         const issued=Number(backfill.issued)||0;
         const scanned=Number(backfill.scanned)||0;
         const failed=Array.isArray(backfill.failed)?backfill.failed.length:0;
+        const fallbackIssued=Number(backfill.fallbackIssued)||0;
+        const fallbackDetails=fallbackIssued?' '+fallbackIssued+' issued as commercial receipts because required GST/HSN details were incomplete. Add those details later if a GST invoice is required.':'';
         if(scanned===0){
           const refunded=Number(backfill.skippedRefunded)||0;
           setStatus('Invoice issuance is enabled. No eligible missing invoices were found among dispatched/delivered orders. New orders receive invoices when moved to Out for Delivery or Delivered.'+(refunded?' '+refunded+' refunded order'+(refunded===1?' was':'s were')+' left for credit-note review.':''));
@@ -115,7 +117,7 @@
           const failureDetails=firstFailure?' First failure: '+String(firstFailure.orderId||'Order')+' — '+String(firstFailure.reason||'Invoice validation failed.'): '';
           const refunded=Number(backfill.skippedRefunded)||0;
           const refundedDetails=refunded?' '+refunded+' refunded order'+(refunded===1?' was':'s were')+' left for credit-note review.':'';
-          setStatus(summary+(failed?' '+failed+' order'+(failed===1?' needs':'s need')+' review.':'')+failureDetails+refundedDetails,failed>0);
+          setStatus(summary+fallbackDetails+(failed?' '+failed+' order'+(failed===1?' needs':'s need')+' review.':'')+failureDetails+refundedDetails,failed>0);
         }
       }
     }catch(error){
@@ -141,7 +143,9 @@
       const scanned=Number(report.scanned)||0;
       const skippedRefunded=Number(report.skippedRefunded)||0;
       const failed=Array.isArray(report.failed)?report.failed:[];
+      const fallbackIssued=Number(report.fallbackIssued)||0;
       let message=(failed.length?'Invoice backfill finished with validation issues. ':'Invoice backfill complete. ')+issued+' missing invoice'+(issued===1?'':'s')+' generated for eligible dispatched/delivered orders ('+scanned+' checked).';
+      if(fallbackIssued)message+=' '+fallbackIssued+' issued as commercial receipts because required GST/HSN details were incomplete. Add those details later if a GST invoice is required.';
       if(skippedRefunded)message+=' '+skippedRefunded+' refunded order'+(skippedRefunded===1?' was':'s were')+' left for credit-note review.';
       if(failed.length)message+=' First failure: '+String(failed[0].orderId||'Order')+' — '+String(failed[0].reason||'Invoice validation failed')+'.';
       else if(!issued)message+=' No new invoices were needed.';
