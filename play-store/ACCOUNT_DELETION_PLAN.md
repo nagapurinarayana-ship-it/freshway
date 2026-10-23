@@ -18,12 +18,11 @@ Status: request submission, Owner review queue and redaction/de-identification c
 - These endpoints use the existing authenticated Owner session. Only mark completed after the agreed deletion/de-identification work has actually been performed and documented.
 
 ## Required before release
-1. Configure and test TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_VERIFY_SERVICE_SID in a non-production Worker. External requests cannot use SMS until these are configured.
-2. Configure and test Twilio Verify in a non-production Worker; external SMS verification requires the relevant secrets.
-3. Run the fulfilment tests plus an isolated D1 end-to-end test of auth, addresses, orders, notifications and invoices.
-4. Confirm retention rules for order/address snapshots, invoice buyer snapshots, notification logs, provider data, exports and backups with an appropriate adviser.
-5. Confirm legal business identity and a monitored privacy/support contact; review the policy against the real production data flow.
-6. Test OTP, invalid/expired codes, rate limits, duplicate requests, and auth/order/invoice regressions.
-7. Completion notes must document the deletion performed and invoice/transaction retention decision. Issued invoice snapshots remain unchanged and require owner/legal retention approval.
+1. Configure and test TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_VERIFY_SERVICE_SID in a non-production Worker; external SMS verification requires the relevant secrets.
+2. Run the fulfilment tests plus an isolated D1 end-to-end test of auth, addresses, orders, notifications and invoices.
+3. Confirm retention rules for order/address snapshots, invoice buyer snapshots, notification logs, provider data, exports and backups with an appropriate adviser.
+4. Confirm legal business identity and a monitored privacy/support contact; review the policy against the real production data flow.
+5. Test OTP, invalid/expired codes, rate limits, duplicate requests, and auth/order/invoice regressions.
+6. Completion notes must document the deletion performed and invoice/transaction retention decision. Issued invoice snapshots remain unchanged and require owner/legal retention approval.
 
 Never run a blanket DELETE FROM customers: restrictive order and invoice foreign keys may require records to be retained.
