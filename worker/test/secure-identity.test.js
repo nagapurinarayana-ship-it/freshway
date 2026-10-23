@@ -16,7 +16,7 @@ const env = {
             async first() {
               if (sql.includes('SELECT id,name,phone,passcode_salt,passcode_hash')) return customer.phone === args[0] ? customer : null;
               if (sql.includes('SELECT id,name,phone FROM customers')) return customer.id === args[0] ? customer : null;
-              if (sql.includes('SELECT auth_version FROM customers')) return customer.id === args[0] ? { auth_version: customer.auth_version || 0 } : null;
+              if (sql.includes('SELECT auth_version') && sql.includes('FROM customers')) return customer.id === args[0] ? { auth_version: customer.auth_version || 0, deleted_at: customer.deleted_at || null } : null;
               if (sql.includes('SELECT id,name,phone,passcode_salt,passcode_hash FROM customers WHERE phone')) return customer.phone === args[0] ? customer : null;
               if (sql.includes('SELECT phone FROM customers')) return customer.id === args[0] ? { phone: customer.phone } : null;
               if (sql.includes('SELECT id FROM customers')) return customer.id === args[0] ? { id: customer.id } : null;
