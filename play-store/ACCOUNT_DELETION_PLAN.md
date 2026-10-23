@@ -6,6 +6,7 @@ Status: request submission and Owner review API are implemented on this branch. 
 - Signed-in customers submit from Profile; the server derives identity from the authenticated session.
 - A public external request page verifies control of the registered mobile number with Twilio Verify before recording a request.
 - OTP starts and checks are rate-limited by phone and client IP.
+- Signed-in request submission requires a JSON request from an allowed browser origin to reduce cross-site request forgery risk.
 - Active requests are idempotent while pending or in review.
 - Requests are stored separately; submission does not cascade-delete order, address or invoice records.
 - The Owner API can list requests and change status to in review or rejected. The Owner dashboard now has a masked request queue. The API explicitly rejects `completed` until a verified fulfilment workflow exists, preventing false completion.
