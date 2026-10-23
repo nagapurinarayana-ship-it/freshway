@@ -44,7 +44,7 @@ Evidence links:
 
 - Final application ID and app signing strategy.
 - Public privacy-policy URL and verified legal/business contact details.
-- In-app and external account-deletion request submission is implemented on this branch; owner-side fulfilment and retention rules remain release blockers.
+- In-app and external account-deletion request submission plus an authenticated Owner review/rejection queue are implemented on this branch. Actual deletion/de-identification and retention rules remain release blockers; the API blocks false completion.
 - Accurate Data safety answers based on the complete live data flow and provider configuration.
 - Play Store icon, feature graphic, screenshots, support details and reviewer instructions.
 - Target API and native dependency checks for the generated package.
