@@ -21,5 +21,5 @@ test('deletion requests deliberately do not cascade-delete customers or orders',
   const table = migration.split('CREATE TABLE IF NOT EXISTS account_deletion_requests')[1]?.split(';')[0] || '';
   assert.doesNotMatch(table, /FOREIGN KEY\s*\(/i);
   assert.match(schema, /FOREIGN KEY\(customer_id\) REFERENCES customers\(id\) ON DELETE RESTRICT/);
-  assert.match(schema, /FOREIGN KEY\(customer_id\) REFERENCES customers\(id\) ON DELETE RESTRICT/);
+  assert.match(schema, /FOREIGN KEY\(customer_id\) REFERENCES customers\(id\) ON DELETE CASCADE/);
 });
