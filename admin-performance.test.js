@@ -30,7 +30,7 @@ assert.doesNotMatch(admin,/localStorage\.setItem\(['"]freshway-admin-session['"]
 assert.doesNotMatch(admin,/sessionStorage\.setItem\(['"]freshway-admin-session['"]/);
 assert.match(admin,/AUTH_HINT='freshway-admin-auth'/);
 assert.match(html,/admin\.js\?v=20261023-new-order-kpi-wait-v1/);
-assert.match(html,/admin\.css\?v=20261022-invoice-ui-v1/);
+assert.match(html,/admin\.css\?v=20261023-account-deletion-form-v1/);
 assert.doesNotMatch(html,/\.exact-location/);
 
 assert.match(sw,/const CACHE = 'freshway-v\d+'/);
