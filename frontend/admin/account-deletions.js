@@ -54,13 +54,19 @@
     }
   }
   document.addEventListener('click', async event => {
-    const button = event.target.closest('[data-deletion-action]');
+    let button;
+    try { button = event.target instanceof Element ? event.target.closest('[data-deletion-action]') : null; }
+    catch (_) { return; }
     if (!button) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (button.dataset.busy === '1') return;
     const card = button.closest('[data-deletion-request]');
-    if (!card) return;
+    if (!card) { setMessage('Could not identify this request. Refresh the queue and try again.', true); return; }
     const status = button.dataset.deletionAction;
     const isReject = status === 'rejected';
     const isComplete = status === 'completed';
+    try {
     if (isComplete && !window.confirm('This disables the account, removes login credentials and push subscriptions, and redacts customer/address details from operational order/address records. Issued invoice snapshots remain unchanged. Continue only after the retention decision is reviewed.')) return;
     const prompt = isReject ? 'Why is this deletion request being rejected? Explain the reason to the customer through the approved support channel.' : isComplete ? 'Document deletion performed, which invoice/transaction records remain, and the retention basis. Do not include unnecessary personal data.' : 'Optional review note (do not include unnecessary personal data):';
     const note = window.prompt(prompt, '');
@@ -74,6 +80,8 @@
       return;
     }
     button.disabled = true;
+    button.dataset.busy = '1';
+    setMessage(isComplete ? 'Submitting deletion request…' : isReject ? 'Submitting rejection…' : 'Updating request…');
     try {
       await request('/api/admin/account-deletion-requests/' + encodeURIComponent(card.dataset.deletionRequest), {
         method:'PATCH',
@@ -84,8 +92,12 @@
     } catch (error) {
       setMessage(error.message || 'Could not update this request.', true);
       button.disabled = false;
+      delete button.dataset.busy;
     }
-  });
+    } catch (error) {
+      setMessage('Action could not start: ' + (error?.message || 'unknown browser error'), true);
+    }
+  }, true);
   $('#accountDeletionRefresh')?.addEventListener('click', () => void load());
   $('#accountDeletionStatus')?.addEventListener('change', () => void load());
   document.addEventListener('click', event => {
