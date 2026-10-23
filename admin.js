@@ -53,8 +53,9 @@ async function openFirstNewOrder(){
   const target=[...($('#ordersList')?.querySelectorAll('[data-order]')||[])][0];
   if(!target){toast('No new orders need attention.');return}
   target.scrollIntoView({behavior:'smooth',block:'center'});
-  target.classList.add('new-order-kpi-target');
-  window.setTimeout(()=>target.classList.remove('new-order-kpi-target'),1800);
+  const priorOutline=target.style.outline,priorOffset=target.style.outlineOffset;
+  target.style.outline='3px solid var(--g)';target.style.outlineOffset='2px';
+  window.setTimeout(()=>{target.style.outline=priorOutline;target.style.outlineOffset=priorOffset},1800);
 }
 
 function validateOrderFilters(show=true){const f=orderFilterState(),hint=$('#orderFilterHint');if(hint){hint.textContent='';hint.classList.remove('error')}if(f.from&&f.to&&f.from>f.to){if(hint){hint.textContent='From date must be on or before To date.';hint.classList.add('error')}if(show)toast('From date must be on or before To date.');return false}const min=f.minAmount===''?null:Number(f.minAmount),max=f.maxAmount===''?null:Number(f.maxAmount);if((min!==null&&!Number.isFinite(min))||(max!==null&&!Number.isFinite(max))){if(show)toast('Enter valid amount filters.');return false}if(min!==null&&max!==null&&min>max){if(hint){hint.textContent='Minimum amount cannot exceed maximum amount.';hint.classList.add('error')}if(show)toast('Minimum amount cannot exceed maximum amount.');return false}return true}
