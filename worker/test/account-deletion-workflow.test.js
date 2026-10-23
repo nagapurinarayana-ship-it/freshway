@@ -7,7 +7,7 @@ const ownerModule = readFileSync(new URL('../../frontend/admin/account-deletions
 const ownerHtml = readFileSync(new URL('../../admin.html', import.meta.url), 'utf8');
 
 test('signed-in deletion requests require JSON and an allowed browser origin', () => {
-  assert.match(adminAuth, /contentType !== 'application\\/json' \\|\\| !requestOrigin \\|\\| !isAllowedOrigin\\(env, requestOrigin\\)/);
+  assert.ok(adminAuth.includes("contentType !== 'application/json' || !requestOrigin || !isAllowedOrigin(env, requestOrigin)"));
 });
 
 test('account deletion cannot be marked complete before fulfilment exists', () => {
