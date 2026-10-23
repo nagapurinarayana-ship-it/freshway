@@ -48,12 +48,9 @@ function validateSettings(s,store={}){
   if(!TYPES.has(s.documentType))throw new Error('Choose a valid invoice document type.');
   if(!/^[A-Z0-9]{1,2}$/.test(s.seriesPrefix))throw new Error('Invoice series prefix must contain one or two letters or numbers.');
   if(s.documentType==='commercial_invoice'){
-    // Commercial receipts treat the optional tax number as display text only.
-    // No external lookup is performed and it does not trigger tax calculations.
-    // A non-GST order record uses the store profile as the single source of
-    // truth. Separate legal-name/address overrides are optional for this type.
-    if(!trim(store.storeName,120))throw new Error('Enter the store name in Business information.');
-    if(!trim(store.address,500))throw new Error('Enter the complete business address in Store Profile. Invoice overrides cannot replace the shop profile location.');
+    // A commercial receipt uses whichever seller fields are available.
+    // Missing optional profile fields must not block receipt generation.
+    // Tax number remains display-only and never triggers tax calculations.
     return;
   }
   // GST documents must not silently substitute a trade name/address for
@@ -142,25 +139,41 @@ export async function prepareInvoiceIssue(env,orderId,targetStatus){
   const store=await getStoreProfile(env);
   const itemRows=(await env.DB.prepare('SELECT product_id,name,unit,qty,price,line_total,hsn_code,gst_rate_bps,gst_rate_confirmed FROM order_items WHERE order_id=? ORDER BY id').bind(orderId).all()).results||[];
   const address={house:order.house,building:order.building,floor:order.floor,street:order.street,area:order.area,locality:order.locality,city:order.city,district:order.district,state:order.state,pincode:order.pincode,landmark:order.landmark,note:order.note,recipientName:order.recipient_name,deliveryPhone:order.delivery_phone};
-  validateIssueConfig(settings,itemRows,address,store);
-  const buyerStateCode=settings.documentType==='gst_tax_invoice'?codeFromState(address.state):'';
-  const items=itemRows.map(item=>buildItemTax(item,settings,settings.stateCode,buyerStateCode));
+
+  // Always prefer producing a usable order receipt over blocking on tax metadata.
+  // When a GST document is selected but its seller/product requirements are not
+  // complete, issue this order as a non-GST commercial receipt instead. The
+  // missing fields are not guessed and no GST amounts are calculated.
+  let effectiveSettings=settings;
+  let fallbackReason='';
+  try{
+    validateIssueConfig(settings,itemRows,address,store);
+  }catch(error){
+    if(settings.documentType==='commercial_invoice')throw error;
+    fallbackReason=String(error?.message||'Required GST details are incomplete.');
+    effectiveSettings={...settings,documentType:'commercial_invoice'};
+    // Keep core receipt checks (enabled state, valid series, and item presence)
+    // while intentionally skipping GST/HSN-specific requirements.
+    validateIssueConfig(effectiveSettings,itemRows,address,store);
+  }
+  const buyerStateCode=effectiveSettings.documentType==='gst_tax_invoice'?codeFromState(address.state):'';
+  const items=itemRows.map(item=>buildItemTax(item,effectiveSettings,effectiveSettings.stateCode,buyerStateCode));
   const grossTotal=sumBy(items,'grossPaise'),orderTotal=amountPaisa(order.total);
   if(grossTotal!==orderTotal)throw new Error('Invoice item totals do not match the saved order total. Please review this order before dispatch.');
   const totals={grossPaise:grossTotal,taxablePaise:sumBy(items,'taxablePaise'),cgstPaise:sumBy(items,'cgstPaise'),sgstPaise:sumBy(items,'sgstPaise'),igstPaise:sumBy(items,'igstPaise'),totalPaise:grossTotal};
   const issuedAt=new Date().toISOString(),financialYear=toFinancialYear(issuedAt);
   const invoiceId='inv-'+String(orderId).replace(/[^A-Za-z0-9_-]/g,'').slice(0,100);
-  const sellerSnapshot={storeName:store.storeName,legalName:settings.legalName||store.storeName,address:settings.businessAddress||store.address,stateName:settings.stateName,stateCode:settings.stateCode,gstin:settings.gstin,phone:store.phone,email:store.email,documentType:settings.documentType,footer:settings.footer};
-  const buyerSnapshot={name:order.registered_name||order.customer_name,phone:order.registered_phone||order.customer_phone,recipientName:address.recipientName||order.customer_name,deliveryPhone:address.deliveryPhone||order.customer_phone,address,stateCode:buyerStateCode,placeOfSupply:settings.documentType==='gst_tax_invoice'?address.state:'',orderCreatedAt:order.created_at,paymentStatus:order.payment_status||'Not Collected'};
+  const sellerSnapshot={storeName:store.storeName||'',legalName:settings.legalName||store.storeName||'',address:settings.businessAddress||store.address||'',stateName:effectiveSettings.documentType==='commercial_invoice'?'':settings.stateName,stateCode:effectiveSettings.documentType==='commercial_invoice'?'':settings.stateCode,gstin:settings.gstin||'',phone:store.phone||'',email:store.email||'',documentType:effectiveSettings.documentType,footer:settings.footer||''};
+  const buyerSnapshot={name:order.registered_name||order.customer_name||'',phone:order.registered_phone||order.customer_phone||'',recipientName:address.recipientName||order.customer_name||'',deliveryPhone:address.deliveryPhone||order.customer_phone||'',address,stateCode:buyerStateCode,placeOfSupply:effectiveSettings.documentType==='gst_tax_invoice'?address.state:'',orderCreatedAt:order.created_at,paymentStatus:order.payment_status||'Not Collected'};
   const totalsSnapshot={...totals,currency:'INR',pricesIncludeTax:true};
   const updateSequence=env.DB.prepare('INSERT INTO invoice_sequences(financial_year,last_number,updated_at) SELECT ?,1,CURRENT_TIMESTAMP WHERE EXISTS(SELECT 1 FROM orders WHERE id=? AND delivery_status=? AND is_test_order=0) AND NOT EXISTS(SELECT 1 FROM invoices WHERE order_id=?) ON CONFLICT(financial_year) DO UPDATE SET last_number=invoice_sequences.last_number+1,updated_at=CURRENT_TIMESTAMP WHERE EXISTS(SELECT 1 FROM orders WHERE id=? AND delivery_status=? AND is_test_order=0) AND NOT EXISTS(SELECT 1 FROM invoices WHERE order_id=?)').bind(financialYear,orderId,targetStatus,orderId,orderId,targetStatus,orderId);
   const insertInvoice=env.DB.prepare("INSERT INTO invoices(id,order_id,customer_id,invoice_number,document_type,financial_year,issue_date,seller_snapshot,buyer_snapshot,totals_snapshot) SELECT ?,?,?,printf('%s/%s/%06d',?,?,last_number),?,?,?,?,?,? FROM invoice_sequences WHERE financial_year=? AND EXISTS(SELECT 1 FROM orders WHERE id=? AND delivery_status=? AND is_test_order=0) AND NOT EXISTS(SELECT 1 FROM invoices WHERE order_id=?)")
-    .bind(invoiceId,orderId,order.customer_id,settings.seriesPrefix,financialYear,settings.documentType,financialYear,issuedAt,JSON.stringify(sellerSnapshot),JSON.stringify(buyerSnapshot),JSON.stringify(totalsSnapshot),financialYear,orderId,targetStatus,orderId);
+    .bind(invoiceId,orderId,order.customer_id,settings.seriesPrefix,financialYear,effectiveSettings.documentType,financialYear,issuedAt,JSON.stringify(sellerSnapshot),JSON.stringify(buyerSnapshot),JSON.stringify(totalsSnapshot),financialYear,orderId,targetStatus,orderId);
 
 
   const itemStatements=items.map(item=>env.DB.prepare('INSERT INTO invoice_items(invoice_id,product_id,name,unit,qty,unit_price_paise,gross_paise,hsn_code,gst_rate_bps,taxable_paise,cgst_paise,sgst_paise,igst_paise) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM invoices WHERE order_id=? AND id=?) AND NOT EXISTS(SELECT 1 FROM invoice_items WHERE invoice_id=? AND product_id=?)')
     .bind(invoiceId,item.productId,item.name,item.unit,item.qty,item.unitPricePaise,item.grossPaise,item.hsnCode,item.gstRateBps,item.taxablePaise,item.cgstPaise,item.sgstPaise,item.igstPaise,orderId,invoiceId,invoiceId,item.productId));
-  return {statements:[updateSequence,insertInvoice,...itemStatements],invoiceId,financialYear};
+  return {statements:[updateSequence,insertInvoice,...itemStatements],invoiceId,financialYear,documentType:effectiveSettings.documentType,fallbackReason};
 }
 export async function getInvoiceRecord(env,orderId){
   const inv=await env.DB.prepare('SELECT * FROM invoices WHERE order_id=? LIMIT 1').bind(orderId).first();
