@@ -33,6 +33,15 @@ test('renders the saved customer phone in domestic format and avoids duplicating
   assert.match(invoicePdfSource,/deliveryPhone&&deliveryPhone!==customerPhone\?'Delivery: '\+deliveryPhone/);
 });
 
+test('uses receipt labels and conditionally prints the saved tax number',()=>{
+  assert.match(invoicePdfSource,/Tax Number:/);
+  assert.ok(invoicePdfSource.includes("if(String(invoice.seller.gstin||'').trim())"),'tax number line must be omitted when no tax number is present');
+  assert.match(invoicePdfSource,/Total Bill Amount is/);
+  assert.match(invoicePdfSource,/Cash Received:/);
+  assert.match(invoicePdfSource,/Change Amount:/);
+  assert.match(invoicePdfSource,/Payment Type: Cash/);
+});
+
 test('creates a valid one-page commercial invoice PDF',async()=>{
   const bytes=await createInvoicePdf(fixture());
   assert.ok(bytes instanceof Uint8Array);
