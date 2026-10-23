@@ -53,9 +53,9 @@ export async function createInvoicePdf(invoice){
     drawText(page,'BILL TO / DELIVER TO',rx+10,y-14,7,bold,GREEN);
     const addressText=[a.house,a.building,a.floor,a.street,a.area,a.locality,a.city,a.district,a.state,a.pincode,a.landmark].filter(Boolean).join(', ');
     const customerPhone=formatInvoicePhone(b.phone),deliveryPhone=formatInvoicePhone(a.deliveryPhone);
-    const contactText=[a.recipientName&&a.recipientName!==b.name?'Recipient: '+a.recipientName:'',deliveryPhone&&deliveryPhone!==customerPhone?'Delivery: '+deliveryPhone:''].filter(Boolean).join(' · ');
+    const contactText=[customerPhone?'Customer phone: '+customerPhone:'',a.recipientName&&a.recipientName!==b.name?'Recipient: '+a.recipientName:'',deliveryPhone&&deliveryPhone!==customerPhone?'Delivery: '+deliveryPhone:''].filter(Boolean).join(' · ');
     const placeText=b.placeOfSupply?'Place of supply: '+b.placeOfSupply+(b.stateCode?' ('+b.stateCode+')':''):'';
-    const buyerLines=[b.name,customerPhone?'Customer phone: '+customerPhone:'',contactText,addressText,placeText].filter(Boolean);
+    const buyerLines=[b.name,contactText,addressText,placeText].filter(Boolean);
     const buyerTextLines=buyerLines.flatMap(t=>wrap(t,regular,7.3,colW-20)).slice(0,6);
     let by=y-27;for(const lineText of buyerTextLines){if(by<y-84)break;drawText(page,lineText,rx+10,by,7.3,regular,INK);by-=10}
     y-=111;
