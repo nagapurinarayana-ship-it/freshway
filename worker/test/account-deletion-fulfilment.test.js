@@ -2,7 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fulfillAccountDeletion } from '../src/account-deletion.js';
 
-function fakeEnv({ deletion = { id: 'req-1', customer_id: 'cust-1', phone_snapshot: '919999999999', status: 'in_review' }, customer = { id: 'cust-1', phone: '919999999999', deleted_at: null } } = {}) {
+function fakeEnv({
+  deletion = { id: 'req-1', customer_id: 'cust-1', phone_snapshot: '919999999999', status: 'in_review' },
+  customer = { id: 'cust-1', phone: '919999999999', deleted_at: null },
+  completionChanges = 1
+} = {}) {
   const prepared = [];
   let batchStatements = null;
   const DB = {
@@ -22,7 +26,9 @@ function fakeEnv({ deletion = { id: 'req-1', customer_id: 'cust-1', phone_snapsh
     },
     async batch(statements) {
       batchStatements = statements;
-      return statements.map(() => ({ meta: { changes: 1 } }));
+      return statements.map((statement, index) => ({
+        meta: { changes: index === statements.length - 1 ? completionChanges : 1 }
+      }));
     }
   };
   return { env: { DB }, prepared, get batchStatements() { return batchStatements; } };
@@ -57,6 +63,25 @@ test('redacts operational personal data, revokes access and retains issued invoi
   assert.ok(sql.some(statement => statement.startsWith('DELETE FROM auth_rate_limits WHERE key IN (?,?,?,?,?,?)')));
   assert.equal(sql.some(statement => /^\s*(DELETE FROM customers|UPDATE invoices)\b/i.test(statement)), false);
   assert.ok(statements.some(statement => statement.sql.startsWith('DELETE FROM auth_rate_limits') && statement.params.includes('auth:login:phone:919999999999')));
+  assert.equal(statements.at(-1).sql.startsWith("UPDATE account_deletion_requests SET status='completed'"), true);
+});
+
+test('guards every operational mutation against a request that is no longer in review', async () => {
+  const fake = fakeEnv();
+  await fulfillAccountDeletion(fake.env, 'req-1', retentionNote);
+  const statements = fake.batchStatements;
+  assert.ok(statements.length >= 7);
+  for (const statement of statements) {
+    assert.match(statement.sql, /EXISTS \(SELECT 1 FROM account_deletion_requests WHERE id=\? AND customer_id=\? AND status='in_review'\)|UPDATE account_deletion_requests SET status='completed'[\s\S]*WHERE id=\? AND customer_id=\? AND status='in_review'/);
+  }
+});
+
+test('returns conflict if a concurrent Owner action changed the request before commit', async () => {
+  const fake = fakeEnv({ completionChanges: 0 });
+  const result = await fulfillAccountDeletion(fake.env, 'req-1', retentionNote);
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 409);
+  assert.equal(fake.batchStatements.at(-1).sql.startsWith("UPDATE account_deletion_requests SET status='completed'"), true);
 });
 
 test('does not issue a wildcard rate-limit delete when the saved phone is absent', async () => {
