@@ -39,7 +39,8 @@ function validateSettings(s,store={}){
   if(!TYPES.has(s.documentType))throw new Error('Choose a valid invoice document type.');
   if(!/^[A-Z0-9]{1,2}$/.test(s.seriesPrefix))throw new Error('Invoice series prefix must contain one or two letters or numbers.');
   if(s.documentType==='commercial_invoice'){
-    if(s.gstin)throw new Error('A GSTIN is entered. Select the document type confirmed for your GST registration instead of issuing a non-GST commercial invoice.');
+    // Commercial receipts treat the optional tax number as display text only.
+    // No external lookup is performed and it does not trigger tax calculations.
     // A non-GST order record uses the store profile as the single source of
     // truth. Separate legal-name/address overrides are optional for this type.
     if(!trim(store.storeName,120))throw new Error('Enter the store name in Business information.');
@@ -123,7 +124,7 @@ const sumBy=(items,key)=>items.reduce((sum,i)=>sum+Number(i[key]||0),0);
 export async function prepareInvoiceIssue(env,orderId,targetStatus){
   const existing=await env.DB.prepare('SELECT id,invoice_number,document_type FROM invoices WHERE order_id=? LIMIT 1').bind(orderId).first();
   if(existing)return null;
-  const order=await env.DB.prepare('SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.total,o.delivery_status,o.is_test_order,o.created_at,c.name registered_name,c.phone registered_phone,COALESCE(s.recipient_name,a.recipient_name,o.customer_name) recipient_name,COALESCE(s.delivery_phone,a.delivery_phone) delivery_phone,COALESCE(s.house_flat,a.house) house,COALESCE(s.building,a.building) building,COALESCE(s.floor,a.floor) floor,COALESCE(s.street,a.street) street,COALESCE(s.area,a.area) area,COALESCE(s.locality,a.locality) locality,COALESCE(s.city,a.city) city,COALESCE(s.district,a.district) district,COALESCE(s.state,a.state) state,COALESCE(s.pincode,a.pincode) pincode,COALESCE(s.landmark,a.landmark) landmark,COALESCE(s.delivery_note,a.note) note FROM orders o LEFT JOIN customers c ON c.id=o.customer_id LEFT JOIN addresses a ON a.id=o.address_id LEFT JOIN order_address_snapshots s ON s.order_id=o.id WHERE o.id=? LIMIT 1').bind(orderId).first();
+  const order=await env.DB.prepare('SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.total,o.payment_status,o.delivery_status,o.is_test_order,o.created_at,c.name registered_name,c.phone registered_phone,COALESCE(s.recipient_name,a.recipient_name,o.customer_name) recipient_name,COALESCE(s.delivery_phone,a.delivery_phone) delivery_phone,COALESCE(s.house_flat,a.house) house,COALESCE(s.building,a.building) building,COALESCE(s.floor,a.floor) floor,COALESCE(s.street,a.street) street,COALESCE(s.area,a.area) area,COALESCE(s.locality,a.locality) locality,COALESCE(s.city,a.city) city,COALESCE(s.district,a.district) district,COALESCE(s.state,a.state) state,COALESCE(s.pincode,a.pincode) pincode,COALESCE(s.landmark,a.landmark) landmark,COALESCE(s.delivery_note,a.note) note FROM orders o LEFT JOIN customers c ON c.id=o.customer_id LEFT JOIN addresses a ON a.id=o.address_id LEFT JOIN order_address_snapshots s ON s.order_id=o.id WHERE o.id=? LIMIT 1').bind(orderId).first();
   if(!order)throw new Error('Order not found.');
   if(Number(order.is_test_order||0)===1)throw new Error('Invoices cannot be issued for test orders.');
   if(String(order.delivery_status||'')==='Cancelled')throw new Error('Invoices cannot be issued for cancelled orders.');
@@ -141,7 +142,7 @@ export async function prepareInvoiceIssue(env,orderId,targetStatus){
   const issuedAt=new Date().toISOString(),financialYear=toFinancialYear(issuedAt);
   const invoiceId='inv-'+String(orderId).replace(/[^A-Za-z0-9_-]/g,'').slice(0,100);
   const sellerSnapshot={storeName:store.storeName,legalName:settings.legalName||store.storeName,address:settings.businessAddress||store.address,stateName:settings.stateName,stateCode:settings.stateCode,gstin:settings.gstin,phone:store.phone,email:store.email,documentType:settings.documentType,footer:settings.footer};
-  const buyerSnapshot={name:order.registered_name||order.customer_name,phone:order.registered_phone||order.customer_phone,recipientName:address.recipientName||order.customer_name,deliveryPhone:address.deliveryPhone||order.customer_phone,address,stateCode:buyerStateCode,placeOfSupply:settings.documentType==='gst_tax_invoice'?address.state:''};
+  const buyerSnapshot={name:order.registered_name||order.customer_name,phone:order.registered_phone||order.customer_phone,recipientName:address.recipientName||order.customer_name,deliveryPhone:address.deliveryPhone||order.customer_phone,address,stateCode:buyerStateCode,placeOfSupply:settings.documentType==='gst_tax_invoice'?address.state:'',orderCreatedAt:order.created_at,paymentStatus:order.payment_status||'Not Collected'};
   const totalsSnapshot={...totals,currency:'INR',pricesIncludeTax:true};
   const updateSequence=env.DB.prepare('INSERT INTO invoice_sequences(financial_year,last_number,updated_at) SELECT ?,1,CURRENT_TIMESTAMP WHERE EXISTS(SELECT 1 FROM orders WHERE id=? AND delivery_status=? AND is_test_order=0) AND NOT EXISTS(SELECT 1 FROM invoices WHERE order_id=?) ON CONFLICT(financial_year) DO UPDATE SET last_number=invoice_sequences.last_number+1,updated_at=CURRENT_TIMESTAMP WHERE EXISTS(SELECT 1 FROM orders WHERE id=? AND delivery_status=? AND is_test_order=0) AND NOT EXISTS(SELECT 1 FROM invoices WHERE order_id=?)').bind(financialYear,orderId,targetStatus,orderId,orderId,targetStatus,orderId);
   const insertInvoice=env.DB.prepare("INSERT INTO invoices(id,order_id,customer_id,invoice_number,document_type,financial_year,issue_date,seller_snapshot,buyer_snapshot,totals_snapshot) SELECT ?,?,?,printf('%s/%s/%06d',?,?,last_number),?,?,?,?,?,? FROM invoice_sequences WHERE financial_year=? AND EXISTS(SELECT 1 FROM orders WHERE id=? AND delivery_status=? AND is_test_order=0) AND NOT EXISTS(SELECT 1 FROM invoices WHERE order_id=?)")
@@ -155,9 +156,17 @@ export async function prepareInvoiceIssue(env,orderId,targetStatus){
 export async function getInvoiceRecord(env,orderId){
   const inv=await env.DB.prepare('SELECT * FROM invoices WHERE order_id=? LIMIT 1').bind(orderId).first();
   if(!inv)return null;
+  const orderMeta=await env.DB.prepare('SELECT created_at,payment_status FROM orders WHERE id=? LIMIT 1').bind(orderId).first();
+  const configuredTaxNumber=await env.DB.prepare('SELECT gstin FROM invoice_settings WHERE id=1').first();
   const items=(await env.DB.prepare('SELECT product_id,name,unit,qty,unit_price_paise,gross_paise,hsn_code,gst_rate_bps,taxable_paise,cgst_paise,sgst_paise,igst_paise FROM invoice_items WHERE invoice_id=? ORDER BY id').bind(inv.id).all()).results||[];
   let seller={},buyer={},totals={};
   try{seller=JSON.parse(inv.seller_snapshot||'{}');buyer=JSON.parse(inv.buyer_snapshot||'{}');totals=JSON.parse(inv.totals_snapshot||'{}')}catch(_){throw new Error('Stored invoice snapshot is invalid.')}
+  // Use current payment/date metadata for the receipt without modifying the invoice row.
+  buyer.orderCreatedAt=buyer.orderCreatedAt||orderMeta?.created_at||inv.issue_date;
+  buyer.paymentStatus=orderMeta?.payment_status||buyer.paymentStatus||'Not Collected';
+  // An older snapshot may lack a tax number. Use the current saved optional field if available.
+  // This does not call an external service or alter stored invoices.
+  seller.gstin=String(seller.gstin||configuredTaxNumber?.gstin||'').trim();
   return {id:inv.id,orderId:inv.order_id,customerId:inv.customer_id,invoiceNumber:inv.invoice_number,documentType:inv.document_type,financialYear:inv.financial_year,issueDate:inv.issue_date,seller,buyer,totals,items:items.map(i=>({productId:i.product_id,name:i.name,unit:i.unit,qty:i.qty,unitPricePaise:i.unit_price_paise,grossPaise:i.gross_paise,hsnCode:i.hsn_code,gstRateBps:i.gst_rate_bps,taxablePaise:i.taxable_paise,cgstPaise:i.cgst_paise,sgstPaise:i.sgst_paise,igstPaise:i.igst_paise}))};
 }
 export async function getInvoiceSummary(env,orderId){
