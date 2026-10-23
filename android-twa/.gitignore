@@ -1,0 +1,16 @@
+node_modules/
+generated/
+decompressed/
+.android/
+.gradle/
+build/
+local.properties
+*.keystore
+*.jks
+*.aab
+*.apk
+*.ap_
+*.idsig
+*.zip
+service-account*.json
+play-console*.json

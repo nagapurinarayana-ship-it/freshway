@@ -1,0 +1,30 @@
+{
+  "packageId": "in.fwcoldpressed.freshway",
+  "host": "fwcoldpressed.in",
+  "name": "FreshWay",
+  "launcherName": "FreshWay",
+  "display": "standalone",
+  "orientation": "default",
+  "themeColor": "#0f7a4b",
+  "themeColorDark": "#0f7a4b",
+  "navigationColor": "#0f7a4b",
+  "navigationColorDark": "#0f7a4b",
+  "navigationDividerColor": "#00000000",
+  "navigationDividerColorDark": "#00000000",
+  "backgroundColor": "#ffffff",
+  "enableNotifications": true,
+  "enableSiteSettingsShortcut": true,
+  "startUrl": "/",
+  "iconUrl": "https://fwcoldpressed.in/icons/icon-512.png",
+  "maskableIconUrl": "https://fwcoldpressed.in/icons/icon-512-maskable.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "android"
+  },
+  "appVersionCode": 1,
+  "appVersion": "1.0.0",
+  "webManifestUrl": "https://fwcoldpressed.in/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "minSdkVersion": 23
+}

@@ -23,7 +23,7 @@ assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_INVOICE_SETTINGS_S
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1';"), 'production Owner smoke must demand the current push setup version');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261022-pin-save-v2';"), 'production Owner smoke must demand the current business profile and shop pin editor');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261023-available-fields-invoice-v1';"), 'production Owner smoke must demand the cache-busted order lifecycle map handler');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v35';"), 'production Owner smoke must demand the current service-worker cache');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v36';"), 'production Owner smoke must demand the current service-worker cache');
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerAppShell/);
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerServiceWorker/);
 assert.ok(ownerLiveSmokeSource.includes("const pathname = String(path).split('?')[0];"), 'Owner cache smoke must classify assets by pathname, not URL including query');
@@ -41,6 +41,7 @@ const requiredOwnerAssets = [
   'frontend/phone-display.js',
   'frontend/admin/store-profile.js',
   'frontend/admin/invoice-settings.js',
+  'frontend/admin/account-deletions.js',
   'frontend/catalogue-media.js',
   'frontend/admin/catalogue.js',
   'frontend/admin/owner-lifecycle-autosave.js',

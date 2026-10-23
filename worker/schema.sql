@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS customers (
   passcode_salt TEXT,
   passcode_hash TEXT,
   auth_version INTEGER NOT NULL DEFAULT 0,
+  deleted_at TEXT,
   whatsapp_opt_in INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -303,3 +304,10 @@ INSERT OR IGNORE INTO store_profile (id) VALUES (1);
 INSERT OR IGNORE INTO categories (id,name,slug,icon,description,display_order,active) VALUES
 ('cat-oils','Oils','oils','🫒','Cooking and everyday oils',1,1),
 ('cat-rice','Rice','rice','🍚','Rice and rice varieties',2,1);
+
+
+-- Store requests separately; never cascade-delete orders and invoices during request submission.
+CREATE TABLE IF NOT EXISTS account_deletion_requests (id TEXT PRIMARY KEY, customer_id TEXT NOT NULL, phone_snapshot TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','in_review','completed','rejected')), source TEXT NOT NULL CHECK(source IN ('authenticated_customer','external_verified_phone')), admin_note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, processed_at TEXT);
+CREATE INDEX IF NOT EXISTS idx_account_deletion_requests_status_created ON account_deletion_requests(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_account_deletion_requests_customer_created ON account_deletion_requests(customer_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_account_deletion_requests_one_active ON account_deletion_requests(customer_id) WHERE status IN ('pending','in_review');

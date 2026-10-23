@@ -74,3 +74,11 @@
 /admin.html
   X-Robots-Tag: noindex, nofollow
   Cache-Control: no-store, max-age=0, must-revalidate
+
+# Privacy and account-deletion pages must revalidate instead of remaining stale
+# after the policy or the external request flow is updated.
+/privacy.html
+  Cache-Control: no-store, max-age=0, must-revalidate
+
+/delete-account.html
+  Cache-Control: no-store, max-age=0, must-revalidate
