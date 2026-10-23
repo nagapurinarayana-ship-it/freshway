@@ -8,7 +8,7 @@ Status: request submission and Owner review API are implemented on this branch. 
 - OTP starts and checks are rate-limited by phone and client IP.
 - Active requests are idempotent while pending or in review.
 - Requests are stored separately; submission does not cascade-delete order, address or invoice records.
-- The Owner API can list requests and change status to in review, rejected or completed. Completing a request requires an operator note describing the work actually performed.
+- The Owner API can list requests and change status to in review or rejected. The Owner dashboard now has a masked request queue. The API explicitly rejects `completed` until a verified fulfilment workflow exists, preventing false completion.
 - Public privacy and account-deletion pages are added.
 
 ## Owner API
