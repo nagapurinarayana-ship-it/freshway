@@ -1,6 +1,6 @@
 # FreshWay Google Play preparation
 
-Status: preparation only. This directory does not change the customer app, Owner dashboard, Worker API, D1 schema, service worker, or production deployment.
+Status: preparation only. This branch now includes isolated customer-facing privacy/account-deletion pages, account-deletion request APIs, and an additive D1 migration. It does not change the service-worker cache strategy or deploy to production.
 
 ## Goal
 
@@ -44,7 +44,7 @@ Evidence links:
 
 - Final application ID and app signing strategy.
 - Public privacy-policy URL and verified legal/business contact details.
-- In-app account deletion and external deletion-request flow.
+- In-app and external account-deletion request submission is implemented on this branch; owner-side fulfilment and retention rules remain release blockers.
 - Accurate Data safety answers based on the complete live data flow and provider configuration.
 - Play Store icon, feature graphic, screenshots, support details and reviewer instructions.
 - Target API and native dependency checks for the generated package.
