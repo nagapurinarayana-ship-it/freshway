@@ -4,12 +4,12 @@ const BASE_URL = (process.env.OWNER_PWA_BASE_URL || '').replace(/\/$/, '');
 if (!BASE_URL) throw new Error('OWNER_PWA_BASE_URL is required for Owner PWA deployment smoke');
 
 const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261022-invoice-ui-v1';
-const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261023-new-order-kpi-jump-v1';
+const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261023-new-order-kpi-wait-v1';
 const EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT = '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v1';
 const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1';
 const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261022-pin-save-v2';
 const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261023-available-fields-invoice-v1';
-const EXPECTED_OWNER_CACHE = 'fw-owner-v34';
+const EXPECTED_OWNER_CACHE = 'fw-owner-v35';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
