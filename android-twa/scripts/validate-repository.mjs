@@ -74,7 +74,7 @@ assert.match(deletion, /\/api\/account-deletion\/start/);
 assert.match(deletion, /\/api\/account-deletion\/verify/);
 
 for (const [path, html] of [['privacy.html', privacy], ['delete-account.html', deletion]]) {
-  const inlineScripts = [...html.matchAll(/<script\\b[^>]*>([\\s\\S]*?)<\\/script>/gi)];
+  const inlineScripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
   assert.ok(inlineScripts.length > 0, path + ' must include its user-interaction script.');
   for (const [, source] of inlineScripts) {
     assert.doesNotThrow(() => new Script(source, { filename: path }), path + ' contains invalid inline JavaScript.');
