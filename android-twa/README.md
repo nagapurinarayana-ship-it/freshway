@@ -1,6 +1,6 @@
 # FreshWay Android Trusted Web Activity
 
-This directory is the isolated Android packaging workspace for the existing customer PWA. It does not replace the web application, alter its code, change Worker/D1 behavior, or deploy anything.
+This directory is the isolated Android packaging workspace for the existing customer PWA. It does not replace the web application, alter Worker/D1 behavior, or deploy anything.
 
 ## Fixed configuration
 
@@ -15,16 +15,23 @@ This directory is the isolated Android packaging workspace for the existing cust
 
 The package ID uses the reverse-domain form of `fwcoldpressed.in` with a FreshWay product suffix. Treat it as the permanent ID: verify it in Play Console before the first publication and never change it after publication.
 
-## Validate the checked-in configuration
+## Static checks
 
 From this directory, run:
 
 ```bash
-npm run check:config
+npm test
+```
+
+These checks do not need a signing key or production secrets. They verify the TWA identity, PWA manifest, existence and real PNG dimensions of the 192px/512px icons, maskable-icon declarations, customer privacy/deletion entry points and Digital Asset Links fingerprint validation.
+
+Run the live PWA quality check separately:
+
+```bash
 npm run validate:live
 ```
 
-The second command asks Bubblewrap to validate the live PWA against its Trusted Web Activity quality criteria. It is read-only and does not deploy.
+Bubblewrap's live quality check contacts Google's PageSpeed Insights service and can be rate-limited (HTTP 429). Treat that outcome as **inconclusive**, not as proof that the PWA passes or fails. Static checks cannot replace the live validator or a real-device test.
 
 ## Generate the Android project locally
 
@@ -49,7 +56,7 @@ The generated output is intentionally git-ignored. The APK/AAB is not checked in
 
 ## Signing and Digital Asset Links
 
-Do not commit `android.keystore`, key passwords, local.properties, service-account credentials or Play Console secrets. The `twa-manifest.json` stores only a local key path and alias, not the key itself.
+Do not commit `android.keystore`, key passwords, `local.properties`, service-account credentials or Play Console secrets. The `twa-manifest.json` stores only a local key path and alias, not the key itself.
 
 After Play App Signing is configured, take the **app-signing certificate** SHA-256 fingerprint from Play Console (not merely the upload certificate if the certificates differ). Generate the candidate statement locally:
 
