@@ -1,0 +1,44 @@
+name: FreshWay Play Store TWA checks
+
+on:
+  push:
+    branches:
+      - feature/play-store-readiness-20261023
+    paths:
+      - 'android-twa/**'
+      - '.github/workflows/play-store-twa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-twa-preparation:
+    name: Validate TWA config and live PWA
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out isolated branch
+        uses: actions/checkout@v7
+        with:
+          ref: feature/play-store-readiness-20261023
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Validate checked-in TWA config
+        working-directory: android-twa
+        run: npm run check:config
+
+      - name: Syntax-check local validation scripts
+        run: |
+          node --check android-twa/scripts/validate-config.mjs
+          node --check android-twa/scripts/validate-generated-project.mjs
+          node --check android-twa/scripts/generate-assetlinks.mjs
+
+      - name: Validate live PWA against Bubblewrap TWA criteria
+        working-directory: android-twa
+        run: npm run validate:live
