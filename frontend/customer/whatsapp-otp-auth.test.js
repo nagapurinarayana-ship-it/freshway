@@ -1,0 +1,12 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const ui = fs.readFileSync('notifications.js', 'utf8');
+const html = fs.readFileSync('index.html', 'utf8');
+assert.match(ui, /\/api\/auth\/otp\/start/);
+assert.match(ui, /\/api\/auth\/otp\/verify/);
+assert.match(ui, /Continue with WhatsApp/);
+assert.match(ui, /autocomplete="one-time-code"/);
+assert.match(ui, /No password needed/);
+assert.doesNotMatch(ui, /6-digit passcode|Forgot passcode|current-password|new-password/i);
+assert.match(html, /notifications\.js\?v=20261022-whatsapp-otp-v1/);
+console.log('customer WhatsApp OTP UI contract OK');

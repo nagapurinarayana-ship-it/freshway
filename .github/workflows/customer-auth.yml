@@ -21,8 +21,12 @@ jobs:
         run: |
           node --check frontend/customer/auth.js
           node --check frontend/customer/auth.test.js
+          node --check notifications.js
+          node --check frontend/customer/whatsapp-otp-auth.test.js
       - name: Run customer auth tests
-        run: node frontend/customer/auth.test.js
+        run: |
+          node frontend/customer/auth.test.js
+          node frontend/customer/whatsapp-otp-auth.test.js
       - name: Enforce customer auth boundary
         run: |
           grep -q "window.FreshWayCustomerAuth" frontend/customer/auth.js

@@ -102,10 +102,10 @@ test('customer auth rejects an unexpected Origin', async () => {
   assert.match((await jsonResponse(response)).error, /origin not allowed/i);
 });
 
-test('customer registration requires a name and 6-digit passcode', async () => {
+test('legacy customer registration is disabled in favor of WhatsApp OTP', async () => {
   const response = await request('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: '9876543210', passcode: '123456' }) }, passcodeHandler, authEnv);
-  assert.equal(response.status, 400);
-  assert.match((await jsonResponse(response)).error, /name/i);
+  assert.equal(response.status, 410);
+  assert.match((await jsonResponse(response)).error, /WhatsApp OTP/i);
 });
 
 test('customer session endpoint rejects missing sessions', async () => {
@@ -172,27 +172,30 @@ test('admin session cookie rejects extra token segments', async () => {
   assert.equal(response.status, 401);
 });
 
-test('customer auth UI uses mobile, name for registration, plus 6-digit passcode and contains no OTP flow', () => {
+test('customer auth UI uses passwordless WhatsApp OTP for login and registration', () => {
   const root = fileURLToPath(new URL('../../notifications.js', import.meta.url));
   const html = readFileSync(fileURLToPath(new URL('../../index.html', import.meta.url)), 'utf8');
   const notifications = readFileSync(root, 'utf8');
-  assert.doesNotMatch(notifications, /otp\/start|otp\/verify|Twilio|one-time password/i);
-  assert.match(notifications, /passcodeName/);
-  assert.match(notifications, /passcodePhone/);
-  assert.match(notifications, /passcodeValue/);
-  assert.match(notifications, /6-digit passcode/);
+  assert.match(notifications, /\/api\/auth\/otp\/start/);
+  assert.match(notifications, /\/api\/auth\/otp\/verify/);
+  assert.match(notifications, /otpName/);
+  assert.match(notifications, /otpPhone/);
+  assert.match(notifications, /otpCode/);
+  assert.match(notifications, /No password needed/);
+  assert.doesNotMatch(notifications, /passcodeName|passcodePhone|passcodeValue|6-digit passcode|Twilio/i);
   assert.match(html, /id="signOutBtn"/);
 });
 
 
-test('customer auth UI trims +91 to the remaining 10 digits and keeps passcode-only auth', () => {
+test('customer auth UI trims +91 and offers OTP rather than a password', () => {
   const root = fileURLToPath(new URL('../../notifications.js', import.meta.url));
   const notifications = readFileSync(root, 'utf8');
   assert.match(notifications, /normalizeAuthPhone=value=>/);
   assert.match(notifications, /digits\.length===12&&digits\.startsWith\('91'\)/);
   assert.match(notifications, /maxlength="15" pattern="\[0-9\]\{10\}" autocomplete="tel"/);
   assert.match(notifications, /phoneEl\.addEventListener\('blur'/);
-  assert.doesNotMatch(notifications, /otp\/start|otp\/verify|Twilio|one-time password/i);
+  assert.match(notifications, /otp\/start|otp\/verify/);
+  assert.doesNotMatch(notifications, /6-digit passcode|Forgot passcode|current-password|new-password/i);
 });
 
 test('customer checkout address UI keeps map attribution inside the map and avoids duplicate phone helper markup', () => {
