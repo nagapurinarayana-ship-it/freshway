@@ -22,6 +22,13 @@ Evidence links:
 - [PWA live smoke test](https://github.com/nagapurinarayana-ship-it/freshway/blob/main/pwa-live-smoke.mjs)
 - [Worker setup and architecture](https://github.com/nagapurinarayana-ship-it/freshway/blob/main/worker/README.md)
 
+## Supporting release artifacts
+
+- [Store listing draft and asset checklist](STORE_LISTING_DRAFT.md)
+- [Release checklist](PLAY_STORE_RELEASE_CHECKLIST.md)
+- [Privacy policy working draft](PRIVACY_POLICY_DRAFT.md)
+- [Account deletion plan](ACCOUNT_DELETION_PLAN.md)
+
 ## Before generating an Android package
 
 1. Confirm the final Android application ID with the owner. Do not publish a provisional ID; changing it after publication creates a different app.
