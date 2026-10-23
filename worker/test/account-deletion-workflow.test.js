@@ -6,7 +6,11 @@ const adminAuth = readFileSync(new URL('../src/admin-auth.js', import.meta.url),
 const ownerModule = readFileSync(new URL('../../frontend/admin/account-deletions.js', import.meta.url), 'utf8');
 const ownerHtml = readFileSync(new URL('../../admin.html', import.meta.url), 'utf8');
 
-test('signed-in deletion requests require JSON and an allowed browser origin', () => {\n  assert.match(adminAuth, /contentType !== 'application\\/json' \\|\\| !requestOrigin \\|\\| !isAllowedOrigin\\(env, requestOrigin\\)/);\n});\n\ntest('account deletion cannot be marked complete before fulfilment exists', () => {
+test('signed-in deletion requests require JSON and an allowed browser origin', () => {
+  assert.match(adminAuth, /contentType !== 'application\\/json' \\|\\| !requestOrigin \\|\\| !isAllowedOrigin\\(env, requestOrigin\\)/);
+});
+
+test('account deletion cannot be marked complete before fulfilment exists', () => {
   assert.match(adminAuth, /status==='completed'\?'Account deletion cannot be marked complete yet/);
   assert.match(adminAuth, /status==='completed'\?409:400/);
 });
