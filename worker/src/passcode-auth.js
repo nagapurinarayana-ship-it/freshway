@@ -55,8 +55,8 @@ async function sessionCustomerId(request, env) {
     let diff = 0;
     for (let i = 0; i < actual.length; i++) diff |= actual[i] ^ expected[i];
     if (diff !== 0) return null;
-    const account = await env.DB.prepare('SELECT auth_version FROM customers WHERE id=? LIMIT 1').bind(customerId).first();
-    if (!account || Math.max(0, Number(account.auth_version || 0)) !== version) return null;
+    const account = await env.DB.prepare('SELECT auth_version,deleted_at FROM customers WHERE id=? LIMIT 1').bind(customerId).first();
+    if (!account || account.deleted_at || Math.max(0, Number(account.auth_version || 0)) !== version) return null;
     return customerId;
   } catch (_) { return null; }
 }
@@ -79,8 +79,8 @@ function limited(env) { return response({ error: 'Too many attempts. Please try 
 async function derivePasscode(passcode, saltHex) { const baseKey = await crypto.subtle.importKey('raw', enc(passcode), 'PBKDF2', false, ['deriveBits']); return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: bytesFromHex(saltHex), iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' }, baseKey, 256)); }
 async function makePasscodeHash(passcode) { const salt = new Uint8Array(16); crypto.getRandomValues(salt); const saltHex = hex(salt); return { saltHex, hashHex: hex(await derivePasscode(passcode, saltHex)) }; }
 async function verifyPasscode(passcode, saltHex, expectedHex) { if (!/^[0-9a-f]{32}$/i.test(saltHex || '') || !/^[0-9a-f]{64}$/i.test(expectedHex || '')) return false; const actual = await derivePasscode(passcode, saltHex), expected = bytesFromHex(expectedHex); let diff = 0; for (let i = 0; i < actual.length; i++) diff |= actual[i] ^ expected[i]; return diff === 0; }
-async function customerByPhone(env, phone) { return env.DB.prepare('SELECT id,name,phone,passcode_salt,passcode_hash FROM customers WHERE phone=? LIMIT 1').bind(phone).first(); }
-async function customerExists(env, id) { return !!(await env.DB.prepare('SELECT id FROM customers WHERE id=? LIMIT 1').bind(id).first()); }
+async function customerByPhone(env, phone) { return env.DB.prepare('SELECT id,name,phone,passcode_salt,passcode_hash FROM customers WHERE phone=? AND deleted_at IS NULL LIMIT 1').bind(phone).first(); }
+async function customerExists(env, id) { return !!(await env.DB.prepare('SELECT id FROM customers WHERE id=? AND deleted_at IS NULL LIMIT 1').bind(id).first()); }
 function validPasscode(value) { return /^\d{6}$/.test(String(value || '')); }
 async function register(request, env) { let payload = {}; try { payload = await request.json(); } catch (_) {} const phone = normalizedPhone(payload.phone), passcode = String(payload.passcode || ''), name = String(payload.name || '').trim().slice(0, 120); if (!phone || !validPasscode(passcode) || !name) return response({ error: 'Enter your name, a valid 10-digit mobile number and a 6-digit passcode.' }, 400, env); if (!(await rateLimit(env, `auth:register:phone:${phone}`, 5)) || !(await rateLimit(env, `auth:register:ip:${clientIp(request)}`, 20))) return limited(env); const existing = await customerByPhone(env, phone), customerId = existing?.id || crypto.randomUUID(); if (existing?.passcode_hash) return response({ error: 'This mobile number is already registered. Please log in with your 6-digit passcode.' }, 409, env); const { saltHex, hashHex } = await makePasscodeHash(passcode); await env.DB.prepare(`INSERT INTO customers (id,name,phone,passcode_salt,passcode_hash,whatsapp_opt_in,updated_at) VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET name=excluded.name,phone=excluded.phone,passcode_salt=excluded.passcode_salt,passcode_hash=excluded.passcode_hash,updated_at=CURRENT_TIMESTAMP`).bind(customerId, name, phone, saltHex, hashHex, payload.whatsappOptIn ? 1 : 0).run(); return withSession({ ok: true, customerId, phone: `******${phone.slice(-4)}`, registeredPhone: phone, name, registered: true }, env, await signSession(env, customerId)); }
 async function login(request, env) { let payload = {}; try { payload = await request.json(); } catch (_) {} const phone = normalizedPhone(payload.phone), passcode = String(payload.passcode || ''); if (!phone || !validPasscode(passcode)) return response({ error: 'Enter your mobile number and 6-digit passcode.' }, 400, env); if (!(await rateLimit(env, `auth:login:phone:${phone}`, 5)) || !(await rateLimit(env, `auth:login:ip:${clientIp(request)}`, 20))) return limited(env); const customer = await customerByPhone(env, phone); if (!customer?.id || !customer.passcode_hash) return response({ error: 'This mobile number is not registered yet. Choose Create account.' }, 404, env); if (!(await verifyPasscode(passcode, customer.passcode_salt, customer.passcode_hash))) return response({ error: 'Incorrect mobile number or passcode.' }, 401, env); return withSession({ ok: true, customerId: customer.id, phone: `******${phone.slice(-4)}`, registeredPhone: phone, name: customer.name || '' }, env, await signSession(env, customer.id)); }
@@ -274,7 +274,7 @@ async function startAccountDeletionVerification(request, env) {
   if (!phone) return response({ error: 'Enter a valid 10-digit Indian mobile number.' }, 400, env);
   if (!twilioConfig(env)) return response({ error: 'SMS verification is not configured. Please request deletion while signed in or contact FreshWay through the app.' }, 503, env);
   if (!(await rateLimit(env, 'deletion:start:phone:' + phone, 3)) || !(await rateLimit(env, 'deletion:start:ip:' + clientIp(request), 10))) return limited(env);
-  const customer = await env.DB.prepare('SELECT id FROM customers WHERE phone=? LIMIT 1').bind(phone).first();
+  const customer = await env.DB.prepare('SELECT id FROM customers WHERE phone=? AND deleted_at IS NULL LIMIT 1').bind(phone).first();
   if (customer?.id) { try { await twilioVerify(env, 'Verifications', { To: '+' + phone, Channel: 'sms' }); } catch (_) { return response({ error: 'Could not send a verification code. Please try again later.' }, 503, env); } }
   return response({ ok: true, message: 'If a FreshWay account matches this number, a verification code has been sent.' }, 200, env);
 }
@@ -286,7 +286,7 @@ async function verifyAccountDeletionRequest(request, env) {
   if (!twilioConfig(env)) return response({ error: 'SMS verification is not configured. Please try again later.' }, 503, env);
   let result; try { result = await twilioVerify(env, 'VerificationCheck', { To: '+' + phone, Code: code }); } catch (_) { return response({ error: 'The code is incorrect or expired. Request a new code and try again.' }, 401, env); }
   if (result.status !== 'approved' || result.valid === false) return response({ error: 'The code is incorrect or expired. Request a new code and try again.' }, 401, env);
-  const customer = await env.DB.prepare('SELECT id,phone FROM customers WHERE phone=? LIMIT 1').bind(phone).first();
+  const customer = await env.DB.prepare('SELECT id,phone FROM customers WHERE phone=? AND deleted_at IS NULL LIMIT 1').bind(phone).first();
   if (!customer?.id) return response({ ok: true, message: 'If a FreshWay account matches this number, the deletion request has been recorded. If no account exists, no further action is needed.' }, 202, env);
   const info = await createAccountDeletionRequest(env, customer.id, customer.phone, 'external_verified_phone');
   return response({ ok: true, ...info, message: 'Your account-deletion request has been recorded. FreshWay will review linked records and applicable retention obligations.' }, 202, env);
