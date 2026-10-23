@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const adminAuth = readFileSync(new URL('../src/admin-auth.js', import.meta.url), 'utf8');
+const passcodeAuth = readFileSync(new URL('../src/passcode-auth.js', import.meta.url), 'utf8');
 const ownerModule = readFileSync(new URL('../../frontend/admin/account-deletions.js', import.meta.url), 'utf8');
 const ownerHtml = readFileSync(new URL('../../admin.html', import.meta.url), 'utf8');
 
 test('signed-in deletion requests require JSON and an allowed browser origin', () => {
-  assert.ok(adminAuth.includes("contentType !== 'application/json' || !requestOrigin || !isAllowedOrigin(env, requestOrigin)"));
+  assert.ok(passcodeAuth.includes("contentType !== 'application/json' || !requestOrigin || !isAllowedOrigin(env, requestOrigin)"));
 });
 
 test('account deletion cannot be marked complete before fulfilment exists', () => {
