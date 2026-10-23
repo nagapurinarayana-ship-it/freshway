@@ -12,6 +12,15 @@ const STATE_CODES = Object.freeze({
   'TELANGANA':'36','ANDHRA PRADESH':'37','LADAKH':'38','OTHER TERRITORY':'97'
 });
 const trim=(v,max=500)=>String(v??'').trim().slice(0,max);
+const normalizeSellerLabel=value=>trim(value,600).toLowerCase().replace(/[,.]/g,' ').replace(/\s+/g,' ').trim();
+const isLegacyReceiptName=value=>{
+  const name=normalizeSellerLabel(value);
+  return !name||name==='freshway';
+};
+const isLegacyReceiptAddress=value=>{
+  const address=normalizeSellerLabel(value);
+  return !address||address==='mancherial'||address==='mancherial telangana';
+};
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'private, no-store'}});
 const round=n=>Math.round(Number(n)||0);
 const validGstin=value=>/^[0-9]{2}[A-Z0-9]{13}$/.test(String(value||'').toUpperCase());
@@ -157,7 +166,7 @@ export async function getInvoiceRecord(env,orderId){
   const inv=await env.DB.prepare('SELECT * FROM invoices WHERE order_id=? LIMIT 1').bind(orderId).first();
   if(!inv)return null;
   const orderMeta=await env.DB.prepare('SELECT created_at,payment_status FROM orders WHERE id=? LIMIT 1').bind(orderId).first();
-  const configuredTaxNumber=await env.DB.prepare('SELECT gstin FROM invoice_settings WHERE id=1').first();
+  const configuredSettings=await getInvoiceSettings(env);
   const items=(await env.DB.prepare('SELECT product_id,name,unit,qty,unit_price_paise,gross_paise,hsn_code,gst_rate_bps,taxable_paise,cgst_paise,sgst_paise,igst_paise FROM invoice_items WHERE invoice_id=? ORDER BY id').bind(inv.id).all()).results||[];
   let seller={},buyer={},totals={};
   try{seller=JSON.parse(inv.seller_snapshot||'{}');buyer=JSON.parse(inv.buyer_snapshot||'{}');totals=JSON.parse(inv.totals_snapshot||'{}')}catch(_){throw new Error('Stored invoice snapshot is invalid.')}
@@ -166,7 +175,24 @@ export async function getInvoiceRecord(env,orderId){
   buyer.paymentStatus=orderMeta?.payment_status||buyer.paymentStatus||'Not Collected';
   // An older snapshot may lack a tax number. Use the current saved optional field if available.
   // This does not call an external service or alter stored invoices.
-  seller.gstin=String(seller.gstin||configuredTaxNumber?.gstin||'').trim();
+  seller.gstin=String(seller.gstin||configuredSettings.gstin||'').trim();
+  // Older receipts sometimes captured generic placeholders before the seller defaults were
+  // corrected. Correct only those known placeholders at render time; preserve other snapshots
+  // and never UPDATE an issued invoice row.
+  if(inv.document_type==='commercial_invoice'&&(
+    isLegacyReceiptName(seller.legalName)||isLegacyReceiptAddress(seller.address)||
+    !trim(seller.phone,40)||!trim(seller.footer,500)
+  )){
+    const currentStore=await getStoreProfile(env);
+    if(isLegacyReceiptName(seller.legalName)&&trim(configuredSettings.legalName,160)){
+      seller.legalName=configuredSettings.legalName;
+    }
+    if(isLegacyReceiptAddress(seller.address)&&trim(configuredSettings.businessAddress,600)){
+      seller.address=configuredSettings.businessAddress;
+    }
+    if(!trim(seller.phone,40)&&trim(currentStore.phone,40))seller.phone=currentStore.phone;
+    if(!trim(seller.footer,500)&&trim(configuredSettings.footer,500))seller.footer=configuredSettings.footer;
+  }
   return {id:inv.id,orderId:inv.order_id,customerId:inv.customer_id,invoiceNumber:inv.invoice_number,documentType:inv.document_type,financialYear:inv.financial_year,issueDate:inv.issue_date,seller,buyer,totals,items:items.map(i=>({productId:i.product_id,name:i.name,unit:i.unit,qty:i.qty,unitPricePaise:i.unit_price_paise,grossPaise:i.gross_paise,hsnCode:i.hsn_code,gstRateBps:i.gst_rate_bps,taxablePaise:i.taxable_paise,cgstPaise:i.cgst_paise,sgstPaise:i.sgst_paise,igstPaise:i.igst_paise}))};
 }
 export async function getInvoiceSummary(env,orderId){
