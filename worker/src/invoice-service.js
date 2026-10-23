@@ -140,27 +140,21 @@ export async function prepareInvoiceIssue(env,orderId,targetStatus){
   const itemRows=(await env.DB.prepare('SELECT product_id,name,unit,qty,price,line_total,hsn_code,gst_rate_bps,gst_rate_confirmed FROM order_items WHERE order_id=? ORDER BY id').bind(orderId).all()).results||[];
   const address={house:order.house,building:order.building,floor:order.floor,street:order.street,area:order.area,locality:order.locality,city:order.city,district:order.district,state:order.state,pincode:order.pincode,landmark:order.landmark,note:order.note,recipientName:order.recipient_name,deliveryPhone:order.delivery_phone};
 
-  // Always prefer producing a usable order receipt over blocking on tax metadata.
-  // When a GST document is selected but its seller/product requirements are not
-  // complete, issue this order as a non-GST commercial receipt instead. The
-  // missing fields are not guessed and no GST amounts are calculated.
-  let effectiveSettings=settings;
-  let fallbackReason='';
-  try{
-    validateIssueConfig(settings,itemRows,address,store);
-  }catch(error){
-    if(settings.documentType==='commercial_invoice')throw error;
-    fallbackReason=String(error?.message||'Required GST details are incomplete.');
-    effectiveSettings={...settings,documentType:'commercial_invoice'};
-    // Keep core receipt checks (enabled state, valid series, and item presence)
-    // while intentionally skipping GST/HSN-specific requirements.
-    validateIssueConfig(effectiveSettings,itemRows,address,store);
-  }
-  const buyerStateCode=effectiveSettings.documentType==='gst_tax_invoice'?codeFromState(address.state):'';
+  // Auto-issued documents are order receipts, not a tax-classification workflow.
+  // Use the saved order amount as the source of truth and retain whatever
+  // customer, seller and line-item fields exist. Missing optional profile,
+  // HSN, GSTIN or rate fields must not block receipt generation. GST amounts
+  // are not calculated for this receipt path.
+  const effectiveSettings={...settings,documentType:'commercial_invoice'};
+  const fallbackReason=settings.documentType==='commercial_invoice'?'':'GST details are not applied to this commercial receipt.';
+  const buyerStateCode='';
   const items=itemRows.map(item=>buildItemTax(item,effectiveSettings,effectiveSettings.stateCode,buyerStateCode));
-  const grossTotal=sumBy(items,'grossPaise'),orderTotal=amountPaisa(order.total);
-  if(grossTotal!==orderTotal)throw new Error('Invoice item totals do not match the saved order total. Please review this order before dispatch.');
-  const totals={grossPaise:grossTotal,taxablePaise:sumBy(items,'taxablePaise'),cgstPaise:sumBy(items,'cgstPaise'),sgstPaise:sumBy(items,'sgstPaise'),igstPaise:sumBy(items,'igstPaise'),totalPaise:grossTotal};
+  const orderTotal=amountPaisa(order.total);
+  const itemTotal=sumBy(items,'grossPaise');
+  // Keep line details when available. If line totals are incomplete or stale,
+  // use the saved order total for the receipt total rather than blocking it.
+  const receiptTotal=orderTotal>=0?orderTotal:itemTotal;
+  const totals={grossPaise:receiptTotal,taxablePaise:receiptTotal,cgstPaise:0,sgstPaise:0,igstPaise:0,totalPaise:receiptTotal};
   const issuedAt=new Date().toISOString(),financialYear=toFinancialYear(issuedAt);
   const invoiceId='inv-'+String(orderId).replace(/[^A-Za-z0-9_-]/g,'').slice(0,100);
   const sellerSnapshot={storeName:store.storeName||'',legalName:settings.legalName||store.storeName||'',address:settings.businessAddress||store.address||'',stateName:effectiveSettings.documentType==='commercial_invoice'?'':settings.stateName,stateCode:effectiveSettings.documentType==='commercial_invoice'?'':settings.stateCode,gstin:settings.gstin||'',phone:store.phone||'',email:store.email||'',documentType:effectiveSettings.documentType,footer:settings.footer||''};
