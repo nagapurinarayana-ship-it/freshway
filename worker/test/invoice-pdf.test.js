@@ -1,7 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
-import { createInvoicePdf } from '../src/invoice-pdf.js';
+import { createInvoicePdf, formatInvoicePhone } from '../src/invoice-pdf.js';
+
+const invoicePdfSource = readFileSync(new URL('../src/invoice-pdf.js', import.meta.url), 'utf8');
 
 function fixture(overrides={}){
   const item={
@@ -19,6 +22,16 @@ function fixture(overrides={}){
     items:[item],...overrides
   };
 }
+
+test('renders the saved customer phone in domestic format and avoids duplicating the delivery phone',()=>{
+  assert.equal(formatInvoicePhone('919966093782'),'9966093782');
+  assert.equal(formatInvoicePhone('+91 99660 93782'),'9966093782');
+  assert.equal(formatInvoicePhone('9966093782'),'9966093782');
+  assert.equal(formatInvoicePhone(''),'');
+  assert.match(invoicePdfSource,/const customerPhone=formatInvoicePhone\\(b\\.phone\\)/);
+  assert.match(invoicePdfSource,/customerPhone\\?'Customer phone: '\\+customerPhone/);
+  assert.match(invoicePdfSource,/deliveryPhone&&deliveryPhone!==customerPhone\\?'Delivery: '\\+deliveryPhone/);
+});
 
 test('creates a valid one-page commercial invoice PDF',async()=>{
   const bytes=await createInvoicePdf(fixture());
