@@ -168,6 +168,9 @@
       }else if(state.id===id){
         setSaveState('Saved');
       }
+      if(result?.invoiceWarning){
+        toast('Order status saved. Invoice not issued: '+String(result.invoiceWarning)+' Correct the billing/product details, then issue the missing invoice.');
+      }
       control.disabled=false;
     });
     return state.queue;
