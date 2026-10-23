@@ -38,21 +38,9 @@ jobs:
           node --check android-twa/scripts/validate-config.mjs
           node --check android-twa/scripts/validate-generated-project.mjs
           node --check android-twa/scripts/generate-assetlinks.mjs
+          node --check android-twa/scripts/test-assetlinks.mjs
 
-      - name: Set up Java 17 for Bubblewrap
-        uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set up Android SDK for Bubblewrap
-        uses: android-actions/setup-android@v4
-
-      - name: Configure Bubblewrap with preinstalled SDK paths
-        run: |
-          mkdir -p "$HOME/.bubblewrap"
-          printf '{"jdkPath":"%s","androidSdkPath":"%s"}\n' "$JAVA_HOME" "$ANDROID_HOME" > "$HOME/.bubblewrap/config.json"
-
-      - name: Validate live PWA against Bubblewrap TWA criteria
+      - name: Test TWA configuration and Asset Links generator
         working-directory: android-twa
-        run: npm run validate:live
+        run: npm test
+
