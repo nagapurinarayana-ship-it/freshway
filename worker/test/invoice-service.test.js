@@ -35,7 +35,7 @@ test('historical invoice backfill is safe and idempotent when no eligible orders
     async all(){assert.match(sql,/delivery_status IN \('Out for Delivery','Delivered'\)/);assert.match(sql,/NOT EXISTS/);return{results:[]}}
   }}}};
   const result=await backfillMissingInvoices(env);
-  assert.deepEqual(result,{enabled:true,scanned:0,issued:0,skipped:0,skippedRefunded:0,failed:[]});
+  assert.deepEqual(result,{enabled:true,scanned:0,issued:0,skipped:0,skippedRefunded:0,fallbackIssued:0,failed:[]});
 });
 test('invoice issuance defaults to disabled',async()=>{
   const settings=await getInvoiceSettings(fakeEnv());
@@ -292,4 +292,61 @@ test('corrects known legacy seller placeholders when reading old commercial rece
   assert.equal(invoice.seller.gstin,'36AEXFS4597F1Z6');
   assert.equal(invoice.items.length,1);
   assert.equal(statements.some(s=>/^\s*(UPDATE|INSERT|DELETE)\b/i.test(s.sql)),false,'reading a receipt must not write or rewrite issued invoice data');
+});
+
+
+test('issues a commercial receipt when selected GST mode has incomplete HSN or seller tax data',async()=>{
+  const prepared=[];
+  const env={DB:{
+    prepare(sql){
+      const statement={sql,params:[],bind(...values){this.params=values;return this;},
+        async first(){
+          if(sql.startsWith('SELECT id,invoice_number,document_type FROM invoices'))return null;
+          if(sql.startsWith('SELECT o.id,o.customer_id'))return{
+            id:'FW-98765432-XYZ',customer_id:'customer-1',customer_name:'Test Customer',
+            customer_phone:'919999999999',total:799,delivery_status:'Out for Delivery',is_test_order:0,
+            created_at:'2026-10-23T06:00:00.000Z',registered_name:'Test Customer',registered_phone:'919999999999',
+            recipient_name:'Test Customer',delivery_phone:'919999999999',house:'1 Main Road',building:'',
+            floor:'',street:'Main Road',area:'Boduppal',locality:'',city:'Mancherial',district:'Mancherial',
+            state:'Telangana',pincode:'504208',landmark:'',note:''
+          };
+          if(sql.startsWith('SELECT enabled,document_type'))return{
+            enabled:1,document_type:'gst_tax_invoice',legal_name:'',business_address:'',state_name:'',
+            state_code:'',gstin:'',series_prefix:'FW',footer:'Thanks',prices_include_tax:1,updated_at:'2026-10-23'
+          };
+          if(sql.startsWith('SELECT store_name,about,phone'))return{
+            store_name:'FreshWay',about:'',phone:'7396805280',whatsapp:'',email:'',
+            address:'1-1-LA0022, Road No 2, Laxminagar, Mancherial 504208',
+            shop_latitude:null,shop_longitude:null,business_hours:'',delivery_info:'',
+            share_title:'FreshWay',share_description:'Fresh groceries'
+          };
+          throw new Error('Unexpected first() SQL: '+sql);
+        },
+        async all(){
+          if(sql.startsWith('SELECT product_id,name,unit,qty,price,line_total'))return{results:[{
+            product_id:'coconut-oil',name:'Coconut oil',unit:'1 L',qty:1,price:799,line_total:799,
+            hsn_code:'',gst_rate_bps:1800,gst_rate_confirmed:1
+          }]};
+          throw new Error('Unexpected all() SQL: '+sql);
+        }
+      };
+      prepared.push(statement);
+      return statement;
+    }
+  }};
+  const issue=await prepareInvoiceIssue(env,'FW-98765432-XYZ','Out for Delivery');
+  assert.ok(issue);
+  assert.equal(issue.documentType,'commercial_invoice');
+  assert.match(issue.fallbackReason,/legal business name|valid HSN code/i);
+  const insert=prepared.find(statement=>statement.sql.startsWith('INSERT INTO invoices'));
+  assert.equal(insert.params[5],'commercial_invoice','incomplete GST configuration must not produce a GST tax invoice');
+  const seller=JSON.parse(insert.params[8]);
+  assert.equal(seller.documentType,'commercial_invoice');
+  assert.equal(seller.gstin,'','missing GSTIN is left blank, not invented');
+  const item=prepared.find(statement=>statement.sql.startsWith('INSERT INTO invoice_items'));
+  assert.equal(item.params[7],'','missing HSN stays blank');
+  assert.equal(item.params[8],0,'commercial receipts do not apply configured GST rates');
+  assert.equal(item.params[10],0);
+  assert.equal(item.params[11],0);
+  assert.equal(item.params[12],0);
 });
