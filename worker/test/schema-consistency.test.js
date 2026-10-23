@@ -111,3 +111,11 @@ test('transactional order alert schema matches the production migration', () => 
   assert.match(orderAlertsMigration, /idx_notification_events_audience_id/);
   assert.match(orderAlertsMigration, /idx_notification_events_order_id/);
 });
+
+const accountErasureMigration = readFileSync(new URL('../migrations/0034_customer_account_erasure.sql', import.meta.url), 'utf8');
+test('customer tombstone support stays aligned between fresh schema and migration', () => {
+  const customersTable = schema.split('CREATE TABLE IF NOT EXISTS customers (')[1]?.split('\\n);')[0];
+  assert.ok(customersTable?.includes('deleted_at TEXT'));
+  assert.match(accountErasureMigration, /ALTER TABLE customers ADD COLUMN deleted_at TEXT/);
+  assert.match(accountErasureMigration, /idx_customers_active_phone/);
+});
