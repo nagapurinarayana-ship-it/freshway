@@ -5,7 +5,7 @@ const VIEWPORT_STYLES_PATH = '/styles.css?v=20261022-invoice-ui-v1';
 const CUSTOMER_APP_PATH = '/app.js?v=20261021-home-navigation-refresh-v1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261021-guest-address-map-search-v3';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v71';
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v72';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchWithRetry(url, options = {}) {
