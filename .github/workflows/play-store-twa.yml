@@ -6,6 +6,11 @@ on:
       - feature/play-store-readiness-20261023
     paths:
       - 'android-twa/**'
+      - 'manifest.webmanifest'
+      - 'icons/**'
+      - 'index.html'
+      - 'privacy.html'
+      - 'delete-account.html'
       - '.github/workflows/play-store-twa.yml'
   workflow_dispatch:
 
@@ -32,11 +37,11 @@ jobs:
       - name: Syntax-check local validation scripts
         run: |
           node --check android-twa/scripts/validate-config.mjs
+          node --check android-twa/scripts/validate-repository.mjs
           node --check android-twa/scripts/validate-generated-project.mjs
           node --check android-twa/scripts/generate-assetlinks.mjs
           node --check android-twa/scripts/test-assetlinks.mjs
 
-      - name: Test TWA configuration and Asset Links generator
+      - name: Test TWA configuration, repository assets and Asset Links generator
         working-directory: android-twa
         run: npm test
-
