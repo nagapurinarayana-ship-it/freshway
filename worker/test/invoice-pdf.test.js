@@ -28,9 +28,9 @@ test('renders the saved customer phone in domestic format and avoids duplicating
   assert.equal(formatInvoicePhone('+91 99660 93782'),'9966093782');
   assert.equal(formatInvoicePhone('9966093782'),'9966093782');
   assert.equal(formatInvoicePhone(''),'');
-  assert.match(invoicePdfSource,/const customerPhone=formatInvoicePhone\\(b\\.phone\\)/);
-  assert.match(invoicePdfSource,/customerPhone\\?'Customer phone: '\\+customerPhone/);
-  assert.match(invoicePdfSource,/deliveryPhone&&deliveryPhone!==customerPhone\\?'Delivery: '\\+deliveryPhone/);
+  assert.match(invoicePdfSource,/const customerPhone=formatInvoicePhone\(b\.phone\)/);
+  assert.match(invoicePdfSource,/customerPhone\?'Customer phone: '\+customerPhone/);
+  assert.match(invoicePdfSource,/deliveryPhone&&deliveryPhone!==customerPhone\?'Delivery: '\+deliveryPhone/);
 });
 
 test('creates a valid one-page commercial invoice PDF',async()=>{
