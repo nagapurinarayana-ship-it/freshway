@@ -61,6 +61,8 @@ assert.match(index, /frontend\/customer\/account-actions\.js/, 'Customer account
 
 assert.match(privacy, /<title>Privacy Policy \| FreshWay<\/title>/);
 assert.match(privacy, /href="\/delete-account\.html"/, 'Privacy policy must link to external account deletion.');
+assert.match(privacy, /id="privacyContact"/, 'Privacy policy must expose the configured public contact section.');
+assert.match(privacy, /fetch\('\/api\/store-profile'/, 'Privacy policy must read configured store details instead of hardcoding contact values.');
 assert.match(deletion, /<title>Account deletion \| FreshWay<\/title>/);
 assert.match(deletion, /id="startForm"/);
 assert.match(deletion, /id="verifyForm"/);
