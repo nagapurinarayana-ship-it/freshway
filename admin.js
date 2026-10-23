@@ -50,8 +50,27 @@ async function openFirstNewOrder(){
   $('#ordersList').innerHTML='<div class="empty">Finding the first pending order…</div>';
   navigateAdminScreen('orders',{historyMode:'push',deferOrdersLoad:true});
   await loadOrders(true);
-  const target=[...($('#ordersList')?.querySelectorAll('[data-order]')||[])][0];
-  if(!target){toast('No new orders need attention.');return}
+  // loadOrders can return early when another order fetch already owns the
+  // loading lock. Wait for that request and any queued refresh before looking
+  // for a card; otherwise we can show a false "no orders" toast and skip scroll.
+  let waitCount=0;
+  while((orderLoading||orderLoadPending)&&waitCount<120){
+    await new Promise(resolve=>window.setTimeout(resolve,50));
+    waitCount++;
+  }
+  if(orderLoading||orderLoadPending){
+    toast('Orders are still loading. Please try again.');
+    return;
+  }
+  const list=$('#ordersList');
+  const target=[...(list?.querySelectorAll('[data-order]')||[])][0];
+  if(!target){
+    const empty=list?.textContent||'';
+    toast(empty.includes('No orders match these filters.')
+      ?'No new orders need attention.'
+      :'Could not find the first pending order. Refresh Orders and try again.');
+    return;
+  }
   target.scrollIntoView({behavior:'smooth',block:'center'});
   const priorOutline=target.style.outline,priorOffset=target.style.outlineOffset;
   target.style.outline='3px solid var(--g)';target.style.outlineOffset='2px';
