@@ -11,9 +11,10 @@ test('signed-in deletion requests require JSON and an allowed browser origin', (
   assert.ok(passcodeAuth.includes("contentType !== 'application/json' || !requestOrigin || !isAllowedOrigin(env, requestOrigin)"));
 });
 
-test('account deletion cannot be marked complete before fulfilment exists', () => {
-  assert.match(adminAuth, /status==='completed'\?'Account deletion cannot be marked complete yet/);
-  assert.match(adminAuth, /status==='completed'\?409:400/);
+test('account deletion completion calls the fulfilment helper', () => {
+  assert.match(adminAuth, /fulfillAccountDeletion/);
+  assert.match(adminAuth, /status==='completed'/);
+  assert.doesNotMatch(adminAuth, /cannot be marked complete yet/);
 });
 
 test('rejections require an explanatory note at the API boundary', () => {
@@ -25,6 +26,6 @@ test('Owner queue exposes review and rejection only, not a false completion acti
   assert.match(ownerHtml, /frontend\/admin\/account-deletions\.js/);
   assert.match(ownerModule, /data-deletion-action="in_review"/);
   assert.match(ownerModule, /data-deletion-action="rejected"/);
-  assert.doesNotMatch(ownerModule, /data-deletion-action="completed"/);
+  assert.match(ownerModule, /data-deletion-action="completed"/);
   assert.match(ownerModule, /phone_last4/);
 });
