@@ -18,9 +18,11 @@ This checklist is deliberately separate from app runtime code. A checked item me
 - [ ] Verify which providers are enabled in production (Cloudflare, SMS verification provider, WhatsApp provider, web-push delivery and any other integrations).
 - [ ] Document purpose, retention, deletion, sharing and security controls for each data category.
 - [ ] Complete the Play Console Data safety declaration from the verified data inventory; do not guess.
-- [x] Add in-app and public external account-deletion request submission on the feature branch.\n- [ ] Test the request flow end to end in an isolated environment; Twilio Verify must be configured for the external flow.
+- [x] Add in-app and public external account-deletion request submission on the feature branch.
+- [ ] Test the request flow end to end in an isolated environment; Twilio Verify must be configured for the external flow.
 - [ ] Implement and test actual deletion/de-identification and session revocation after review; the current API records requests but does not erase account data.
-- [x] In-app requests derive identity from the authenticated session; external requests require Twilio SMS verification.\n- [ ] Verify these controls with automated and isolated integration tests.
+- [x] In-app requests derive identity from the authenticated session; external requests require Twilio SMS verification.
+- [ ] Verify these controls with automated and isolated integration tests.
 - [ ] Ensure deleting an account does not silently erase or corrupt order, payment, invoice or legally required records.
 - [ ] Verify support and privacy contact channels.
 
