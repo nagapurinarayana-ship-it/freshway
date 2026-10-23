@@ -1,6 +1,6 @@
 # FreshWay privacy policy — working draft only
 
-**Not a publishable policy.** This draft intentionally contains unresolved items. Do not link it from the live app or submit it to Google Play until the business owner verifies every statement, fills in the contact details and confirms the live production data flows.
+**Not a publishable policy.** This working draft intentionally contains unresolved items. Do not treat the current privacy page as final or submit it to Google Play until the business owner verifies every statement, fills in the contact details and confirms the live production data flows.
 
 ## 1. Data controller and contact
 
