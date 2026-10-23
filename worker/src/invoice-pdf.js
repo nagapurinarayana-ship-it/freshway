@@ -6,7 +6,7 @@ const safe=value=>String(value??'').normalize('NFKD').replace(/[\u0300-\u036f]/g
 const money=paise=>'INR '+(Number(paise||0)/100).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const dateText=value=>{const d=new Date(value||Date.now());return Number.isNaN(d.getTime())?safe(value):d.toLocaleDateString('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'})};
 export function formatInvoicePhone(value){
-  const digits=String(value??'').replace(/\\D/g,'');
+  const digits=String(value??'').replace(/\D/g,'');
   return digits.length===12&&digits.startsWith('91')?digits.slice(2):digits;
 }
 const wrap=(text,font,size,width)=>{
