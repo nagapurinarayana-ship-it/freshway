@@ -168,8 +168,10 @@
       }else if(state.id===id){
         setSaveState('Saved');
       }
-      if(result?.invoiceWarning){
-        toast('Order status saved. Invoice not issued: '+String(result.invoiceWarning)+' Correct the billing/product details, then issue the missing invoice.');
+      if(result?.invoiceFallbackReason){
+        toast('Order status saved and a commercial receipt was issued using available fields. Add the missing tax details later if a GST invoice is required.');
+      }else if(result?.invoiceWarning){
+        toast('Order status saved. Invoice not issued: '+String(result.invoiceWarning)+' Review the order totals and available billing details, then retry.');
       }
       control.disabled=false;
     });

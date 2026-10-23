@@ -52,7 +52,7 @@ assert.doesNotMatch(auth,/response\(\{ok:true,version:ADMIN_AUTH_VERSION,session
 assert.match(auth,/SameSite=Lax/);
 assert.match(response,/SameSite=Lax/);
 
-assert.match(ownerSw,/const CACHE = 'fw-owner-v32'/);
+assert.match(ownerSw,/const CACHE = 'fw-owner-v33'/);
 assert.match(ownerSw,/if \(cached && isVersionedCode\) return cached/);
 assert.match(ownerSw,/if \(isDocument \|\| isManifest\)/);
 assert.match(ownerRouter,/OWNER_VERSIONED_ASSET_CACHE_CONTROL/);
