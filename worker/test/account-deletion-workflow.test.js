@@ -15,7 +15,11 @@ test('account deletion cannot be marked complete before fulfilment exists', () =
   assert.match(adminAuth, /status==='completed'\?409:400/);
 });
 
-test('rejections require an explanatory note at the API boundary', () => {\n  assert.ok(adminAuth.includes("status==='rejected'&&note.length<10"));\n});\n\ntest('Owner queue exposes review and rejection only, not a false completion action', () => {
+test('rejections require an explanatory note at the API boundary', () => {
+  assert.ok(adminAuth.includes("status==='rejected'&&note.length<10"));
+});
+
+test('Owner queue exposes review and rejection only, not a false completion action', () => {
   assert.match(ownerHtml, /id="accountDeletionPanel"/);
   assert.match(ownerHtml, /frontend\/admin\/account-deletions\.js/);
   assert.match(ownerModule, /data-deletion-action="in_review"/);
