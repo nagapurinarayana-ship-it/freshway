@@ -32,11 +32,11 @@
     const type=$('#invoiceDocumentType')?.value||'commercial_invoice';
     const nonGst=type==='commercial_invoice';
     const hints={
-      invoiceLegalNameHint:nonGst?'Optional for non-GST records. Leave blank to use the Store Profile name.':'Required for GST documents; enter the verified legal business name.',
-      invoiceBusinessAddressHint:nonGst?'Optional for non-GST records. Leave blank to use the Store Profile address.':'Required for GST documents; enter the complete verified seller address.',
+      invoiceLegalNameHint:nonGst?'Optional for receipts. Leave blank to use the Store Profile name.':'Required by the selected GST document type.',
+      invoiceBusinessAddressHint:nonGst?'Optional for receipts. Leave blank to use the Store Profile address.':'Required by the selected GST document type.',
       invoiceStateNameHint:nonGst?'Not required for non-GST commercial records.':'Required for GST documents.',
       invoiceStateCodeHint:nonGst?'Not required for non-GST commercial records.':'Required; must match the GSTIN.',
-      invoiceGstinHint:nonGst?'Leave blank for a non-GST commercial record. This document will not show or add GST.':'Required and must be a valid 15-character GSTIN.',
+      invoiceGstinHint:nonGst?'Optional tax number: if supplied it is printed on the receipt; no external/background verification or GST calculation is performed.':'Used on the selected GST document; this app does not call an external GSTIN verification service.',
       invoicePricesIncludeTaxHint:nonGst?'Does not add a tax amount or alter saved order totals for non-GST records.':'Required for GST documents; FreshWay never changes the saved checkout total.'
     };
     for(const [id,message] of Object.entries(hints)){const el=$('#'+id);if(el)el.textContent=message;}

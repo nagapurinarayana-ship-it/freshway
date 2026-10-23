@@ -23,14 +23,22 @@ function fixture(overrides={}){
   };
 }
 
-test('renders the saved customer phone in domestic format and avoids duplicating the delivery phone',()=>{
+test('renders the saved customer phone in domestic format',()=>{
   assert.equal(formatInvoicePhone('919966093782'),'9966093782');
   assert.equal(formatInvoicePhone('+91 99660 93782'),'9966093782');
   assert.equal(formatInvoicePhone('9966093782'),'9966093782');
   assert.equal(formatInvoicePhone(''),'');
-  assert.match(invoicePdfSource,/const customerPhone=formatInvoicePhone\(b\.phone\)/);
-  assert.match(invoicePdfSource,/const contactText=\[customerPhone\?'Customer phone: '\+customerPhone/);
-  assert.match(invoicePdfSource,/deliveryPhone&&deliveryPhone!==customerPhone\?'Delivery: '\+deliveryPhone/);
+  assert.ok(invoicePdfSource.includes('const customerPhone=formatInvoicePhone(invoice.buyer.phone)'), 'receipt must normalize the customer phone from the saved buyer record');
+  assert.ok(invoicePdfSource.includes("'Customer Phone: '+customerPhone"),'receipt must show the buyer phone');
+});
+
+test('uses receipt labels and conditionally prints the saved tax number',()=>{
+  assert.match(invoicePdfSource,/Tax Number:/);
+  assert.ok(invoicePdfSource.includes("if(String(invoice.seller.gstin||'').trim())"),'tax number line must be omitted when no tax number is present');
+  assert.match(invoicePdfSource,/Total Bill Amount is/);
+  assert.match(invoicePdfSource,/Cash Received:/);
+  assert.match(invoicePdfSource,/Change Amount:/);
+  assert.match(invoicePdfSource,/Payment Type: Cash/);
 });
 
 test('creates a valid one-page commercial invoice PDF',async()=>{

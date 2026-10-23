@@ -76,6 +76,18 @@ test('enables a non-GST commercial record using only the saved store name and ad
   assert.equal(settings.pricesIncludeTax,false);
 });
 
+test('retains an optional receipt tax number on commercial records without external validation',async()=>{
+  const env=fakeEnv();
+  const settings=await updateInvoiceSettings(env,{
+    enabled:true,documentType:'commercial_invoice',legalName:'',businessAddress:'',
+    seriesPrefix:'FW',gstin:'36AEXFS4597F1Z6',pricesIncludeTax:false
+  });
+  assert.equal(settings.enabled,true);
+  assert.equal(settings.documentType,'commercial_invoice');
+  assert.equal(settings.gstin,'36AEXFS4597F1Z6');
+  assert.equal(settings.enableWarning,undefined);
+});
+
 test('a missing GSTIN safely enables only a non-GST commercial record',async()=>{
   const env=fakeEnv();
   const settings=await updateInvoiceSettings(env,{
@@ -175,7 +187,7 @@ test('prepareInvoiceIssue binds every invoice insert parameter', async () => {
           if(sql.startsWith('SELECT enabled,document_type'))return {
             enabled:1,document_type:'commercial_invoice',legal_name:'',
             business_address:'',state_name:'',state_code:'',
-            gstin:'',series_prefix:'FW',footer:'',prices_include_tax:0,updated_at:'2026-10-22'
+            gstin:'36AEXFS4597F1Z6',series_prefix:'FW',footer:'',prices_include_tax:0,updated_at:'2026-10-22'
           };
           if(sql.startsWith('SELECT store_name,about,phone'))return {
             store_name:'FreshWay',about:'',phone:'',whatsapp:'',email:'',
@@ -209,6 +221,7 @@ test('prepareInvoiceIssue binds every invoice insert parameter', async () => {
   assert.ok(insert.params[7],'issue date must be bound');
   assert.equal(JSON.parse(insert.params[8]).legalName,'FreshWay','non-GST invoice falls back to the saved store name');
   assert.equal(JSON.parse(insert.params[8]).address,'Shop 1, Main Road, Hyderabad','non-GST invoice falls back to the saved store address');
+  assert.equal(JSON.parse(insert.params[8]).gstin,'36AEXFS4597F1Z6','the optional tax number is preserved in the seller snapshot');
   assert.equal(JSON.parse(insert.params[9]).name,'Test Customer');
   assert.equal(JSON.parse(insert.params[10]).totalPaise,10000);
   assert.equal(insert.params[11],issue.financialYear);
