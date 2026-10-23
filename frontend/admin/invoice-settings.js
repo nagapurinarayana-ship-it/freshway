@@ -31,7 +31,6 @@
   function syncDocumentTypeHints(){
     const type=$('#invoiceDocumentType')?.value||'commercial_invoice';
     const nonGst=type==='commercial_invoice';
-    const taxInvoice=type==='gst_tax_invoice';
     const hints={
       invoiceLegalNameHint:nonGst?'Optional for receipts. Leave blank to use the Store Profile name.':'Required by the selected document type.',
       invoiceBusinessAddressHint:nonGst?'Optional for receipts. Leave blank to use the Store Profile address.':'Required by the selected document type.',
