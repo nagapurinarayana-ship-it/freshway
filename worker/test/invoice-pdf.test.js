@@ -28,7 +28,7 @@ test('renders the saved customer phone in domestic format',()=>{
   assert.equal(formatInvoicePhone('+91 99660 93782'),'9966093782');
   assert.equal(formatInvoicePhone('9966093782'),'9966093782');
   assert.equal(formatInvoicePhone(''),'');
-  assert.match(invoicePdfSource,/const customerPhone=formatInvoicePhone\\(invoice\\.buyer\\.phone\\)/);
+  assert.ok(invoicePdfSource.includes('const customerPhone=formatInvoicePhone(invoice.buyer.phone)'), 'receipt must normalize the customer phone from the saved buyer record');
   assert.ok(invoicePdfSource.includes("'Customer Phone: '+customerPhone"),'receipt must show the buyer phone');
 });
 
