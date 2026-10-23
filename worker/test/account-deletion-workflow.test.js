@@ -21,7 +21,7 @@ test('rejections require an explanatory note at the API boundary', () => {
   assert.ok(adminAuth.includes("status==='rejected'&&note.length<10"));
 });
 
-test('Owner queue exposes review and rejection only, not a false completion action', () => {
+test('Owner queue exposes guarded completion after review', () => {
   assert.match(ownerHtml, /id="accountDeletionPanel"/);
   assert.match(ownerHtml, /frontend\/admin\/account-deletions\.js/);
   assert.match(ownerModule, /data-deletion-action="in_review"/);
