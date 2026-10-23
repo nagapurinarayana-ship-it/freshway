@@ -20,12 +20,12 @@ This checklist is deliberately separate from app runtime code. A checked item me
 - [ ] Complete the Play Console Data safety declaration from the verified data inventory; do not guess.
 - [x] Add in-app and public external account-deletion request submission on the feature branch.
 - [ ] Test the request flow end to end in an isolated environment; Twilio Verify must be configured for the external flow.
-- [x] Implement server-side deletion/de-identification and session revocation on Owner completion; validate with automated tests and non-production D1 before release. The Owner UI now supports review/rejection only and blocks false completion.
+- [x] Implement guarded Owner-side deletion/de-identification and session revocation; issued invoice buyer snapshots remain unchanged pending a documented retention decision.
 - [x] In-app requests derive identity from the authenticated session; external requests require Twilio SMS verification.
 - [x] Add helper/schema regression tests for account redaction.
 - [ ] Run the full Worker suite and isolated D1/Twilio end-to-end deletion test.
 - [x] Add an authenticated Owner request queue that masks phone numbers and allows review/rejection.
-- [x] Prevent the API from marking a request completed before actual fulfilment is implemented.
+- [x] Completion runs the fulfilment helper and requires a note identifying retained invoice/transaction records and the retention basis.
 - [ ] Ensure deleting an account does not silently erase or corrupt order, payment, invoice or legally required records.
 - [ ] Verify support and privacy contact channels.
 
@@ -66,4 +66,4 @@ This checklist is deliberately separate from app runtime code. A checked item me
 
 ## Current status
 
-The PWA foundation and latest main-branch CI/live smoke checks were present at the time this checklist was created. Account-deletion request capture is implemented on the feature branch. Actual deletion fulfilment, production policy sign-off, Android packaging, Digital Asset Links, Play Console setup and final store assets remain open. Do not treat this checklist as a completed Play review.
+The PWA foundation and latest main-branch CI/live smoke checks were present at the time this checklist was created. Request capture and guarded operational redaction are implemented on the feature branch. Isolated D1/Twilio end-to-end verification, retention approval, production policy sign-off, Android packaging, Digital Asset Links, Play Console setup and final store assets remain open. Do not treat this checklist as a completed Play review.
