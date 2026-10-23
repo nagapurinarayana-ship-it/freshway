@@ -280,8 +280,8 @@ async function startAccountDeletionVerification(request, env) {
 }
 async function verifyAccountDeletionRequest(request, env) {
   let payload = {}; try { payload = await request.json(); } catch (_) {}
-  const phone = normalizedPhone(payload.phone), code = String(payload.code || '').replace(/\\s/g, '');
-  if (!phone || !/^\\d{4,10}$/.test(code)) return response({ error: 'Enter the mobile number and SMS verification code.' }, 400, env);
+  const phone = normalizedPhone(payload.phone), code = String(payload.code || '').replace(/\s/g, '');
+  if (!phone || !/^\d{4,10}$/.test(code)) return response({ error: 'Enter the mobile number and SMS verification code.' }, 400, env);
   if (!(await rateLimit(env, 'deletion:verify:phone:' + phone, 5)) || !(await rateLimit(env, 'deletion:verify:ip:' + clientIp(request), 15))) return limited(env);
   if (!twilioConfig(env)) return response({ error: 'SMS verification is not configured. Please try again later.' }, 503, env);
   let result; try { result = await twilioVerify(env, 'VerificationCheck', { To: '+' + phone, Code: code }); } catch (_) { return response({ error: 'The code is incorrect or expired. Request a new code and try again.' }, 401, env); }
