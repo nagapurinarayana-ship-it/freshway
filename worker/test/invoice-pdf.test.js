@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
-import { createInvoicePdf, formatInvoicePhone } from '../src/invoice-pdf.js';
+import { createInvoicePdf, formatInvoicePhone, formatSellerPhone } from '../src/invoice-pdf.js';
 
 const invoicePdfSource = readFileSync(new URL('../src/invoice-pdf.js', import.meta.url), 'utf8');
 
@@ -30,6 +30,15 @@ test('renders the saved customer phone in domestic format',()=>{
   assert.equal(formatInvoicePhone(''),'');
   assert.ok(invoicePdfSource.includes('const customerPhone=formatInvoicePhone(invoice.buyer.phone)'), 'receipt must normalize the customer phone from the saved buyer record');
   assert.ok(invoicePdfSource.includes("'Customer Phone: '+customerPhone"),'receipt must show the buyer phone');
+});
+
+test('prints seller contact numbers with the India country code and a visible vector rupee mark',()=>{
+  assert.equal(formatSellerPhone('7396805280'),'+917396805280');
+  assert.equal(formatSellerPhone('+91 73968 05280'),'+917396805280');
+  assert.equal(formatSellerPhone(''), '');
+  assert.match(invoicePdfSource,/function drawRupee\(page,x,baseline,size,color\)/);
+  assert.match(invoicePdfSource,/const stroke=Math\.max\(0\.65,size\*0\.085\)/);
+  assert.ok(invoicePdfSource.includes('drawRupee(page,x,y,size*0.98,color)'), 'each monetary amount must draw the ₹ mark before the numeric amount');
 });
 
 test('uses receipt labels and conditionally prints the saved tax number',()=>{
