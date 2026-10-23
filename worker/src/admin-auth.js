@@ -9,7 +9,6 @@ import { getInvoiceRecord } from './invoice-service.js';
 import { createInvoicePdf } from './invoice-pdf.js';
 import { cleanupExpiredRateLimits } from './rate-limit-cleanup.js';
 import { fulfillAccountDeletion } from './account-deletion.js';
-import { fulfillAccountDeletion } from './account-deletion.js';
 
 const COOKIE='__Host-freshway-admin-session';const LEGACY_COOKIE='freshway-admin-session';const SESSION_HEADER='X-Freshway-Admin-Session';const MAX_AGE=60*60*8;const WINDOW=10*60;const LIMIT=10;const RATE_KEY_PREFIX='admin:login:v3:';const ADMIN_AUTH_VERSION='2026-09-07-v8';
 const enc=v=>new TextEncoder().encode(v);const hex=b=>[...b].map(x=>x.toString(16).padStart(2,'0')).join('');
