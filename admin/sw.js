@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v32';
+const CACHE = 'fw-owner-v33';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -8,7 +8,7 @@ const SHELL = [
   '/admin/owner-pwa-install.css?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261022-invoice-ui-v1',
   '/admin/admin.js?v=20261022-invoice-api-fallback-v2',
-  '/admin/frontend/admin/invoice-settings.js?v=20261023-document-type-guidance-v1',
+  '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
   '/admin/frontend/phone-display.js?v=20261009-phone-display-v1',
   '/admin/frontend/admin/store-profile.js?v=20261022-pin-save-v2',
@@ -16,7 +16,7 @@ const SHELL = [
   '/admin/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1',
   '/admin/frontend/admin/owner-lifecycle-autosave.js?v=20260909-owner-lifecycle-v1',
   '/admin/frontend/admin/push.js?v=20260908-push-v1',
-  '/admin/owner-lifecycle.js?v=20261023-order-status-invoice-decoupling-v1',
+  '/admin/owner-lifecycle.js?v=20261023-available-fields-invoice-v1',
   '/admin/owner-address-final.js?v=20260909-address-final-v6',
   '/admin/freshway-logo-master.webp?v=20261008-master-v1',
   '/admin/freshway-logo-clean.svg?v=20261008-brand-v1',
@@ -34,8 +34,8 @@ const REQUIRED_SHELL = [
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
   '/admin/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1',
   '/admin/frontend/admin/store-profile.js?v=20261022-pin-save-v2',
-  '/admin/frontend/admin/invoice-settings.js?v=20261023-document-type-guidance-v1',
-  '/admin/owner-lifecycle.js?v=20261023-order-status-invoice-decoupling-v1'
+  '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v1',
+  '/admin/owner-lifecycle.js?v=20261023-available-fields-invoice-v1'
 ];
 
 self.addEventListener('install', event => {
