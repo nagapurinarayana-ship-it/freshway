@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { getInvoiceSettings, updateInvoiceSettings, buildItemTax, prepareInvoiceIssue, backfillMissingInvoices } from '../src/invoice-service.js';
+import { getInvoiceSettings, updateInvoiceSettings, buildItemTax, prepareInvoiceIssue, backfillMissingInvoices, getInvoiceRecord } from '../src/invoice-service.js';
 
 function fakeEnv(initial=null,storeProfile={store_name:'FreshWay',address:'Shop 1, Main Road, Hyderabad'}){
   let row=initial;
@@ -233,4 +233,63 @@ test('prepareInvoiceIssue binds every invoice insert parameter', async () => {
   assert.equal(itemInsert.params.length,17,'all invoice-item SQL placeholders must be bound');
   assert.match(itemInsert.sql,/NOT EXISTS\(SELECT 1 FROM invoice_items WHERE invoice_id=\? AND product_id=\?\)/,'retries must not duplicate invoice line items');
   assert.deepEqual(itemInsert.params.slice(-2),['inv-FW-12345678-ABC','oil-1']);
+});
+
+
+test('corrects known legacy seller placeholders when reading old commercial receipt PDFs without writing invoice rows',async()=>{
+  const originalInvoice={
+    id:'inv-legacy',order_id:'FW-LEGACY-1',customer_id:'customer-1',
+    invoice_number:'FW/26-27/000023',document_type:'commercial_invoice',
+    financial_year:'26-27',issue_date:'2026-10-23T09:26:00.000Z',
+    seller_snapshot:JSON.stringify({
+      storeName:'FreshWay',legalName:'Freshway',address:'Mancherial',
+      phone:'7396805280',gstin:'36AEXFS4597F1Z6',footer:'Thank You For Shopping With Freshway'
+    }),
+    buyer_snapshot:JSON.stringify({name:'Test Customer',phone:'9966093782',paymentStatus:'Collected'}),
+    totals_snapshot:JSON.stringify({grossPaise:52000,totalPaise:52000,currency:'INR',pricesIncludeTax:true})
+  };
+  const currentSettings={
+    enabled:1,document_type:'commercial_invoice',legal_name:'Sunshine Enterprises (Freshway)',
+    business_address:'1-1-LA0022, Road No 2, Laxminagar, Mancherial 504208',
+    state_name:'Telangana',state_code:'36',gstin:'36AEXFS4597F1Z6',
+    series_prefix:'FW',footer:'Thank You For Shopping With Freshway',prices_include_tax:1,
+    updated_at:'2026-10-23T09:20:19.000Z'
+  };
+  const statements=[];
+  const env={DB:{
+    prepare(sql){
+      const entry={sql,params:[]};
+      statements.push(entry);
+      return {
+        bind(...values){entry.params=values;return this;},
+        async first(){
+          if(sql.startsWith('SELECT * FROM invoices'))return originalInvoice;
+          if(sql.startsWith('SELECT created_at,payment_status FROM orders'))return {created_at:'2026-10-23T09:26:00.000Z',payment_status:'Collected'};
+          if(sql.startsWith('SELECT enabled,document_type'))return currentSettings;
+          if(sql.startsWith('SELECT store_name,about,phone'))return {
+            store_name:'FreshWay',about:'',phone:'7396805280',whatsapp:'',email:'',
+            address:'1-1-LA0022, Road No 2, Laxminagar, Mancherial 504208',
+            shop_latitude:null,shop_longitude:null,business_hours:'',delivery_info:'',
+            share_title:'FreshWay',share_description:'Fresh groceries'
+          };
+          throw new Error('Unexpected first() SQL: '+sql);
+        },
+        async all(){
+          if(sql.startsWith('SELECT product_id,name,unit,qty,unit_price_paise'))return {results:[{
+            product_id:'oil-1',name:'Sesame oil',unit:'kg',qty:1,unit_price_paise:52000,
+            gross_paise:52000,hsn_code:'',gst_rate_bps:0,taxable_paise:52000,
+            cgst_paise:0,sgst_paise:0,igst_paise:0
+          }]};
+          throw new Error('Unexpected all() SQL: '+sql);
+        }
+      };
+    }
+  }};
+  const invoice=await getInvoiceRecord(env,'FW-LEGACY-1');
+  assert.equal(invoice.seller.legalName,'Sunshine Enterprises (Freshway)');
+  assert.equal(invoice.seller.address,'1-1-LA0022, Road No 2, Laxminagar, Mancherial 504208');
+  assert.equal(invoice.seller.phone,'7396805280');
+  assert.equal(invoice.seller.gstin,'36AEXFS4597F1Z6');
+  assert.equal(invoice.items.length,1);
+  assert.equal(statements.some(s=>/^\s*(UPDATE|INSERT|DELETE)\b/i.test(s.sql)),false,'reading a receipt must not write or rewrite issued invoice data');
 });
