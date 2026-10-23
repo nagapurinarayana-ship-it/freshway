@@ -20,9 +20,11 @@ This checklist is deliberately separate from app runtime code. A checked item me
 - [ ] Complete the Play Console Data safety declaration from the verified data inventory; do not guess.
 - [x] Add in-app and public external account-deletion request submission on the feature branch.
 - [ ] Test the request flow end to end in an isolated environment; Twilio Verify must be configured for the external flow.
-- [ ] Implement and test actual deletion/de-identification and session revocation after review; the current API records requests but does not erase account data.
+- [ ] Implement and test actual deletion/de-identification and session revocation after review; the current API records requests but does not erase account data. The Owner UI now supports review/rejection only and blocks false completion.
 - [x] In-app requests derive identity from the authenticated session; external requests require Twilio SMS verification.
 - [ ] Verify these controls with automated and isolated integration tests.
+- [x] Add an authenticated Owner request queue that masks phone numbers and allows review/rejection.
+- [x] Prevent the API from marking a request completed before actual fulfilment is implemented.
 - [ ] Ensure deleting an account does not silently erase or corrupt order, payment, invoice or legally required records.
 - [ ] Verify support and privacy contact channels.
 
