@@ -55,6 +55,10 @@ assert.match(js,/\$\('#orderStatus'\)\.value='New'/);
 assert.match(js,/\$\('#orderSort'\)\.value='oldest'/);
 assert.match(js,/navigateAdminScreen\('orders',\{historyMode:'push',deferOrdersLoad:true\}\)/);
 assert.match(js,/target\.scrollIntoView\(\{behavior:'smooth',block:'center'\}\)/);
+assert.match(js,/while\(\(orderLoading\|\|orderLoadPending\)&&waitCount<120\)/,'New-orders shortcut must wait for an in-flight or queued order-list request before scrolling');
+assert.match(js,/Orders are still loading\. Please try again\./,'Slow loading must not be reported as an empty queue');
+assert.match(js,/Could not find the first pending order\. Refresh Orders and try again\./,'A load failure must not be reported as no pending orders');
+
 assert.match(js,/data-kpi-action="first-new-order"/);
 assert.match(js,/function navigateAdminScreen\(id,\{historyMode='push',deferOrdersLoad=false\}=\{\}\)/);
 
