@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { Script } from 'node:vm';
 import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -71,6 +72,14 @@ assert.match(deletion, /id="startForm"/);
 assert.match(deletion, /id="verifyForm"/);
 assert.match(deletion, /\/api\/account-deletion\/start/);
 assert.match(deletion, /\/api\/account-deletion\/verify/);
+
+for (const [path, html] of [['privacy.html', privacy], ['delete-account.html', deletion]]) {
+  const inlineScripts = [...html.matchAll(/<script\\b[^>]*>([\\s\\S]*?)<\\/script>/gi)];
+  assert.ok(inlineScripts.length > 0, path + ' must include its user-interaction script.');
+  for (const [, source] of inlineScripts) {
+    assert.doesNotThrow(() => new Script(source, { filename: path }), path + ' contains invalid inline JavaScript.');
+  }
+}
 
 console.log('FreshWay repository preflight passed: PWA identity, PNG dimensions, maskable icon declarations, privacy and deletion entry points.');
 console.log('Release gate reminder: this check is static; verify public deployment, business/legal contact, retention terms and account-deletion E2E before Play submission.');
