@@ -29,7 +29,7 @@ test('renders the saved customer phone in domestic format and avoids duplicating
   assert.equal(formatInvoicePhone('9966093782'),'9966093782');
   assert.equal(formatInvoicePhone(''),'');
   assert.match(invoicePdfSource,/const customerPhone=formatInvoicePhone\(b\.phone\)/);
-  assert.match(invoicePdfSource,/customerPhone\?'Customer phone: '\+customerPhone/);
+  assert.match(invoicePdfSource,/const contactText=\[customerPhone\?'Customer phone: '\+customerPhone/);
   assert.match(invoicePdfSource,/deliveryPhone&&deliveryPhone!==customerPhone\?'Delivery: '\+deliveryPhone/);
 });
 
