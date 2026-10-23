@@ -32,7 +32,7 @@
       const actions = item.status === 'pending'
         ? '<button class="ghost" type="button" data-deletion-action="in_review">Mark in review</button><button class="danger-action" type="button" data-deletion-action="rejected">Reject request</button>'
         : item.status === 'in_review'
-          ? '<button class="danger-action" type="button" data-deletion-action="rejected">Reject request</button>'
+          ? '<button class="primary" type="button" data-deletion-action="completed">Complete deletion</button><button class="danger-action" type="button" data-deletion-action="rejected">Reject request</button>'
           : '';
       return `<article class="report" data-deletion-request="${esc(item.id)}"><div class="section-head"><div><strong>Mobile ending ${esc(item.phone_last4 || '????')}</strong><p>${esc(label(item.status))} · ${esc(item.source === 'external_verified_phone' ? 'SMS verified' : 'Signed-in customer')}</p></div><span>${esc(date(item.created_at))}</span></div><p class="muted">Last updated: ${esc(date(item.updated_at))}${item.processed_at ? ' · Processed: '+esc(date(item.processed_at)) : ''}</p>${item.admin_note ? '<p>Owner note: '+esc(item.admin_note)+'</p>' : ''}<div class="owner-alert-control-actions">${actions}</div></article>`;
     }).join('');
@@ -46,7 +46,7 @@
       const status = $('#accountDeletionStatus')?.value || '';
       const result = await request('/api/admin/account-deletion-requests' + (status ? '?status=' + encodeURIComponent(status) : ''));
       render(Array.isArray(result.requests) ? result.requests : []);
-      setMessage(`Loaded ${(result.requests || []).length} request(s). Completed deletion is not enabled until the fulfilment workflow is implemented.`);
+      setMessage(`Loaded ${(result.requests || []).length} request(s). Complete only after confirming the record-retention decision.`);
     } catch (error) {
       setMessage(error.message || 'Could not load account-deletion requests.', true);
     } finally {
@@ -60,11 +60,17 @@
     if (!card) return;
     const status = button.dataset.deletionAction;
     const isReject = status === 'rejected';
-    const prompt = isReject ? 'Why is this deletion request being rejected? Explain the reason to the customer through the approved support channel.' : 'Optional review note (do not include unnecessary personal data):';
+    const isComplete = status === 'completed';
+    if (isComplete && !window.confirm('This disables the account, removes login credentials and push subscriptions, and redacts customer/address details from operational order/address records. Issued invoice snapshots remain unchanged. Continue only after the retention decision is reviewed.')) return;
+    const prompt = isReject ? 'Why is this deletion request being rejected? Explain the reason to the customer through the approved support channel.' : isComplete ? 'Document deletion performed and invoice/transaction retention decision. Do not include unnecessary personal data.' : 'Optional review note (do not include unnecessary personal data):';
     const note = window.prompt(prompt, '');
     if (note === null) return;
     if (isReject && note.trim().length < 10) {
       setMessage('Add a clear rejection reason of at least 10 characters.', true);
+      return;
+    }
+    if (isComplete && (note.trim().length < 20 || !/(invoice|retain|retention|accounting|tax)/i.test(note))) {
+      setMessage('For completion, add a note of at least 20 characters documenting invoice/transaction retention.', true);
       return;
     }
     button.disabled = true;
@@ -73,7 +79,7 @@
         method:'PATCH',
         body:JSON.stringify({status,adminNote:note.trim()})
       });
-      setMessage(isReject ? 'Request rejected. Ensure the customer is informed through the approved support channel.' : 'Request moved to in review.');
+      setMessage(isReject ? 'Request rejected. Ensure the customer is informed through the approved support channel.' : isComplete ? 'Deletion completed: login credentials and operational customer/address data were redacted.' : 'Request moved to in review.');
       await load();
     } catch (error) {
       setMessage(error.message || 'Could not update this request.', true);
