@@ -45,7 +45,7 @@ FreshWay should not sell personal information unless the business owner verifies
 
 Define retention periods for account data, delivery addresses, notification subscriptions, orders and invoice/receipt records. Explain account deletion and how personal data is deleted or de-identified, subject to applicable legal record-retention obligations.
 
-The app currently accepts deletion requests and exposes a restricted Owner review queue, but verified deletion/de-identification is not yet implemented. Do not claim that account deletion is fulfilled until the in-app and external request flows and the complete fulfilment process are implemented and tested.
+The app accepts deletion requests and exposes a guarded Owner fulfilment workflow that disables account access and redacts operational customer/address data. Issued invoice buyer snapshots remain unchanged until the operator confirms the lawful retention basis. Do not claim the full process is release-ready until the in-app and external request flows, redaction, session revocation and retention handling are tested end to end and reviewed against applicable law.
 
 ## 6. Security
 
