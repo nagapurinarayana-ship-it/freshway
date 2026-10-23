@@ -334,10 +334,24 @@
     });
   }
 
+  function readProfileResponse(data) {
+    const profile = data?.storeProfile;
+    const stringFields = [
+      'storeName', 'about', 'phone', 'whatsapp', 'email', 'address',
+      'businessHours', 'deliveryInfo', 'shareTitle', 'shareDescription'
+    ];
+    if (!profile || typeof profile !== 'object' || Array.isArray(profile) ||
+        stringFields.some(key => typeof profile[key] !== 'string') ||
+        !clean(profile.storeName) || !clean(profile.address)) {
+      throw new Error('The server returned an incomplete Store Profile. The form was not cleared; refresh and retry before saving.');
+    }
+    return profile;
+  }
+
   async function load({ api }) {
     bindPickerEvents();
     const data = await api('/admin/store-profile');
-    const profile = data?.storeProfile || {};
+    const profile = readProfileResponse(data);
     apply(profile);
     ensureMap();
     return profile;
@@ -352,8 +366,7 @@
       method: 'PATCH',
       body: JSON.stringify(payload)
     });
-    if (!data?.storeProfile) throw new Error('The server did not confirm the saved business information. Refresh and check the saved settings before retrying.');
-    const profile = data.storeProfile;
+    const profile = readProfileResponse(data);
     if (requestedPin) {
       const persistedPin = validPin(profile.shopLatitude, profile.shopLongitude);
       if (!persistedPin ||
