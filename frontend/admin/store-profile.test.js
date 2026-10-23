@@ -77,4 +77,53 @@ assert.ok(ownerSw.includes("const CACHE = 'fw-owner-v37'"), 'Owner PWA cache mus
 assert.match(css, /\.shop-location-map\s*\{/);
 assert.match(source, /The saved pin stays unchanged until you do/);
 assert.match(source, /these changes apply/i);
-console.log('Owner shop pin validation, free OpenStreetMap picker, address separation, and PWA asset contracts passed');
+async function checkProfileLoadResponseGuard() {
+  const addressField = element('storeAddress');
+  const nameField = element('storeName');
+  nameField.value = 'FreshWay';
+  addressField.value = 'Mancherial, Telangana';
+
+  for (const response of [
+    {},
+    { storeProfile: null },
+    { storeProfile: {} },
+    { storeProfile: { storeName: 'FreshWay', address: 'Mancherial' } },
+    { storeProfile: {
+      storeName: null, about: '', phone: '', whatsapp: '', email: '',
+      address: null, businessHours: '', deliveryInfo: '', shareTitle: '', shareDescription: ''
+    } }
+  ]) {
+    await assert.rejects(
+      profile.load({ api: async () => response }),
+      /incomplete Store Profile/,
+      'an incomplete response must be rejected before it overwrites form fields'
+    );
+    assert.equal(nameField.value, 'FreshWay', 'failed load must not erase the current store name');
+    assert.equal(addressField.value, 'Mancherial, Telangana', 'failed load must not erase the current business address');
+  }
+
+  const validProfile = {
+    storeName: 'FreshWay',
+    about: 'Cold-pressed oils and rice',
+    phone: '9999999999',
+    whatsapp: '9999999999',
+    email: 'store@example.test',
+    address: 'Mancherial, Telangana',
+    shopLatitude: null,
+    shopLongitude: null,
+    businessHours: 'Weekdays',
+    deliveryInfo: 'Local delivery',
+    shareTitle: 'FreshWay',
+    shareDescription: 'Fresh essentials delivered locally'
+  };
+  await profile.load({ api: async () => ({ storeProfile: validProfile }) });
+  assert.equal(nameField.value, 'FreshWay');
+  assert.equal(addressField.value, 'Mancherial, Telangana');
+  assert.equal(element('storeAbout').value, 'Cold-pressed oils and rice');
+  console.log('Owner store profile response validation and safe form loading passed');
+}
+
+checkProfileLoadResponseGuard().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
