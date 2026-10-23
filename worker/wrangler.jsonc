@@ -26,5 +26,10 @@
       "VAPID_PRIVATE_KEY",
       "VAPID_SUBJECT"
     ]
+  },
+  "triggers": {
+    "crons": [
+      "17 * * * *"
+    ]
   }
 }
