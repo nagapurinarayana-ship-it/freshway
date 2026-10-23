@@ -5,6 +5,7 @@
   "description": "Isolated Android Trusted Web Activity wrapper configuration for FreshWay.",
   "scripts": {
     "check:config": "node scripts/validate-config.mjs",
+    "check:generated": "node scripts/validate-generated-project.mjs",
     "validate:live": "npx --yes @bubblewrap/cli@1.27.0 validate --url=https://fwcoldpressed.in",
     "init": "npx --yes @bubblewrap/cli@1.27.0 init --manifest=https://fwcoldpressed.in/manifest.webmanifest --directory=./generated",
     "update": "npx --yes @bubblewrap/cli@1.27.0 update --manifest=./generated",
