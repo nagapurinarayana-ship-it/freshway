@@ -13,6 +13,18 @@ export function formatInvoicePhone(value){
   const digits=String(value??'').replace(/\D/g,'');
   return digits.length===12&&digits.startsWith('91')?digits.slice(2):digits;
 }
+
+// Seller contact numbers use an explicit India country code on printed receipts.
+// Customer phones intentionally use domestic 10-digit formatting above.
+export function formatSellerPhone(value){
+  const input=String(value??'').trim();
+  const digits=input.replace(/\D/g,'');
+  if(!digits)return '';
+  if(digits.length===10)return '+91'+digits;
+  if(digits.length===12&&digits.startsWith('91'))return '+'+digits;
+  if(input.startsWith('+'))return '+'+digits;
+  return digits;
+}
 const wrap=(text,font,size,width)=>{
   const words=safe(text).split(' '),lines=[];let line='';
   for(const word of words){
@@ -49,18 +61,21 @@ const productLabel=(name,unit)=>{
   if(labelVolume!==null&&unitVolume!==null&&Math.abs(labelVolume-unitVolume)<0.001)return safe(label);
   return safe(label)+' - '+safe(u);
 };
+// Draw ₹ as vector strokes because the embedded standard PDF fonts do not
+// include the Unicode rupee glyph. This keeps the symbol visible in Android PDF viewers.
 function drawRupee(page,x,baseline,size,color){
-  const stroke=Math.max(0.5,size*0.065);
+  const stroke=Math.max(0.65,size*0.085);
   const line=(x1,y1,x2,y2)=>page.drawLine({start:{x:x1,y:y1},end:{x:x2,y:y2},color,thickness:stroke});
   const s=size;
-  line(x+0.04*s,baseline+0.82*s,x+0.88*s,baseline+0.82*s);
-  line(x+0.04*s,baseline+0.61*s,x+0.82*s,baseline+0.61*s);
-  line(x+0.20*s,baseline+0.86*s,x+0.20*s,baseline+0.12*s);
-  line(x+0.20*s,baseline+0.86*s,x+0.59*s,baseline+0.86*s);
-  line(x+0.59*s,baseline+0.86*s,x+0.76*s,baseline+0.73*s);
-  line(x+0.76*s,baseline+0.73*s,x+0.68*s,baseline+0.61*s);
-  line(x+0.68*s,baseline+0.61*s,x+0.20*s,baseline+0.55*s);
-  line(x+0.37*s,baseline+0.53*s,x+0.82*s,baseline+0.12*s);
+  line(x+0.02*s,baseline+0.84*s,x+0.96*s,baseline+0.84*s);
+  line(x+0.02*s,baseline+0.60*s,x+0.91*s,baseline+0.60*s);
+  line(x+0.21*s,baseline+0.89*s,x+0.21*s,baseline+0.10*s);
+  line(x+0.21*s,baseline+0.88*s,x+0.59*s,baseline+0.88*s);
+  line(x+0.59*s,baseline+0.88*s,x+0.73*s,baseline+0.80*s);
+  line(x+0.73*s,baseline+0.80*s,x+0.77*s,baseline+0.71*s);
+  line(x+0.77*s,baseline+0.71*s,x+0.70*s,baseline+0.62*s);
+  line(x+0.70*s,baseline+0.62*s,x+0.21*s,baseline+0.54*s);
+  line(x+0.40*s,baseline+0.51*s,x+0.90*s,baseline+0.10*s);
 }
 async function createReceiptPdf(invoice){
   const doc=await PDFDocument.create();
@@ -71,14 +86,14 @@ async function createReceiptPdf(invoice){
   const contentWidth=PAGE_W-MARGIN*2;
   const drawText=(page,text,x,y,size=9,font=regular,color=INK)=>page.drawText(safe(text),{x,y,size,font,color});
   const drawAmountRight=(page,paise,right,y,size=9,font=regular,color=INK)=>{
-    const text=money(paise),textWidth=font.widthOfTextAtSize(text,size),symbolWidth=size*0.82,gap=3;
+    const text=money(paise),textWidth=font.widthOfTextAtSize(text,size),symbolWidth=size*0.98,gap=2.5;
     const x=right-symbolWidth-gap-textWidth;
-    drawRupee(page,x,y,size*0.88,color);
+    drawRupee(page,x,y,size*0.98,color);
     drawText(page,text,x+symbolWidth+gap,y,size,font,color);
   };
   const drawAmountAt=(page,paise,x,y,size=9,font=regular,color=INK)=>{
-    const symbolWidth=size*0.82,gap=3;
-    drawRupee(page,x,y,size*0.88,color);
+    const symbolWidth=size*0.98,gap=2.5;
+    drawRupee(page,x,y,size*0.98,color);
     drawText(page,money(paise),x+symbolWidth+gap,y,size,font,color);
   };
   let page,y;
