@@ -104,15 +104,16 @@ test('a missing GSTIN safely enables only a non-GST commercial record',async()=>
   assert.equal(settings.gstin,'');
   assert.equal(settings.footer,'Keep this footer');
 });
-test('does not enable non-GST records without a saved business address, even with optional overrides',async()=>{
-  const env=fakeEnv(null,{store_name:'FreshWay',address:''});
+test('allows commercial receipt issuance with whichever seller fields are available',async()=>{
+  const env=fakeEnv(null,{store_name:'',address:''});
   const settings=await updateInvoiceSettings(env,{
-    enabled:true,documentType:'commercial_invoice',legalName:'FreshWay Foods',
-    businessAddress:'An override cannot replace the Store Profile location',
-    seriesPrefix:'FW',gstin:'',pricesIncludeTax:true
+    enabled:true,documentType:'commercial_invoice',legalName:'',
+    businessAddress:'',seriesPrefix:'FW',gstin:'',pricesIncludeTax:true
   });
-  assert.equal(settings.enabled,false);
-  assert.match(settings.enableWarning,/complete business address in Store Profile/);
+  assert.equal(settings.enabled,true);
+  assert.equal(settings.legalName,'');
+  assert.equal(settings.businessAddress,'');
+  assert.equal(settings.enableWarning,undefined);
 });
 
 test('GST documents keep the tax-inclusive pricing guard',async()=>{
