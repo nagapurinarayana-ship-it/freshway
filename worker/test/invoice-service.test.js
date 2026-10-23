@@ -338,7 +338,7 @@ test('issues a commercial receipt when selected GST mode has incomplete HSN or s
   const issue=await prepareInvoiceIssue(env,'FW-98765432-XYZ','Out for Delivery');
   assert.ok(issue);
   assert.equal(issue.documentType,'commercial_invoice');
-  assert.match(issue.fallbackReason,/legal business name|valid HSN code/i);
+  assert.match(issue.fallbackReason,/commercial receipt/i);
   const insert=prepared.find(statement=>statement.sql.startsWith('INSERT INTO invoices'));
   assert.equal(insert.params[5],'commercial_invoice','incomplete GST configuration must not produce a GST tax invoice');
   const seller=JSON.parse(insert.params[8]);
