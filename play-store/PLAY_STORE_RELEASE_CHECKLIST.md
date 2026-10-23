@@ -24,7 +24,7 @@ This checklist is deliberately separate from app runtime code. A checked item me
 - [x] In-app requests derive identity from the authenticated session; external requests require Twilio SMS verification.
 - [x] Add helper/schema regression tests for account redaction.
 - [ ] Run the full Worker suite and isolated D1/Twilio end-to-end deletion test.
-- [x] Add an authenticated Owner request queue that masks phone numbers and allows review/rejection.
+- [x] Add an authenticated Owner request queue that masks phone numbers and allows review, rejection and guarded completion after review.
 - [x] Completion runs the fulfilment helper and requires a note identifying retained invoice/transaction records and the retention basis.
 - [ ] Ensure deleting an account does not silently erase or corrupt order, payment, invoice or legally required records.
 - [ ] Verify support and privacy contact channels.
