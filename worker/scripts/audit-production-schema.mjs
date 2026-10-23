@@ -78,5 +78,66 @@ const migrationRows = rowsFor('SELECT id,name FROM d1_migrations ORDER BY id', r
 report.migrations = migrationRows.map(row => ({ id: row.id, name: row.name }));
 report.migrationCount = migrationRows.length;
 
+
+// Read-only invoice configuration and integrity summary. Never print customer data or a full tax number.
+const invoiceSettingsRows = rowsFor(
+  'SELECT enabled,document_type,legal_name,business_address,state_name,state_code,gstin,series_prefix,footer,prices_include_tax,updated_at FROM invoice_settings WHERE id=1',
+  row => 'enabled' in row && 'document_type' in row
+);
+const settings = invoiceSettingsRows[0];
+report.invoiceSettings = {
+  rowFound: Boolean(settings),
+  enabled: Number(settings?.enabled || 0) === 1,
+  documentType: String(settings?.document_type || ''),
+  legalNamePresent: Boolean(String(settings?.legal_name || '').trim()),
+  businessAddressPresent: Boolean(String(settings?.business_address || '').trim()),
+  stateNamePresent: Boolean(String(settings?.state_name || '').trim()),
+  stateCodePresent: Boolean(String(settings?.state_code || '').trim()),
+  taxNumberPresent: Boolean(String(settings?.gstin || '').trim()),
+  taxNumberLast4: String(settings?.gstin || '').trim().slice(-4),
+  footerPresent: Boolean(String(settings?.footer || '').trim()),
+  pricesIncludeTax: Number(settings?.prices_include_tax ?? 1) === 1,
+  updatedAt: settings?.updated_at || null
+};
+if (!settings) problems.push('invoice_settings row id=1 is missing');
+
+const storeRows = rowsFor(
+  'SELECT store_name,address,phone FROM store_profile WHERE id=1',
+  row => 'store_name' in row && 'address' in row
+);
+const store = storeRows[0];
+report.storeProfile = {
+  rowFound: Boolean(store),
+  storeNamePresent: Boolean(String(store?.store_name || '').trim()),
+  addressPresent: Boolean(String(store?.address || '').trim()),
+  phonePresent: Boolean(String(store?.phone || '').trim())
+};
+if (!store) problems.push('store_profile row id=1 is missing');
+
+const invoiceCounts = rowsFor(
+  'SELECT document_type,COUNT(*) AS total FROM invoices GROUP BY document_type ORDER BY document_type',
+  row => 'document_type' in row && 'total' in row
+);
+report.invoicesByDocumentType = Object.fromEntries(invoiceCounts.map(row => [String(row.document_type), Number(row.total || 0)]));
+const invoiceTotalRows = rowsFor(
+  'SELECT COUNT(*) AS total FROM invoices',
+  row => 'total' in row
+);
+report.invoiceTotal = Number(invoiceTotalRows[0]?.total || 0);
+const itemTaxRows = rowsFor(
+  'SELECT COUNT(*) AS total FROM invoice_items WHERE COALESCE(cgst_paise,0)>0 OR COALESCE(sgst_paise,0)>0 OR COALESCE(igst_paise,0)>0',
+  row => 'total' in row
+);
+report.invoiceItemsWithNonZeroTax = Number(itemTaxRows[0]?.total || 0);
+
+// Commercial receipts need the public Store Profile identity and address; the tax number is
+// optional display text. Do not infer GST registration from its presence or change any settings.
+if (settings?.document_type === 'commercial_invoice' && !report.storeProfile.storeNamePresent) {
+  problems.push('commercial receipt is configured but Store Profile name is blank');
+}
+if (settings?.document_type === 'commercial_invoice' && !report.storeProfile.addressPresent) {
+  problems.push('commercial receipt is configured but Store Profile address is blank');
+}
+
 console.log(JSON.stringify({ database, readOnly: true, report, problems }, null, 2));
 if (problems.length) process.exitCode = 1;
