@@ -1,6 +1,6 @@
 # FreshWay account-deletion flow
 
-Status: request submission and Owner review API are implemented on this branch. Actual deletion/de-identification is a separate operational step and remains a release blocker until tested.
+Status: request submission, Owner review queue and redaction/de-identification completion are implemented on this branch. End-to-end tests and retention approval remain release blockers.
 
 ## Implemented
 - Signed-in customers submit from Profile; the server derives identity from the authenticated session.
@@ -9,7 +9,7 @@ Status: request submission and Owner review API are implemented on this branch. 
 - Signed-in request submission requires a JSON request from an allowed browser origin to reduce cross-site request forgery risk.
 - Active requests are idempotent while pending or in review.
 - Requests are stored separately; submission does not cascade-delete order, address or invoice records.
-- The Owner API can list requests and change status to in review or rejected. The Owner dashboard now has a masked request queue. The API explicitly rejects `completed` until a verified fulfilment workflow exists, preventing false completion.
+- The Owner API lists requests and permits review, rejection or completion after review. Completion atomically redacts operational customer/address data, clears credentials and push subscriptions, invalidates sessions and redacts the request phone snapshot. Issued invoice snapshots remain unchanged until the operator approves its retention policy.
 - Public privacy and account-deletion pages are added.
 
 ## Owner API
@@ -19,11 +19,11 @@ Status: request submission and Owner review API are implemented on this branch. 
 
 ## Required before release
 1. Configure and test TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_VERIFY_SERVICE_SID in a non-production Worker. External requests cannot use SMS until these are configured.
-2. Build a usable Owner queue UI; the API is available but no dashboard screen is added yet.
-3. Implement and test actual fulfilment: revoke customer sessions, remove push subscriptions, and delete/de-identify personal data that does not need retention.
+2. Configure and test Twilio Verify in a non-production Worker; external SMS verification requires the relevant secrets.
+3. Run the fulfilment tests plus an isolated D1 end-to-end test of auth, addresses, orders, notifications and invoices.
 4. Confirm retention rules for order/address snapshots, invoice buyer snapshots, notification logs, provider data, exports and backups with an appropriate adviser.
 5. Confirm legal business identity and a monitored privacy/support contact; review the policy against the real production data flow.
 6. Test OTP, invalid/expired codes, rate limits, duplicate requests, and auth/order/invoice regressions.
-7. Do not mark a request completed until the deletion/de-identification work has been performed.
+7. Completion notes must document the deletion performed and invoice/transaction retention decision. Issued invoice snapshots remain unchanged and require owner/legal retention approval.
 
 Never run a blanket DELETE FROM customers: restrictive order and invoice foreign keys may require records to be retained.
