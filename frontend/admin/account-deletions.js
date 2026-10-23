@@ -1,5 +1,5 @@
-// Owner-side account-deletion request queue. Fulfilment is intentionally not exposed until the
-// backend can safely erase/de-identify personal data while preserving records required for retention.
+// Owner-side account-deletion request queue. Completion is a guarded, audited redaction step;
+// issued invoice snapshots remain unchanged pending an explicit retention decision.
 (function () {
   const $ = selector => document.querySelector(selector);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -62,15 +62,15 @@
     const isReject = status === 'rejected';
     const isComplete = status === 'completed';
     if (isComplete && !window.confirm('This disables the account, removes login credentials and push subscriptions, and redacts customer/address details from operational order/address records. Issued invoice snapshots remain unchanged. Continue only after the retention decision is reviewed.')) return;
-    const prompt = isReject ? 'Why is this deletion request being rejected? Explain the reason to the customer through the approved support channel.' : isComplete ? 'Document deletion performed and invoice/transaction retention decision. Do not include unnecessary personal data.' : 'Optional review note (do not include unnecessary personal data):';
+    const prompt = isReject ? 'Why is this deletion request being rejected? Explain the reason to the customer through the approved support channel.' : isComplete ? 'Document deletion performed, which invoice/transaction records remain, and the retention basis. Do not include unnecessary personal data.' : 'Optional review note (do not include unnecessary personal data):';
     const note = window.prompt(prompt, '');
     if (note === null) return;
     if (isReject && note.trim().length < 10) {
       setMessage('Add a clear rejection reason of at least 10 characters.', true);
       return;
     }
-    if (isComplete && (note.trim().length < 20 || !/(invoice|retain|retention|accounting|tax)/i.test(note))) {
-      setMessage('For completion, add a note of at least 20 characters documenting invoice/transaction retention.', true);
+    if (isComplete && (note.trim().length < 20 || !/(invoice|transaction)/i.test(note) || !/(retain|retention|accounting|tax|legal)/i.test(note))) {
+      setMessage('For completion, add a 20-character-or-longer note that identifies invoice/transaction records and the retention basis.', true);
       return;
     }
     button.disabled = true;
