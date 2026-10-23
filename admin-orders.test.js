@@ -81,13 +81,13 @@ assert.match(css,/\.order-map-row/);
 assert.match(css,/\.order-map-status/);
 assert.match(css,/\.order-map-link/);
 assert.ok(html.includes('admin.css?v=20261022-invoice-ui-v1'),'Owner HTML must load the compact location-row styles');
-assert.ok(html.includes('admin.js?v=20261023-new-order-kpi-jump-v1'),'Owner HTML must load the cleaned order details');
+assert.ok(html.includes('admin.js?v=20261023-new-order-kpi-wait-v1'),'Owner HTML must load the cleaned order details');
 const ownerSw=fs.readFileSync('admin/sw.js','utf8');
-assert.ok(ownerSw.includes('fw-owner-v34'),'Owner PWA cache must advance for updated order detail assets');
+assert.ok(ownerSw.includes('fw-owner-v35'),'Owner PWA cache must advance for updated order detail assets');
 assert.ok(html.includes('owner-lifecycle.js?v=20261023-available-fields-invoice-v1'),'Owner HTML must load the cache-busted map fix');
 assert.ok(ownerSw.includes('/admin/owner-lifecycle.js?v=20261023-available-fields-invoice-v1'),'Owner PWA shell must cache the map fix');
 assert.ok(ownerSw.includes('/admin/admin.css?v=20261022-invoice-ui-v1'),'Owner PWA shell must cache the current Owner CSS');
-assert.ok(ownerSw.includes('/admin/admin.js?v=20261023-new-order-kpi-jump-v1'),'Owner PWA shell must cache the current Owner JS');
+assert.ok(ownerSw.includes('/admin/admin.js?v=20261023-new-order-kpi-wait-v1'),'Owner PWA shell must cache the current Owner JS');
 assert.ok(html.includes('frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1'),'Owner HTML must load the login-aware push setup');
 assert.ok(ownerSw.includes('/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1'),'Owner PWA shell must cache the login-aware push setup');
 
