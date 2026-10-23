@@ -2,7 +2,7 @@ name: FreshWay validation
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/play-store-readiness-20261023]
   pull_request:
     branches: [main]
 
