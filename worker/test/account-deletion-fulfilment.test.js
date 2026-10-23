@@ -27,7 +27,7 @@ function fakeEnv({
     async batch(statements) {
       batchStatements = statements;
       return statements.map((statement, index) => ({
-        meta: { changes: index === statements.length - 1 ? completionChanges : 1 }
+        meta: { changes: completionChanges === 0 ? 0 : index === statements.length - 1 ? completionChanges : 1 }
       }));
     }
   };
