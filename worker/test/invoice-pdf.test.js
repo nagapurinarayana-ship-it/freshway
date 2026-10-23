@@ -37,8 +37,11 @@ test('prints seller contact numbers with the India country code and a visible ve
   assert.equal(formatSellerPhone('+91 73968 05280'),'+917396805280');
   assert.equal(formatSellerPhone(''), '');
   assert.match(invoicePdfSource,/function drawRupee\(page,x,baseline,size,color\)/);
-  assert.match(invoicePdfSource,/const stroke=Math\.max\(0\.65,size\*0\.085\)/);
+  assert.match(invoicePdfSource,/const stroke=Math\.max\(0\.72,size\*0\.09\)/);
   assert.ok(invoicePdfSource.includes('drawRupee(page,x,y,size*0.98,color)'), 'each monetary amount must draw the ₹ mark before the numeric amount');
+  assert.match(invoicePdfSource,/Parallel headline bars/,'rupee mark must have the two recognizable horizontal bars');
+  assert.match(invoicePdfSource,/Diagonal foot/,'rupee mark must have the lower diagonal leg');
+  assert.match(invoicePdfSource,/x\+0\.24\*s,baseline\+0\.91\*s,x\+0\.24\*s,baseline\+0\.39\*s/,'rupee stem must stop above the lower diagonal foot');
 });
 
 test('uses receipt labels and conditionally prints the saved tax number',()=>{
