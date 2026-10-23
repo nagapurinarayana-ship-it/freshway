@@ -164,7 +164,8 @@ async function createReceiptPdf(invoice){
   if(sellerName){wrapText(sellerName,MARGIN,9.5,bold,INK,12);y-=1;}
   if(String(invoice.seller.address||'').trim())wrapText('Address: '+invoice.seller.address,MARGIN,8.5,regular,INK,11);
   if(String(invoice.seller.gstin||'').trim())wrapText('Tax Number: '+invoice.seller.gstin,MARGIN,8.5,regular,INK,11);
-  if(String(invoice.seller.phone||'').trim())wrapText('Contact Us: '+invoice.seller.phone,MARGIN,8.5,regular,INK,11);
+  const sellerPhone=formatSellerPhone(invoice.seller.phone);
+  if(sellerPhone)wrapText('Contact Us: '+sellerPhone,MARGIN,8.5,regular,INK,11);
   if(String(invoice.seller.footer||'').trim()){y-=5;wrapText(invoice.seller.footer,MARGIN,8.5,regular,INK,11);}
   return await doc.save();
 }
