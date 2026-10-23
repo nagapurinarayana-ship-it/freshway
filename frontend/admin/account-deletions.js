@@ -58,12 +58,13 @@
     if (!form) {
       form = document.createElement('form');
       form.className = 'account-deletion-confirmation';
+      form.noValidate = true;
       form.dataset.deletionForm = 'true';
       form.innerHTML =
         '<div><strong>Confirm account deletion</strong><p class="muted">This action disables the account, clears login credentials and push subscriptions, and redacts operational customer/address details. Issued invoice snapshots stay unchanged.</p></div>' +
-        '<label class="settings-field full"><span>Required audit note</span><textarea data-deletion-note minlength="20" maxlength="1000" rows="4" required placeholder="Describe the operational data to be removed, which invoice/transaction records remain, and the confirmed retention basis."></textarea></label>' +
+        '<label class="settings-field full"><span>Required audit note</span><textarea data-deletion-note maxlength="1000" rows="4" aria-label="Required deletion audit note" placeholder="Describe the operational data to be removed, which invoice/transaction records remain, and the confirmed retention basis."></textarea></label>' +
         '<p class="muted">The note must be at least 20 characters and mention invoice or transaction records plus the actual retention basis (for example, tax/accounting/legal only when confirmed). Do not include customer phone numbers or unnecessary personal data.</p>' +
-        '<label class="account-deletion-retention-check"><input data-deletion-retention-confirm type="checkbox" required><span>I have reviewed the retention decision and am authorised to complete this request.</span></label>' +
+        '<label class="account-deletion-retention-check"><input data-deletion-retention-confirm type="checkbox"><span>I have reviewed the retention decision and am authorised to complete this request.</span></label>' +
         '<p class="account-deletion-form-error" data-deletion-form-error role="alert" hidden></p>' +
         '<div class="owner-alert-control-actions"><button class="primary full" data-deletion-submit type="submit">Confirm and complete deletion</button><button class="ghost full" data-deletion-cancel type="button">Cancel</button></div>';
       const actions = card.querySelector('.owner-alert-control-actions');
