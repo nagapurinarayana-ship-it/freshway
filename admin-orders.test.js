@@ -45,6 +45,20 @@ assert.match(js,/f\.from&&f\.to&&f\.from>f\.to/);
 assert.match(js,/min!==null&&max!==null&&min>max/);
 assert.match(js,/syncOrderFilterSummary/);
 
+// The Overview "New orders" KPI must take the Owner to the oldest pending order,
+// clear unrelated filters, and scroll that order card into view without changing
+// how the other KPI cards navigate.
+assert.match(js,/kpi\('New orders',[\s\S]*?'first-new-order'\)/);
+assert.match(js,/data-kpi-action="\$\{action\}"/);
+assert.match(js,/async function openFirstNewOrder\(\)/);
+assert.match(js,/\$\('#orderStatus'\)\.value='New'/);
+assert.match(js,/\$\('#orderSort'\)\.value='oldest'/);
+assert.match(js,/navigateAdminScreen\('orders',\{historyMode:'push',deferOrdersLoad:true\}\)/);
+assert.match(js,/target\.scrollIntoView\(\{behavior:'smooth',block:'center'\}\)/);
+assert.match(js,/data-kpi-action="first-new-order"/);
+assert.match(js,/function navigateAdminScreen\(id,\{historyMode='push',deferOrdersLoad=false\}=\{\}\)/);
+
+
 
 assert.match(js,/Registered mobile/);
 assert.match(js,/Delivery contact/);
