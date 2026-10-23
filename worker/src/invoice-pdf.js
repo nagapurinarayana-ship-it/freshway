@@ -2,7 +2,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
 const PAGE_W=595.28,PAGE_H=841.89,MARGIN=42;
 const INK=rgb(0.12,0.16,0.14),MUTED=rgb(0.40,0.46,0.43),LINE=rgb(0.85,0.89,0.86),GREEN=rgb(0.16,0.42,0.30),PALE=rgb(0.92,0.97,0.94),WHITE=rgb(1,1,1);
-const safe=value=>String(value??'').normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'').replace(/[₹]/g,'INR ').replace(/[^\\x20-\\x7E]/g,' ').replace(/\\s+/g,' ').trim();
+const safe=value=>String(value??'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[₹]/g,'INR ').replace(/[^\x20-\x7E]/g,' ').replace(/\s+/g,' ').trim();
 const money=paise=>(Number(paise||0)/100).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 const dateTimeText=value=>{
   const d=new Date(value||Date.now());
@@ -10,7 +10,7 @@ const dateTimeText=value=>{
   return d.toLocaleString('en-GB',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).replace(',','');
 };
 export function formatInvoicePhone(value){
-  const digits=String(value??'').replace(/\\D/g,'');
+  const digits=String(value??'').replace(/\D/g,'');
   return digits.length===12&&digits.startsWith('91')?digits.slice(2):digits;
 }
 const wrap=(text,font,size,width)=>{
@@ -34,7 +34,7 @@ const wrap=(text,font,size,width)=>{
 };
 const productVolumeMl=value=>{
   const text=String(value??'').toLowerCase().replace(/,/g,'.').trim();
-  const match=text.match(/(\\d+(?:\\.\\d+)?)\\s*(ml|millilit(?:er|re)s?|l|ltr|lit(?:er|re)s?)(?![a-z])/i);
+  const match=text.match(/(\d+(?:\.\d+)?)\s*(ml|millilit(?:er|re)s?|l|ltr|lit(?:er|re)s?)(?![a-z])/i);
   if(!match)return null;
   const amount=Number(match[1]);
   if(!Number.isFinite(amount))return null;
