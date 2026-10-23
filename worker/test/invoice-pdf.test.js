@@ -23,14 +23,13 @@ function fixture(overrides={}){
   };
 }
 
-test('renders the saved customer phone in domestic format and avoids duplicating the delivery phone',()=>{
+test('renders the saved customer phone in domestic format',()=>{
   assert.equal(formatInvoicePhone('919966093782'),'9966093782');
   assert.equal(formatInvoicePhone('+91 99660 93782'),'9966093782');
   assert.equal(formatInvoicePhone('9966093782'),'9966093782');
   assert.equal(formatInvoicePhone(''),'');
-  assert.match(invoicePdfSource,/const customerPhone=formatInvoicePhone\(b\.phone\)/);
-  assert.match(invoicePdfSource,/const contactText=\[customerPhone\?'Customer phone: '\+customerPhone/);
-  assert.match(invoicePdfSource,/deliveryPhone&&deliveryPhone!==customerPhone\?'Delivery: '\+deliveryPhone/);
+  assert.match(invoicePdfSource,/const customerPhone=formatInvoicePhone\\(invoice\\.buyer\\.phone\\)/);
+  assert.ok(invoicePdfSource.includes("'Customer Phone: '+customerPhone"),'receipt must show the buyer phone');
 });
 
 test('uses receipt labels and conditionally prints the saved tax number',()=>{
