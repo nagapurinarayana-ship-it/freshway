@@ -12,6 +12,7 @@ const webManifest = readJson('manifest.webmanifest');
 const index = readText('index.html');
 const privacy = readText('privacy.html');
 const deletion = readText('delete-account.html');
+const headers = readText('_headers');
 
 assert.equal(webManifest.name, 'FreshWay');
 assert.equal(webManifest.short_name, 'FreshWay');
@@ -61,6 +62,8 @@ assert.match(index, /frontend\/customer\/account-actions\.js/, 'Customer account
 
 assert.match(privacy, /<title>Privacy Policy \| FreshWay<\/title>/);
 assert.match(privacy, /href="\/delete-account\.html"/, 'Privacy policy must link to external account deletion.');
+assert.match(headers, /\/privacy\.html\n\s+Cache-Control: no-store, max-age=0, must-revalidate/, 'Privacy policy page must revalidate promptly.');
+assert.match(headers, /\/delete-account\.html\n\s+Cache-Control: no-store, max-age=0, must-revalidate/, 'Account-deletion page must revalidate promptly.');
 assert.match(privacy, /id="privacyContact"/, 'Privacy policy must expose the configured public contact section.');
 assert.match(privacy, /fetch\('\/api\/store-profile'/, 'Privacy policy must read configured store details instead of hardcoding contact values.');
 assert.match(deletion, /<title>Account deletion \| FreshWay<\/title>/);
