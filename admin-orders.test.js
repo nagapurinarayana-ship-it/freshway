@@ -69,7 +69,7 @@ assert.match(css,/\.order-map-link/);
 assert.ok(html.includes('admin.css?v=20261022-invoice-ui-v1'),'Owner HTML must load the compact location-row styles');
 assert.ok(html.includes('admin.js?v=20261022-invoice-api-fallback-v2'),'Owner HTML must load the cleaned order details');
 const ownerSw=fs.readFileSync('admin/sw.js','utf8');
-assert.ok(ownerSw.includes('fw-owner-v32'),'Owner PWA cache must advance for updated order detail assets');
+assert.ok(ownerSw.includes('fw-owner-v33'),'Owner PWA cache must advance for updated order detail assets');
 assert.ok(html.includes('owner-lifecycle.js?v=20261023-order-status-invoice-decoupling-v1'),'Owner HTML must load the cache-busted map fix');
 assert.ok(ownerSw.includes('/admin/owner-lifecycle.js?v=20261023-order-status-invoice-decoupling-v1'),'Owner PWA shell must cache the map fix');
 assert.ok(ownerSw.includes('/admin/admin.css?v=20261022-invoice-ui-v1'),'Owner PWA shell must cache the current Owner CSS');
