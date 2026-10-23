@@ -64,7 +64,7 @@ function drawRupee(page,x,baseline,size,color){
 }
 export async function createInvoicePdf(invoice){
   const doc=await PDFDocument.create();
-  doc.setTitle('FreshWay receipt '+invoice.invoiceNumber);
+  doc.setTitle('FreshWay '+invoice.documentType.replaceAll('_',' ')+' '+invoice.invoiceNumber);
   doc.setAuthor(safe(invoice.seller.legalName||invoice.seller.storeName||''));
   doc.setSubject('Order '+invoice.orderId);
   const regular=await doc.embedFont(StandardFonts.Helvetica),bold=await doc.embedFont(StandardFonts.HelveticaBold);
