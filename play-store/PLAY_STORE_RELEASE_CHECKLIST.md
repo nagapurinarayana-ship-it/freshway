@@ -18,9 +18,9 @@ This checklist is deliberately separate from app runtime code. A checked item me
 - [ ] Verify which providers are enabled in production (Cloudflare, SMS verification provider, WhatsApp provider, web-push delivery and any other integrations).
 - [ ] Document purpose, retention, deletion, sharing and security controls for each data category.
 - [ ] Complete the Play Console Data safety declaration from the verified data inventory; do not guess.
-- [ ] Design and test account deletion inside the customer app and a public external deletion-request route.
-- [ ] Define how account identity, addresses, push subscriptions and personal data are removed or de-identified while retaining records only where legally or operationally required.
-- [ ] Confirm a deletion request cannot delete another customer's data and cannot be triggered without authenticated account ownership.
+- [x] Add in-app and public external account-deletion request submission on the feature branch.\n- [ ] Test the request flow end to end in an isolated environment; Twilio Verify must be configured for the external flow.
+- [ ] Implement and test actual deletion/de-identification and session revocation after review; the current API records requests but does not erase account data.
+- [x] In-app requests derive identity from the authenticated session; external requests require Twilio SMS verification.\n- [ ] Verify these controls with automated and isolated integration tests.
 - [ ] Ensure deleting an account does not silently erase or corrupt order, payment, invoice or legally required records.
 - [ ] Verify support and privacy contact channels.
 
@@ -61,4 +61,4 @@ This checklist is deliberately separate from app runtime code. A checked item me
 
 ## Current status
 
-The PWA foundation and latest main-branch CI/live smoke checks were present at the time this checklist was created. Privacy/account-deletion verification, Android packaging, Digital Asset Links, Play Console setup and final store assets remain open. Do not treat this checklist as a completed Play review.
+The PWA foundation and latest main-branch CI/live smoke checks were present at the time this checklist was created. Account-deletion request capture is implemented on the feature branch. Actual deletion fulfilment, production policy sign-off, Android packaging, Digital Asset Links, Play Console setup and final store assets remain open. Do not treat this checklist as a completed Play review.
