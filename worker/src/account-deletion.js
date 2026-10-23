@@ -2,8 +2,8 @@
 // redaction and request completion atomic; issued invoice snapshots remain unchanged.
 export async function fulfillAccountDeletion(env, requestId, adminNote) {
   const note = String(adminNote || '').trim().replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 1000);
-  if (note.length < 20 || !/(invoice|retain|retention|accounting|tax)/i.test(note)) {
-    return { ok: false, status: 400, error: 'Add a 20-character-or-longer note documenting the deletion work and invoice/transaction retention decision.' };
+  if (note.length < 20 || !/(invoice|transaction)/i.test(note) || !/(retain|retention|accounting|tax|legal)/i.test(note)) {
+    return { ok: false, status: 400, error: 'Add a 20-character-or-longer note documenting the deletion work, the invoice/transaction records retained, and the retention basis.' };
   }
   const deletion = await env.DB.prepare('SELECT id,customer_id,phone_snapshot,status FROM account_deletion_requests WHERE id=? LIMIT 1').bind(requestId).first();
   if (!deletion) return { ok: false, status: 404, error: 'Deletion request not found.' };
