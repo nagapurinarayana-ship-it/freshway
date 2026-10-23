@@ -41,6 +41,7 @@ const requiredOwnerAssets = [
   'frontend/phone-display.js',
   'frontend/admin/store-profile.js',
   'frontend/admin/invoice-settings.js',
+  'frontend/admin/account-deletions.js',
   'frontend/catalogue-media.js',
   'frontend/admin/catalogue.js',
   'frontend/admin/owner-lifecycle-autosave.js',
