@@ -122,11 +122,11 @@ test('Owner push subscription writes are scoped to the Owner partition and valid
   assert.deepEqual(await saveOwnerSubscription(env, subscription), { ok: true });
   assert.match(statements[0].sql, /owner_push_subscriptions/);
   assert.match(statements[0].sql, /owner_key/);
-  assert.equal(statements[0].args[0], 'https://push.example.test/sub/1');
+  assert.equal(statements[0].args[0], 'https://updates.push.services.mozilla.com/wpush/v2/test-subscription');
   await assert.rejects(() => saveOwnerSubscription(env, { subscription: { ...subscription.subscription, endpoint: 'http://bad.example/sub' } }), /Invalid push endpoint/);
   await assert.rejects(() => saveOwnerSubscription(env, { subscription: { ...subscription.subscription, endpoint: 'https://attacker.example/sub' } }), /supported browser push services/);
   assert.equal(statements.length, 1, 'unsupported endpoints must be rejected before database writes');
-  assert.deepEqual(await deleteOwnerSubscription(env, { endpoint: 'https://push.example.test/sub/1' }), { ok: true });
+  assert.deepEqual(await deleteOwnerSubscription(env, { endpoint: 'https://updates.push.services.mozilla.com/wpush/v2/test-subscription' }), { ok: true });
 });
 
 
