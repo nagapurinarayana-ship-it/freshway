@@ -443,7 +443,7 @@
       '<label>Delivery note <span class="optional">Optional</span><textarea id="fwAddrNote" rows="2" maxlength="500" placeholder="Help the delivery person find you"></textarea></label>' +
       (modalOrigin === 'home' ? '' : locationPanel) +
       '</div>' +
-      '<div class="fw-address-editor-footer"><button type="button" class="secondary-btn" id="fwAddressCancel">Cancel</button><button type="button" class="primary-btn" id="fwAddressSave">' + (isEditing ? 'Save changes' : (modalOrigin === 'home' && guestAddressMode ? 'Use this location' : 'Save address')) + '</button></div>' +
+      '<div class="fw-address-editor-footer"><button type="button" class="secondary-btn" id="fwAddressCancel">Cancel</button><button type="button" class="primary-btn" id="fwAddressSave">' + (isEditing ? (modalOrigin === 'home' ? 'Save changes & use' : 'Save changes') : (modalOrigin === 'home' && guestAddressMode ? 'Use this location' : (modalOrigin === 'home' ? 'Save & use address' : 'Save address'))) + '</button></div>' +
       '</div>';
     showModal();
     labelFields.forEach(function (pair) {
