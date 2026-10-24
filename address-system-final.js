@@ -169,7 +169,9 @@
     const preferred = activeAddress || defaultAddress();
     const home = $('#homeAddress');
     const profile = $('#profileAddressText');
-    if (home) home.textContent = preferred ? (iconFor(preferred.label) + ' ' + (shortAddress(preferred) || preferred.label)) : 'Add your delivery address';
+    if (home) home.textContent = preferred ? (shortAddress(preferred) || preferred.label) : 'Choose your delivery location';
+    const homeMeta = $('#homeAddressMeta');
+    if (homeMeta) homeMeta.textContent = preferred ? ((preferred.label || 'Saved address') + ' · Delivery address') : 'Use current location or search an address';
     const savedDefault = defaultAddress();
     if (profile) profile.textContent = savedDefault ? (savedDefault.label + ' · ' + fullAddress(savedDefault)) : 'Not saved yet';
     syncCheckout();
