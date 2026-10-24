@@ -103,6 +103,7 @@ jobs:
           }
           if (!manifest.icons.some(icon => icon.type === 'image/svg+xml' && icon.sizes === 'any' && icon.src.includes('icon-192.svg'))) throw new Error('Exact SVG 192 app icon is missing');
           if (!manifest.icons.some(icon => icon.type === 'image/svg+xml' && icon.sizes === 'any' && icon.src.includes('icon-512.svg'))) throw new Error('Exact SVG 512 app icon is missing');
+          if (!manifest.icons.some(icon => icon.src === '/icons/icon-512.png' && String(icon.purpose || '').split(' ').includes('maskable'))) throw new Error('Maskable fallback must use the verified 512px PNG path');
           
           for (const file of ['frontend/phone-display.js','frontend/customer/pwa-install.js','frontend/customer/pwa-install.css','frontend/customer/promotions.js','icons/icon-192.png','icons/icon-512.png','icons/icon-192-maskable.png','icons/icon-512-maskable.png','sw.js','admin/manifest.webmanifest','admin/sw.js','functions/admin/[[path]].js']) {
             if (!fs.existsSync(file)) throw new Error('Missing PWA asset ' + file);
@@ -126,7 +127,7 @@ jobs:
           if (ownerSw.includes("'/admin.css") || ownerSw.includes("'/admin.js") || ownerSw.includes("'/frontend/")) throw new Error('Owner service-worker shell contains out-of-scope root assets');
           const sw = fs.readFileSync('sw.js', 'utf8');
           if (!/const CACHE = 'freshway-v\d+'/.test(sw)) throw new Error('Service worker cache version missing');
-          for (const icon of ['/icons/icon-192.png','/icons/icon-512.png','/icons/icon-192-maskable.png','/icons/icon-512-maskable.png','/icons/icon-192.svg?v=20261008-brand-v1','/icons/icon-512.svg?v=20261008-brand-v1','/icon.svg?v=20261008-brand-v1','/freshway-logo-clean.svg?v=20261008-brand-v1','/freshway-logo-master.webp?v=20261008-master-v1']) {
+          for (const icon of ['/icons/icon-192.png','/icons/icon-512.png','/icons/icon-192-maskable.png','/icons/icon-192.svg?v=20261008-brand-v1','/icons/icon-512.svg?v=20261008-brand-v1','/icon.svg?v=20261008-brand-v1','/freshway-logo-clean.svg?v=20261008-brand-v1','/freshway-logo-master.webp?v=20261008-master-v1']) {
             if (!sw.includes(icon)) throw new Error('PWA icon is not cached: ' + icon);
           }
           if (sw.includes(".catch(() => {})")) throw new Error('Service worker install failures must not be silently swallowed');
