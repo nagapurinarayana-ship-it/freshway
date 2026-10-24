@@ -836,7 +836,9 @@
       addresses = uniqueAddresses(data.addresses || []);
       const returnedAddress = addresses.find(function (item) { return Number(item.id) === Number(data.id); }) ||
         addresses.find(function (item) { return Number(item.id) === Number(editingAddress && editingAddress.id); }) || null;
-      if (modalOrigin === 'checkout' && returnedAddress) {
+      if ((modalOrigin === 'checkout' || modalOrigin === 'home') && returnedAddress) {
+        // Home location selection and checkout selection are explicit user actions.
+        // Select the saved address they just confirmed without changing its default flag.
         activeAddress = returnedAddress;
       } else if (wasActiveId != null) {
         activeAddress = addresses.find(function (item) { return Number(item.id) === Number(wasActiveId); }) || defaultAddress();
@@ -849,6 +851,11 @@
         hideModal();
         syncCheckout();
         toast('Address saved. You can now place your order.');
+        return;
+      }
+      if (modalOrigin === 'home' && returnedAddress) {
+        hideModal();
+        toast(data.deduplicated ? 'Existing delivery address selected.' : 'Delivery address saved and selected.');
         return;
       }
       renderManager();
