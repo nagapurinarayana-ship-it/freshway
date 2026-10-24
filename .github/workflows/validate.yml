@@ -2,9 +2,9 @@ name: FreshWay validation
 
 on:
   push:
-    branches: [main]
+    branches: [main, stable/production-freeze-2026-10-24]
   pull_request:
-    branches: [main]
+    branches: [main, stable/production-freeze-2026-10-24]
 
 jobs:
   validate:
