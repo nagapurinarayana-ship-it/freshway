@@ -11,6 +11,25 @@ export async function onRequest(context) {
   const incoming = new URL(context.request.url);
   const isProductionHost = productionHosts.has(incoming.hostname.toLowerCase());
   const environment = String(context.env.FRESHWAY_ENVIRONMENT || '').trim().toLowerCase();
+  const configuredApiOrigins = [...new Set([context.env.APP_ORIGIN, context.env.APP_ORIGINS]
+    .flatMap(value => String(value || '').split(',').map(origin => origin.trim()))
+    .filter(origin => origin && origin !== 'null' && origin !== 'https://YOUR-FRESHWAY-DOMAIN'))];
+  const allowedPreviewOriginSuffixes = String(context.env.APP_ORIGIN_SUFFIXES || '').split(',')
+    .map(value => value.trim().toLowerCase())
+    .filter(value => /^\.[a-z0-9.-]+$/.test(value));
+  const errorResponseOrigin = (() => {
+    const requestedOrigin = String(context.request.headers.get('Origin') || '').trim();
+    if (!requestedOrigin) return '';
+    if (configuredApiOrigins.includes(requestedOrigin)) return requestedOrigin;
+    try {
+      const parsed = new URL(requestedOrigin);
+      if (parsed.protocol === 'https:' && parsed.origin === requestedOrigin &&
+          allowedPreviewOriginSuffixes.some(suffix => parsed.hostname.length > suffix.length && parsed.hostname.endsWith(suffix))) {
+        return requestedOrigin;
+      }
+    } catch (_) {}
+    return '';
+  })();
   let targetPath = incoming.pathname;
   let method = context.request.method;
   let body = context.request.body;
@@ -58,8 +77,11 @@ export async function onRequest(context) {
     headers: {
       'content-type': 'application/json; charset=utf-8',
       'cache-control': 'private, no-store',
-      'access-control-allow-origin': context.request.headers.get('Origin') || '*',
-      'access-control-allow-credentials': 'true'
+      'vary': 'Origin',
+      ...(errorResponseOrigin ? {
+        'access-control-allow-origin': errorResponseOrigin,
+        'access-control-allow-credentials': 'true'
+      } : {})
     }
   });
 
