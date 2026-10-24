@@ -43,6 +43,6 @@ test('completed deletion history is aggregate-only and contains no per-customer 
   assert.match(adminAuth, /status==='completed'\?' WHERE 0'/);
   assert.match(ownerModule, /function renderSummary\(summary\)/);
   assert.match(ownerModule, /item\.status !== 'completed'/);
-  assert.match(ownerModule, /Individual completed-request records are not displayed/);
+  assert.match(ownerModule, /Individual completed-request records are deleted/);
   assert.match(ownerHtml, /id="accountDeletionSummary"/);
 });
