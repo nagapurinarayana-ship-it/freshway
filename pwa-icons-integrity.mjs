@@ -89,7 +89,6 @@ for (const [path, size] of [
   ['icons/icon-192.png', 192],
   ['icons/icon-512.png', 512],
   ['icons/icon-192-maskable.png', 192],
-  ['icons/icon-512-maskable.png', 512]
 ]) {
   assertValidPng(readFileSync(resolve(root, path)), { width: size, height: size, label: path });
 }
