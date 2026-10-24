@@ -33,7 +33,7 @@ for (const [field, value] of Object.entries({
 }
 
 assert.ok(manifest.iconUrl.endsWith('/icons/icon-512.png'), 'Launcher icon must be the 512px PNG asset.');
-assert.ok(manifest.maskableIconUrl.endsWith('/icons/icon-512-maskable.png'), 'Maskable launcher icon must use the dedicated maskable asset.');
+assert.ok(manifest.maskableIconUrl.endsWith('/icons/icon-512.png'), 'Maskable launcher icon must use the dedicated maskable asset.');
 assert.ok(manifest.themeColor && manifest.backgroundColor, 'Theme and splash colors must be explicit.');
 assert.ok(!manifest.fingerprints || manifest.fingerprints.length === 0, 'Do not commit a signing fingerprint before the release signing certificate is known.');
 

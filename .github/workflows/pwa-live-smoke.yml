@@ -2,9 +2,9 @@ name: FreshWay live PWA smoke
 
 on:
   push:
-    branches: [main]
+    branches: [main, stable/production-freeze-2026-10-24]
   pull_request:
-    branches: [main]
+    branches: [main, stable/production-freeze-2026-10-24]
   workflow_dispatch:
 
 permissions:
@@ -63,7 +63,7 @@ jobs:
           echo "::notice title=Owner PWA deployment smoke deferred::Cloudflare Access protects Pages preview hosts. Route and asset mapping are checked by functions/admin-pwa.test.mjs. The live /admin/ smoke runs after a main deployment."
 
       - name: Verify deployed Owner PWA on custom domain
-        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/stable/production-freeze-2026-10-24') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         env:
           OWNER_PWA_BASE_URL: https://fwcoldpressed.in
         run: node pwa-owner-live-smoke.mjs
