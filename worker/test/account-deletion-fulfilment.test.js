@@ -59,11 +59,13 @@ test('redacts operational personal data, revokes access and retains issued invoi
   assert.ok(sql.some(statement => statement.startsWith("UPDATE addresses SET house='Removed'")));
   assert.ok(sql.some(statement => statement.startsWith("UPDATE orders SET customer_name='Deleted customer'")));
   assert.ok(sql.some(statement => statement.startsWith('UPDATE customers SET name=NULL,phone=NULL,passcode_salt=NULL,passcode_hash=NULL')));
-  assert.ok(sql.some(statement => statement.startsWith("UPDATE account_deletion_requests SET status='completed',phone_snapshot='REDACTED'")));
+  assert.ok(sql.some(statement => statement.startsWith("UPDATE account_deletion_requests SET status='completed',customer_id=NULL,phone_snapshot='REDACTED'")));
   assert.ok(sql.some(statement => statement.startsWith('DELETE FROM auth_rate_limits WHERE key IN (?,?,?,?,?,?)')));
   assert.equal(sql.some(statement => /^\s*(DELETE FROM customers|UPDATE invoices)\b/i.test(statement)), false);
   assert.ok(statements.some(statement => statement.sql.startsWith('DELETE FROM auth_rate_limits') && statement.params.includes('auth:login:phone:919999999999')));
-  assert.equal(statements.at(-1).sql.startsWith("UPDATE account_deletion_requests SET status='completed'"), true);
+  assert.equal(statements.at(-1).sql.startsWith("UPDATE account_deletion_requests SET status='completed',customer_id=NULL,phone_snapshot='REDACTED'"), true);
+  assert.match(statements.at(-1).sql, /admin_note='Completed: operational customer data redacted/);
+  assert.deepEqual(statements.at(-1).params, ['req-1', 'cust-1'], 'customer-entered notes are not stored on completed audit rows');
 });
 
 test('guards every operational mutation against a request that is no longer in review', async () => {
