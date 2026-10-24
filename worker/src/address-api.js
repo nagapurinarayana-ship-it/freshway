@@ -129,15 +129,22 @@ export async function handleAddress(request, env, customerId, action) {
   // "Address not found" error after the address has already been removed elsewhere.
   if (action === 'delete' && request.method === 'DELETE') {
     if (!owned) return response({ ok:true, alreadyDeleted:true, addresses:await list(env,customerId) }, 200, env);
-    await env.DB.prepare('UPDATE addresses SET is_default=0,deleted_at=CURRENT_TIMESTAMP WHERE id=? AND customer_id=? AND deleted_at IS NULL').bind(id,customerId).run();
-    await ensureDefault(env, customerId);
+    // Soft-delete and default reassignment commit together so a failed write
+    // cannot leave the customer with no default address.
+    await env.DB.batch([
+      env.DB.prepare('UPDATE addresses SET is_default=0,deleted_at=CURRENT_TIMESTAMP WHERE id=? AND customer_id=? AND deleted_at IS NULL').bind(id,customerId),
+      normalizeDefaultStatement(env, customerId)
+    ]);
     return response({ ok:true, addresses:await list(env,customerId) }, 200, env);
   }
   if (!owned) return response({ error:'Address not found.' }, 404, env);
   if (action === 'update' && request.method === 'PATCH') {
     if (payload.default === true || (payload.isDefault === true && payload.recipientName === undefined)) {
-      await env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=?').bind(customerId).run();
-      await env.DB.prepare('UPDATE addresses SET is_default=1 WHERE id=? AND customer_id=?').bind(id,customerId).run();
+      // Selecting a default is one database write; never clear current defaults
+      // before confirming the requested address is still active and owned.
+      const latest = await env.DB.prepare('SELECT id FROM addresses WHERE id=? AND customer_id=? AND deleted_at IS NULL').bind(id,customerId).first();
+      if (!latest) return response({ error:'Address not found.' }, 404, env);
+      await normalizeDefaultStatement(env, customerId, id).run();
       return response({ ok:true, addresses:await list(env,customerId) }, 200, env);
     }
     const a = normalized(payload), error = validate(a);
