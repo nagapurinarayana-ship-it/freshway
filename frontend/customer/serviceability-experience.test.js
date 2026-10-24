@@ -46,3 +46,12 @@ test('new customer assets are included in the current app-shell cache for first-
   assert.match(sw, /serviceability-experience\.js/);
   assert.match(sw, /serviceability\.css/);
 });
+
+test('the Zepto-style home location selector stylesheet is versioned, cached and separate from checkout styles', () => {
+  const css = readFileSync(new URL('./serviceability.css', import.meta.url), 'utf8');
+  const asset = html.match(/href="(frontend\/customer\/serviceability\.css\?v=[^"]+)"/)?.[1];
+  assert.ok(asset, 'customer home location CSS has a versioned URL');
+  assert.ok(sw.includes('/' + asset), 'service worker caches the exact home location CSS URL');
+  assert.match(css, /button\.location-card/);
+  assert.match(css, /\.location-card #homeAddressMeta/);
+});
