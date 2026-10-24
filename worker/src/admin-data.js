@@ -23,7 +23,7 @@ const routes = [
   { match: (u,m) => u.pathname === '/api/admin/serviceability/settings' && m === 'PATCH', run: async (r,e,u) => await updateServiceabilitySettings(e,await r.json()) },
   { match: (u,m) => u.pathname === '/api/admin/serviceability/zones' && m === 'POST', run: async (r,e,u) => await createServiceabilityZone(e,await r.json()) },
   { match: (u,m) => u.pathname === '/api/admin/serviceability/test' && m === 'POST', run: async (r,e,u) => await testServiceabilityDestination(e,await r.json()) },
-  { match: (u,m) => /^\/api\/admin\/serviceability\/zones\/[^/]+$/.test(u.pathname) && m === 'PATCH', run: async (r,e,u) => await updateServiceabilityZone(e,decodeURIComponent(u.pathname.split('/').pop()),await r.json()) }
+  { match: (u,m) => /^\/api\/admin\/serviceability\/zones\/[^/]+$/.test(u.pathname) && m === 'PATCH', run: async (r,e,u) => await updateServiceabilityZone(e,decodeURIComponent(u.pathname.split('/').pop()),await r.json()) },
   { match: (u,m) => u.pathname === '/api/admin/invoice-settings' && m === 'GET', run: async (r,e,u) => ({invoiceSettings:await getInvoiceSettings(e)}) },
   { match: (u,m) => u.pathname === '/api/admin/invoice-settings' && m === 'PATCH', run: async (r,e,u) => { const invoiceSettings=await updateInvoiceSettings(e,await r.json()); const invoiceBackfill=invoiceSettings.enabled?await backfillMissingInvoices(e):null; return {invoiceSettings,invoiceBackfill}; } },
   { match: (u,m) => u.pathname === '/api/admin/invoices/backfill' && m === 'POST', run: async (r,e,u) => ({invoiceBackfill:await backfillMissingInvoices(e)}) }
