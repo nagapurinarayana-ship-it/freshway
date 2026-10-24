@@ -229,11 +229,12 @@ assert.equal(manifest.id, '/freshway');
 assert.equal(manifest.start_url, '/');
 assert.equal(manifest.scope, '/');
 assert.equal(manifest.display, 'standalone');
+assert.ok(manifest.icons.some(icon => new URL(icon.src, manifestResponse.url).pathname === '/icons/icon-512.png' && icon.type === 'image/png' && String(icon.purpose || '').split(' ').includes('maskable')), 'manifest must use the known-good 512px PNG for its maskable fallback');
 for (const size of ['192x192', '512x512']) {
   assert.ok(manifest.icons.some(icon => icon.sizes === size && icon.type === 'image/png'));
 }
 
-for (const [path, size] of [['/icons/icon-192.png',192], ['/icons/icon-512.png',512], ['/icons/icon-192-maskable.png',192], ['/icons/icon-512-maskable.png',512]]) {
+for (const [path, size] of [['/icons/icon-192.png',192], ['/icons/icon-512.png',512], ['/icons/icon-192-maskable.png',192]]) {
   const response = await fetchWithRetry(`${base}${path}`);
   assert.equal(response.status, 200, path);
   assert.match(response.headers.get('content-type') || '', /^image\/png/i, path);

@@ -16,7 +16,7 @@
   "enableSiteSettingsShortcut": true,
   "startUrl": "/",
   "iconUrl": "https://fwcoldpressed.in/icons/icon-512.png",
-  "maskableIconUrl": "https://fwcoldpressed.in/icons/icon-512-maskable.png",
+  "maskableIconUrl": "https://fwcoldpressed.in/icons/icon-512.png",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "./android.keystore",
