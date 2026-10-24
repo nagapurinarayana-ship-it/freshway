@@ -1,0 +1,98 @@
+name: Diagnose one account-deletion error reference
+
+on:
+  push:
+    branches:
+      - 'diagnose/**'
+    paths:
+      - '.github/workflows/diagnose-account-deletion-reference.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  query-one-reference:
+    name: Read-only lookup of one Worker error reference
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Query recent Worker logs for the exact reference
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ERROR_REFERENCE: dd22f017-1999-4e28-9c40-ddc52824caae
+        run: |
+          set -euo pipefail
+          if [[ -z "${CLOUDFLARE_API_TOKEN:-}" || -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]]; then
+            echo "Cloudflare read credentials are not available to this job."
+            exit 1
+          fi
+
+          end_ms="$(date -u +%s)000"
+          start_ms="$(( $(date -u -d '48 hours ago' +%s) * 1000 ))"
+          response_file="$RUNNER_TEMP/worker-observability.json"
+          http_code="$(curl --silent --show-error --output "$response_file" --write-out '%{http_code}' \
+            --request POST \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/observability/telemetry/query" \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            --header 'Content-Type: application/json' \
+            --data-binary @- <<JSON
+          {
+            "queryId": "adhoc-account-deletion-reference",
+            "timeframe": {"from": $start_ms, "to": $end_ms},
+            "limit": 100,
+            "dry": true,
+            "parameters": {
+              "datasets": ["cloudflare-workers"],
+              "filterCombination": "and",
+              "filters": [
+                {"key": "$metadata.service", "operation": "eq", "type": "string", "value": "freshway-api"}
+              ],
+              "needle": {"value": "$ERROR_REFERENCE", "isRegex": false, "matchCase": true},
+              "view": "events"
+            }
+          }
+          JSON
+          )"
+          if [[ "$http_code" -lt 200 || "$http_code" -ge 300 ]]; then
+            echo "Cloudflare Observability query returned HTTP $http_code."
+            node -e 'const fs=require("fs");try{const x=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));for(const e of (x.errors||[])) console.log(String(e.message||"Query rejected").slice(0,500));}catch{}' "$response_file"
+            exit 1
+          fi
+
+          node - "$response_file" "$ERROR_REFERENCE" <<'NODE'
+          const fs = require('node:fs');
+          const [file, reference] = process.argv.slice(2);
+          const result = JSON.parse(fs.readFileSync(file, 'utf8'));
+          if (!result.success) {
+            console.log('Cloudflare returned an unsuccessful query.');
+            for (const error of (result.errors || [])) console.log(String(error.message || 'Query failed').slice(0, 500));
+            process.exit(1);
+          }
+          const events = result.result?.events || [];
+          const matches = events.filter(event => JSON.stringify(event).includes(reference)).slice(0, 10);
+          console.log('Exact reference matches:', matches.length);
+          for (const event of matches) {
+            const meta = event.$metadata || {};
+            let source = event.source;
+            if (typeof source !== 'string') source = JSON.stringify(source ?? {});
+            const redact = value => String(value ?? '')
+              .replace(/\b\d{10,12}\b/g, '[redacted-phone]')
+              .replace(/(?:passcode|password|token|authorization)\s*[:=]\s*[^,}\s]+/ig, '$1=[redacted]');
+            console.log(JSON.stringify({
+              timestamp: event.timestamp ?? meta.timestamp ?? meta.startTime ?? null,
+              service: meta.service ?? meta.cloudService ?? null,
+              level: meta.level ?? null,
+              requestId: meta.requestId ?? null,
+              trigger: meta.trigger ?? null,
+              message: redact(meta.message ?? ''),
+              error: redact(meta.error ?? ''),
+              source: redact(source).slice(0, 5000)
+            }));
+          }
+          if (!matches.length) {
+            console.log('No stored Worker log event containing this exact reference was returned for the 48-hour window.');
+            console.log('The log may be outside retention, Workers Logs may not have captured it, or the token may not expose this dataset.');
+          }
+          NODE
