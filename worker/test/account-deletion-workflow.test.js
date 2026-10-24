@@ -33,4 +33,7 @@ test('Owner queue exposes guarded completion after review', () => {
   assert.match(ownerModule, /data-deletion-action="rejected"/);
   assert.match(ownerModule, /data-deletion-action="completed"/);
   assert.match(ownerModule, /phone_last4/);
+  assert.match(ownerModule, /FreshWayOwnerStoreProfile\?\.hasUnsavedChanges/);
+  assert.match(ownerModule, /FreshWayOwnerInvoiceSettings\?\.hasUnsavedChanges/);
+  assert.match(ownerModule, /Account deletion does not save these settings/);
 });

@@ -67,7 +67,19 @@
     const isReject = status === 'rejected';
     const isComplete = status === 'completed';
     try {
-    if (isComplete && !window.confirm('This disables the account, removes login credentials and push subscriptions, and redacts customer/address details from operational order/address records. Issued invoice snapshots remain unchanged. Continue only after the retention decision is reviewed.')) return;
+    if (isComplete) {
+      const unsavedSettings = [];
+      if (window.FreshWayOwnerStoreProfile?.hasUnsavedChanges?.()) unsavedSettings.push('Store Profile');
+      if (window.FreshWayOwnerInvoiceSettings?.hasUnsavedChanges?.()) unsavedSettings.push('Billing & Tax');
+      if (unsavedSettings.length) {
+        const message = 'Deletion was not submitted. Save your unsaved ' + unsavedSettings.join(' and ') + ' changes first. Account deletion does not save these settings; reloading would discard them.';
+        setMessage(message, true);
+        window.alert(message);
+        $('#accountDeletionStatusMessage')?.scrollIntoView({behavior:'smooth', block:'center'});
+        return;
+      }
+      if (!window.confirm('This disables the account, removes login credentials and push subscriptions, and redacts customer/address details from operational order/address records. Issued invoice snapshots remain unchanged. Continue only after the retention decision is reviewed.')) return;
+    }
     const suggestedCompletionNote = 'Retain invoice/transaction records for tax and accounting retention; redact operational customer and address data.';
     const prompt = isReject
       ? 'Why is this deletion request being rejected? Explain the reason to the customer through the approved support channel.'
