@@ -6,19 +6,32 @@ const schema = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8');
 const migration = readFileSync(new URL('../migrations/0033_account_deletion_requests.sql', import.meta.url), 'utf8');
 const erasureMigration = readFileSync(new URL('../migrations/0034_customer_account_erasure.sql', import.meta.url), 'utf8');
 const snapshotRedactionMigration = readFileSync(new URL('../migrations/0035_nullable_snapshot_customer_id_for_erasure.sql', import.meta.url), 'utf8');
+const anonymizationMigration = readFileSync(new URL('../migrations/0036_anonymize_completed_deletion_requests.sql', import.meta.url), 'utf8');
 const accountDeletion = readFileSync(new URL('../src/account-deletion.js', import.meta.url), 'utf8');
 const productionAudit = readFileSync(new URL('../scripts/audit-production-schema.mjs', import.meta.url), 'utf8');
 
-test('fresh schema and additive migration define the same account-deletion request table', () => {
+test('baseline migration and current schema define a deletion-request table that supports anonymized completion', () => {
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS account_deletion_requests/);
+  assert.match(migration, /customer_id TEXT NOT NULL/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS account_deletion_requests/);
+  assert.match(schema, /customer_id TEXT, phone_snapshot TEXT NOT NULL/);
   for (const source of [schema, migration]) {
-    assert.match(source, /CREATE TABLE IF NOT EXISTS account_deletion_requests/);
-    assert.match(source, /customer_id TEXT NOT NULL/);
     assert.match(source, /status TEXT NOT NULL DEFAULT 'pending'/);
     assert.match(source, /source TEXT NOT NULL/);
     assert.match(source, /admin_note TEXT NOT NULL DEFAULT ''/);
     assert.match(source, /idx_account_deletion_requests_one_active/);
     assert.match(source, /WHERE status IN \('pending','in_review'\)/);
   }
+});
+
+test('migration detaches completed requests from customers and replaces free-text notes with a safe outcome', () => {
+  assert.match(anonymizationMigration, /CREATE TABLE account_deletion_requests_erasure_safe \([\s\S]*?customer_id TEXT,/);
+  assert.match(anonymizationMigration, /CASE WHEN status='completed' THEN NULL ELSE customer_id END/);
+  assert.match(anonymizationMigration, /CASE WHEN status='completed' THEN 'REDACTED' ELSE phone_snapshot END/);
+  assert.match(anonymizationMigration, /Completed: operational customer data redacted; applicable invoice\/transaction records retained under approved tax\/accounting retention/);
+  assert.match(anonymizationMigration, /DROP TABLE account_deletion_requests;/);
+  assert.match(accountDeletion, /SET status='completed',customer_id=NULL,phone_snapshot='REDACTED'/);
+  assert.match(productionAudit, /0036_anonymize_completed_deletion_requests\.sql/);
 });
 
 test('deletion requests deliberately do not cascade-delete customers or orders', () => {
