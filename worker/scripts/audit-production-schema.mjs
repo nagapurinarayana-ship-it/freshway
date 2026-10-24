@@ -48,7 +48,7 @@ const required = {
   order_items: ['id', 'order_id', 'product_id', 'name', 'unit', 'qty', 'price', 'line_total', 'stock_reserved_qty'],
   order_address_snapshots: ['order_id', 'customer_id', 'address_id', 'recipient_name', 'delivery_phone', 'house_flat', 'building', 'floor', 'street', 'area', 'locality', 'city', 'district', 'state', 'pincode', 'landmark', 'delivery_note', 'latitude', 'longitude', 'accuracy_meters', 'location_source', 'location_updated_at', 'place_name', 'place_id'],
   home_promotions: ['id', 'image_data', 'image_mime_type', 'alt_text', 'display_order', 'active'],
-  store_profile: ['id', 'store_name', 'phone', 'whatsapp', 'address', 'shop_latitude', 'shop_longitude', 'share_title', 'share_description'],
+  store_profile: ['id', 'store_name', 'about', 'phone', 'whatsapp', 'email', 'address', 'shop_latitude', 'shop_longitude', 'business_hours', 'delivery_info', 'share_title', 'share_description', 'created_at', 'updated_at'],
   push_subscriptions: ['customer_id'],
   notification_events: ['customer_id', 'order_id'],
   account_deletion_requests: ['id', 'customer_id', 'phone_snapshot', 'status', 'source', 'admin_note', 'updated_at', 'processed_at'],
@@ -74,7 +74,10 @@ const expectedIndexes = [
   'idx_products_category_active',
   'idx_customers_phone_unique',
   'idx_customers_active_phone',
-  'idx_account_deletion_requests_one_active'
+  'idx_account_deletion_requests_one_active',
+  'idx_account_deletion_requests_status_created',
+  'idx_account_deletion_requests_customer_created',
+  'idx_addresses_customer_deleted'
 ];
 report.requiredIndexes = Object.fromEntries(expectedIndexes.map(name => [name, indexNames.includes(name)]));
 for (const name of expectedIndexes) if (!indexNames.includes(name)) problems.push('missing index: ' + name);
