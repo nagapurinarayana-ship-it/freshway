@@ -10,7 +10,7 @@ assert.doesNotMatch(customerHtml, /class=["'][^"']*\badmin-link\b/i, 'customer p
 const invoiceSettingsSource = readRepoFile('frontend/admin/invoice-settings.js').toString('utf8');
 const invoiceServiceSource = readRepoFile('worker/src/invoice-service.js').toString('utf8');
 assert.ok(sourceHtml.includes('account-deletions.js?v=20261023-account-deletion-clickfix-v4'), 'Owner app must reference the updated account-deletion click handler');
-const deletionSource = fs.readFileSync('frontend/admin/account-deletions.js', 'utf8');
+const deletionSource = readRepoFile('frontend/admin/account-deletions.js').toString('utf8');
 assert.ok(deletionSource.includes('Retain invoice/transaction records for tax and accounting retention; redact operational customer and address data.'), 'Deletion completion prompt must prefill a valid editable retention note');
 assert.ok(deletionSource.includes('window.alert(message)'), 'Invalid deletion notes must show a visible message instead of failing silently');
 assert.ok(deletionSource.includes("scrollIntoView({behavior:'smooth', block:'center'})"), 'Validation feedback must be brought into view on mobile');
