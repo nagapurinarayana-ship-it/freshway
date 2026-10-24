@@ -31,9 +31,11 @@ export async function onRequest(context) {
   targetUrl.pathname = targetPath;
   targetUrl.search = incoming.search;
   const isAddressApi = /^\/api\/addresses(?:\/|$)/.test(targetPath);
-  const isStoreProfileApi = (targetPath === '/api/store-profile' || targetPath === '/api/admin/store-profile') && method === 'GET';
+  const isStoreProfileApi = (targetPath === '/api/store-profile' || targetPath === '/api/admin/store-profile') && ['GET', 'PATCH'].includes(method);
   const needsBody = !['GET', 'HEAD', 'DELETE'].includes(method);
-  const addressBody = isAddressApi && needsBody
+  // These API operations may be replayed to the production Worker if a Pages
+  // binding is stale or fails. Buffer their bodies once so a retry is safe.
+  const replayableBody = (isAddressApi || isStoreProfileApi) && needsBody
     ? (typeof body === 'string' ? new TextEncoder().encode(body).buffer : await context.request.clone().arrayBuffer())
     : null;
   const headers = new Headers(context.request.headers);
