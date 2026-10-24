@@ -15,7 +15,7 @@ const PUSH_HOST_SUFFIXES = [
 ];
 
 function unsupportedEndpoint() {
-  const error = new Error('Push endpoint is not a supported browser push service.');
+  const error = new Error('Invalid push endpoint. Only supported browser push services are allowed.');
   error.code = 'PUSH_ENDPOINT_UNSUPPORTED';
   return error;
 }
