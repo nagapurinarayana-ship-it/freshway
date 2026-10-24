@@ -21,6 +21,8 @@
   let searchResults = [];
   let searchRequestId = 0;
   let pickerEventsBound = false;
+  let editRevision = 0;
+  let savedRevision = 0;
 
   const text = (id, value) => {
     const element = get(id);
@@ -28,6 +30,15 @@
     return element;
   };
   const clean = value => String(value == null ? '' : value).trim();
+
+  function hasUnsavedChanges() {
+    return editRevision !== savedRevision;
+  }
+
+  function markEdited() {
+    editRevision++;
+    text('storeProfileStatus', 'Unsaved Store Profile changes. Press Save changes to keep them after reloading.');
+  }
   const validPin = (latitude, longitude) => {
     if (latitude == null || latitude === '' || longitude == null || longitude === '') return null;
     const lat = Number(latitude);
@@ -45,6 +56,8 @@
       if (element) element.value = String(p[map[id]] == null ? '' : p[map[id]]);
     });
     selectedShopPin = validPin(p.shopLatitude, p.shopLongitude);
+    savedRevision = editRevision;
+    text('storeProfileStatus', '');
     syncPinMarker();
     updatePinStatus(selectedShopPin
       ? 'Saved shop pin loaded. Verify that the marker sits at the actual shop entrance before saving.'
@@ -106,6 +119,7 @@
       return false;
     }
     selectedShopPin = pin;
+    markEdited();
     removeSearchPreview();
     syncPinMarker();
     if (leafletMap) leafletMap.setView([pin.latitude, pin.longitude], Math.max(leafletMap.getZoom(), 18));
@@ -307,6 +321,7 @@
 
   function clearShopPin() {
     selectedShopPin = null;
+    markEdited();
     removeSearchPreview();
     if (pinMarker && leafletMap) {
       leafletMap.removeLayer(pinMarker);
@@ -318,6 +333,12 @@
   function bindPickerEvents() {
     if (pickerEventsBound) return;
     pickerEventsBound = true;
+    ids.forEach(id => {
+      const element = get(id);
+      if (!element) return;
+      element.addEventListener('input', markEdited);
+      element.addEventListener('change', markEdited);
+    });
     get('storeLocationSearchButton')?.addEventListener('click', searchLocations);
     get('storeLocationGpsButton')?.addEventListener('click', useCurrentLocation);
     get('storeLocationClearButton')?.addEventListener('click', clearShopPin);
@@ -350,14 +371,21 @@
 
   async function load({ api }) {
     bindPickerEvents();
+    const hadUnsavedChanges = hasUnsavedChanges();
+    const revisionAtRequest = editRevision;
     const data = await api('/admin/store-profile');
     const profile = readProfileResponse(data);
-    apply(profile);
+    if (!hadUnsavedChanges && revisionAtRequest === editRevision) {
+      apply(profile);
+    } else {
+      text('storeProfileStatus', 'Saved Store Profile loaded, but local edits were preserved. Save changes to persist them.');
+    }
     ensureMap();
     return profile;
   }
 
   async function save({ api }) {
+    const revisionAtSave = editRevision;
     const payload = collect();
     if (!clean(payload.storeName)) throw new Error('Enter the store name before saving business information.');
     if (!clean(payload.address)) throw new Error('Enter the complete business address before saving. The map pin is stored separately.');
@@ -375,10 +403,15 @@
         throw new Error('The server did not confirm that the shop pin was saved. Your selected pin remains in this form; check the connection and retry.');
       }
     }
-    apply(profile);
-    updatePinStatus(selectedShopPin
-      ? 'Saved and confirmed by the server. Shop pin: ' + selectedShopPin.latitude.toFixed(6) + ', ' + selectedShopPin.longitude.toFixed(6) + '.'
-      : 'Business information saved without an exact shop pin. Search for the shop and select its actual entrance to save delivery directions.');
+    if (editRevision === revisionAtSave) {
+      apply(profile);
+      updatePinStatus(selectedShopPin
+        ? 'Saved and confirmed by the server. Shop pin: ' + selectedShopPin.latitude.toFixed(6) + ', ' + selectedShopPin.longitude.toFixed(6) + '.'
+        : 'Business information saved without an exact shop pin. Search for the shop and select its actual entrance to save delivery directions.');
+    } else {
+      savedRevision = revisionAtSave;
+      text('storeProfileStatus', 'The submitted Store Profile was saved, but newer edits remain unsaved. Press Save changes again.');
+    }
     return profile;
   }
 
@@ -404,5 +437,5 @@
   }
 
   bindPickerEvents();
-  window.FreshWayOwnerStoreProfile = Object.freeze({ load, save, collect, validPin });
+  window.FreshWayOwnerStoreProfile = Object.freeze({ load, save, collect, validPin, hasUnsavedChanges });
 })();
