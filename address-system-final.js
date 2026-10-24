@@ -199,7 +199,7 @@
           addresses = [];
           // A guest can keep an in-memory checkout address draft; only saved-address
           // management requires an account session.
-          if (!(activeAddress && activeAddress.id == null && validCoords(activeAddress.latitude, activeAddress.longitude))) activeAddress = null;
+          if (!(activeAddress && activeAddress.id == null && (modalOrigin === 'home' || validCoords(activeAddress.latitude, activeAddress.longitude)))) activeAddress = null;
           guestAddressMode = true;
           addressLoadError = 'Sign in to load and manage your saved delivery addresses.';
           renderDisplays();
@@ -391,7 +391,7 @@
       return Number(address.id) === Number(addressId);
     }) || null;
     const isEditing = !!editingAddress;
-    const guestDraft = modalOrigin === 'checkout' && guestAddressMode && activeAddress && activeAddress.id == null ? activeAddress : null;
+    const guestDraft = (modalOrigin === 'checkout' || modalOrigin === 'home') && guestAddressMode && activeAddress && activeAddress.id == null ? activeAddress : null;
     const source = normalizeAddress(editingAddress || guestDraft || newAddressDraft());
     editorLabel = source.label || 'Home';
     editorCoordinates = validCoords(source.latitude, source.longitude) ? {
@@ -400,12 +400,20 @@
       placeId: source.placeId, locationUpdatedAt: source.locationUpdatedAt
     } : null;
     searchResults = [];
+    const locationPanel = '<div class="fw-location-tools"><button type="button" class="secondary-btn" id="fwAddressGps">📍 Use current location</button>' +
+      '<div class="fw-address-search"><input id="fwAddrSearchInput" type="search" placeholder="Search area, street or landmark" aria-label="Search delivery location"><button type="button" class="secondary-btn" id="fwAddressSearch">Search</button></div></div>' +
+      '<div id="fwAddressSearchResults" class="fw-address-search-results" aria-live="polite"></div>' +
+      '<div id="fwAddressMap" class="address-map fw-address-map"></div>' +
+      '<div id="fwAddressLocationStatus" class="address-location-status" role="status"></div>' +
+      '<div id="fwAddressMatch" class="fw-address-match" hidden></div>' +
+      '<p class="address-map-note">Confirm the pin for the delivery location. Editing the address text does not move the pin.</p>';
     const element = modal();
     element.innerHTML =
       '<div class="modal-sheet address-modal-sheet address-editor-sheet" role="document">' +
-      '<div class="modal-head fw-address-modal-head"><div><span class="eyebrow">' + (isEditing ? 'EDIT ADDRESS' : 'NEW ADDRESS') + '</span><h2 id="addressModalTitle" tabindex="-1">' + (isEditing ? 'Edit delivery address' : 'Add delivery address') + '</h2><p class="fw-address-subtitle">' + (modalOrigin === 'checkout' && guestAddressMode ? 'Use this address for your current order. Sign in to save it for next time.' : 'Save it once. We will use your default next time.') + '</p></div>' +
+      '<div class="modal-head fw-address-modal-head"><div><span class="eyebrow">' + (isEditing ? 'EDIT ADDRESS' : 'NEW ADDRESS') + '</span><h2 id="addressModalTitle" tabindex="-1">' + (isEditing ? 'Edit delivery address' : 'Add delivery address') + '</h2><p class="fw-address-subtitle">' + (modalOrigin === 'checkout' && guestAddressMode ? 'Use this address for your current order. Sign in to save it for next time.' : (modalOrigin === 'home' && guestAddressMode ? 'Use this location for this visit. Sign in to save it for next time.' : 'Save it once. We will use your default next time.')) + '</p></div>' +
       '<button type="button" class="icon-btn" data-close-modal aria-label="Close address editor">×</button></div>' +
       '<div class="fw-address-editor-body">' +
+      (modalOrigin === 'home' ? '<p class="fw-address-subtitle">Choose your delivery area first, then confirm your house and street details below.</p>' + locationPanel : '') +
       '<div class="address-labels fw-address-labels">' +
       '<button type="button" class="address-label' + (editorLabel === 'Home' ? ' active' : '') + '" data-fw-label="Home">🏠 Home</button>' +
       '<button type="button" class="address-label' + (editorLabel === 'Work' ? ' active' : '') + '" data-fw-label="Work">💼 Work</button>' +
@@ -426,15 +434,9 @@
       '</div>' +
       '<label>Landmark <span class="optional">Optional</span><input id="fwAddrLandmark" maxlength="200" placeholder="Near a shop, school, temple"></label>' +
       '<label>Delivery note <span class="optional">Optional</span><textarea id="fwAddrNote" rows="2" maxlength="500" placeholder="Help the delivery person find you"></textarea></label>' +
-      '<div class="fw-location-tools"><button type="button" class="secondary-btn" id="fwAddressGps">📍 Use current location</button>' +
-      '<div class="fw-address-search"><input id="fwAddrSearchInput" type="search" placeholder="Search area, street or landmark" aria-label="Search delivery location"><button type="button" class="secondary-btn" id="fwAddressSearch">Search</button></div></div>' +
-      '<div id="fwAddressSearchResults" class="fw-address-search-results" aria-live="polite"></div>' +
-      '<div id="fwAddressMap" class="address-map fw-address-map"></div>' +
-      '<div id="fwAddressLocationStatus" class="address-location-status" role="status"></div>' +
-      '<div id="fwAddressMatch" class="fw-address-match" hidden></div>' +
-      '<p class="address-map-note">Confirm the pin for the delivery location. Editing the address text does not move the pin.</p>' +
+      (modalOrigin === 'home' ? '' : locationPanel) +
       '</div>' +
-      '<div class="fw-address-editor-footer"><button type="button" class="secondary-btn" id="fwAddressCancel">Cancel</button><button type="button" class="primary-btn" id="fwAddressSave">' + (isEditing ? 'Save changes' : 'Save address') + '</button></div>' +
+      '<div class="fw-address-editor-footer"><button type="button" class="secondary-btn" id="fwAddressCancel">Cancel</button><button type="button" class="primary-btn" id="fwAddressSave">' + (isEditing ? 'Save changes' : (modalOrigin === 'home' && guestAddressMode ? 'Use this location' : 'Save address')) + '</button></div>' +
       '</div>';
     showModal();
     labelFields.forEach(function (pair) {
@@ -795,6 +797,18 @@
       toast('Delivery address ready for this order. Sign in to save it for next time.');
       return;
     }
+    // Home-page guests may choose a delivery destination without signing in.
+    // Keep it in memory for this visit; never send it to the authenticated
+    // address-book API. Checkout continues to use its existing guest-address path.
+    if (modalOrigin === 'home' && guestAddressMode && !editingAddress) {
+      address.id = null;
+      address.isDefault = false;
+      activeAddress = normalizeAddress(address);
+      renderDisplays();
+      hideModal();
+      toast('Delivery location selected for this visit. Sign in to save it for next time.');
+      return;
+    }
     const saveButton = $('#fwAddressSave');
     if (saveButton) {
       saveButton.disabled = true;
@@ -888,6 +902,12 @@
     renderLoadingManager();
     loadSaved({ preserveSelection: true, showError: true, deferRender: true }).then(function (loaded) {
       if (!loaded) {
+        if (modalOrigin === 'home' && guestAddressMode) {
+          addressLoadError = '';
+          buildEditor(editAddressId != null && addresses.some(function (address) { return Number(address.id) === Number(editAddressId); }) ? editAddressId : null);
+          toast('Choose your delivery location. Sign in only if you want to save it for next time.');
+          return;
+        }
         if (modalOrigin === 'checkout' && guestAddressMode) {
           addressLoadError = '';
           buildEditor(editAddressId != null && addresses.some(function (address) { return Number(address.id) === Number(editAddressId); }) ? editAddressId : null);
@@ -897,6 +917,7 @@
         renderManager(); return;
       }
       if (editAddressId != null && addresses.some(function (address) { return Number(address.id) === Number(editAddressId); })) buildEditor(editAddressId);
+      else if (modalOrigin === 'home' && addresses.length === 0) buildEditor(null);
       else renderManager();
     });
   }
