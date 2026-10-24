@@ -75,8 +75,10 @@ function assertResponsiveViewportCss(css, label) {
 
 function assertNativeInstallFlow(source, label) {
   assert.ok(source.includes('beforeinstallprompt'), label + ' must capture Chrome install availability');
-  assert.ok(source.includes('promptEvent.prompt()'), label + ' must invoke Chrome native install');
+  assert.ok(source.includes('await promptEvent.prompt()'), label + ' must await Chrome native install');
   assert.ok(source.includes('promptEvent.userChoice'), label + ' must handle install outcome');
+  assert.ok(source.includes('choose <strong>Install</strong>'), label + ' must direct customers to actual app installation');
+  assert.ok(!source.includes('Install app</strong> or <strong>Add to Home screen'), label + ' must not present a browser shortcut as an app installation');
 }
 
 async function waitForFullImageFitAssets(base) {
