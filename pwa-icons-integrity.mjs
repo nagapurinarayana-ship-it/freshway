@@ -93,4 +93,16 @@ for (const [path, size] of [
 ]) {
   assertValidPng(readFileSync(resolve(root, path)), { width: size, height: size, label: path });
 }
-console.log('FreshWay PWA icon integrity passed: all PNG chunks, checksums, compressed pixels and dimensions are valid.');
+const masterLogoBase64 = readFileSync(resolve(root, 'freshway-logo-master.webp')).toString('base64');
+const manifest = JSON.parse(readFileSync(resolve(root, 'manifest.webmanifest'), 'utf8'));
+assert.equal(manifest.icons.length, 2, 'PWA manifest must not advertise the legacy P-monogram icons');
+for (const [size, path] of [['192x192', 'icons/icon-192.svg'], ['512x512', 'icons/icon-512.svg']]) {
+  const icon = manifest.icons.find(item => item.sizes === size && item.type === 'image/svg+xml');
+  assert.ok(icon, 'PWA manifest must provide a FreshWay SVG icon at ' + size);
+  assert.equal(icon.src, '/' + path + '?v=20261024-master-logo-v1');
+  const svg = readFileSync(resolve(root, path), 'utf8');
+  assert.match(svg, /<svg\\b[^>]*viewBox="0 0 512 512"/i, path + ' must be a square scalable SVG');
+  const embeddedLogo = svg.match(/href="data:image\\/webp;base64,([^"]+)"/i)?.[1];
+  assert.equal(embeddedLogo, masterLogoBase64, path + ' must embed the exact FreshWay master logo');
+}
+console.log('FreshWay PWA icon integrity passed: legacy PNGs are valid and the install manifest uses the exact FreshWay master logo.');
