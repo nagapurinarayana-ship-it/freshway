@@ -5,6 +5,16 @@ const source=fs.readFileSync('frontend/customer/catalogue.js','utf8');
 const app=fs.readFileSync('app.js','utf8');
 const freshness=fs.readFileSync('frontend/customer/state-freshness.js','utf8');
 const ordersData=fs.readFileSync('frontend/customer/orders-data.js','utf8');
+const homeHtml=fs.readFileSync('index.html','utf8');
+const addressSystem=fs.readFileSync('address-system-final.js','utf8');
+assert.match(homeHtml,/<button class="location-card" id="addressBtn"/,'the full home location row is a single accessible target that opens the existing address helper');
+assert.match(homeHtml,/id="homeAddressMeta"/,'home location includes a concise helper/status line');
+assert.match(homeHtml,/id="checkoutForm"/,'the existing checkout form remains present and unchanged by home location UI work');
+assert.match(homeHtml,/id="house"/);
+assert.match(homeHtml,/id="area"/);
+assert.match(homeHtml,/id="pincode"/);
+assert.match(addressSystem,/const homeMeta = \$\('#homeAddressMeta'\)/,'home address helper text is updated by the existing address system');
+assert.match(addressSystem,/syncCheckout\(\);/,'existing checkout synchronization remains in the existing address system');
 
 assert.match(source,/window\.FreshWayCustomerAPI\?\.request/);
 assert.match(source,/selected=\(window\.history\.state\?\.__freshwayCustomer&&window\.history\.state\.view==='home'\?window\.history\.state\.category:null\)\|\|getStoredCategory\(\)\|\|null/,'refresh restores the selected category from history or session storage');
