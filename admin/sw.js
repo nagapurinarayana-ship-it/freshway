@@ -6,7 +6,7 @@ const SHELL = [
   '/admin/icons/icon-512.svg',
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/owner-pwa-install.css?v=20261019-install-prompt-v2',
-  '/admin/admin.css?v=20261022-invoice-ui-v1',
+  '/admin/admin.css?v=20261024-deletion-privacy-v1',
   '/admin/admin.js?v=20261024-settings-init-v1',
   '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2',
   '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
@@ -30,14 +30,13 @@ const REQUIRED_SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
-  '/admin/admin.css?v=20261022-invoice-ui-v1',
+  '/admin/admin.css?v=20261024-deletion-privacy-v1',
   '/admin/admin.js?v=20261024-settings-init-v1',
   '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
   '/admin/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1',
   '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2',
   '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2',
-  '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
   '/admin/owner-lifecycle.js?v=20261023-available-fields-invoice-v1'
 ];
 
