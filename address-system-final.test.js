@@ -50,8 +50,28 @@ assert.match(source, /modalOrigin === 'checkout' && guestAddressMode && !editing
   'guest checkout must keep a validated address in memory instead of requiring the saved-address API');
 assert.match(source, /if \(!loaded\)[\s\S]*?modalOrigin === 'checkout' && guestAddressMode[\s\S]*?buildEditor/,
   'a 401 on saved addresses must open the checkout address editor rather than an Addresses unavailable dead end');
-assert.match(source, /const guestDraft = modalOrigin === 'checkout' && guestAddressMode/,
-  'reopening the guest editor must retain the in-memory address draft');
+assert.match(source, /const guestDraft = \(modalOrigin === 'checkout' \|\| modalOrigin === 'home'\) && guestAddressMode/,
+  'reopening home or checkout guest address drafts must retain the in-memory selection');
+assert.ok(source.includes("modalOrigin === 'home' && guestAddressMode && !editingAddress") && source.includes("Delivery location selected for this visit"),
+  'guest home selection must remain session-only and avoid the authenticated address-book write');
+assert.ok(source.includes("else if (modalOrigin === 'home' && addresses.length === 0) buildEditor(null);"),
+  'a first-time customer with no addresses must go directly to the location editor');
+assert.ok(source.includes("(modalOrigin === 'home' ? '<p class=\"fw-address-subtitle\">Choose your delivery area first, then confirm your house and street details below.</p>' + locationPanel : '')"),
+  'home location search and GPS controls must appear before house details');
+assert.ok(source.includes("(modalOrigin === 'home' ? '' : locationPanel)"),
+  'the checkout/profile address editor must keep its existing location-panel order');
+assert.ok(source.includes("modalOrigin === 'home' ? '📍 Use current location or search'"),
+  'the home address selector must expose a quick location action above saved addresses');
+assert.ok(source.includes("modalOrigin === 'home' ? 'Save & use address'"),
+  'the home editor must make it explicit that the confirmed location will be selected');
+assert.ok(source.includes("(modalOrigin === 'checkout' || modalOrigin === 'home') && returnedAddress"),
+  'saving the selected home address must select it without changing its default flag');
+assert.ok(source.includes("if (modalOrigin === 'home' && returnedAddress) {") &&
+  source.includes("toast(data.deduplicated ? 'Existing delivery address selected.' : 'Delivery address saved and selected.')"),
+  'after confirming a home address, close the selector and confirm the destination');
+assert.ok(source.includes("if (modalOrigin === 'checkout' && returnedAddress) {") &&
+  source.includes("toast('Address saved. You can now place your order.')"),
+  'the existing checkout address-save flow remains present');
 assert.match(source, /async function findSearch\(\)[\s\S]*?searchRequestId[\s\S]*?countrycodes: 'in'/,
   'map search must validate India-only results and ignore stale concurrent searches');
 assert.match(source, /No matching Indian map result/,
@@ -61,8 +81,8 @@ assert.match(source, /id="addressModalTitle" tabindex="-1"/);
 assert.match(source, /modalReturnFocus/);
 assert.ok(index.includes('frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3'), 'HTML must load the current geocode field mapper');
 assert.ok(sw.includes('/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3'), 'service worker must cache the current geocode field mapper');
-assert.ok(index.includes('address-system-final.js?v=20261021-guest-address-map-search-v3'), 'HTML must load the current address module');
-assert.ok(sw.includes('/address-system-final.js?v=20261021-guest-address-map-search-v3'), 'service worker must cache the current address module');
+assert.ok(index.includes('address-system-final.js?v=20261025-home-location-guest-v3'), 'HTML must load the current address module');
+assert.ok(sw.includes('/address-system-final.js?v=20261025-home-location-guest-v3'), 'service worker must cache the current address module');
 assert.ok(index.includes('address-book.css?v=20261020-address-ui-hardening-v2'), 'HTML must load the current address CSS');
 assert.ok(sw.includes('/frontend/customer/address-book.css?v=20261020-address-ui-hardening-v2'), 'service worker must cache the current address CSS');
 assert.ok(index.includes('notifications.js?v=20261020-normalized-auth-phone-v2'), 'HTML must load the auth phone normalizer');

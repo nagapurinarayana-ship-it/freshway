@@ -52,6 +52,13 @@
   }
   function renderHome(){
     const c=ensureUI();if(!c)return;
+    const heading=$('.section-heading'),grid=$('#productGrid');
+    // The initial HTML contains a zero-count product heading. Hide it together with
+    // the grid until live catalogue data is ready, including API/startup failures.
+    if(loading||errorMessage){
+      if(heading)heading.classList.add('fw-category-home-hidden');
+      if(grid)grid.classList.add('fw-category-home-hidden');
+    }
     if(loading){c.innerHTML='<div class="fw-category-loading" role="status" aria-live="polite">Loading the live catalogue…</div>';return}
     if(errorMessage){c.innerHTML='<div class="fw-category-error" role="alert"><strong>Catalogue temporarily unavailable.</strong><br>'+esc(errorMessage)+'<button type="button" class="fw-catalogue-retry" id="fwCatalogueRetry">Retry</button></div>';return}
     const usable=categories.filter(x=>Number(x.product_count)>0);

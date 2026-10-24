@@ -1,0 +1,40 @@
+/* Non-blocking customer location/serviceability notices. */
+.fw-location-notice{display:flex;align-items:flex-start;gap:10px;margin:0 0 12px;padding:11px 12px;border:1px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);font-size:12px;line-height:1.45}
+.fw-location-notice[hidden]{display:none!important}
+.fw-location-notice-icon{flex:0 0 auto;display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:#f2f6f3;color:var(--green);font-size:16px}
+.fw-location-notice-copy{flex:1;min-width:0}
+.fw-location-notice-copy strong{display:block;font-size:12px;margin-bottom:2px}
+.fw-location-notice-copy p{margin:0;color:var(--muted);font-size:11px}
+.fw-location-notice-actions{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.fw-location-notice-actions button{border:0;border-radius:9px;padding:7px 10px;background:var(--mint);color:var(--green);font-weight:800;font-size:11px}
+.fw-location-notice-actions button[data-fw-location-dismiss]{background:#f3f5f3;color:var(--ink)}
+#fwServiceabilityStatus{border-color:#e7c6a3;background:#fff9f1}
+#fwServiceabilityStatus .fw-location-notice-icon{background:#ffecd7;color:#8f4b0d}
+@media(prefers-reduced-motion:no-preference){.fw-location-notice{animation:fwLocationNoticeIn .16s ease-out}}
+@keyframes fwLocationNoticeIn{from{opacity:.55;transform:translateY(-2px)}to{opacity:1;transform:translateY(0)}}
+
+
+/* Zepto-style home location selector, loaded only on the customer shell. */
+/* Zepto-inspired home location selector: the whole row opens the existing address helper. */
+button.location-card{
+  width:100%;min-width:0;min-height:78px;margin:0 0 12px;padding:12px 13px;
+  display:flex;align-items:center;justify-content:initial;gap:11px;
+  border:1px solid #e4ece6;border-radius:17px;
+  background:linear-gradient(112deg,#fff 0%,#fafffb 100%);
+  box-shadow:0 4px 14px rgba(20,70,45,.045);color:var(--ink);text-align:left;
+  appearance:none;-webkit-tap-highlight-color:transparent;
+  transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease;
+}
+button.location-card:focus-visible{outline:3px solid rgba(15,122,75,.22);outline-offset:2px}
+button.location-card:active{transform:scale(.995);border-color:#b7d7c2}
+.location-card .location-pin{width:42px;height:42px;flex:0 0 42px;display:grid;place-items:center;border-radius:14px;background:#eaf7ef;color:var(--green)}
+.location-card .location-pin svg{display:block;width:22px;height:22px}
+.location-card .location-details{display:block;flex:1;min-width:0}
+.location-card .location-eyebrow{display:flex;align-items:center;gap:6px;margin:0 0 4px;font-size:9px;letter-spacing:.1em;font-weight:900;color:#63776b}
+.location-card .location-dot{width:6px;height:6px;display:inline-block;border-radius:50%;background:#1b9a59}
+.location-card #homeAddress{display:-webkit-box;min-width:0;max-width:none;margin:0;font-size:13px;line-height:1.35;font-weight:850;letter-spacing:-.015em;color:#17231d;overflow-wrap:anywhere;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.location-card #homeAddressMeta{display:block;margin-top:4px;color:#728078;font-size:10px;line-height:1.3;font-weight:550}
+.location-card .location-chevron{display:grid;place-items:center;flex:0 0 28px;width:28px;height:28px;border-radius:10px;background:#f1f7f3;color:var(--green);font-size:22px;line-height:1;font-weight:500}
+@media(max-width:380px){button.location-card{min-height:74px;padding:10px;gap:9px;border-radius:15px}.location-card .location-pin{width:38px;height:38px;flex-basis:38px;border-radius:12px}.location-card #homeAddress{font-size:12px}.location-card #homeAddressMeta{font-size:9px}.location-card .location-chevron{width:25px;height:25px;flex-basis:25px}}
+@media(prefers-reduced-motion:no-preference){button.location-card:hover{border-color:#cfe3d5;box-shadow:0 6px 18px rgba(20,70,45,.07)}}
+

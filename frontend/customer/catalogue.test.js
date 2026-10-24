@@ -5,6 +5,16 @@ const source=fs.readFileSync('frontend/customer/catalogue.js','utf8');
 const app=fs.readFileSync('app.js','utf8');
 const freshness=fs.readFileSync('frontend/customer/state-freshness.js','utf8');
 const ordersData=fs.readFileSync('frontend/customer/orders-data.js','utf8');
+const homeLocationHtml=fs.readFileSync('index.html','utf8');
+const addressSystem=fs.readFileSync('address-system-final.js','utf8');
+assert.match(homeLocationHtml,/<button class="location-card" id="addressBtn"/,'the full home location row is a single accessible target that opens the existing address helper');
+assert.match(homeLocationHtml,/id="homeAddressMeta"/,'home location includes a concise helper/status line');
+assert.match(homeLocationHtml,/id="checkoutForm"/,'the existing checkout form remains present and unchanged by home location UI work');
+assert.match(homeLocationHtml,/id="house"/);
+assert.match(homeLocationHtml,/id="area"/);
+assert.match(homeLocationHtml,/id="pincode"/);
+assert.match(addressSystem,/const homeMeta = \$\('#homeAddressMeta'\)/,'home address helper text is updated by the existing address system');
+assert.match(addressSystem,/syncCheckout\(\);/,'existing checkout synchronization remains in the existing address system');
 
 assert.match(source,/window\.FreshWayCustomerAPI\?\.request/);
 assert.match(source,/selected=\(window\.history\.state\?\.__freshwayCustomer&&window\.history\.state\.view==='home'\?window\.history\.state\.category:null\)\|\|getStoredCategory\(\)\|\|null/,'refresh restores the selected category from history or session storage');
@@ -22,6 +32,8 @@ assert.doesNotMatch(source,/productOk\)window\.FreshWayCustomerCatalogue\?\.clea
 assert.match(source,/window\.FreshWayCustomerCatalogue\?\.clear/);
 assert.match(source,/role="alert"/);
 assert.match(source,/fwCatalogueRetry/);
+assert.match(source,/const heading=\$\('\.section-heading'\),grid=\$\('#productGrid'\)/,'catalogue loading/error state identifies both product heading and grid');
+assert.match(source,/if\(loading\|\|errorMessage\)\{\s*if\(heading\)heading\.classList\.add\('fw-category-home-hidden'\);\s*if\(grid\)grid\.classList\.add\('fw-category-home-hidden'\);/,'zero-count product heading and grid stay hidden while loading or after a catalogue error');
 assert.match(source,/image_data&&x\.image_mime_type/);
 assert.match(source,/'data:'\+x\.image_mime_type/);
 assert.doesNotMatch(app,/FALLBACK_PRODUCTS/);
@@ -133,3 +145,12 @@ assert.ok(categoryFoldStyles.includes('body.fw-category-selected .product-image{
 assert.match(categoryFoldStyles,/max-height:800px/,'short mobile screens receive an additional compact layout');
 assert.match(categoryFoldStyles,/\.product-image img\{[^}]*width:auto!important;height:100%!important;aspect-ratio:1\/1[^}]*max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center!important/,'category product images render as centered square artwork without stretching/cropping');
 console.log('four-product category fold-fit contract OK');
+
+
+const homeHtml=fs.readFileSync('index.html','utf8');
+assert.match(homeHtml,/<button class="location-card" id="addressBtn" type="button" aria-label="Choose delivery address">/,'home uses a single accessible tappable delivery-location selector');
+assert.ok(homeHtml.includes('<span class="location-eyebrow"><span class="location-dot" aria-hidden="true"></span> DELIVER TO</span>'),'location selector clearly labels delivery destination');
+assert.ok(homeHtml.includes('id="homeAddressMeta"'),'location selector has a concise guidance line for new and returning customers');
+assert.ok(homeHtml.includes('frontend/customer/serviceability.css?v=20261025-serviceable-areas-v3'),'home location UI stylesheet cache-bust is current');
+assert.ok(fs.readFileSync('frontend/customer/serviceability.css','utf8').includes('button.location-card{'),'full-width selector has its own responsive styling');
+console.log('Zepto-inspired home location selector contract OK');

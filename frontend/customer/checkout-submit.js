@@ -26,6 +26,13 @@
         landmark:selectedAddress.landmark||formAddress.landmark,
         note:selectedAddress.note||formAddress.note
       }):formAddress);
+      // Preserve coordinates and structured details from the existing selected address.
+      // The address-helper module itself remains untouched and is still the source of truth.
+      if(selectedAddress){
+        for(const key of ['latitude','longitude','accuracyMeters','locationSource','placeId','locationUpdatedAt','street','locality','district','state','building','floor','recipientName','deliveryPhone','label']){
+          if(selectedAddress[key]!==undefined)address[key]=selectedAddress[key];
+        }
+      }
       const selectedName=String(selectedAddress?.recipientName||'').trim();
       const name=(selectedName.length>=2?selectedName:'')||$('#customerName')?.value.trim()||customerAuth.registeredName?.()||'';
       const normalizePhone=customerCheckout.normalizePhone;

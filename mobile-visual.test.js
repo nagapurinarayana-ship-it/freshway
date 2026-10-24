@@ -7,13 +7,16 @@ const categoryFoldStyles=fs.readFileSync('frontend/customer/category-fold-fit.cs
 const adminCss=fs.readFileSync('admin.css','utf8');
 const sw=fs.readFileSync('sw.js','utf8');
 const index=fs.readFileSync('index.html','utf8');
-assert.ok(index.includes('styles.css?v=20261022-invoice-ui-v1'),'HTML loads the current mobile viewport stylesheet');
+const currentStylesheet = index.match(/href="(styles\.css\?v=[^"]+)"/)?.[1];
+assert.ok(currentStylesheet, 'HTML loads a versioned mobile viewport stylesheet');
+assert.ok(sw.includes('/' + currentStylesheet), 'service worker caches the current mobile viewport stylesheet');
 assert.ok(index.includes('frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2'),'HTML loads the selected-category fold-fit stylesheet');
 assert.ok(categoryFoldStyles.includes('height:100%!important;aspect-ratio:1/1'),'product artwork uses a square contained image box so the complete illustration is visible');
-assert.ok(sw.includes('/styles.css?v=20261022-invoice-ui-v1'),'service worker caches the current mobile viewport stylesheet');
+
 assert.ok(sw.includes('/frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2'),'service worker caches the selected-category fold-fit stylesheet');
-assert.ok(index.includes('frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2'),'HTML loads the current category navigation asset');
-assert.ok(sw.includes('/frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2'),'service worker caches the current category navigation asset');
+const currentCatalogueScript = index.match(/src="(frontend\/customer\/catalogue\.js\?v=[^"]+)"/)?.[1];
+assert.ok(currentCatalogueScript, 'HTML loads a versioned category navigation asset');
+assert.ok(sw.includes('/' + currentCatalogueScript), 'service worker caches the current category navigation asset');
 assert.ok(css.includes('body{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}'),'body reserves Android safe-area space');
 assert.ok(css.includes('main{padding:14px 16px calc(98px + env(safe-area-inset-bottom,0px))}'),'main reserves scroll space below fixed navigation');
 assert.ok(css.includes('.bottom-nav{height:calc(68px + env(safe-area-inset-bottom,0px))}'),'bottom navigation includes device safe area');

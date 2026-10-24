@@ -3,7 +3,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 
 const source=fs.readFileSync('frontend/customer/checkout-submit.js','utf8');
-const sandbox={window:{FreshWayAddressSystem:{getSelectedAddress:()=>({recipientName:'Saved Recipient',deliveryPhone:'+91 9876543210',houseFlat:'1',area:'Main',city:'Warangal',pincode:'506001',isDefault:true})}},globalThis:{}};
+const sandbox={window:{FreshWayAddressSystem:{getSelectedAddress:()=>({recipientName:'Saved Recipient',deliveryPhone:'+91 9876543210',houseFlat:'1',area:'Main',city:'Warangal',pincode:'506001',latitude:17.6082,longitude:79.1091,accuracyMeters:18,locationSource:'Map pin',isDefault:true})}},globalThis:{}};
 vm.runInNewContext(source,sandbox);
 const create=sandbox.window.FreshWayCustomerCheckoutSubmit.create;
 assert.equal(typeof create,'function');
@@ -58,7 +58,12 @@ assert.equal(listeners[0][0],'submit');
   assert.equal(state.profile.checkout.phone,'9876543210','a valid saved delivery number must beat an invalid stale hidden input');
   assert.equal(state.profile.pendingCheckout,undefined);
   assert.ok(calls.some(x=>Array.isArray(x)&&x[0]==='auth'&&x[1]==='9876543210'),'checkout must pass the normalized selected delivery phone to authentication');
-  assert.ok(calls.some(x=>Array.isArray(x)&&x[0]==='api'&&x[1]==='/api/orders'));
+  const orderCall=calls.find(x=>Array.isArray(x)&&x[0]==='api'&&x[1]==='/api/orders');
+  assert.ok(orderCall,'checkout must call the order API');
+  assert.equal(orderCall[2].address.latitude,17.6082,'saved delivery coordinates must reach the server');
+  assert.equal(orderCall[2].address.longitude,79.1091,'saved delivery coordinates must reach the server');
+  assert.equal(orderCall[2].address.accuracyMeters,18,'saved location accuracy must reach the server');
+
   assert.ok(calls.some(x=>Array.isArray(x)&&x[0]==='notify'));
   assert.ok(calls.some(x=>Array.isArray(x)&&x[0]==='confirmation'&&x[1]==='order-1'));
   assert.ok(calls.includes('products'));
