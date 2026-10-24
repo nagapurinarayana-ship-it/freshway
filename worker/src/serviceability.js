@@ -422,11 +422,11 @@ export async function getServiceabilityAdmin(env) {
   };
 }
 
-async function writeAudit(env, { action, zoneId = null, enforcementMode = null, details = {} }) {
+function writeAudit(env, { action, zoneId = null, enforcementMode = null, details = {} }) {
   return env.DB.prepare('INSERT INTO serviceability_audit (action,zone_id,enforcement_mode,details_json,actor) VALUES (?,?,?,?,?)')
     .bind(action, zoneId, enforcementMode, JSON.stringify(details), 'owner');
 }
-async function bumpConfigVersion(env) {
+function bumpConfigVersion(env) {
   return env.DB.prepare('UPDATE serviceability_settings SET config_version=config_version+1,updated_at=CURRENT_TIMESTAMP WHERE id=1');
 }
 function storedZoneStatements(zone) {
@@ -459,7 +459,7 @@ async function validateEffectiveConfig(env, zone, currentId = null) {
 export async function createServiceabilityZone(env, payload = {}) {
   const zone = normalizedZone(payload);
   zone.id = crypto.randomUUID();
-  const data = await validateEffectiveConfig(env, zone);
+  await validateEffectiveConfig(env, zone);
   const audit = writeAudit(env, { action: 'zone_created', zoneId: zone.id, details: { name: zone.name, status: zone.status, coverageMode: zone.coverageMode } });
   const statement = env.DB.prepare('INSERT INTO delivery_zones (id,name,customer_label,coverage_mode,status,priority,pin_codes_json,polygon_geojson,allow_pin_fallback,unavailable_message,internal_note) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
     .bind(zone.id, ...zoneSqlValues(zone));
