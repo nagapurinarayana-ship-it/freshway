@@ -50,14 +50,13 @@ jobs:
         working-directory: android-twa
         run: npm test
 
-      - name: Configure Bubblewrap SDK paths before project generation
-        working-directory: android-twa
+      - name: Configure Bubblewrap SDK paths non-interactively
         shell: bash
         run: |
           set -euo pipefail
-          npx --yes @bubblewrap/cli@1.27.0 updateConfig \
-            --jdkPath="$JAVA_HOME" \
-            --androidSdkPath="$ANDROID_HOME"
+          mkdir -p "$HOME/.bubblewrap"
+          printf '{"jdkPath":"%s","androidSdkPath":"%s"}\n' "$JAVA_HOME" "$ANDROID_HOME" > "$HOME/.bubblewrap/config.json"
+          node -e "const fs=require('fs'); const c=JSON.parse(fs.readFileSync(process.env.HOME+'/.bubblewrap/config.json','utf8')); if(!c.jdkPath || !c.androidSdkPath) process.exit(1); console.log('Bubblewrap SDK paths configured for this ephemeral runner.')"
 
       - name: Generate Android project from the checked-in TWA configuration
         shell: bash
