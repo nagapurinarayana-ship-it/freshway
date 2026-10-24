@@ -60,7 +60,7 @@ for (const value of [config.iconUrl, config.maskableIconUrl, config.webManifestU
   assert.equal(url.hostname, 'fwcoldpressed.in');
 }
 assert.equal(new URL(config.iconUrl).pathname, '/icons/icon-512.png');
-assert.equal(new URL(config.maskableIconUrl).pathname, '/icons/icon-512-maskable.png');
+assert.equal(new URL(config.maskableIconUrl).pathname, '/icons/icon-512.png');
 
 assert.match(index, /<link rel="manifest" href="\/manifest\.webmanifest"/);
 assert.match(index, /id="privacyPolicyBtn"/, 'Customer app must expose the privacy policy.');
