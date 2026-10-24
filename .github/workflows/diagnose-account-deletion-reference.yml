@@ -38,6 +38,16 @@ jobs:
             npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "PRAGMA table_info('$table')" --json \
               | node -e 'const fs=require("fs");const raw=fs.readFileSync(0,"utf8");const start=raw.indexOf("{"),end=raw.lastIndexOf("}");if(start<0||end<start)throw Error("Wrangler JSON not found");const x=JSON.parse(raw.slice(start,end+1));const rows=(function walk(v){if(Array.isArray(v)){if(v.some(r=>r&&typeof r==="object"&&"name" in r&&"notnull" in r))return v;for(const e of v){const z=walk(e);if(z)return z}}else if(v&&typeof v==="object"){for(const e of Object.values(v)){const z=walk(e);if(z)return z}}return null})(x);if(!rows)throw Error("PRAGMA rows not found");console.log(JSON.stringify(rows.map(r=>({name:r.name,notnull:r.notnull,pk:r.pk,type:r.type,default:r.dflt_value}))))'
           done
+          for sql in \
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='order_address_snapshots'" \
+            "PRAGMA foreign_key_list('order_address_snapshots')" \
+            "PRAGMA index_list('order_address_snapshots')" \
+            "SELECT COUNT(*) AS total_rows, SUM(customer_id IS NULL) AS customer_id_nulls, SUM(address_id IS NULL) AS address_id_nulls, SUM(recipient_name IS NULL) AS recipient_name_nulls, SUM(delivery_phone IS NULL) AS delivery_phone_nulls, SUM(house_flat IS NULL) AS house_flat_nulls, SUM(area IS NULL) AS area_nulls, SUM(city IS NULL) AS city_nulls, SUM(pincode IS NULL) AS pincode_nulls FROM order_address_snapshots"; do
+            echo "=== Read-only snapshot schema/data check ==="
+            echo "SQL: $sql"
+            npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "$sql" --json \
+              | node -e 'const fs=require("fs");const raw=fs.readFileSync(0,"utf8");const start=raw.indexOf("{"),end=raw.lastIndexOf("}");if(start<0||end<start)throw Error("Wrangler JSON not found");const x=JSON.parse(raw.slice(start,end+1));console.log(JSON.stringify(x))'
+          done
       - name: Query recent Worker logs for the exact reference
         shell: bash
         env:
