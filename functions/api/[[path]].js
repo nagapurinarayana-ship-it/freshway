@@ -11,6 +11,25 @@ export async function onRequest(context) {
   const incoming = new URL(context.request.url);
   const isProductionHost = productionHosts.has(incoming.hostname.toLowerCase());
   const environment = String(context.env.FRESHWAY_ENVIRONMENT || '').trim().toLowerCase();
+  const configuredApiOrigins = [...new Set([context.env.APP_ORIGIN, context.env.APP_ORIGINS]
+    .flatMap(value => String(value || '').split(',').map(origin => origin.trim()))
+    .filter(origin => origin && origin !== 'null' && origin !== 'https://YOUR-FRESHWAY-DOMAIN'))];
+  const allowedPreviewOriginSuffixes = String(context.env.APP_ORIGIN_SUFFIXES || '').split(',')
+    .map(value => value.trim().toLowerCase())
+    .filter(value => /^\.[a-z0-9.-]+$/.test(value));
+  const errorResponseOrigin = (() => {
+    const requestedOrigin = String(context.request.headers.get('Origin') || '').trim();
+    if (!requestedOrigin) return '';
+    if (configuredApiOrigins.includes(requestedOrigin)) return requestedOrigin;
+    try {
+      const parsed = new URL(requestedOrigin);
+      if (parsed.protocol === 'https:' && parsed.origin === requestedOrigin &&
+          allowedPreviewOriginSuffixes.some(suffix => parsed.hostname.length > suffix.length && parsed.hostname.endsWith(suffix))) {
+        return requestedOrigin;
+      }
+    } catch (_) {}
+    return '';
+  })();
   let targetPath = incoming.pathname;
   let method = context.request.method;
   let body = context.request.body;
@@ -31,9 +50,11 @@ export async function onRequest(context) {
   targetUrl.pathname = targetPath;
   targetUrl.search = incoming.search;
   const isAddressApi = /^\/api\/addresses(?:\/|$)/.test(targetPath);
-  const isStoreProfileApi = (targetPath === '/api/store-profile' || targetPath === '/api/admin/store-profile') && method === 'GET';
+  const isStoreProfileApi = (targetPath === '/api/store-profile' || targetPath === '/api/admin/store-profile') && ['GET', 'PATCH'].includes(method);
   const needsBody = !['GET', 'HEAD', 'DELETE'].includes(method);
-  const addressBody = isAddressApi && needsBody
+  // These API operations may be replayed to the production Worker if a Pages
+  // binding is stale or fails. Buffer their bodies once so a retry is safe.
+  const replayableBody = (isAddressApi || isStoreProfileApi) && needsBody
     ? (typeof body === 'string' ? new TextEncoder().encode(body).buffer : await context.request.clone().arrayBuffer())
     : null;
   const headers = new Headers(context.request.headers);
@@ -43,7 +64,7 @@ export async function onRequest(context) {
   const buildRequest = target => new Request(target, {
     method,
     headers,
-    body: needsBody ? (isAddressApi ? addressBody : body) : undefined
+    body: needsBody ? ((isAddressApi || isStoreProfileApi) ? replayableBody : body) : undefined
   });
 
   const isJsonResponse = response => {
@@ -56,8 +77,11 @@ export async function onRequest(context) {
     headers: {
       'content-type': 'application/json; charset=utf-8',
       'cache-control': 'private, no-store',
-      'access-control-allow-origin': context.request.headers.get('Origin') || '*',
-      'access-control-allow-credentials': 'true'
+      'vary': 'Origin',
+      ...(errorResponseOrigin ? {
+        'access-control-allow-origin': errorResponseOrigin,
+        'access-control-allow-credentials': 'true'
+      } : {})
     }
   });
 
@@ -79,7 +103,10 @@ export async function onRequest(context) {
         const data = await cloned.json().catch(() => null);
         const profile = data?.storeProfile;
         const hasProfileData = profile && typeof profile.storeName === 'string' && Boolean(profile.storeName.trim()) && typeof profile.address === 'string' && Boolean(profile.address.trim());
-        if (hasProfileData) return primaryResponse;
+        if (primaryResponse.ok && hasProfileData) return primaryResponse;
+        // Preserve genuine client validation/auth errors. A missing route, server
+        // failure, or malformed success response may come from a stale binding.
+        if (primaryResponse.status >= 400 && primaryResponse.status < 500 && primaryResponse.status !== 404) return primaryResponse;
         // A stale/empty service binding must not hide the current production Store Profile.
       }
     } catch (_) {
@@ -106,7 +133,8 @@ export async function onRequest(context) {
         const fallbackProfile = fallbackData?.storeProfile;
         if (fallbackProfile &&
             typeof fallbackProfile.storeName === 'string' && fallbackProfile.storeName.trim() &&
-            typeof fallbackProfile.address === 'string' && fallbackProfile.address.trim()) {
+            typeof fallbackProfile.address === 'string' && fallbackProfile.address.trim() &&
+            (method === 'GET' || fallbackData?.ok === true)) {
           return fallbackResponse;
         }
         return jsonError('Store Profile service returned incomplete data. Saved business details were not changed.');

@@ -9,11 +9,11 @@ const workerAuthPath = fileURLToPath(new URL('../worker/src/passcode-auth.js', i
 const workerAuth = readFileSync(workerAuthPath, 'utf8');
 
 assert.match(production, /const isAddressApi = \/\^\\\/api\\\/addresses/);
-assert.match(production, /const addressBody = isAddressApi && needsBody/);
+assert.match(production, /const replayableBody = \(isAddressApi \|\| isStoreProfileApi\) && needsBody/);
 assert.match(production, /typeof body === 'string' \? new TextEncoder\(\)\.encode\(body\)\.buffer/);
 assert.match(production, /const isJsonResponse = response =>/);
 assert.match(production, /if \(!isAddressApi \|\| isJsonResponse\(primaryResponse\)\)/);
-assert.match(production, /const isStoreProfileApi = \(targetPath === '\/api\/store-profile' \|\| targetPath === '\/api\/admin\/store-profile'\) && method === 'GET'/);
+assert.match(production, /const isStoreProfileApi = \(targetPath === '\/api\/store-profile' \|\| targetPath === '\/api\/admin\/store-profile'\) && \['GET', 'PATCH'\]\.includes\(method\)/);
 assert.match(production, /const fallbackResponse = await fetch\(buildRequest\(target\.toString\(\)\)\)/);
 assert.match(production, /Address service returned an unexpected response\./);
 assert.match(production, /Address service is temporarily unavailable/);
@@ -165,3 +165,117 @@ try {
   globalThis.fetch = originalFetch;
 }
 console.log('Owner Store Profile stale-binding fallback regression OK');
+
+
+// A stale Pages service binding can return a 404 for Owner Store Profile writes.
+// The Pages API boundary must replay the same JSON body and authenticated cookie
+// to the production Worker, but must not bypass genuine 4xx validation failures.
+const fallbackProfile = {
+  storeName: 'FreshWay',
+  about: 'Cold-pressed oils and rice',
+  phone: '9876543210',
+  whatsapp: '9876543210',
+  email: 'hello@example.test',
+  address: '1-1-LA0022, Road No 2, Laxminagar, Mancherial 504208',
+  businessHours: '9 AM–7 PM',
+  deliveryInfo: 'Local delivery',
+  shareTitle: 'FreshWay',
+  shareDescription: 'Fresh essentials delivered locally',
+  shopLatitude: null,
+  shopLongitude: null
+};
+const profilePatch = { ...fallbackProfile, about: 'A refreshed business description' };
+const savedProfileResponse = { ok: true, storeProfile: profilePatch };
+const priorFetch = globalThis.fetch;
+try {
+  let fallbackCalls = 0;
+  globalThis.fetch = async request => {
+    fallbackCalls += 1;
+    assert.equal(new URL(request.url).hostname, 'freshway-api.all-in-one-all.workers.dev');
+    assert.equal(new URL(request.url).pathname, '/api/admin/store-profile');
+    assert.equal(request.headers.get('cookie'), '__Host-freshway-admin-session=test-cookie');
+    assert.deepEqual(await request.json(), profilePatch);
+    return Response.json(savedProfileResponse);
+  };
+  const patchResponse = await apiOnRequest({
+    request: new Request('https://fwcoldpressed.in/api/admin/store-profile', {
+      method: 'PATCH',
+      headers: {
+        Origin: 'https://fwcoldpressed.in',
+        Cookie: '__Host-freshway-admin-session=test-cookie',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(profilePatch)
+    }),
+    env: {
+      APP_ORIGIN: 'https://fwcoldpressed.in',
+      APP_ORIGINS: 'https://fwcoldpressed.in',
+      FRESHWAY_API: {
+        fetch: async request => {
+          assert.equal(new URL(request.url).pathname, '/api/admin/store-profile');
+          assert.deepEqual(await request.clone().json(), profilePatch);
+          return Response.json({ error: 'Not found' }, { status: 404 });
+        }
+      }
+    },
+    next: async () => new Response('next')
+  });
+  assert.equal(patchResponse.status, 200);
+  assert.deepEqual(await patchResponse.json(), savedProfileResponse);
+  assert.equal(fallbackCalls, 1);
+
+  fallbackCalls = 0;
+  globalThis.fetch = async () => {
+    fallbackCalls += 1;
+    throw new Error('Fallback must not be attempted for client validation errors');
+  };
+  const validationResponse = await apiOnRequest({
+    request: new Request('https://fwcoldpressed.in/api/admin/store-profile', {
+      method: 'PATCH',
+      headers: {
+        Origin: 'https://fwcoldpressed.in',
+        Cookie: '__Host-freshway-admin-session=test-cookie',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(profilePatch)
+    }),
+    env: {
+      APP_ORIGIN: 'https://fwcoldpressed.in',
+      APP_ORIGINS: 'https://fwcoldpressed.in',
+      FRESHWAY_API: {
+        fetch: async () => Response.json({ error: 'Enter a complete business address.' }, { status: 400 })
+      }
+    },
+    next: async () => new Response('next')
+  });
+  assert.equal(validationResponse.status, 400);
+  assert.match((await validationResponse.json()).error, /complete business address/i);
+  assert.equal(fallbackCalls, 0);
+} finally {
+  globalThis.fetch = priorFetch;
+}
+console.log('Owner Store Profile write fallback and validation boundary regression OK');
+
+// Error responses must not reflect arbitrary caller Origins with credentials.
+const disallowedCorsError = await apiOnRequest({
+  request: new Request('https://preview.freshway-f32.pages.dev/api/health', {
+    headers: { Origin: 'https://attacker.example' }
+  }),
+  env: {},
+  next: async () => new Response('next')
+});
+assert.equal(disallowedCorsError.status, 503);
+assert.equal(disallowedCorsError.headers.get('access-control-allow-origin'), null);
+assert.equal(disallowedCorsError.headers.get('access-control-allow-credentials'), null);
+
+const allowedCorsError = await apiOnRequest({
+  request: new Request('https://preview.freshway-f32.pages.dev/api/health', {
+    headers: { Origin: 'https://branch.freshway-f32.pages.dev' }
+  }),
+  env: { APP_ORIGIN_SUFFIXES: '.freshway-f32.pages.dev' },
+  next: async () => new Response('next')
+});
+assert.equal(allowedCorsError.status, 503);
+assert.equal(allowedCorsError.headers.get('access-control-allow-origin'), 'https://branch.freshway-f32.pages.dev');
+assert.equal(allowedCorsError.headers.get('access-control-allow-credentials'), 'true');
+console.log('API error CORS origin boundary regression OK');
