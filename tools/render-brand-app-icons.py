@@ -4,7 +4,10 @@ from pathlib import Path
 import base64
 import re
 import cairosvg
-from PIL import Image
+from PIL import Image, ImageFile
+
+# Match the browser's tolerant rendering of the embedded logo JPEG.
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 ROOT = Path(__file__).resolve().parents[1]
 ICONS = ROOT / "icons"
