@@ -307,7 +307,8 @@ INSERT OR IGNORE INTO categories (id,name,slug,icon,description,display_order,ac
 
 
 -- Store requests separately; never cascade-delete orders and invoices during request submission.
-CREATE TABLE IF NOT EXISTS account_deletion_requests (id TEXT PRIMARY KEY, customer_id TEXT, phone_snapshot TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','in_review','completed','rejected')), source TEXT NOT NULL CHECK(source IN ('authenticated_customer','external_verified_phone')), admin_note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, processed_at TEXT);
+CREATE TABLE IF NOT EXISTS account_deletion_requests (id TEXT PRIMARY KEY, customer_id TEXT NOT NULL, phone_snapshot TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','in_review','completed','rejected')), source TEXT NOT NULL CHECK(source IN ('authenticated_customer','external_verified_phone')), admin_note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, processed_at TEXT);
+CREATE TABLE IF NOT EXISTS account_deletion_summary (id INTEGER PRIMARY KEY CHECK(id=1), completed_count INTEGER NOT NULL DEFAULT 0 CHECK(completed_count >= 0), latest_completed_at TEXT);
 CREATE INDEX IF NOT EXISTS idx_account_deletion_requests_status_created ON account_deletion_requests(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_account_deletion_requests_customer_created ON account_deletion_requests(customer_id, created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_account_deletion_requests_one_active ON account_deletion_requests(customer_id) WHERE status IN ('pending','in_review');
