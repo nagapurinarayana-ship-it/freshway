@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v41';
+const CACHE = 'fw-owner-v42';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -11,6 +11,7 @@ const SHELL = [
   '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2',
   '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
+  '/admin/frontend/admin/serviceable-areas.js?v=20261025-serviceable-areas-v1',
   '/admin/frontend/phone-display.js?v=20261009-phone-display-v1',
   '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2',
   '/admin/frontend/catalogue-media.js?v=20261008-ui-media-v1',
@@ -34,6 +35,7 @@ const REQUIRED_SHELL = [
   '/admin/admin.js?v=20261024-settings-init-v1',
   '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
+  '/admin/frontend/admin/serviceable-areas.js?v=20261025-serviceable-areas-v1',
   '/admin/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1',
   '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2',
   '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2',
