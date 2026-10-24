@@ -50,6 +50,15 @@ jobs:
         working-directory: android-twa
         run: npm test
 
+      - name: Configure Bubblewrap SDK paths before project generation
+        working-directory: android-twa
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes @bubblewrap/cli@1.27.0 updateConfig \
+            --jdkPath="$JAVA_HOME" \
+            --androidSdkPath="$ANDROID_HOME"
+
       - name: Generate Android project from the checked-in TWA configuration
         shell: bash
         run: |
@@ -65,15 +74,6 @@ jobs:
       - name: Verify generated package identity and target API
         working-directory: android-twa
         run: npm run check:generated
-
-      - name: Configure Bubblewrap SDK paths
-        working-directory: android-twa
-        shell: bash
-        run: |
-          set -euo pipefail
-          npx --yes @bubblewrap/cli@1.27.0 updateConfig \
-            --jdkPath="$JAVA_HOME" \
-            --androidSdkPath="$ANDROID_HOME"
 
       - name: Run live TWA quality validator
         id: live_validation
