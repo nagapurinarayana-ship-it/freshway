@@ -32,8 +32,8 @@ for (const [field, value] of Object.entries({
   assert.equal(url.password, '', field + ' must not contain URL credentials.');
 }
 
-assert.ok(manifest.iconUrl.endsWith('/icons/icon-512.png'), 'Launcher icon must be the 512px PNG asset.');
-assert.ok(manifest.maskableIconUrl.endsWith('/icons/icon-512.png'), 'Maskable launcher icon must use the dedicated maskable asset.');
+assert.ok(manifest.iconUrl.endsWith('/icons/icon-512-brand-v2.png'), 'Launcher icon must use the official FreshWay brand artwork.');
+assert.ok(manifest.maskableIconUrl.endsWith('/icons/icon-512-maskable-v2.png'), 'Maskable launcher icon must use the dedicated brand-safe asset.');
 assert.ok(manifest.themeColor && manifest.backgroundColor, 'Theme and splash colors must be explicit.');
 assert.ok(!manifest.fingerprints || manifest.fingerprints.length === 0, 'Do not commit a signing fingerprint before the release signing certificate is known.');
 

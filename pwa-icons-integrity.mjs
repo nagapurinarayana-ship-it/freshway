@@ -86,9 +86,9 @@ export function assertValidPng(input, { width, height, label = 'PNG' }) {
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 for (const [path, size] of [
-  ['icons/icon-192.png', 192],
-  ['icons/icon-512.png', 512],
-  ['icons/icon-192-maskable.png', 192],
+  ['icons/icon-192-brand-v2.png', 192],
+  ['icons/icon-512-brand-v2.png', 512],
+  ['icons/icon-512-maskable-v2.png', 512],
 ]) {
   assertValidPng(readFileSync(resolve(root, path)), { width: size, height: size, label: path });
 }
