@@ -29,21 +29,21 @@ jobs:
           response="$(curl --fail --silent --show-error --retry 2 \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/freshway")"
-          printf '%s' "$response" | node <<'NODE'
-          const fs = require('node:fs');
-          const response = JSON.parse(fs.readFileSync(0, 'utf8'));
+          printf '%s' "$response" | node -e '
+          const fs = require("node:fs");
+          const response = JSON.parse(fs.readFileSync(0, "utf8"));
           if (!response.success || !response.result) {
-            process.stderr.write('Cloudflare Pages project metadata request did not succeed.\n');
+            process.stderr.write("Cloudflare Pages project metadata request did not succeed.\\n");
             process.exit(1);
           }
           const project = response.result;
           const productionBranch = project.deployment_configs?.production?.branch;
           if (!productionBranch) {
-            process.stderr.write('Cloudflare API response did not contain deployment_configs.production.branch.\n');
+            process.stderr.write("Cloudflare API response did not contain deployment_configs.production.branch.\\n");
             process.exit(1);
           }
-          console.log('PAGES_PROJECT=' + project.name);
-          console.log('PAGES_PRODUCTION_BRANCH=' + productionBranch);
-          console.log('PAGES_SUBDOMAIN=' + project.subdomain);
-          console.log('PAGES_CUSTOM_DOMAINS=' + (project.domains || []).filter(x => x === 'fwcoldpressed.in').join(','));
-          NODE
+          console.log("PAGES_PROJECT=" + project.name);
+          console.log("PAGES_PRODUCTION_BRANCH=" + productionBranch);
+          console.log("PAGES_SUBDOMAIN=" + project.subdomain);
+          console.log("PAGES_CUSTOM_DOMAINS=" + (project.domains || []).filter(x => x === "fwcoldpressed.in").join(","));
+          '
