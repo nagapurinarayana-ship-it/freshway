@@ -101,8 +101,9 @@ for (const [size, path] of [['192x192', 'icons/icon-192.svg'], ['512x512', 'icon
   assert.ok(icon, 'PWA manifest must provide a FreshWay SVG icon at ' + size);
   assert.equal(icon.src, '/' + path + '?v=20261024-master-logo-v1');
   const svg = readFileSync(resolve(root, path), 'utf8');
-  assert.match(svg, /<svg\\b[^>]*viewBox="0 0 512 512"/i, path + ' must be a square scalable SVG');
-  const embeddedLogo = svg.match(/href="data:image\\/webp;base64,([^"]+)"/i)?.[1];
+  assert.ok(svg.startsWith('<svg '), path + ' must be an SVG document');
+  assert.ok(svg.includes('viewBox="0 0 512 512"'), path + ' must be a square scalable SVG');
+  const embeddedLogo = svg.split('href="data:image/webp;base64,')[1]?.split('"')[0];
   assert.equal(embeddedLogo, masterLogoBase64, path + ' must embed the exact FreshWay master logo');
 }
 console.log('FreshWay PWA icon integrity passed: legacy PNGs are valid and the install manifest uses the exact FreshWay master logo.');
