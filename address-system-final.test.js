@@ -52,15 +52,15 @@ assert.match(source, /if \(!loaded\)[\s\S]*?modalOrigin === 'checkout' && guestA
   'a 401 on saved addresses must open the checkout address editor rather than an Addresses unavailable dead end');
 assert.match(source, /const guestDraft = \(modalOrigin === 'checkout' \|\| modalOrigin === 'home'\) && guestAddressMode/,
   'reopening home or checkout guest address drafts must retain the in-memory selection');
-assert.match(source, /modalOrigin === 'home' && guestAddressMode && !editingAddress[\\s\\S]*?Delivery location selected for this visit/,
+assert.ok(source.includes("modalOrigin === 'home' && guestAddressMode && !editingAddress") && source.includes("Delivery location selected for this visit"),
   'guest home selection must remain session-only and avoid the authenticated address-book write');
-assert.match(source, /modalOrigin === 'home' && addresses.length === 0\\) buildEditor\\(null\\)/,
+assert.ok(source.includes("else if (modalOrigin === 'home' && addresses.length === 0) buildEditor(null);"),
   'a first-time customer with no addresses must go directly to the location editor');
-assert.match(source, /modalOrigin === 'home' \\? '<p class="fw-address-subtitle">Choose your delivery area first,[\\s\\S]*?locationPanel/,
+assert.ok(source.includes("(modalOrigin === 'home' ? '<p class=\"fw-address-subtitle\">Choose your delivery area first, then confirm your house and street details below.</p>' + locationPanel : '')"),
   'home location search and GPS controls must appear before house details');
-assert.match(source, /\\(modalOrigin === 'home' \\? '' : locationPanel\\)/,
+assert.ok(source.includes("(modalOrigin === 'home' ? '' : locationPanel)"),
   'the checkout/profile address editor must keep its existing location-panel order');
-assert.match(source, /const addAction = [\\s\\S]*?modalOrigin === 'home' \\? '📍 Use current location or search'/,
+assert.ok(source.includes("modalOrigin === 'home' ? '📍 Use current location or search'"),
   'the home address selector must expose a quick location action above saved addresses');
 assert.match(source, /async function findSearch\(\)[\s\S]*?searchRequestId[\s\S]*?countrycodes: 'in'/,
   'map search must validate India-only results and ignore stale concurrent searches');
