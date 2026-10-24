@@ -103,7 +103,7 @@ jobs:
           }
           if (manifest.icons.some(icon => icon.type === 'image/png' && new URL(icon.src, 'https://fwcoldpressed.in').pathname.endsWith('.png'))) throw new Error('Customer manifest must not use legacy P-branded raster icons');
           
-          for (const file of ['frontend/phone-display.js','frontend/customer/pwa-install.js','frontend/customer/pwa-install.css','frontend/customer/promotions.js','icons/icon-192.png','icons/icon-512.png','icons/icon-192-maskable.png','sw.js','admin/manifest.webmanifest','admin/sw.js','functions/admin/[[path]].js']) {
+          for (const file of ['frontend/phone-display.js','frontend/customer/pwa-install.js','frontend/customer/pwa-install.css','frontend/customer/promotions.js','icons/icon-192-brand-v2.png','icons/icon-512-brand-v2.png','icons/icon-512-maskable-v2.png','sw.js','admin/manifest.webmanifest','admin/sw.js','functions/admin/[[path]].js']) {
             if (!fs.existsSync(file)) throw new Error('Missing PWA asset ' + file);
           }
           const index = fs.readFileSync('index.html', 'utf8');

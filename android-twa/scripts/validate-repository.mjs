@@ -34,10 +34,9 @@ for (const [path, size] of [['/icons/icon-192.svg','192x192'], ['/icons/icon-512
 assert.equal(webManifest.icons.some((item) => item.type === 'image/png' && new URL(item.src, 'https://fwcoldpressed.in').pathname.endsWith('.png')), false, 'Customer install manifest must not offer legacy P icons.');
 
 const pngAssets = [
-  { path: 'icons/icon-192.png', width: 192, height: 192, purpose: 'any' },
-  { path: 'icons/icon-512.png', width: 512, height: 512, purpose: 'any' },
-  { path: 'icons/icon-192-maskable.png', width: 192, height: 192, purpose: 'maskable' },
-  { path: 'icons/icon-512.png', width: 512, height: 512, purpose: 'maskable' }
+  { path: 'icons/icon-192-brand-v2.png', width: 192, height: 192, purpose: 'any' },
+  { path: 'icons/icon-512-brand-v2.png', width: 512, height: 512, purpose: 'any' },
+  { path: 'icons/icon-512-maskable-v2.png', width: 512, height: 512, purpose: 'maskable' }
 ];
 
 for (const asset of pngAssets) {
@@ -58,8 +57,8 @@ for (const value of [config.iconUrl, config.maskableIconUrl, config.webManifestU
   assert.equal(url.protocol, 'https:');
   assert.equal(url.hostname, 'fwcoldpressed.in');
 }
-assert.equal(new URL(config.iconUrl).pathname, '/icons/icon-512.png');
-assert.equal(new URL(config.maskableIconUrl).pathname, '/icons/icon-512.png');
+assert.equal(new URL(config.iconUrl).pathname, '/icons/icon-512-brand-v2.png');
+assert.equal(new URL(config.maskableIconUrl).pathname, '/icons/icon-512-maskable-v2.png');
 
 assert.match(index, /<link rel="manifest" href="\/manifest\.webmanifest"/);
 assert.match(index, /id="privacyPolicyBtn"/, 'Customer app must expose the privacy policy.');

@@ -23,7 +23,7 @@ From this directory, run:
 npm test
 ```
 
-These checks do not need a signing key or production secrets. They verify the TWA identity, the customer PWA's branded SVG manifest icons, separate Android-packaging raster assets and dimensions, maskable declarations, customer privacy/deletion entry points and Digital Asset Links validation.
+These checks do not need a signing key or production secrets. They verify the TWA identity, the customer PWA's branded SVG manifest icons, the FreshWay master-logo-derived Android raster assets (`icon-192-brand-v2.png`, `icon-512-brand-v2.png` and `icon-512-maskable-v2.png`), their PNG integrity/dimensions, customer privacy/deletion entry points and Digital Asset Links validation.
 
 Run the live PWA quality check separately:
 
