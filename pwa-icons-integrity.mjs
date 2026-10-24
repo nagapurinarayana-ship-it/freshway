@@ -92,4 +92,4 @@ for (const [path, size] of [
 ]) {
   assertValidPng(readFileSync(resolve(root, path)), { width: size, height: size, label: path });
 }
-console.log('FreshWay PWA icon integrity passed: all PNG chunks, checksums, compressed pixels and dimensions are valid.');
+console.log('FreshWay Android-packaging raster integrity passed: PNG chunks, checksums, compressed pixels and dimensions are valid.');

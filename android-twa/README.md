@@ -23,7 +23,7 @@ From this directory, run:
 npm test
 ```
 
-These checks do not need a signing key or production secrets. They verify the TWA identity, PWA manifest, existence and real PNG dimensions of the 192px/512px icons, maskable-icon declarations, customer privacy/deletion entry points and Digital Asset Links fingerprint validation.
+These checks do not need a signing key or production secrets. They verify the TWA identity, the customer PWA's branded SVG manifest icons, separate Android-packaging raster assets and dimensions, maskable declarations, customer privacy/deletion entry points and Digital Asset Links validation.
 
 Run the live PWA quality check separately:
 
