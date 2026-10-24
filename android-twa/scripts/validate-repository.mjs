@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { Script } from 'node:vm';
 import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { assertValidPng } from '../../pwa-icons-integrity.mjs';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('../../', import.meta.url)));
@@ -35,6 +36,7 @@ for (const asset of pngAssets) {
   const stat = statSync(fullPath);
   assert.ok(stat.isFile() && stat.size > 64, asset.path + ' must exist and be a non-empty image.');
   const bytes = readFileSync(fullPath);
+  assertValidPng(bytes, { width: asset.width, height: asset.height, label: asset.path });
   assert.deepEqual([...bytes.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10], asset.path + ' must be a PNG.');
   assert.equal(bytes.readUInt32BE(16), asset.width, asset.path + ' must be ' + asset.width + 'px wide.');
   assert.equal(bytes.readUInt32BE(20), asset.height, asset.path + ' must be ' + asset.height + 'px high.');
