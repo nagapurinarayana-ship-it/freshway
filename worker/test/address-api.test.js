@@ -211,3 +211,51 @@ test('address lists never expose another customer account address', async () => 
   assert.equal(list.body.addresses.length, 1);
   assert.equal(list.body.addresses[0].recipientName, 'Test Customer');
 });
+
+test('failed create transaction rolls back the new address and keeps default state intact', async () => {
+  const environment = env();
+  environment.DB.failBatchAfterFirst = true;
+  await assert.rejects(
+    () => handleAddress(request('/api/addresses', 'POST', address()), environment, 'customer-a', 'create'),
+    /simulated D1 batch failure/
+  );
+  assert.equal(environment.DB.rows.length, 0);
+  assert.equal(environment.DB.nextId, 1);
+});
+
+test('failed edit/default transaction rolls back fields and preserves the previous default', async () => {
+  const environment = env();
+  await handleAddress(request('/api/addresses', 'POST', address()), environment, 'customer-a', 'create');
+  const work = address({ label: 'Work', houseFlat: 'Suite 8', area: 'Business Park', pincode: '500081', latitude: 17.42, longitude: 78.51 });
+  const savedWork = await result(await handleAddress(request('/api/addresses', 'POST', work), environment, 'customer-a', 'create'));
+  environment.DB.failBatchAfterFirst = true;
+
+  await assert.rejects(
+    () => handleAddress(request('/api/addresses/' + savedWork.body.id, 'PATCH', { ...work, area: 'Changed Park', isDefault: true }), environment, 'customer-a', 'update'),
+    /simulated D1 batch failure/
+  );
+
+  const rows = environment.DB.ownedRows('customer-a');
+  assert.equal(rows.length, 2);
+  assert.equal(rows.find(row => row.label === 'Home').is_default, 1);
+  assert.equal(rows.find(row => row.label === 'Work').is_default, 0);
+  assert.equal(rows.find(row => row.label === 'Work').area, 'Business Park');
+});
+
+test('failed delete/default transaction rolls back the soft delete and preserves the default', async () => {
+  const environment = env();
+  await handleAddress(request('/api/addresses', 'POST', address()), environment, 'customer-a', 'create');
+  const work = address({ label: 'Work', houseFlat: 'Suite 8', area: 'Business Park', pincode: '500081', latitude: 17.42, longitude: 78.51 });
+  const savedWork = await result(await handleAddress(request('/api/addresses', 'POST', work), environment, 'customer-a', 'create'));
+  environment.DB.failBatchAfterFirst = true;
+
+  await assert.rejects(
+    () => handleAddress(request('/api/addresses/' + savedWork.body.id, 'DELETE'), environment, 'customer-a', 'delete'),
+    /simulated D1 batch failure/
+  );
+
+  const rows = environment.DB.ownedRows('customer-a');
+  assert.equal(rows.length, 2);
+  assert.equal(rows.find(row => row.label === 'Home').is_default, 1);
+  assert.equal(rows.find(row => row.label === 'Work').is_default, 0);
+});
