@@ -151,10 +151,13 @@ export async function handleAddress(request, env, customerId, action) {
     if (error) return response({ error }, 400, env);
     // Editing keeps this address's default status unless explicitly changed.
     a.is_default = payload.isDefault === undefined ? Number(owned.is_default || 0) : (payload.isDefault ? 1 : 0);
-    if (a.is_default) await env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=?').bind(customerId).run();
-    await env.DB.prepare(`UPDATE addresses SET label=?,recipient_name=?,delivery_phone=?,house=?,building=?,floor=?,street=?,area=?,locality=?,city=?,district=?,state=?,pincode=?,landmark=?,note=?,latitude=?,longitude=?,accuracy_meters=?,location_source=?,place_id=?,location_updated_at=?,is_default=? WHERE id=? AND customer_id=?`)
-      .bind(a.label,a.recipient_name,a.delivery_phone,a.house_flat,a.building,a.floor,a.street,a.area,a.locality,a.city,a.district,a.state,a.pincode,a.landmark,a.note,a.latitude,a.longitude,a.accuracy_meters,a.location_source,a.place_id,a.location_updated_at,a.is_default,id,customerId).run();
-    await ensureDefault(env, customerId);
+    const update = env.DB.prepare(`UPDATE addresses SET label=?,recipient_name=?,delivery_phone=?,house=?,building=?,floor=?,street=?,area=?,locality=?,city=?,district=?,state=?,pincode=?,landmark=?,note=?,latitude=?,longitude=?,accuracy_meters=?,location_source=?,place_id=?,location_updated_at=?,is_default=? WHERE id=? AND customer_id=? AND deleted_at IS NULL`)
+      .bind(a.label,a.recipient_name,a.delivery_phone,a.house_flat,a.building,a.floor,a.street,a.locality,a.city,a.district,a.state,a.pincode,a.landmark,a.note,a.latitude,a.longitude,a.accuracy_meters,a.location_source,a.place_id,a.location_updated_at,a.is_default,id,customerId);
+    // Address edits and default normalization commit together. An explicit
+    // default choice takes precedence; otherwise an existing default is retained
+    // or the newest active address is selected if the account had none.
+    const results = await env.DB.batch([update, normalizeDefaultStatement(env, customerId, a.is_default ? id : null)]);
+    if (!results?.[0]?.meta?.changes) return response({ error:'Address not found.' }, 404, env);
     return response({ ok:true, addresses:await list(env,customerId) }, 200, env);
   }
   return response({ error:'Unsupported address action.' }, 405, env);
