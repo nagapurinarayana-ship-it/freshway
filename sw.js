@@ -1,8 +1,8 @@
-const CACHE = 'freshway-v82';
+const CACHE = 'freshway-v83';
 const APP_SHELL = [
 '/',
 '/index.html',
-'/styles.css?v=20261025-zepto-home-location-v1',
+'/styles.css?v=20261025-home-location-css-extract-v1',
 '/frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2',
 '/address-system.css?v=20260907-address-v2',
 '/frontend/customer/address-book.css?v=20261020-address-ui-hardening-v2',
