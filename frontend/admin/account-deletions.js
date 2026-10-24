@@ -119,25 +119,16 @@
         $('#accountDeletionStatusMessage')?.scrollIntoView({behavior:'smooth', block:'center'});
         return;
       }
-      if (!window.confirm('This disables the account, removes login credentials and push subscriptions, and redacts customer/address details from operational order/address records. Issued invoice snapshots remain unchanged. Continue only after the retention decision is reviewed.')) return;
+      if (!window.confirm('Confirm that you reviewed the applicable invoice/transaction retention decision. This removes login access and operational customer data, deletes the individual request record, and keeps only an aggregate completion count and the latest completion date. Existing issued invoice snapshots are not changed by this action, so continue only if the approved retention policy permits that.')) return;
     }
-    const suggestedCompletionNote = 'Retain invoice/transaction records for tax and accounting retention; redact operational customer and address data.';
-    const prompt = isReject
-      ? 'Why is this deletion request being rejected? Explain the reason to the customer through the approved support channel.'
-      : isComplete
-        ? 'Confirm the applicable invoice/transaction retention decision. Do not include customer identifiers. The note is validated for this action but is not retained; only a standard anonymised completion outcome is stored.'
-        : 'Optional review note (do not include unnecessary personal data):';
-    const note = window.prompt(prompt, isComplete ? suggestedCompletionNote : '');
+    const note = isComplete
+      ? 'Confirmed retention review for applicable invoice/transaction records; operational customer data redacted.'
+      : window.prompt(isReject
+        ? 'Why is this deletion request being rejected? Explain the reason to the customer through the approved support channel.'
+        : 'Optional review note (do not include unnecessary personal data):', '');
     if (note === null) return;
     if (isReject && note.trim().length < 10) {
       const message = 'Add a clear rejection reason of at least 10 characters before submitting.';
-      setMessage(message, true);
-      window.alert(message);
-      $('#accountDeletionStatusMessage')?.scrollIntoView({behavior:'smooth', block:'center'});
-      return;
-    }
-    if (isComplete && (note.trim().length < 20 || !/(invoice|transaction)/i.test(note) || !/(retain|retention|accounting|tax|legal)/i.test(note))) {
-      const message = 'Deletion was not submitted. Enter at least 20 characters and mention invoice/transaction records plus the approved retention basis (retain, accounting, tax or legal).';
       setMessage(message, true);
       window.alert(message);
       $('#accountDeletionStatusMessage')?.scrollIntoView({behavior:'smooth', block:'center'});
