@@ -9,12 +9,12 @@ assert.doesNotMatch(customerHtml, /href=["']\/admin(?:\.html|\/?)['"]/i, 'custom
 assert.doesNotMatch(customerHtml, /class=["'][^"']*\badmin-link\b/i, 'customer profile must not render an Owner dashboard shortcut');
 const invoiceSettingsSource = readRepoFile('frontend/admin/invoice-settings.js').toString('utf8');
 const invoiceServiceSource = readRepoFile('worker/src/invoice-service.js').toString('utf8');
-assert.ok(sourceHtml.includes('account-deletions.js?v=20261023-account-deletion-clickfix-v4'), 'Owner app must reference the updated account-deletion click handler');
+assert.ok(sourceHtml.includes('account-deletions.js?v=20261023-account-deletion-clickfix-v5'), 'Owner app must reference the updated account-deletion click handler');
 const deletionSource = readRepoFile('frontend/admin/account-deletions.js').toString('utf8');
 assert.ok(deletionSource.includes('Retain invoice/transaction records for tax and accounting retention; redact operational customer and address data.'), 'Deletion completion prompt must prefill a valid editable retention note');
 assert.ok(deletionSource.includes('window.alert(message)'), 'Invalid deletion notes must show a visible message instead of failing silently');
 assert.ok(deletionSource.includes("scrollIntoView({behavior:'smooth', block:'center'})"), 'Validation feedback must be brought into view on mobile');
-assert.ok(sourceHtml.includes('invoice-settings.js?v=20261023-available-fields-invoice-v1'), 'Owner app must reference the refreshed optional invoice settings script');
+assert.ok(sourceHtml.includes('invoice-settings.js?v=20261023-available-fields-invoice-v2'), 'Owner app must reference the refreshed optional invoice settings script');
 assert.ok(sourceHtml.includes('The receipt uses saved order and Store Profile details. The tax number is optional:'), 'Owner invoice setup must explain receipt data and optional tax-number display');
 assert.doesNotMatch(sourceHtml, /id="invoiceSeriesPrefix"[^>]*\brequired\b/, 'Invoice series prefix must remain optional and default to FW');
 assert.ok(invoiceSettingsSource.includes('saved.enableWarning'), 'Owner UI must explain why attempted invoice activation remains disabled');
@@ -23,12 +23,12 @@ assert.ok(invoiceServiceSource.includes('let enableWarning=') && invoiceServiceS
 const ownerLiveSmokeSource = readRepoFile('pwa-owner-live-smoke.mjs').toString('utf8');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261022-invoice-ui-v1';"), 'production Owner smoke must demand the current Owner CSS version');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261023-new-order-kpi-wait-v1';"), 'production Owner smoke must demand the current admin.js version');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT = '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v1';"), 'production Owner smoke must demand the current optional invoice settings script');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT = '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2';"), 'production Owner smoke must demand the current optional invoice settings script');
 
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1';"), 'production Owner smoke must demand the current push setup version');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v1';"), 'production Owner smoke must demand the current business profile and shop pin editor');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2';"), 'production Owner smoke must demand the current business profile and shop pin editor');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261023-available-fields-invoice-v1';"), 'production Owner smoke must demand the cache-busted order lifecycle map handler');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v39';"), 'production Owner smoke must demand the current service-worker cache');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v40';"), 'production Owner smoke must demand the current service-worker cache');
 assert.ok(ownerLiveSmokeSource.includes('assert.match(deployedSource, /function readProfileResponse\\(data\\)/'), 'production Owner smoke must verify deployed Store Profile response guard code, not only a matching URL');
 assert.ok(ownerLiveSmokeSource.includes('incomplete Store Profile'), 'production Owner smoke must verify malformed profile payload protection is deployed');
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerAppShell/);
