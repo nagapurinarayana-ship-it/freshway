@@ -1,0 +1,116 @@
+name: FreshWay Android TWA build preflight
+
+on:
+  push:
+    branches:
+      - build/play-store-twa-preflight-20261024
+    paths:
+      - 'android-twa/**'
+      - '.github/workflows/play-store-twa-build-preflight.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-unsigned-preflight:
+    name: Generate and compile Android TWA (unsigned preflight only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check out frozen production baseline
+        uses: actions/checkout@v7
+        with:
+          ref: build/play-store-twa-preflight-20261024
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Play-target SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Run static Android and PWA preflight
+        working-directory: android-twa
+        run: npm test
+
+      - name: Generate Android project from the checked-in TWA configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p android-twa/generated
+          cp android-twa/twa-manifest.json android-twa/generated/twa-manifest.json
+          npx --yes @bubblewrap/cli@1.27.0 update \
+            --manifest=./android-twa/generated \
+            --directory=./android-twa/generated \
+            --skipVersionUpgrade
+          test -s android-twa/generated/twa-manifest.json
+
+      - name: Verify generated package identity and target API
+        working-directory: android-twa
+        run: npm run check:generated
+
+      - name: Configure Bubblewrap SDK paths
+        working-directory: android-twa
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes @bubblewrap/cli@1.27.0 updateConfig \
+            --jdkPath="$JAVA_HOME" \
+            --androidSdkPath="$ANDROID_HOME"
+
+      - name: Run live TWA quality validator
+        id: live_validation
+        shell: bash
+        continue-on-error: true
+        run: |
+          set +e
+          npx --yes @bubblewrap/cli@1.27.0 validate --url=https://fwcoldpressed.in 2>&1 | tee /tmp/freshway-twa-validation.log
+          result=${PIPESTATUS[0]}
+          if [ "$result" -eq 0 ]; then
+            echo "Bubblewrap live validation completed successfully."
+            exit 0
+          fi
+          if grep -Eq '429|Too Many Requests|rate.?limit' /tmp/freshway-twa-validation.log; then
+            echo "::warning::Bubblewrap live validation was rate-limited; this is inconclusive, not a pass."
+          else
+            echo "::warning::Bubblewrap live validation failed; review the complete step output before release."
+          fi
+          exit "$result"
+
+      - name: Compile unsigned App Bundle for CI verification only
+        working-directory: android-twa/generated
+        run: npx --yes @bubblewrap/cli@1.27.0 build --skipSigning --skipPwaValidation
+
+      - name: Verify bundle output
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE="android-twa/generated/app-release-bundle.aab"
+          test -s "$BUNDLE"
+          unzip -t "$BUNDLE"
+          unzip -l "$BUNDLE" | grep -E 'BundleConfig.pb|base/manifest/AndroidManifest.xml'
+          echo "Unsigned compile-preflight bundle exists. It is NOT a Play-uploadable release."
+
+      - name: Upload unsigned compile-preflight bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: freshway-unsigned-twa-preflight
+          path: android-twa/generated/app-release-bundle.aab
+          if-no-files-found: error
+          retention-days: 7
