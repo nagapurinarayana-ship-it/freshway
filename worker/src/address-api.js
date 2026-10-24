@@ -109,13 +109,10 @@ export async function handleAddress(request, env, customerId, action) {
     if (error) return response({ error }, 400, env);
     const duplicate = await findDuplicate(env, customerId, a);
     if (duplicate) {
-      // Creating an address that already exists must not silently change default.
-      if (a.is_default) {
-        await env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=?').bind(customerId).run();
-        await env.DB.prepare('UPDATE addresses SET is_default=1 WHERE id=? AND customer_id=?').bind(duplicate.id, customerId).run();
-      } else {
-        await ensureDefault(env, customerId);
-      }
+      // A duplicate must not silently change default unless the customer explicitly
+      // chose it. The normalization itself is a single atomic UPDATE.
+      if (a.is_default) await normalizeDefaultStatement(env, customerId, duplicate.id).run();
+      else await ensureDefault(env, customerId);
       return response({ ok:true, addresses:await list(env,customerId), id:duplicate.id, deduplicated:true }, 200, env);
     }
     if (a.is_default) await env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=?').bind(customerId).run();
