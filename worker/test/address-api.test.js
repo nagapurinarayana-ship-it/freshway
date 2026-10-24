@@ -11,8 +11,28 @@ class Statement {
 }
 
 class MockD1 {
-  constructor() { this.rows = []; this.nextId = 1; }
+  constructor() { this.rows = []; this.nextId = 1; this.failBatchAfterFirst = false; }
   prepare(sql) { return new Statement(this, sql); }
+  async batch(statements) {
+    const savedRows = this.rows.map(row => ({ ...row }));
+    const savedNextId = this.nextId;
+    try {
+      const results = [];
+      for (let index = 0; index < statements.length; index++) {
+        if (this.failBatchAfterFirst && index === 1) {
+          this.failBatchAfterFirst = false;
+          throw new Error('simulated D1 batch failure');
+        }
+        results.push(await statements[index].run());
+      }
+      return results;
+    } catch (error) {
+      this.rows = savedRows;
+      this.nextId = savedNextId;
+      this.failBatchAfterFirst = false;
+      throw error;
+    }
+  }
   ownedRows(customerId) {
     return this.rows.filter(row => String(row.customer_id) === String(customerId) && !row.deleted_at);
   }
@@ -36,6 +56,10 @@ class MockD1 {
       ).sort((a, b) => Number(b.is_default) - Number(a.is_default) || b.id - a.id)
        .map(row => ({ id: row.id }))[0] || null;
     }
+    if (sql.includes('SELECT id FROM addresses WHERE id=? AND customer_id=? AND deleted_at IS NULL')) {
+      return this.rows.find(row => row.id === Number(p[0]) && String(row.customer_id) === String(p[1]) && !row.deleted_at)
+        ? { id: Number(p[0]) } : null;
+    }
     if (sql.includes('SELECT * FROM addresses WHERE id=? AND customer_id=?')) {
       return this.rows.find(row => row.id === Number(p[0]) && String(row.customer_id) === String(p[1]) && !row.deleted_at) || null;
     }
@@ -54,6 +78,23 @@ class MockD1 {
     throw new Error('Unhandled all() query: ' + sql);
   }
   async run(sql, p) {
+    if (sql.includes('SET is_default=CASE WHEN id=COALESCE(')) {
+      const preferredId = p[0] == null ? null : Number(p[0]);
+      const preferredCustomer = String(p[1]);
+      const defaultCustomer = String(p[2]);
+      const fallbackCustomer = String(p[3]);
+      const whereCustomer = String(p[4]);
+      const rows = this.ownedRows(whereCustomer).sort((a, b) => b.id - a.id);
+      let chosen = preferredId == null ? null : rows.find(row =>
+        row.id === preferredId && String(row.customer_id) === preferredCustomer
+      );
+      if (!chosen) chosen = rows.find(row =>
+        String(row.customer_id) === defaultCustomer && Number(row.is_default) === 1
+      );
+      if (!chosen) chosen = rows.find(row => String(row.customer_id) === fallbackCustomer) || null;
+      for (const row of rows) row.is_default = chosen && row.id === chosen.id ? 1 : 0;
+      return { meta: { changes: rows.length } };
+    }
     if (sql.startsWith('INSERT INTO addresses')) {
       const row = {
         id: this.nextId++, customer_id: p[0], house: p[1], area: p[2], city: p[3],
