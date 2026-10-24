@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict';
-import { assertValidPng } from './pwa-icons-integrity.mjs';
 
 const BASE_URL = process.env.BASE_URL || 'https://freshway-f32.pages.dev';
 const VIEWPORT_STYLES_PATH = '/styles.css?v=20261022-invoice-ui-v1';
 const CUSTOMER_APP_PATH = '/app.js?v=20261021-home-navigation-refresh-v1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261021-guest-address-map-search-v3';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v74';
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v75';
 const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261024-native-install-v1';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -229,18 +228,32 @@ assert.equal(manifest.id, '/freshway');
 assert.equal(manifest.start_url, '/');
 assert.equal(manifest.scope, '/');
 assert.equal(manifest.display, 'standalone');
-assert.ok(manifest.icons.some(icon => new URL(icon.src, manifestResponse.url).pathname === '/icons/icon-512.png' && icon.type === 'image/png' && String(icon.purpose || '').split(' ').includes('maskable')), 'manifest must use the known-good 512px PNG for its maskable fallback');
-for (const size of ['192x192', '512x512']) {
-  assert.ok(manifest.icons.some(icon => icon.sizes === size && icon.type === 'image/png'));
+const expectedBrandIcons = [
+  { path: '/icons/icon-192.svg', size: '192x192' },
+  { path: '/icons/icon-512.svg', size: '512x512' }
+];
+for (const expected of expectedBrandIcons) {
+  assert.ok(
+    manifest.icons.some(icon =>
+      new URL(icon.src, manifestResponse.url).pathname === expected.path &&
+      icon.sizes === expected.size &&
+      icon.type === 'image/svg+xml' &&
+      String(icon.purpose || '').split(' ').includes('any')
+    ),
+    `manifest must use the Owner-matched FreshWay brand icon ${expected.path}`
+  );
+  const response = await fetchWithRetry(`${base}${expected.path}?v=20261008-brand-v1`, { cache: 'no-store' });
+  assert.equal(response.status, 200, expected.path);
+  assert.match(response.headers.get('content-type') || '', /^image\/svg\+xml/i, expected.path);
+  const svg = await response.text();
+  assert.ok(svg.startsWith('<svg'), expected.path + ' must be a valid SVG icon');
+  assert.ok(svg.includes('data:image/jpeg;base64,'), expected.path + ' must contain the official FreshWay brand artwork');
 }
-
-for (const [path, size] of [['/icons/icon-192.png',192], ['/icons/icon-512.png',512], ['/icons/icon-192-maskable.png',192]]) {
-  const response = await fetchWithRetry(`${base}${path}`);
-  assert.equal(response.status, 200, path);
-  assert.match(response.headers.get('content-type') || '', /^image\/png/i, path);
-  const bytes = Buffer.from(await response.arrayBuffer());
-  assertValidPng(bytes, { width: size, height: size, label: 'Pages production ' + path });
-}
+assert.equal(
+  manifest.icons.some(icon => icon.type === 'image/png' && new URL(icon.src, manifestResponse.url).pathname.endsWith('.png')),
+  false,
+  'customer manifest must not offer the obsolete P-branded raster icons'
+);
 
 const logoResponse = await fetchWithRetry(`${base}/freshway-logo-master.webp?v=20261008-master-v1`);
 assert.equal(logoResponse.status, 200);

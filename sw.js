@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v74';
+const CACHE = 'freshway-v75';
 const APP_SHELL = [
 '/',
 '/index.html',
@@ -25,9 +25,6 @@ const APP_SHELL = [
 '/icons/icon-192.svg?v=20261008-brand-v1',
 '/icons/icon-512.svg?v=20261008-brand-v1',
 '/frontend/customer/pwa-install.js?v=20261024-native-install-v1',
-'/icons/icon-192.png',
-'/icons/icon-512.png',
-'/icons/icon-192-maskable.png',
 '/icon.svg?v=20261008-brand-v1',
 '/freshway-logo-master.webp?v=20261008-master-v1',
 '/freshway-logo-clean.svg?v=20261008-brand-v1'

@@ -24,6 +24,15 @@ assert.equal(webManifest.display, 'standalone', 'PWA must declare standalone dis
 assert.equal(config.host, 'fwcoldpressed.in');
 assert.equal(config.startUrl, '/');
 
+for (const [path, size] of [['/icons/icon-192.svg','192x192'], ['/icons/icon-512.svg','512x512']]) {
+  const icon = webManifest.icons.find((item) => new URL(item.src, 'https://fwcoldpressed.in').pathname === path);
+  assert.ok(icon, path + ' must be declared in manifest.webmanifest.');
+  assert.equal(icon.sizes, size, path + ' must declare its install size.');
+  assert.equal(icon.type, 'image/svg+xml', path + ' must declare image/svg+xml.');
+  assert.ok(String(icon.purpose || '').split(' ').includes('any'), path + ' must be a normal app icon.');
+}
+assert.equal(webManifest.icons.some((item) => item.type === 'image/png' && new URL(item.src, 'https://fwcoldpressed.in').pathname.endsWith('.png')), false, 'Customer install manifest must not offer legacy P icons.');
+
 const pngAssets = [
   { path: 'icons/icon-192.png', width: 192, height: 192, purpose: 'any' },
   { path: 'icons/icon-512.png', width: 512, height: 512, purpose: 'any' },
@@ -41,17 +50,7 @@ for (const asset of pngAssets) {
   assert.equal(bytes.readUInt32BE(16), asset.width, asset.path + ' must be ' + asset.width + 'px wide.');
   assert.equal(bytes.readUInt32BE(20), asset.height, asset.path + ' must be ' + asset.height + 'px high.');
 
-  const icon = webManifest.icons.find((item) => {
-    const samePath = new URL(item.src, 'https://fwcoldpressed.in').pathname === '/' + asset.path;
-    const suitablePurpose = asset.purpose !== 'maskable' || String(item.purpose || '').split(' ').includes('maskable');
-    return samePath && suitablePurpose;
-  });
-  assert.ok(icon, asset.path + ' must be declared in manifest.webmanifest.');
-  assert.equal(icon.sizes, asset.width + 'x' + asset.height, asset.path + ' must declare its true size.');
-  assert.equal(icon.type, 'image/png', asset.path + ' must declare image/png.');
-  if (asset.purpose === 'maskable') {
-    assert.ok(icon.purpose.split(/\s+/).includes('maskable'), asset.path + ' must be declared as a maskable icon.');
-  }
+  // PNGs are verified here for Android packaging; the customer install manifest uses branded SVG icons.
 }
 
 for (const value of [config.iconUrl, config.maskableIconUrl, config.webManifestUrl]) {
