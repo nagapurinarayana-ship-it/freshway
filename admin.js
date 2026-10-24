@@ -214,4 +214,12 @@ window.addEventListener('popstate',event=>{
   navigateAdminScreen('overview',{historyMode:'none'})
 });
 function initOwnerHistory(){const screen=location.hash.slice(1)||'overview';if(!history.state?.__freshwayOwner){const state={__freshwayOwner:true,screen};history.replaceState(state,'',location.href);history.pushState(state,'',location.href)}}
-bind();initOwnerHistory();if(session()){auth(true);setAdminScreenVisual(location.hash.slice(1)||'overview');bootstrap()}else auth(false);
+bind();
+function startOwnerApp(){
+  // Supporting Owner modules are loaded by later script tags in admin.html.
+  // Wait until DOMContentLoaded so a direct refresh on Settings cannot race their registration.
+  initOwnerHistory();
+  if(session()){auth(true);setAdminScreenVisual(location.hash.slice(1)||'overview');bootstrap()}else auth(false);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',startOwnerApp,{once:true});
+else startOwnerApp();;
