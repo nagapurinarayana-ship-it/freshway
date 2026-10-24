@@ -9,7 +9,7 @@ const workerAuthPath = fileURLToPath(new URL('../worker/src/passcode-auth.js', i
 const workerAuth = readFileSync(workerAuthPath, 'utf8');
 
 assert.match(production, /const isAddressApi = \/\^\\\/api\\\/addresses/);
-assert.match(production, /const addressBody = isAddressApi && needsBody/);
+assert.match(production, /const replayableBody = \(isAddressApi \|\| isStoreProfileApi\) && needsBody/);
 assert.match(production, /typeof body === 'string' \? new TextEncoder\(\)\.encode\(body\)\.buffer/);
 assert.match(production, /const isJsonResponse = response =>/);
 assert.match(production, /if \(!isAddressApi \|\| isJsonResponse\(primaryResponse\)\)/);
