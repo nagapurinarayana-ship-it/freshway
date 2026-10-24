@@ -111,7 +111,8 @@ export async function onRequest(context) {
         const fallbackProfile = fallbackData?.storeProfile;
         if (fallbackProfile &&
             typeof fallbackProfile.storeName === 'string' && fallbackProfile.storeName.trim() &&
-            typeof fallbackProfile.address === 'string' && fallbackProfile.address.trim()) {
+            typeof fallbackProfile.address === 'string' && fallbackProfile.address.trim() &&
+            (method === 'GET' || fallbackData?.ok === true)) {
           return fallbackResponse;
         }
         return jsonError('Store Profile service returned incomplete data. Saved business details were not changed.');
