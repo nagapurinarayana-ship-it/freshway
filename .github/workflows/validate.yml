@@ -92,6 +92,7 @@ jobs:
 
       - name: Check PWA direct-install contract
         run: |
+          node pwa-icons-integrity.mjs
           node <<'NODE'
           const fs = require('fs');
           const manifest = JSON.parse(fs.readFileSync('manifest.webmanifest', 'utf8'));
@@ -109,7 +110,8 @@ jobs:
           const index = fs.readFileSync('index.html', 'utf8');
           const pwa = fs.readFileSync('frontend/customer/pwa-install.js', 'utf8');
           if (!pwa.includes("navigator.serviceWorker.register('/sw.js'")) throw new Error('PWA service worker registration missing');
-          if (pwa.includes('beforeinstallprompt') || pwa.includes('deferredPrompt') || pwa.includes('prompt.prompt()')) throw new Error('FreshWay must not intercept the browser install prompt');
+          if (!pwa.includes('beforeinstallprompt') || !pwa.includes('deferredPrompt') || !pwa.includes('promptEvent.prompt()') || !pwa.includes('promptEvent.userChoice')) throw new Error('FreshWay must retain and invoke Chrome\'s native install prompt when available');
+          if (!index.includes('pwa-install.js?v=20261024-native-install-v1')) throw new Error('Customer shell must load the native-install-capable script version');
           for (const required of ['manifest.webmanifest','pwa-install.css','pwa-install.js']) {
             if (!index.includes(required)) throw new Error('index.html is missing ' + required);
           }
