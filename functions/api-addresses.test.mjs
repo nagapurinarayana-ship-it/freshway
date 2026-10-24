@@ -13,7 +13,7 @@ assert.match(production, /const addressBody = isAddressApi && needsBody/);
 assert.match(production, /typeof body === 'string' \? new TextEncoder\(\)\.encode\(body\)\.buffer/);
 assert.match(production, /const isJsonResponse = response =>/);
 assert.match(production, /if \(!isAddressApi \|\| isJsonResponse\(primaryResponse\)\)/);
-assert.match(production, /const isStoreProfileApi = targetPath === '\/api\/store-profile'/);
+assert.match(production, /const isStoreProfileApi = \(targetPath === '\/api\/store-profile' \|\| targetPath === '\/api\/admin\/store-profile'\) && method === 'GET'/);
 assert.match(production, /const fallbackResponse = await fetch\(buildRequest\(target\.toString\(\)\)\)/);
 assert.match(production, /Address service returned an unexpected response\./);
 assert.match(production, /Address service is temporarily unavailable/);
@@ -110,3 +110,58 @@ assert.match(addressUi, /locationLookupPending/);
 assert.match(addressUi, /editorCoordinates = previousCoordinates/);
 assert.doesNotMatch(addressUi, /const preserve = labelFields\.map/);
 console.log('quick-commerce address creation, explicit search choice, and immutable snapshot guards OK');
+
+// Owner Store Profile calls /api/admin/store-profile. If the Pages service binding is
+// stale or serves an incomplete profile, the API boundary must retry the production
+// Worker route rather than returning empty data to the form.
+const originalFetch = globalThis.fetch;
+const completeStoreProfile = {
+  storeName: 'FreshWay',
+  about: 'Cold-pressed oils and rice',
+  phone: '9876543210',
+  whatsapp: '9876543210',
+  email: 'hello@example.test',
+  address: '1-1-LA0022, Road No 2, Laxminagar, Mancherial 504208',
+  businessHours: '9 AM–7 PM',
+  deliveryInfo: 'Local delivery',
+  shareTitle: 'FreshWay',
+  shareDescription: 'Fresh essentials delivered locally',
+  shopLatitude: null,
+  shopLongitude: null
+};
+try {
+  for (const staleResponse of [
+    () => Response.json({ storeProfile: { ...completeStoreProfile, address: '' } }),
+    () => Response.json({ error: 'Not found' }, { status: 404 })
+  ]) {
+    let fallbackCalls = 0;
+    globalThis.fetch = async request => {
+      fallbackCalls += 1;
+      const url = new URL(request.url);
+      assert.equal(url.hostname, 'freshway-api.all-in-one-all.workers.dev');
+      assert.equal(url.pathname, '/api/admin/store-profile');
+      assert.equal(request.headers.get('cookie'), '__Host-freshway-admin-session=test-cookie');
+      return Response.json({ storeProfile: completeStoreProfile });
+    };
+    const response = await apiOnRequest({
+      request: new Request('https://fwcoldpressed.in/api/admin/store-profile', {
+        headers: { cookie: '__Host-freshway-admin-session=test-cookie' }
+      }),
+      env: {
+        FRESHWAY_API: {
+          fetch: async request => {
+            assert.equal(new URL(request.url).pathname, '/api/admin/store-profile');
+            return staleResponse();
+          }
+        }
+      },
+      next: async () => new Response('next')
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { storeProfile: completeStoreProfile });
+    assert.equal(fallbackCalls, 1);
+  }
+} finally {
+  globalThis.fetch = originalFetch;
+}
+console.log('Owner Store Profile stale-binding fallback regression OK');
