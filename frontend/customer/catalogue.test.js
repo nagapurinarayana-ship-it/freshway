@@ -5,14 +5,14 @@ const source=fs.readFileSync('frontend/customer/catalogue.js','utf8');
 const app=fs.readFileSync('app.js','utf8');
 const freshness=fs.readFileSync('frontend/customer/state-freshness.js','utf8');
 const ordersData=fs.readFileSync('frontend/customer/orders-data.js','utf8');
-const homeHtml=fs.readFileSync('index.html','utf8');
+const homeLocationHtml=fs.readFileSync('index.html','utf8');
 const addressSystem=fs.readFileSync('address-system-final.js','utf8');
-assert.match(homeHtml,/<button class="location-card" id="addressBtn"/,'the full home location row is a single accessible target that opens the existing address helper');
-assert.match(homeHtml,/id="homeAddressMeta"/,'home location includes a concise helper/status line');
-assert.match(homeHtml,/id="checkoutForm"/,'the existing checkout form remains present and unchanged by home location UI work');
-assert.match(homeHtml,/id="house"/);
-assert.match(homeHtml,/id="area"/);
-assert.match(homeHtml,/id="pincode"/);
+assert.match(homeLocationHtml,/<button class="location-card" id="addressBtn"/,'the full home location row is a single accessible target that opens the existing address helper');
+assert.match(homeLocationHtml,/id="homeAddressMeta"/,'home location includes a concise helper/status line');
+assert.match(homeLocationHtml,/id="checkoutForm"/,'the existing checkout form remains present and unchanged by home location UI work');
+assert.match(homeLocationHtml,/id="house"/);
+assert.match(homeLocationHtml,/id="area"/);
+assert.match(homeLocationHtml,/id="pincode"/);
 assert.match(addressSystem,/const homeMeta = \$\('#homeAddressMeta'\)/,'home address helper text is updated by the existing address system');
 assert.match(addressSystem,/syncCheckout\(\);/,'existing checkout synchronization remains in the existing address system');
 
@@ -148,9 +148,9 @@ console.log('four-product category fold-fit contract OK');
 
 
 const homeHtml=fs.readFileSync('index.html','utf8');
-assert.match(homeHtml,/<div class="location-card"><div class="location-card-copy">/,'home uses a compact delivery-location selector');
-assert.ok(homeHtml.includes('<span class="location-pin" aria-hidden="true">⌖</span> DELIVER TO'),'location selector clearly labels delivery destination');
-assert.match(homeHtml,/<button class="text-btn location-change-btn" id="addressBtn" type="button" aria-label="Change delivery location">/,'existing address helper remains the location-change action');
+assert.match(homeHtml,/<button class="location-card" id="addressBtn" type="button" aria-label="Choose delivery address">/,'home uses a single accessible tappable delivery-location selector');
+assert.ok(homeHtml.includes('<span class="location-eyebrow"><span class="location-dot" aria-hidden="true"></span> DELIVER TO</span>'),'location selector clearly labels delivery destination');
+assert.ok(homeHtml.includes('id="homeAddressMeta"'),'location selector has a concise guidance line for new and returning customers');
 assert.ok(homeHtml.includes('styles.css?v=20261025-zepto-home-location-v1'),'home location UI cache-bust is current');
-assert.ok(fs.readFileSync('styles.css','utf8').includes('.location-card-copy{min-width:0;flex:1}'),'compact selector handles long addresses on mobile');
+assert.ok(fs.readFileSync('styles.css','utf8').includes('button.location-card{'),'full-width selector has its own responsive styling');
 console.log('Zepto-inspired home location selector contract OK');
