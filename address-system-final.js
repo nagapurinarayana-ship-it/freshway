@@ -351,12 +351,19 @@
         '<button type="button" class="secondary-btn danger" data-fw-delete="' + esc(address.id) + '">Delete</button>' +
         '</div></article>';
     }).join('');
+    const homeGuest = modalOrigin === 'home' && guestAddressMode;
+    const emptyState = homeGuest
+      ? '<div class="fw-address-empty"><span>📍</span><strong>No saved addresses</strong><p>Choose a delivery location for this visit. Sign in only if you want to save it for next time.</p></div>'
+      : '<div class="fw-address-empty"><span>📍</span><strong>No saved addresses yet</strong><p>Add your first address. It will automatically become your default.</p></div>';
+    const addAction = '<button type="button" class="primary-btn full fw-address-add" id="fwAddressManagerNew">' +
+      (modalOrigin === 'home' ? '📍 Use current location or search' : '+ Add address') + '</button>';
     element.innerHTML =
       '<div class="modal-sheet address-modal-sheet" role="document">' +
       '<div class="modal-head fw-address-modal-head"><div><span class="eyebrow">DELIVERY</span><h2 id="addressModalTitle" tabindex="-1">Your addresses</h2><p class="fw-address-subtitle">Choose an address or manage your saved locations.</p></div>' +
       '<button type="button" class="icon-btn" data-close-modal aria-label="Close addresses">×</button></div>' +
-      (list || '<div class="fw-address-empty"><span>📍</span><strong>No saved addresses yet</strong><p>Add your first address. It will automatically become your default.</p></div>') +
-      '<button type="button" class="primary-btn full fw-address-add" id="fwAddressManagerNew">+ Add address</button>' +
+      (modalOrigin === 'home' ? addAction : '') +
+      (list || emptyState) +
+      (modalOrigin === 'home' ? '' : addAction) +
       '</div>';
     showModal();
     focusModalTitle();
@@ -400,7 +407,7 @@
       placeId: source.placeId, locationUpdatedAt: source.locationUpdatedAt
     } : null;
     searchResults = [];
-    const locationPanel = '<div class="fw-location-tools"><button type="button" class="secondary-btn" id="fwAddressGps">📍 Use current location</button>' +
+    const locationPanel = '<div class="fw-location-tools"><button type="button" class="' + (modalOrigin === 'home' ? 'primary-btn' : 'secondary-btn') + '" id="fwAddressGps">📍 Use current location</button>' +
       '<div class="fw-address-search"><input id="fwAddrSearchInput" type="search" placeholder="Search area, street or landmark" aria-label="Search delivery location"><button type="button" class="secondary-btn" id="fwAddressSearch">Search</button></div></div>' +
       '<div id="fwAddressSearchResults" class="fw-address-search-results" aria-live="polite"></div>' +
       '<div id="fwAddressMap" class="address-map fw-address-map"></div>' +
