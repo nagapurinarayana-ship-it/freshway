@@ -160,7 +160,8 @@ test('cancelling a live order atomically restores reserved stock and clears rese
   assert.match(f.batches[0][0].sql, /stock_quantity=stock_quantity\+\?/);
   assert.match(f.batches[0][1].sql, /UPDATE order_items SET stock_reserved_qty=0/);
   assert.match(f.batches[0][2].sql, /UPDATE orders SET/);
-  assert.ok(f.batches[0].every(statement => /EXISTS\(SELECT 1 FROM orders o WHERE o\.id=\? AND o\.delivery_status IS \?/.test(statement.sql)));
+  assert.ok(f.batches[0].slice(0, 2).every(statement => /EXISTS\(SELECT 1 FROM orders o WHERE o\.id=\? AND o\.delivery_status IS \?/.test(statement.sql)));
+  assert.match(f.batches[0][2].sql, /WHERE id=\? AND delivery_status IS \?/);
 
   await updateOrder(f.env, f.order.id, { status: 'Cancelled' });
   assert.equal(f.products.get('p1').stock_quantity, 5, 'repeating cancellation must not restore stock twice');
