@@ -4,6 +4,7 @@ import { buildOrderPlacedAlerts, dispatchOrderAlert } from './order-alerts.js';
 import { buildOrderChangeAlerts } from './admin-notifications.js';
 import { handleReverseGeocode } from './geocode-api.js';
 import { validatePushEndpoint } from './push-endpoint.js';
+import { checkServiceability, ServiceabilityError, validCoordinates } from './serviceability.js';
 
 const json = (data, status = 200, origin = '*') => new Response(JSON.stringify(data), {
   status,
@@ -91,6 +92,9 @@ async function createOrder(env, payload, ctx) {
   if (!/^\d{6}$/.test(String(address.pincode))) throw new Error('Enter a valid 6-digit PIN code.');
   const existing = await existingOrderByClientId(env, customerId, clientOrderId);
   if (existing) return existing;
+  // Authoritative check before any customer/address/order writes, inventory updates, or notifications.
+  const serviceability = await checkServiceability(env, address);
+  if (!serviceability.orderAllowed) throw new ServiceabilityError(serviceability.message || "Delivery isn't available at this location yet.", 422, serviceability.code || 'DELIVERY_UNAVAILABLE');
   const { items, total } = await validateOrderItems(env, rawItems);
   const phone = cleanPhone(customer.phone), customerName = String(customer.name).trim().slice(0, 100);
   const existingCustomer = await env.DB.prepare('SELECT phone FROM customers WHERE id=? LIMIT 1').bind(customerId).first();
@@ -101,12 +105,28 @@ async function createOrder(env, payload, ctx) {
   await env.DB.prepare(`INSERT INTO customers (id,name,phone,whatsapp_opt_in,updated_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)
     ON CONFLICT(id) DO UPDATE SET name=CASE WHEN customers.name IS NULL OR TRIM(customers.name)='' THEN excluded.name ELSE customers.name END, whatsapp_opt_in=excluded.whatsapp_opt_in, updated_at=CURRENT_TIMESTAMP`)
     .bind(customerId, customerName, customerPhoneForProfile, payload.whatsappOptIn ? 1 : 0).run();
-  const addressResult = await env.DB.prepare(`INSERT INTO addresses (customer_id,house,area,city,pincode,landmark,note) VALUES (?,?,?,?,?,?,?)`)
-    .bind(customerId, String(address.house).trim().slice(0, 200), String(address.area).trim().slice(0, 200), String(address.city).trim().slice(0, 100), String(address.pincode), String(address.landmark || '').trim().slice(0, 200), String(address.note || '').trim().slice(0, 500)).run();
+  const hasCoordinates = validCoordinates(address.latitude, address.longitude);
+  const rawAccuracy = Number(address.accuracyMeters);
+  const accuracyMeters = address.accuracyMeters == null || address.accuracyMeters === '' || !Number.isFinite(rawAccuracy) || rawAccuracy < 0 || rawAccuracy > 100000 ? null : rawAccuracy;
+  const addressResult = await env.DB.prepare(`INSERT INTO addresses (customer_id,house,area,city,pincode,landmark,note,latitude,longitude,accuracy_meters,location_source,place_id,location_updated_at,street,locality,district,state,building,floor,recipient_name,delivery_phone,label) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .bind(customerId,
+      String(address.house).trim().slice(0, 200), String(address.area).trim().slice(0, 200),
+      String(address.city).trim().slice(0, 100), String(address.pincode),
+      String(address.landmark || '').trim().slice(0, 200), String(address.note || '').trim().slice(0, 500),
+      hasCoordinates ? Number(address.latitude) : null, hasCoordinates ? Number(address.longitude) : null,
+      accuracyMeters,
+      String(address.locationSource || '').trim().slice(0, 30), String(address.placeId || '').trim().slice(0, 200),
+      String(address.locationUpdatedAt || '').trim().slice(0, 40), String(address.street || '').trim().slice(0, 200),
+      String(address.locality || '').trim().slice(0, 160), String(address.district || '').trim().slice(0, 100),
+      String(address.state || '').trim().slice(0, 100), String(address.building || '').trim().slice(0, 160),
+      String(address.floor || '').trim().slice(0, 40), String(address.recipientName || customerName).trim().slice(0, 120),
+      cleanPhone(address.deliveryPhone || phone), String(address.label || 'Order').trim().slice(0, 40)
+    ).run();
   const addressId = addressResult?.meta?.last_row_id; if (!addressId) throw new Error('Could not save delivery address.');
   const id = orderId(), createdAt = now();
   const stockUpdates=items.filter(item=>item.stockReservedQty>0).map(item=>env.DB.prepare('UPDATE products SET stock_quantity=stock_quantity-? WHERE id=? AND stock_managed=1').bind(item.stockReservedQty,item.id));
-  const statements=[...stockUpdates,env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at) VALUES (?,?,?,?,?,?, 'Not Collected','New','Tomorrow',?,?,?)`).bind(id,customerId,addressId,customerName,phone,total,clientOrderId||null,createdAt,createdAt),...items.map(item=>env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total,stock_reserved_qty,hsn_code,gst_rate_bps,gst_rate_confirmed) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).bind(id,item.id,item.name,item.unit,item.qty,item.price,item.lineTotal,item.stockReservedQty,item.hsn_code||'',Number(item.gst_rate_bps||0),Number(item.gst_rate_confirmed||0)))];
+  const serviceabilitySnapshot = env.DB.prepare('INSERT INTO order_serviceability_snapshots (order_id,zone_id,zone_name,enforcement_mode,serviceable,order_allowed,match_type,reason_code,config_version,checked_at) VALUES (?,?,?,?,?,?,?,?,?,?)').bind(id,serviceability.zone?.id||null,serviceability.zone?.name||'',serviceability.mode,serviceability.serviceable==null?null:(serviceability.serviceable?1:0),serviceability.orderAllowed?1:0,serviceability.matchType||'not_checked',serviceability.code,Number(serviceability.configVersion||1),createdAt);
+  const statements=[...stockUpdates,env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at) VALUES (?,?,?,?,?,?, 'Not Collected','New','Tomorrow',?,?,?)`).bind(id,customerId,addressId,customerName,phone,total,clientOrderId||null,createdAt,createdAt),...items.map(item=>env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total,stock_reserved_qty,hsn_code,gst_rate_bps,gst_rate_confirmed) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).bind(id,item.id,item.name,item.unit,item.qty,item.price,item.lineTotal,item.stockReservedQty,item.hsn_code||'',Number(item.gst_rate_bps||0),Number(item.gst_rate_confirmed||0))),serviceabilitySnapshot];
   try { await env.DB.batch(statements); } catch (error) {
     await env.DB.prepare('DELETE FROM addresses WHERE id=?').bind(addressId).run();
     if (clientOrderId && /unique|constraint/i.test(error?.message || '')) {
@@ -124,10 +144,10 @@ async function createOrder(env, payload, ctx) {
 
 async function customerOrders(env, customerId) {
   if (!customerId) throw new Error('Customer id is required.');
-  const { results: rows } = await env.DB.prepare(`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.payment_collected_at,a.house,a.area,a.city,a.pincode,a.landmark,a.note,oi.product_id,oi.name,oi.unit,oi.qty,oi.price,oi.line_total FROM orders o JOIN addresses a ON a.id=o.address_id JOIN order_items oi ON oi.order_id=o.id WHERE o.customer_id=? AND o.is_test_order=0 ORDER BY o.created_at DESC, oi.id ASC`).bind(customerId).all();
+  const { results: rows } = await env.DB.prepare(`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.payment_collected_at,a.house,a.area,a.city,a.pincode,a.landmark,a.note,a.latitude,a.longitude,oi.product_id,oi.name,oi.unit,oi.qty,oi.price,oi.line_total FROM orders o JOIN addresses a ON a.id=o.address_id JOIN order_items oi ON oi.order_id=o.id WHERE o.customer_id=? AND o.is_test_order=0 ORDER BY o.created_at DESC, oi.id ASC`).bind(customerId).all();
   return groupOrders(rows || []);
 }
-function groupOrders(rows) { const map = new Map(); for (const r of rows) { if (!map.has(r.id)) map.set(r.id,{id:r.id,customer:{name:r.customer_name,phone:r.customer_phone},address:{house:r.house,area:r.area,city:r.city,pincode:r.pincode,landmark:r.landmark,note:r.note},items:[],total:r.total,payment:r.payment_status,status:r.delivery_status,deliveryPlan:r.delivery_plan,createdAt:r.created_at,updatedAt:r.updated_at,paymentCollectedAt:r.payment_collected_at}); map.get(r.id).items.push({id:r.product_id,name:r.name,unit:r.unit,qty:r.qty,price:r.price,lineTotal:r.line_total}); } return [...map.values()]; }
+function groupOrders(rows) { const map = new Map(); for (const r of rows) { if (!map.has(r.id)) map.set(r.id,{id:r.id,customer:{name:r.customer_name,phone:r.customer_phone},address:{house:r.house,area:r.area,city:r.city,pincode:r.pincode,landmark:r.landmark,note:r.note,latitude:r.latitude,longitude:r.longitude},items:[],total:r.total,payment:r.payment_status,status:r.delivery_status,deliveryPlan:r.delivery_plan,createdAt:r.created_at,updatedAt:r.updated_at,paymentCollectedAt:r.payment_collected_at}); map.get(r.id).items.push({id:r.product_id,name:r.name,unit:r.unit,qty:r.qty,price:r.price,lineTotal:r.line_total}); } return [...map.values()]; }
 
 const ORDER_STATUSES=['New','Confirmed','Processing','Ready','Out for Delivery','Delivered','Cancelled'];
 const ORDER_PAYMENTS=['Not Collected','Collected','Refunded','Cancelled'];
@@ -306,6 +326,7 @@ export { normalizePaymentFilter, validateOrderPatch, validateOrderItems, updateO
 
 export default{async fetch(request,env,ctx){const cors=origin(env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{'access-control-allow-origin':cors,'access-control-allow-methods':'GET,POST,PATCH,OPTIONS','access-control-allow-headers':'Content-Type,Authorization,X-Freshway-Admin-Token'}});const url=new URL(request.url);try{
 if(url.pathname==='/api/health'&&request.method==='GET')return json({ok:true,service:'freshway-api'},200,cors);if(url.pathname==='/api/geocode/reverse'&&request.method==='GET')return handleReverseGeocode(request,{origin:cors,fetcher:fetch,cache:typeof caches!=='undefined'?caches.default:null,waitUntil:promise=>ctx?.waitUntil?.(promise)});if(url.pathname==='/api/store-profile'&&request.method==='GET')return json({storeProfile:await getStoreProfile(env)},200,cors);
+if(url.pathname==='/api/serviceability/check'&&request.method==='POST'){const requestBody=await body(request),decision=await checkServiceability(env,requestBody.address||requestBody);return json({mode:decision.mode,serviceable:decision.serviceable,orderAllowed:decision.orderAllowed,code:decision.code,message:decision.message,customerLabel:decision.zone?.customerLabel||'',matchType:decision.matchType,configVersion:decision.configVersion},200,cors)}
 if(url.pathname==='/api/products'&&request.method==='GET')return json({products:await products(env,false)},200,cors);
 if(url.pathname==='/api/push/public-key'&&request.method==='GET')return json({publicKey:env.VAPID_PUBLIC_KEY||null},200,cors);
 if(url.pathname==='/api/push/subscribe'&&request.method==='POST')return json(await saveSubscription(env,await body(request)),200,cors);
@@ -320,4 +341,4 @@ if(url.pathname.startsWith('/api/admin/products/')&&request.method==='PATCH'){if
 if(url.pathname==='/api/admin/notifications/history'&&request.method==='GET'){if(!auth(request,env))return json({notifications:await notificationHistory(env)},200,cors)}
 if(url.pathname==='/api/notifications/broadcast'&&request.method==='POST'){if(!auth(request,env))return json({error:'Unauthorized'},401,cors);const payload=await body(request),channels=Array.isArray(payload.channels)?payload.channels:[];if(!channels.length)return json({error:'Select at least one notification channel.'},400,cors);if(channels.some(channel=>!['app','whatsapp'].includes(channel)))return json({error:'Invalid notification channel.'},400,cors);const results=[];if(channels.includes('app'))results.push(await broadcastPush(env,payload));if(channels.includes('whatsapp'))results.push(await broadcastWhatsApp(env,payload));return json({results},200,cors)}
 return json({error:'Not found'},404,cors);
-}catch(error){const message=error?.message||'Unexpected server error.';const status=/^ORDER_CONFLICT:/.test(message)?409:/Unauthorized/i.test(message)?401:/required|invalid|empty|available|maximum|cannot|not found|no order|no product|only after/i.test(message)?400:500;return json({error:message.replace(/^ORDER_CONFLICT:\s*/, '')},status,cors)}}};
+}catch(error){const message=error?.message||'Unexpected server error.';const status=Number.isInteger(error?.status)?error.status:(/^ORDER_CONFLICT:/.test(message)?409:/Unauthorized/i.test(message)?401:/required|invalid|empty|available|maximum|cannot|not found|no order|no product|only after/i.test(message)?400:500);return json({error:message.replace(/^ORDER_CONFLICT:\s*/,''),...(error?.code?{code:error.code}:{})},status,cors)}}};

@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v75';
+const CACHE = 'freshway-v76';
 const APP_SHELL = [
 '/',
 '/index.html',
@@ -6,7 +6,9 @@ const APP_SHELL = [
 '/frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2',
 '/address-system.css?v=20260907-address-v2',
 '/frontend/customer/address-book.css?v=20261020-address-ui-hardening-v2',
-'/frontend/customer/checkout-submit.js?v=20261020-selected-address-checkout-v2',
+'/frontend/customer/serviceability.css?v=20261025-serviceable-areas-v1',
+'/frontend/customer/checkout-submit.js?v=20261025-serviceable-areas-v1',
+'/frontend/customer/serviceability-experience.js?v=20261025-serviceable-areas-v1',
 '/app.js?v=20261021-home-navigation-refresh-v1',
 '/frontend/customer/orders-view.js?v=20261022-invoice-status-copy-v2',
   '/frontend/customer/invoice-download.js?v=20261022-customer-invoice-v1',

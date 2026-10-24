@@ -5,6 +5,7 @@ import { summary, reports } from './admin-reports.js';
 import { deleteProduct } from './admin-products.js';
 import { getStoreProfile, updateStoreProfile } from './store-profile.js';
 import { getInvoiceSettings, updateInvoiceSettings, backfillMissingInvoices } from './invoice-service.js';
+import { getServiceabilityAdmin, createServiceabilityZone, updateServiceabilityZone, updateServiceabilitySettings, testServiceabilityDestination } from './serviceability.js';
 
 // Route table is intentionally kept small: authentication/routing lives in admin-auth.js;
 // domain behavior lives in one feature module per resource.
@@ -18,6 +19,11 @@ const routes = [
   { match: (u,m) => u.pathname.startsWith('/api/admin/products/') && m === 'DELETE', run: (r,e,u) => deleteProduct(e,decodeURIComponent(u.pathname.split('/').pop())) },
   { match: (u,m) => u.pathname === '/api/admin/store-profile' && m === 'GET', run: async (r,e,u) => ({storeProfile:await getStoreProfile(e)}) },
   { match: (u,m) => u.pathname === '/api/admin/store-profile' && m === 'PATCH', run: async (r,e,u) => ({storeProfile:await updateStoreProfile(e,await r.json())}) },
+  { match: (u,m) => u.pathname === '/api/admin/serviceability' && m === 'GET', run: async (r,e,u) => await getServiceabilityAdmin(e) },
+  { match: (u,m) => u.pathname === '/api/admin/serviceability/settings' && m === 'PATCH', run: async (r,e,u) => await updateServiceabilitySettings(e,await r.json()) },
+  { match: (u,m) => u.pathname === '/api/admin/serviceability/zones' && m === 'POST', run: async (r,e,u) => await createServiceabilityZone(e,await r.json()) },
+  { match: (u,m) => u.pathname === '/api/admin/serviceability/test' && m === 'POST', run: async (r,e,u) => await testServiceabilityDestination(e,await r.json()) },
+  { match: (u,m) => /^\/api\/admin\/serviceability\/zones\/[^/]+$/.test(u.pathname) && m === 'PATCH', run: async (r,e,u) => await updateServiceabilityZone(e,decodeURIComponent(u.pathname.split('/').pop()),await r.json()) }
   { match: (u,m) => u.pathname === '/api/admin/invoice-settings' && m === 'GET', run: async (r,e,u) => ({invoiceSettings:await getInvoiceSettings(e)}) },
   { match: (u,m) => u.pathname === '/api/admin/invoice-settings' && m === 'PATCH', run: async (r,e,u) => { const invoiceSettings=await updateInvoiceSettings(e,await r.json()); const invoiceBackfill=invoiceSettings.enabled?await backfillMissingInvoices(e):null; return {invoiceSettings,invoiceBackfill}; } },
   { match: (u,m) => u.pathname === '/api/admin/invoices/backfill' && m === 'POST', run: async (r,e,u) => ({invoiceBackfill:await backfillMissingInvoices(e)}) }
@@ -30,6 +36,7 @@ export async function handleAdminData(request,env){
     return route?json(await route.run(request,env,u)):null;
   }catch(e){
     const message=String(e?.message||'Admin data request failed.');
+    if(Number.isInteger(e?.status)&&e.status>=400&&e.status<=599)return json({error:message,code:e.code||'SERVICEABILITY_ERROR'},e.status);
     if(/^ORDER_CONFLICT:/.test(message))return json({error:message.replace(/^ORDER_CONFLICT:\s*/,''),code:'ORDER_CONFLICT'},409);
     if(/^(Invalid |Choose a valid invoice|Invoice issuance is not enabled|Invoice series prefix|Enter the store name|Enter the legal business name used on invoices|Enter the complete business address used on invoices|Enter the seller state|Enter a valid two-digit seller GST state code|Enter a valid 15-character GSTIN|Seller state code must match|Seller state name and GST state code do not match|V1 requires|Add a valid HSN|Confirm the GST classification|Set the approved GST rate|The delivery address needs a valid state|This order has no invoice items|Invoices cannot be issued|Order not found|No order change|Delivery plan|Payment|Cash can|Only collected|Collected cash|Cannot change)/i.test(message))return json({error:message},400);
     const errorId=crypto.randomUUID();

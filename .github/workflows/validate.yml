@@ -58,6 +58,8 @@ jobs:
           node admin-orders.test.js
           node frontend/admin/order-alerts.test.js
           node frontend/admin/store-profile.test.js
+          node frontend/admin/serviceable-areas.test.js
+          node frontend/customer/serviceability-experience.test.js
           node frontend/admin/invoice-settings.test.js
           node worker/test/invoice-seller-defaults.test.js
           node frontend/customer/confirmation.test.js

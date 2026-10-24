@@ -1,0 +1,14 @@
+/* Non-blocking customer location/serviceability notices. */
+.fw-location-notice{display:flex;align-items:flex-start;gap:10px;margin:0 0 12px;padding:11px 12px;border:1px solid var(--line);border-radius:14px;background:#fff;color:var(--ink);font-size:12px;line-height:1.45}
+.fw-location-notice[hidden]{display:none!important}
+.fw-location-notice-icon{flex:0 0 auto;display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:#f2f6f3;color:var(--green);font-size:16px}
+.fw-location-notice-copy{flex:1;min-width:0}
+.fw-location-notice-copy strong{display:block;font-size:12px;margin-bottom:2px}
+.fw-location-notice-copy p{margin:0;color:var(--muted);font-size:11px}
+.fw-location-notice-actions{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.fw-location-notice-actions button{border:0;border-radius:9px;padding:7px 10px;background:var(--mint);color:var(--green);font-weight:800;font-size:11px}
+.fw-location-notice-actions button[data-fw-location-dismiss]{background:#f3f5f3;color:var(--ink)}
+#fwServiceabilityStatus{border-color:#e7c6a3;background:#fff9f1}
+#fwServiceabilityStatus .fw-location-notice-icon{background:#ffecd7;color:#8f4b0d}
+@media(prefers-reduced-motion:no-preference){.fw-location-notice{animation:fwLocationNoticeIn .16s ease-out}}
+@keyframes fwLocationNoticeIn{from{opacity:.55;transform:translateY(-2px)}to{opacity:1;transform:translateY(0)}}
