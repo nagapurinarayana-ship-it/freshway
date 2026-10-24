@@ -1,0 +1,46 @@
+name: Render FreshWay brand raster icons
+
+on:
+  push:
+    branches: [build/render-branded-icons-20261024]
+    paths:
+      - "tools/render-brand-app-icons.py"
+      - "icons/icon-192.svg"
+      - "icons/icon-512.svg"
+      - ".github/workflows/render-brand-app-icons.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  render-brand-icons:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install SVG renderer
+        run: python -m pip install --disable-pip-version-check cairosvg pillow
+      - name: Render branded raster icons from the existing official SVG
+        run: python tools/render-brand-app-icons.py
+      - name: Commit generated icons to this build branch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BRANCH_NAME: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add icons/icon-192-brand-v2.png icons/icon-512-brand-v2.png icons/icon-512-maskable-v2.png
+          if git diff --cached --quiet; then
+            echo "Branded raster icons already match the official SVG artwork."
+            exit 0
+          fi
+          git commit -m "Generate FreshWay branded Android icons"
+          git push origin "HEAD:$BRANCH_NAME"
