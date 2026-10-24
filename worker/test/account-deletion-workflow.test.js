@@ -37,3 +37,12 @@ test('Owner queue exposes guarded completion after review', () => {
   assert.match(ownerModule, /FreshWayOwnerInvoiceSettings\?\.hasUnsavedChanges/);
   assert.match(ownerModule, /Account deletion does not save these settings/);
 });
+
+test('completed deletion history is aggregate-only and contains no per-customer cards', () => {
+  assert.match(adminAuth, /SELECT completed_count,latest_completed_at FROM account_deletion_summary WHERE id=1/);
+  assert.match(adminAuth, /status==='completed'\?' WHERE 0'/);
+  assert.match(ownerModule, /function renderSummary\(summary\)/);
+  assert.match(ownerModule, /item\.status !== 'completed'/);
+  assert.match(ownerModule, /Individual completed-request records are deleted/);
+  assert.match(ownerHtml, /id="accountDeletionSummary"/);
+});

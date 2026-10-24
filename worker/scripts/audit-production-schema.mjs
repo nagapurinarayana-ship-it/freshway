@@ -52,6 +52,7 @@ const required = {
   push_subscriptions: ['customer_id'],
   notification_events: ['customer_id', 'order_id'],
   account_deletion_requests: ['id', 'customer_id', 'phone_snapshot', 'status', 'source', 'admin_note', 'updated_at', 'processed_at'],
+  account_deletion_summary: ['id', 'completed_count', 'latest_completed_at'],
   auth_rate_limits: ['key', 'window_start', 'count']
 };
 
@@ -88,6 +89,8 @@ report.migrationCount = migrationRows.length;
 
 const snapshotRedactionMigration = '0035_nullable_snapshot_customer_id_for_erasure.sql';
 const redactionMigrationApplied = migrationRows.some(row => String(row.name) === snapshotRedactionMigration);
+const accountDeletionAnonymizationMigration = '0036_anonymize_completed_deletion_requests.sql';
+const accountDeletionAnonymizationApplied = migrationRows.some(row => String(row.name) === accountDeletionAnonymizationMigration);
 const snapshotColumns = rowsFor(
   'PRAGMA table_info("order_address_snapshots")',
   row => 'name' in row && 'notnull' in row
@@ -101,6 +104,17 @@ report.snapshotErasureCompatibility = {
 // once the migration is recorded; the Worker release runs this audit after migrations.
 if (redactionMigrationApplied && (!snapshotCustomerId || Number(snapshotCustomerId.notnull) !== 0)) {
   problems.push('order_address_snapshots.customer_id must allow NULL for account erasure');
+}
+const deletionSummaryColumns = rowsFor(
+  'PRAGMA table_info("account_deletion_summary")',
+  row => 'name' in row
+).map(row => String(row.name));
+report.accountDeletionAnonymizationCompatibility = {
+  migrationApplied: accountDeletionAnonymizationApplied,
+  summaryTableReady: ['id','completed_count','latest_completed_at'].every(column => deletionSummaryColumns.includes(column))
+};
+if (accountDeletionAnonymizationApplied && !report.accountDeletionAnonymizationCompatibility.summaryTableReady) {
+  problems.push('account_deletion_summary is missing required aggregate columns');
 }
 
 

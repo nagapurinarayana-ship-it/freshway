@@ -43,9 +43,11 @@ export async function fulfillAccountDeletion(env, requestId, adminNote) {
     ));
   }
 
-  // Keep the status update last so every previous statement evaluates the same
-  // in_review guard. If another Owner changed the request first, all mutations no-op.
-  statements.push(env.DB.prepare("UPDATE account_deletion_requests SET status='completed',phone_snapshot='REDACTED',admin_note=?,updated_at=CURRENT_TIMESTAMP,processed_at=CURRENT_TIMESTAMP WHERE id=? AND customer_id=? AND status='in_review'").bind(note, requestId, customerId));
+  // Store only a global aggregate, then delete the request itself. Both writes
+  // are guarded and run in the same D1 batch as operational redaction, so an
+  // incomplete/concurrent request cannot increment the summary independently.
+  statements.push(env.DB.prepare("INSERT INTO account_deletion_summary (id,completed_count,latest_completed_at) SELECT 1,1,CURRENT_TIMESTAMP WHERE EXISTS (SELECT 1 FROM account_deletion_requests WHERE id=? AND customer_id=? AND status='in_review') ON CONFLICT(id) DO UPDATE SET completed_count=account_deletion_summary.completed_count+1,latest_completed_at=CURRENT_TIMESTAMP").bind(requestId, customerId));
+  statements.push(env.DB.prepare("DELETE FROM account_deletion_requests WHERE id=? AND customer_id=? AND status='in_review'").bind(requestId, customerId));
 
   const results = await env.DB.batch(statements);
   const completion = results?.[results.length - 1];

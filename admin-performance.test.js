@@ -29,8 +29,8 @@ assert.match(admin,/refreshOwnerAfterOrderMutation\(\)/);
 assert.doesNotMatch(admin,/localStorage\.setItem\(['"]freshway-admin-session['"]/);
 assert.doesNotMatch(admin,/sessionStorage\.setItem\(['"]freshway-admin-session['"]/);
 assert.match(admin,/AUTH_HINT='freshway-admin-auth'/);
-assert.match(html,/admin\.js\?v=20261023-new-order-kpi-wait-v1/);
-assert.match(html,/admin\.css\?v=20261022-invoice-ui-v1/);
+assert.match(html,/admin\.js\?v=20261024-settings-init-v1/);
+assert.match(html,/admin\.css\?v=20261024-deletion-privacy-v1/);
 assert.doesNotMatch(html,/\.exact-location/);
 
 assert.match(sw,/const CACHE = 'freshway-v\d+'/);
@@ -52,7 +52,7 @@ assert.doesNotMatch(auth,/response\(\{ok:true,version:ADMIN_AUTH_VERSION,session
 assert.match(auth,/SameSite=Lax/);
 assert.match(response,/SameSite=Lax/);
 
-assert.match(ownerSw,/const CACHE = 'fw-owner-v40'/);
+assert.match(ownerSw,/const CACHE = 'fw-owner-v41'/);
 assert.match(ownerSw,/if \(cached && isVersionedCode\) return cached/);
 assert.match(ownerSw,/if \(isDocument \|\| isManifest\)/);
 assert.match(ownerRouter,/OWNER_VERSIONED_ASSET_CACHE_CONTROL/);

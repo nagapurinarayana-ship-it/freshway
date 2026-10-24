@@ -6,19 +6,34 @@ const schema = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8');
 const migration = readFileSync(new URL('../migrations/0033_account_deletion_requests.sql', import.meta.url), 'utf8');
 const erasureMigration = readFileSync(new URL('../migrations/0034_customer_account_erasure.sql', import.meta.url), 'utf8');
 const snapshotRedactionMigration = readFileSync(new URL('../migrations/0035_nullable_snapshot_customer_id_for_erasure.sql', import.meta.url), 'utf8');
+const anonymizationMigration = readFileSync(new URL('../migrations/0036_anonymize_completed_deletion_requests.sql', import.meta.url), 'utf8');
 const accountDeletion = readFileSync(new URL('../src/account-deletion.js', import.meta.url), 'utf8');
 const productionAudit = readFileSync(new URL('../scripts/audit-production-schema.mjs', import.meta.url), 'utf8');
 
-test('fresh schema and additive migration define the same account-deletion request table', () => {
+test('baseline migration and current schema define deletion requests and aggregate-only completion metrics', () => {
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS account_deletion_requests/);
+  assert.match(migration, /customer_id TEXT NOT NULL/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS account_deletion_requests/);
+  assert.match(schema, /customer_id TEXT NOT NULL, phone_snapshot TEXT NOT NULL/);
+  assert.match(schema, /CREATE TABLE IF NOT EXISTS account_deletion_summary/);
+  assert.match(schema, /completed_count INTEGER NOT NULL DEFAULT 0/);
   for (const source of [schema, migration]) {
-    assert.match(source, /CREATE TABLE IF NOT EXISTS account_deletion_requests/);
-    assert.match(source, /customer_id TEXT NOT NULL/);
     assert.match(source, /status TEXT NOT NULL DEFAULT 'pending'/);
     assert.match(source, /source TEXT NOT NULL/);
     assert.match(source, /admin_note TEXT NOT NULL DEFAULT ''/);
     assert.match(source, /idx_account_deletion_requests_one_active/);
     assert.match(source, /WHERE status IN \('pending','in_review'\)/);
   }
+});
+
+test('migration aggregates completed request counts then deletes all completed per-request records', () => {
+  assert.match(anonymizationMigration, /CREATE TABLE IF NOT EXISTS account_deletion_summary/);
+  assert.match(anonymizationMigration, /INSERT INTO account_deletion_summary \(id,completed_count,latest_completed_at\)/);
+  assert.match(anonymizationMigration, /FROM account_deletion_requests\s+WHERE status='completed'\s+HAVING COUNT\(\*\) > 0/);
+  assert.match(anonymizationMigration, /DELETE FROM account_deletion_requests WHERE status='completed'/);
+  assert.match(accountDeletion, /INSERT INTO account_deletion_summary \(id,completed_count,latest_completed_at\)/);
+  assert.match(accountDeletion, /DELETE FROM account_deletion_requests WHERE id=\? AND customer_id=\? AND status='in_review'/);
+  assert.match(productionAudit, /0036_anonymize_completed_deletion_requests\.sql/);
 });
 
 test('deletion requests deliberately do not cascade-delete customers or orders', () => {

@@ -59,11 +59,17 @@ test('redacts operational personal data, revokes access and retains issued invoi
   assert.ok(sql.some(statement => statement.startsWith("UPDATE addresses SET house='Removed'")));
   assert.ok(sql.some(statement => statement.startsWith("UPDATE orders SET customer_name='Deleted customer'")));
   assert.ok(sql.some(statement => statement.startsWith('UPDATE customers SET name=NULL,phone=NULL,passcode_salt=NULL,passcode_hash=NULL')));
-  assert.ok(sql.some(statement => statement.startsWith("UPDATE account_deletion_requests SET status='completed',phone_snapshot='REDACTED'")));
+  assert.ok(sql.some(statement => statement.startsWith("INSERT INTO account_deletion_summary (id,completed_count,latest_completed_at)")));
+  assert.ok(sql.some(statement => statement.startsWith("DELETE FROM account_deletion_requests WHERE id=? AND customer_id=? AND status='in_review'")));
   assert.ok(sql.some(statement => statement.startsWith('DELETE FROM auth_rate_limits WHERE key IN (?,?,?,?,?,?)')));
   assert.equal(sql.some(statement => /^\s*(DELETE FROM customers|UPDATE invoices)\b/i.test(statement)), false);
   assert.ok(statements.some(statement => statement.sql.startsWith('DELETE FROM auth_rate_limits') && statement.params.includes('auth:login:phone:919999999999')));
-  assert.equal(statements.at(-1).sql.startsWith("UPDATE account_deletion_requests SET status='completed'"), true);
+  assert.equal(statements.at(-2).sql.startsWith("INSERT INTO account_deletion_summary (id,completed_count,latest_completed_at)"), true);
+  assert.equal(statements.at(-1).sql.startsWith("DELETE FROM account_deletion_requests WHERE id=? AND customer_id=? AND status='in_review'"), true);
+  assert.deepEqual(statements.at(-2).params, ['req-1', 'cust-1']);
+  assert.deepEqual(statements.at(-1).params, ['req-1', 'cust-1']);
+  assert.equal(sql.some(statement => /UPDATE account_deletion_requests SET status='completed'/.test(statement)), false,
+    'completed request records must not be retained');
 });
 
 test('guards every operational mutation against a request that is no longer in review', async () => {
@@ -72,7 +78,7 @@ test('guards every operational mutation against a request that is no longer in r
   const statements = fake.batchStatements;
   assert.ok(statements.length >= 7);
   for (const statement of statements) {
-    assert.match(statement.sql, /EXISTS \(SELECT 1 FROM account_deletion_requests WHERE id=\? AND customer_id=\? AND status='in_review'\)|UPDATE account_deletion_requests SET status='completed'[\s\S]*WHERE id=\? AND customer_id=\? AND status='in_review'/);
+    assert.match(statement.sql, /EXISTS \(SELECT 1 FROM account_deletion_requests WHERE id=\? AND customer_id=\? AND status='in_review'\)|DELETE FROM account_deletion_requests WHERE id=\? AND customer_id=\? AND status='in_review'/);
   }
 });
 
@@ -81,7 +87,7 @@ test('returns conflict if a concurrent Owner action changed the request before c
   const result = await fulfillAccountDeletion(fake.env, 'req-1', retentionNote);
   assert.equal(result.ok, false);
   assert.equal(result.status, 409);
-  assert.equal(fake.batchStatements.at(-1).sql.startsWith("UPDATE account_deletion_requests SET status='completed'"), true);
+  assert.equal(fake.batchStatements.at(-1).sql.startsWith("DELETE FROM account_deletion_requests WHERE id=? AND customer_id=? AND status='in_review'"), true);
 });
 
 test('does not issue a wildcard rate-limit delete when the saved phone is absent', async () => {

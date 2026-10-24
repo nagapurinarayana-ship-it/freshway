@@ -21,14 +21,47 @@
     element.textContent = message;
     element.setAttribute('role', error ? 'alert' : 'status');
   }
-  function render(rows) {
+  function renderSummary(summary) {
+    const container = $('#accountDeletionSummary');
+    if (!container) return;
+    const count = key => {
+      const value = summary?.[key];
+      return value == null || !Number.isFinite(Number(value)) ? '—' : Number(value).toLocaleString('en-IN');
+    };
+    const completed = count('completed');
+    const latest = summary?.latestCompletedAt;
+    container.innerHTML = `
+      <div class="account-deletion-stat-grid" aria-label="Request counts">
+        <article class="account-deletion-stat"><span>Pending</span><strong>${count('pending')}</strong></article>
+        <article class="account-deletion-stat"><span>In review</span><strong>${count('in_review')}</strong></article>
+        <article class="account-deletion-stat"><span>Rejected</span><strong>${count('rejected')}</strong></article>
+      </div>
+      <article class="account-deletion-completed-summary">
+        <div>
+          <span class="eyebrow">COMPLETED HISTORY</span>
+          <strong>${completed.toLocaleString('en-IN')}</strong>
+          <p>Individual completed-request records are deleted; only aggregate counts and the most recent completion date remain.</p>
+        </div>
+        <small>Most recent completion: ${esc(date(latest))}</small>
+      </article>`;
+  }
+
+  function render(rows, statusFilter = '') {
     const container = $('#accountDeletionRequests');
     if (!container) return;
-    if (!rows.length) {
-      container.innerHTML = '<p class="muted">No account-deletion requests match this filter.</p>';
+    // Defensively suppress completed rows even if an older Worker response is cached.
+    const visibleRows = (Array.isArray(rows) ? rows : []).filter(item => item && item.status !== 'completed');
+    if (statusFilter === 'completed') {
+      container.innerHTML = '<p class="muted">Completed requests are represented by aggregate counts above; individual completed-request records are deleted.</p>';
       return;
     }
-    container.innerHTML = rows.map(item => {
+    if (!visibleRows.length) {
+      container.innerHTML = statusFilter
+        ? '<p class="muted">No account-deletion requests match this filter.</p>'
+        : '<p class="muted">No pending, in-review or rejected requests need to be shown.</p>';
+      return;
+    }
+    container.innerHTML = visibleRows.map(item => {
       const actions = item.status === 'pending'
         ? '<button class="ghost" type="button" data-deletion-action="in_review">Mark in review</button><button class="danger-action" type="button" data-deletion-action="rejected">Reject request</button>'
         : item.status === 'in_review'
@@ -37,6 +70,7 @@
       return `<article class="report" data-deletion-request="${esc(item.id)}"><div class="section-head"><div><strong>Mobile ending ${esc(item.phone_last4 || '????')}</strong><p>${esc(label(item.status))} · ${esc(item.source === 'external_verified_phone' ? 'SMS verified' : 'Signed-in customer')}</p></div><span>${esc(date(item.created_at))}</span></div><p class="muted">Last updated: ${esc(date(item.updated_at))}${item.processed_at ? ' · Processed: '+esc(date(item.processed_at)) : ''}</p>${item.admin_note ? '<p>Owner note: '+esc(item.admin_note)+'</p>' : ''}<div class="owner-alert-control-actions">${actions}</div></article>`;
     }).join('');
   }
+
   async function load() {
     const refresh = $('#accountDeletionRefresh');
     if (!$('#accountDeletionRequests')) return;
@@ -45,8 +79,15 @@
     try {
       const status = $('#accountDeletionStatus')?.value || '';
       const result = await request('/api/admin/account-deletion-requests' + (status ? '?status=' + encodeURIComponent(status) : ''));
-      render(Array.isArray(result.requests) ? result.requests : []);
-      setMessage(`Loaded ${(result.requests || []).length} request(s). Complete only after confirming the record-retention decision.`);
+      const rows = Array.isArray(result.requests) ? result.requests : [];
+      const hasAggregateSummary = result.summary && typeof result.summary === 'object';
+      renderSummary(hasAggregateSummary ? result.summary : null);
+      render(rows, status);
+      setMessage(!hasAggregateSummary
+        ? 'Request queue loaded. Aggregate summary is temporarily unavailable until the API update is active; individual completed-request details remain hidden.'
+        : status === 'completed'
+          ? 'Completed history is represented by aggregate counts only.'
+          : 'Request queue loaded. Individual completed-request records are deleted; only aggregate completion metrics remain.');
     } catch (error) {
       setMessage(error.message || 'Could not load account-deletion requests.', true);
     } finally {
@@ -78,25 +119,16 @@
         $('#accountDeletionStatusMessage')?.scrollIntoView({behavior:'smooth', block:'center'});
         return;
       }
-      if (!window.confirm('This disables the account, removes login credentials and push subscriptions, and redacts customer/address details from operational order/address records. Issued invoice snapshots remain unchanged. Continue only after the retention decision is reviewed.')) return;
+      if (!window.confirm('Confirm that you reviewed the applicable invoice/transaction retention decision. This removes login access and operational customer data, deletes the individual request record, and keeps only an aggregate completion count and the latest completion date. Existing issued invoice snapshots are not changed by this action, so continue only if the approved retention policy permits that.')) return;
     }
-    const suggestedCompletionNote = 'Retain invoice/transaction records for tax and accounting retention; redact operational customer and address data.';
-    const prompt = isReject
-      ? 'Why is this deletion request being rejected? Explain the reason to the customer through the approved support channel.'
-      : isComplete
-        ? 'Review or edit this suggested note to match the approved retention decision. Completion keeps invoice/transaction records for the stated tax/accounting retention basis and redacts operational customer data. Do not include unnecessary personal data.'
-        : 'Optional review note (do not include unnecessary personal data):';
-    const note = window.prompt(prompt, isComplete ? suggestedCompletionNote : '');
+    const note = isComplete
+      ? 'Confirmed retention review for applicable invoice/transaction records; operational customer data redacted.'
+      : window.prompt(isReject
+        ? 'Why is this deletion request being rejected? Explain the reason to the customer through the approved support channel.'
+        : 'Optional review note (do not include unnecessary personal data):', '');
     if (note === null) return;
     if (isReject && note.trim().length < 10) {
       const message = 'Add a clear rejection reason of at least 10 characters before submitting.';
-      setMessage(message, true);
-      window.alert(message);
-      $('#accountDeletionStatusMessage')?.scrollIntoView({behavior:'smooth', block:'center'});
-      return;
-    }
-    if (isComplete && (note.trim().length < 20 || !/(invoice|transaction)/i.test(note) || !/(retain|retention|accounting|tax|legal)/i.test(note))) {
-      const message = 'Deletion was not submitted. Enter at least 20 characters and mention invoice/transaction records plus the approved retention basis (retain, accounting, tax or legal).';
       setMessage(message, true);
       window.alert(message);
       $('#accountDeletionStatusMessage')?.scrollIntoView({behavior:'smooth', block:'center'});
