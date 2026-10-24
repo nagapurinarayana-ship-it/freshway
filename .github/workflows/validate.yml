@@ -99,9 +99,9 @@ jobs:
           if (manifest.name !== 'FreshWay' || manifest.short_name !== 'FreshWay') throw new Error('PWA names are invalid');
           if (manifest.id !== '/freshway' || manifest.start_url !== '/' || manifest.scope !== '/' || manifest.display !== 'standalone') throw new Error('PWA identity/display contract is invalid');
           for (const [size, file] of [['192x192','icon-192.svg'],['512x512','icon-512.svg']]) {
-            if (!manifest.icons.some(icon => icon.sizes === size && icon.type === 'image/svg+xml' && icon.src.includes(file) && String(icon.purpose || '').split(/\\s+/).includes('any'))) throw new Error('Missing Owner-matched FreshWay brand SVG ' + size);
+            if (!manifest.icons.some(icon => icon.sizes === size && icon.type === 'image/svg+xml' && icon.src.includes(file) && String(icon.purpose || '').split(' ').includes('any'))) throw new Error('Missing Owner-matched FreshWay brand SVG ' + size);
           }
-          if (manifest.icons.some(icon => /\\/icons\\/icon-\\d+(?:-maskable)?\\.png$/.test(new URL(icon.src, 'https://fwcoldpressed.in').pathname))) throw new Error('Customer manifest must not use legacy P-branded raster icons');
+          if (manifest.icons.some(icon => icon.type === 'image/png' && new URL(icon.src, 'https://fwcoldpressed.in').pathname.endsWith('.png'))) throw new Error('Customer manifest must not use legacy P-branded raster icons');
           
           for (const file of ['frontend/phone-display.js','frontend/customer/pwa-install.js','frontend/customer/pwa-install.css','frontend/customer/promotions.js','icons/icon-192.png','icons/icon-512.png','icons/icon-192-maskable.png','sw.js','admin/manifest.webmanifest','admin/sw.js','functions/admin/[[path]].js']) {
             if (!fs.existsSync(file)) throw new Error('Missing PWA asset ' + file);

@@ -238,7 +238,7 @@ for (const expected of expectedBrandIcons) {
       new URL(icon.src, manifestResponse.url).pathname === expected.path &&
       icon.sizes === expected.size &&
       icon.type === 'image/svg+xml' &&
-      String(icon.purpose || '').split(/\\s+/).includes('any')
+      String(icon.purpose || '').split(' ').includes('any')
     ),
     `manifest must use the Owner-matched FreshWay brand icon ${expected.path}`
   );
@@ -246,11 +246,11 @@ for (const expected of expectedBrandIcons) {
   assert.equal(response.status, 200, expected.path);
   assert.match(response.headers.get('content-type') || '', /^image\/svg\+xml/i, expected.path);
   const svg = await response.text();
-  assert.match(svg, /<svg\\b/, expected.path + ' must be a valid SVG icon');
+  assert.ok(svg.startsWith('<svg'), expected.path + ' must be a valid SVG icon');
   assert.ok(svg.includes('data:image/jpeg;base64,'), expected.path + ' must contain the official FreshWay brand artwork');
 }
 assert.equal(
-  manifest.icons.some(icon => /\\/icons\\/icon-\\d+(?:-maskable)?\\.png$/.test(new URL(icon.src, manifestResponse.url).pathname)),
+  manifest.icons.some(icon => icon.type === 'image/png' && new URL(icon.src, manifestResponse.url).pathname.endsWith('.png')),
   false,
   'customer manifest must not offer the obsolete P-branded raster icons'
 );

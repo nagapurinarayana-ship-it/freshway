@@ -29,9 +29,9 @@ for (const [path, size] of [['/icons/icon-192.svg','192x192'], ['/icons/icon-512
   assert.ok(icon, path + ' must be declared in manifest.webmanifest.');
   assert.equal(icon.sizes, size, path + ' must declare its install size.');
   assert.equal(icon.type, 'image/svg+xml', path + ' must declare image/svg+xml.');
-  assert.ok(String(icon.purpose || '').split(/\\s+/).includes('any'), path + ' must be a normal app icon.');
+  assert.ok(String(icon.purpose || '').split(' ').includes('any'), path + ' must be a normal app icon.');
 }
-assert.equal(webManifest.icons.some((item) => /\\/icons\\/icon-\\d+(?:-maskable)?\\.png$/.test(new URL(item.src, 'https://fwcoldpressed.in').pathname)), false, 'Customer install manifest must not offer legacy P icons.');
+assert.equal(webManifest.icons.some((item) => item.type === 'image/png' && new URL(item.src, 'https://fwcoldpressed.in').pathname.endsWith('.png')), false, 'Customer install manifest must not offer legacy P icons.');
 
 const pngAssets = [
   { path: 'icons/icon-192.png', width: 192, height: 192, purpose: 'any' },
