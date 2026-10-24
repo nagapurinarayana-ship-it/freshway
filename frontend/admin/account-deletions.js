@@ -37,7 +37,7 @@
         <div>
           <span class="eyebrow">COMPLETED HISTORY</span>
           <strong>${completed.toLocaleString('en-IN')}</strong>
-          <p>Completed requests are anonymised. Individual customer-linked entries and free-text notes are not displayed.</p>
+          <p>Individual completed-request records are deleted; only aggregate counts and the most recent completion date remain.</p>
         </div>
         <small>Most recent completion: ${esc(date(latest))}</small>
       </article>`;
@@ -49,7 +49,7 @@
     // Defensively suppress completed rows even if an older Worker response is cached.
     const visibleRows = (Array.isArray(rows) ? rows : []).filter(item => item && item.status !== 'completed');
     if (statusFilter === 'completed') {
-      container.innerHTML = '<p class="muted">Completed requests are represented by the anonymised summary above. Individual completed-request records are not displayed.</p>';
+      container.innerHTML = '<p class="muted">Completed requests are represented by aggregate counts above; individual completed-request records are deleted.</p>';
       return;
     }
     if (!visibleRows.length) {
