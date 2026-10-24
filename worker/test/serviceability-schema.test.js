@@ -32,7 +32,7 @@ test('serviceability is checked before writes and its snapshot shares the order 
   assert.match(createOrder, /const statements=\[\.\.\.stockUpdates,[\s\S]*?serviceabilitySnapshot\]/);
   assert.ok(createOrder.indexOf('checkServiceability(env, address)') < createOrder.indexOf('INSERT INTO customers'));
   assert.ok(createOrder.indexOf('checkServiceability(env, address)') < createOrder.indexOf('INSERT INTO addresses'));
-  assert.ok(createOrder.indexOf('checkServiceability(env, address)') < createOrder.indexOf('const { items, total } = await validateOrderItems(env, rawItems)'));
+  assert.ok(createOrder.indexOf('const { items, total } = await validateOrderItems(env, rawItems)') < createOrder.indexOf('checkServiceability(env, address)'), 'legacy product validation must run before serviceability so existing checkout errors remain stable');
 });
 
 test('Owner routes cover listing, zone create/update, testing and enforcement changes', () => {
