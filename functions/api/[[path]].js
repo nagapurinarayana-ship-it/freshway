@@ -31,7 +31,7 @@ export async function onRequest(context) {
   targetUrl.pathname = targetPath;
   targetUrl.search = incoming.search;
   const isAddressApi = /^\/api\/addresses(?:\/|$)/.test(targetPath);
-  const isStoreProfileApi = targetPath === '/api/store-profile' && method === 'GET';
+  const isStoreProfileApi = (targetPath === '/api/store-profile' || targetPath === '/api/admin/store-profile') && method === 'GET';
   const needsBody = !['GET', 'HEAD', 'DELETE'].includes(method);
   const addressBody = isAddressApi && needsBody
     ? (typeof body === 'string' ? new TextEncoder().encode(body).buffer : await context.request.clone().arrayBuffer())
