@@ -40,11 +40,22 @@ jobs:
         with:
           packages: 'platform-tools'
 
+      - name: Prepare SDK layout expected by Bubblewrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$ANDROID_HOME/bin"
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f | sort -V | tail -n 1)"
+          test -n "$SDKMANAGER"
+          ln -sf "$SDKMANAGER" "$ANDROID_HOME/bin/sdkmanager"
+          test -x "$ANDROID_HOME/bin/sdkmanager"
+          echo "Bubblewrap-compatible sdkmanager alias: $ANDROID_HOME/bin/sdkmanager -> $SDKMANAGER"
+
       - name: Install Play-target SDK packages
         shell: bash
         run: |
           set -euo pipefail
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.1.0"
 
       - name: Run static Android and PWA preflight
         working-directory: android-twa
