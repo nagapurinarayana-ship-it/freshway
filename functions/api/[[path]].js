@@ -31,7 +31,7 @@ export async function onRequest(context) {
   targetUrl.pathname = targetPath;
   targetUrl.search = incoming.search;
   const isAddressApi = /^\/api\/addresses(?:\/|$)/.test(targetPath);
-  const isStoreProfileApi = targetPath === '/api/store-profile' && method === 'GET';
+  const isStoreProfileApi = (targetPath === '/api/store-profile' || targetPath === '/api/admin/store-profile') && method === 'GET';
   const needsBody = !['GET', 'HEAD', 'DELETE'].includes(method);
   const addressBody = isAddressApi && needsBody
     ? (typeof body === 'string' ? new TextEncoder().encode(body).buffer : await context.request.clone().arrayBuffer())
@@ -78,7 +78,7 @@ export async function onRequest(context) {
         const cloned = primaryResponse.clone();
         const data = await cloned.json().catch(() => null);
         const profile = data?.storeProfile;
-        const hasProfileData = profile && [profile.storeName, profile.about, profile.phone, profile.whatsapp, profile.email, profile.address, profile.businessHours, profile.deliveryInfo].some(value => String(value || '').trim());
+        const hasProfileData = profile && typeof profile.storeName === 'string' && Boolean(profile.storeName.trim()) && typeof profile.address === 'string' && Boolean(profile.address.trim());
         if (hasProfileData) return primaryResponse;
         // A stale/empty service binding must not hide the current production Store Profile.
       }
@@ -100,7 +100,17 @@ export async function onRequest(context) {
   if (isAddressApi || isStoreProfileApi) {
     try {
       const fallbackResponse = await fetch(buildRequest(target.toString()));
-      if (isJsonResponse(fallbackResponse)) return fallbackResponse;
+      if (isJsonResponse(fallbackResponse)) {
+        if (!isStoreProfileApi || !fallbackResponse.ok) return fallbackResponse;
+        const fallbackData = await fallbackResponse.clone().json().catch(() => null);
+        const fallbackProfile = fallbackData?.storeProfile;
+        if (fallbackProfile &&
+            typeof fallbackProfile.storeName === 'string' && fallbackProfile.storeName.trim() &&
+            typeof fallbackProfile.address === 'string' && fallbackProfile.address.trim()) {
+          return fallbackResponse;
+        }
+        return jsonError('Store Profile service returned incomplete data. Saved business details were not changed.');
+      }
       return jsonError(isStoreProfileApi ? 'Store profile service returned an unexpected response.' : 'Address service returned an unexpected response.');
     } catch (_) {
       return jsonError(isStoreProfileApi ? 'Store profile service is temporarily unavailable. Please refresh and try again.' : 'Address service is temporarily unavailable. Please refresh and try again.');

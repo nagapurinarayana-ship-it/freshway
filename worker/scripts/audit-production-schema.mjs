@@ -40,15 +40,18 @@ function rowsFor(sql, predicate) {
 }
 
 const required = {
-  customers: ['id', 'name', 'phone', 'passcode_salt', 'passcode_hash', 'auth_version', 'whatsapp_opt_in'],
-  addresses: ['id', 'customer_id', 'house', 'area', 'city', 'pincode', 'is_default', 'deleted_at', 'latitude', 'longitude'],
+  customers: ['id', 'name', 'phone', 'passcode_salt', 'passcode_hash', 'auth_version', 'deleted_at', 'whatsapp_opt_in', 'created_at', 'updated_at'],
+  addresses: ['id', 'customer_id', 'house', 'area', 'city', 'pincode', 'landmark', 'note', 'label', 'recipient_name', 'delivery_phone', 'building', 'floor', 'street', 'locality', 'district', 'state', 'latitude', 'longitude', 'accuracy_meters', 'location_source', 'place_id', 'location_updated_at', 'is_default', 'deleted_at'],
   products: ['id', 'name', 'unit', 'price', 'active', 'category_id', 'image_data', 'stock_managed', 'stock_quantity', 'low_stock_threshold'],
   categories: ['id', 'name', 'slug', 'active', 'display_order'],
-  orders: ['id', 'customer_id', 'address_id', 'total', 'payment_status', 'delivery_status', 'delivery_plan', 'client_order_id', 'payment_collected_at', 'is_test_order'],
+  orders: ['id', 'customer_id', 'address_id', 'customer_name', 'customer_phone', 'total', 'payment_status', 'delivery_status', 'delivery_plan', 'client_order_id', 'payment_collected_at', 'is_test_order', 'updated_at'],
   order_items: ['id', 'order_id', 'product_id', 'name', 'unit', 'qty', 'price', 'line_total', 'stock_reserved_qty'],
-  order_address_snapshots: ['order_id', 'customer_id', 'address_id', 'recipient_name', 'delivery_phone', 'house_flat', 'area', 'city', 'pincode', 'delivery_note', 'place_name', 'place_id', 'latitude', 'longitude', 'location_updated_at'],
+  order_address_snapshots: ['order_id', 'customer_id', 'address_id', 'recipient_name', 'delivery_phone', 'house_flat', 'building', 'floor', 'street', 'area', 'locality', 'city', 'district', 'state', 'pincode', 'landmark', 'delivery_note', 'latitude', 'longitude', 'accuracy_meters', 'location_source', 'location_updated_at', 'place_name', 'place_id'],
   home_promotions: ['id', 'image_data', 'image_mime_type', 'alt_text', 'display_order', 'active'],
   store_profile: ['id', 'store_name', 'phone', 'whatsapp', 'address', 'shop_latitude', 'shop_longitude', 'share_title', 'share_description'],
+  push_subscriptions: ['customer_id'],
+  notification_events: ['customer_id', 'order_id'],
+  account_deletion_requests: ['id', 'customer_id', 'phone_snapshot', 'status', 'source', 'admin_note', 'updated_at', 'processed_at'],
   auth_rate_limits: ['key', 'window_start', 'count']
 };
 
@@ -69,7 +72,9 @@ const expectedIndexes = [
   'idx_order_address_snapshots_customer',
   'idx_order_items_order',
   'idx_products_category_active',
-  'idx_customers_phone_unique'
+  'idx_customers_phone_unique',
+  'idx_customers_active_phone',
+  'idx_account_deletion_requests_one_active'
 ];
 report.requiredIndexes = Object.fromEntries(expectedIndexes.map(name => [name, indexNames.includes(name)]));
 for (const name of expectedIndexes) if (!indexNames.includes(name)) problems.push('missing index: ' + name);
