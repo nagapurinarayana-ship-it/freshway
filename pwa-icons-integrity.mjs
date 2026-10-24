@@ -94,6 +94,9 @@ for (const [path, size] of [
   assertValidPng(readFileSync(resolve(root, path)), { width: size, height: size, label: path });
 }
 const masterLogoBase64 = readFileSync(resolve(root, 'freshway-logo-master.webp')).toString('base64');
+const faviconSvg = readFileSync(resolve(root, 'icon.svg'), 'utf8');
+assert.ok(faviconSvg.includes('data:image/webp;base64,'), 'browser favicon must embed the FreshWay master logo');
+assert.equal(faviconSvg.split('href="data:image/webp;base64,')[1]?.split('"')[0], masterLogoBase64, 'browser favicon must embed the exact FreshWay master logo');
 const manifest = JSON.parse(readFileSync(resolve(root, 'manifest.webmanifest'), 'utf8'));
 assert.equal(manifest.icons.length, 2, 'PWA manifest must not advertise the legacy P-monogram icons');
 for (const [size, path] of [['192x192', 'icons/icon-192.svg'], ['512x512', 'icons/icon-512.svg']]) {
