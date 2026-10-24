@@ -46,9 +46,6 @@ jobs:
             "parameters": {
               "datasets": ["cloudflare-workers"],
               "filterCombination": "and",
-              "filters": [
-                {"key": "$metadata.service", "operation": "eq", "type": "string", "value": "freshway-api"}
-              ],
               "needle": {"value": "$ERROR_REFERENCE", "isRegex": false, "matchCase": true},
               "view": "events"
             }
