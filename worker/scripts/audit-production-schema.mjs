@@ -86,6 +86,23 @@ const migrationRows = rowsFor('SELECT id,name FROM d1_migrations ORDER BY id', r
 report.migrations = migrationRows.map(row => ({ id: row.id, name: row.name }));
 report.migrationCount = migrationRows.length;
 
+const snapshotRedactionMigration = '0035_nullable_snapshot_customer_id_for_erasure.sql';
+const redactionMigrationApplied = migrationRows.some(row => String(row.name) === snapshotRedactionMigration);
+const snapshotColumns = rowsFor(
+  'PRAGMA table_info("order_address_snapshots")',
+  row => 'name' in row && 'notnull' in row
+);
+const snapshotCustomerId = snapshotColumns.find(row => String(row.name) === 'customer_id');
+report.snapshotErasureCompatibility = {
+  migrationApplied: redactionMigrationApplied,
+  customerIdAllowsNull: snapshotCustomerId ? Number(snapshotCustomerId.notnull) === 0 : false
+};
+// The standalone audit may race the release workflow. Enforce this contract
+// once the migration is recorded; the Worker release runs this audit after migrations.
+if (redactionMigrationApplied && (!snapshotCustomerId || Number(snapshotCustomerId.notnull) !== 0)) {
+  problems.push('order_address_snapshots.customer_id must allow NULL for account erasure');
+}
+
 
 // Read-only invoice configuration and integrity summary. Never print customer data or a full tax number.
 const invoiceSettingsRows = rowsFor(
