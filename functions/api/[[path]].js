@@ -81,7 +81,10 @@ export async function onRequest(context) {
         const data = await cloned.json().catch(() => null);
         const profile = data?.storeProfile;
         const hasProfileData = profile && typeof profile.storeName === 'string' && Boolean(profile.storeName.trim()) && typeof profile.address === 'string' && Boolean(profile.address.trim());
-        if (hasProfileData) return primaryResponse;
+        if (primaryResponse.ok && hasProfileData) return primaryResponse;
+        // Preserve genuine client validation/auth errors. A missing route, server
+        // failure, or malformed success response may come from a stale binding.
+        if (primaryResponse.status >= 400 && primaryResponse.status < 500 && primaryResponse.status !== 404) return primaryResponse;
         // A stale/empty service binding must not hide the current production Store Profile.
       }
     } catch (_) {
