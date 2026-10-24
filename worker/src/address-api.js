@@ -115,11 +115,14 @@ export async function handleAddress(request, env, customerId, action) {
       else await ensureDefault(env, customerId);
       return response({ ok:true, addresses:await list(env,customerId), id:duplicate.id, deduplicated:true }, 200, env);
     }
-    if (a.is_default) await env.DB.prepare('UPDATE addresses SET is_default=0 WHERE customer_id=?').bind(customerId).run();
-    const r = await env.DB.prepare(`INSERT INTO addresses (customer_id,house,area,city,pincode,landmark,note,label,recipient_name,delivery_phone,building,floor,street,locality,district,state,latitude,longitude,accuracy_meters,location_source,place_id,location_updated_at,is_default) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .bind(customerId,a.house_flat,a.area,a.city,a.pincode,a.landmark,a.note,a.label,a.recipient_name,a.delivery_phone,a.building,a.floor,a.street,a.locality,a.district,a.state,a.latitude,a.longitude,a.accuracy_meters,a.location_source,a.place_id,a.location_updated_at,a.is_default).run();
-    await ensureDefault(env, customerId);
-    return response({ ok:true, addresses:await list(env,customerId), id:r.meta?.last_row_id }, 201, env);
+    const insert = env.DB.prepare(`INSERT INTO addresses (customer_id,house,area,city,pincode,landmark,note,label,recipient_name,delivery_phone,building,floor,street,locality,district,state,latitude,longitude,accuracy_meters,location_source,place_id,location_updated_at,is_default) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .bind(customerId,a.house_flat,a.area,a.city,a.pincode,a.landmark,a.note,a.label,a.recipient_name,a.delivery_phone,a.building,a.floor,a.street,a.locality,a.district,a.state,a.latitude,a.longitude,a.accuracy_meters,a.location_source,a.place_id,a.location_updated_at,a.is_default);
+    // Insert and normalize the default in one D1 transaction. If normalization
+    // fails, the new address is rolled back instead of leaving defaults cleared
+    // or producing an address with no default when this was the first save.
+    const results = await env.DB.batch([insert, normalizeDefaultStatement(env, customerId)]);
+    const r = results?.[0];
+    return response({ ok:true, addresses:await list(env,customerId), id:r?.meta?.last_row_id }, 201, env);
   }
   const owned = await env.DB.prepare('SELECT * FROM addresses WHERE id=? AND customer_id=? AND deleted_at IS NULL').bind(id,customerId).first();
   // DELETE is intentionally idempotent. A stale UI copy must never surface a false
