@@ -62,7 +62,7 @@ test('Owner push endpoints require the signed Owner session', async () => {
   const env = baseEnv();
   const response = await adminAuth.fetch(new Request('https://fwcoldpressed.in/api/admin/push/subscribe', {
     method: 'POST', headers: { Origin: 'https://fwcoldpressed.in', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ subscription: { endpoint: 'https://push.example/sub', keys: { p256dh: 'p', auth: 'a' } } })
+    body: JSON.stringify({ subscription: { endpoint: 'https://updates.push.services.mozilla.com/wpush/v2/test-owner', keys: { p256dh: 'p', auth: 'a' } } })
   }), env, { waitUntil() {} });
   assert.equal(response.status, 401);
 });
@@ -83,7 +83,7 @@ test('signed Owner can read push configuration, subscribe/unsubscribe and read t
     latestAlert: null
   });
 
-  const subscription = { endpoint: 'https://push.example/owner-device', keys: { p256dh: 'p256dh-key', auth: 'auth-key' }, expirationTime: null };
+  const subscription = { endpoint: 'https://updates.push.services.mozilla.com/wpush/v2/test-owner-device', keys: { p256dh: 'p256dh-key', auth: 'auth-key' }, expirationTime: null };
   const subscribe = await request('/api/admin/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription }) });
   assert.equal(subscribe.status, 200);
   assert.match(env.DB.sqlCalls.join('\n'), /owner_push_subscriptions/);

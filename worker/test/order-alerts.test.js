@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import webpush from 'web-push';
 import { buildOrderPlacedAlerts, dispatchOrderAlert, saveOwnerSubscription, deleteOwnerSubscription, listOwnerOrderAlerts, deleteOwnerOrderAlert, deleteAllOwnerOrderAlerts, getOwnerPushDiagnostics, sendOwnerPushTest } from '../src/order-alerts.js';
 import { buildOrderChangeAlerts } from '../src/admin-notifications.js';
 
@@ -115,16 +116,81 @@ test('Owner alert history uses keyset pagination and deletion is restricted to O
   assert.match(statements[3].sql, /DELETE FROM notification_events WHERE audience='owner'/);
   assert.doesNotMatch(statements[3].sql, /customer/i);
 });
+
+test('stored unsupported push endpoints are never contacted and are removed', async () => {
+  const originalSetVapidDetails = webpush.setVapidDetails;
+  const originalSendNotification = webpush.sendNotification;
+  let sends = 0;
+  const sqlCalls = [];
+  webpush.setVapidDetails = () => {};
+  webpush.sendNotification = async () => { sends += 1; };
+  const env = {
+    VAPID_PUBLIC_KEY: 'test-public-key',
+    VAPID_PRIVATE_KEY: 'test-private-key',
+    VAPID_SUBJECT: 'mailto:ops@example.test',
+    DB: {
+      prepare(sql) {
+        sqlCalls.push(sql);
+        return {
+          args: [],
+          bind(...args) { this.args = args; return this; },
+          async run() {
+            if (sql.includes('INSERT INTO notification_events')) return { meta: { changes: 1 } };
+            if (sql.startsWith('UPDATE notification_events')) return { meta: { changes: 1 } };
+            throw new Error('Unexpected run(): ' + sql);
+          },
+          async first() {
+            if (sql.includes('SELECT id FROM notification_events')) return { id: 41 };
+            throw new Error('Unexpected first(): ' + sql);
+          },
+          async all() {
+            if (sql.includes('SELECT endpoint,p256dh,auth FROM push_subscriptions')) {
+              return { results: [{ endpoint: 'https://attacker.example/internal-target', p256dh: 'p256dh', auth: 'auth' }] };
+            }
+            throw new Error('Unexpected all(): ' + sql);
+          }
+        };
+      },
+      async batch(statements) {
+        sqlCalls.push(...statements.map(statement => statement.sql));
+        return statements.map(() => ({ meta: { changes: 1 } }));
+      }
+    }
+  };
+  try {
+    const result = await dispatchOrderAlert(env, {
+      audience: 'customer',
+      customerId: 'customer-1',
+      orderId: 'FW-TEST-1',
+      eventType: 'order_update',
+      eventKey: 'test-invalid-push-endpoint',
+      title: 'Test alert',
+      body: 'Test message',
+      url: '/orders'
+    });
+    assert.equal(sends, 0, 'unsupported saved endpoint must not receive a network request');
+    assert.equal(result.sent, 0);
+    assert.equal(result.failed, 1);
+    assert.equal(result.status, 'failed');
+    assert.ok(sqlCalls.some(sql => sql.includes('DELETE FROM push_subscriptions WHERE endpoint=?')));
+  } finally {
+    webpush.setVapidDetails = originalSetVapidDetails;
+    webpush.sendNotification = originalSendNotification;
+  }
+});
+
 test('Owner push subscription writes are scoped to the Owner partition and validate secure endpoints', async () => {
   const statements = [];
   const env = { DB: { prepare(sql) { return { bind(...args) { statements.push({ sql, args }); return this; }, async run() { return { meta: { changes: 1 } }; } }; } } };
-  const subscription = { subscription: { endpoint: 'https://push.example.test/sub/1', keys: { p256dh: 'p256dh', auth: 'auth' }, expirationTime: null } };
+  const subscription = { subscription: { endpoint: 'https://updates.push.services.mozilla.com/wpush/v2/test-subscription', keys: { p256dh: 'p256dh', auth: 'auth' }, expirationTime: null } };
   assert.deepEqual(await saveOwnerSubscription(env, subscription), { ok: true });
   assert.match(statements[0].sql, /owner_push_subscriptions/);
   assert.match(statements[0].sql, /owner_key/);
-  assert.equal(statements[0].args[0], 'https://push.example.test/sub/1');
+  assert.equal(statements[0].args[0], 'https://updates.push.services.mozilla.com/wpush/v2/test-subscription');
   await assert.rejects(() => saveOwnerSubscription(env, { subscription: { ...subscription.subscription, endpoint: 'http://bad.example/sub' } }), /Invalid push endpoint/);
-  assert.deepEqual(await deleteOwnerSubscription(env, { endpoint: 'https://push.example.test/sub/1' }), { ok: true });
+  await assert.rejects(() => saveOwnerSubscription(env, { subscription: { ...subscription.subscription, endpoint: 'https://attacker.example/sub' } }), /supported browser push services/);
+  assert.equal(statements.length, 1, 'unsupported endpoints must be rejected before database writes');
+  assert.deepEqual(await deleteOwnerSubscription(env, { endpoint: 'https://updates.push.services.mozilla.com/wpush/v2/test-subscription' }), { ok: true });
 });
 
 

@@ -60,6 +60,22 @@ test('unknown routes return 404 JSON', async () => {
   assert.equal((await jsonResponse(response)).error, 'Not found');
 });
 
+test('push subscription rejects arbitrary HTTPS endpoints before writing to D1', async () => {
+  const response = await request('/api/push/subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      customerId: 'customer-1',
+      subscription: {
+        endpoint: 'https://attacker.example/internal-target',
+        keys: { p256dh: 'test-public-key', auth: 'test-auth-secret' }
+      }
+    })
+  });
+  assert.equal(response.status, 400);
+  assert.match((await jsonResponse(response)).error, /supported browser push services/i);
+});
+
 test('admin endpoints reject missing credentials', async () => {
   const response = await request('/api/admin/orders');
   assert.equal(response.status, 401);

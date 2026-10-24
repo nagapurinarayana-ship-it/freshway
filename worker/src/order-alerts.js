@@ -1,4 +1,5 @@
 import webpush from 'web-push';
+import { validatePushEndpoint } from './push-endpoint.js';
 
 const pushConfigured = env => Boolean(
   String(env.VAPID_PUBLIC_KEY || '').trim() &&
@@ -112,8 +113,9 @@ export async function dispatchOrderAlert(env, alert) {
     webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
     await Promise.all(subscriptions.map(async subscription => {
       try {
+        const endpoint = validatePushEndpoint(subscription.endpoint);
         await webpush.sendNotification(
-          { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
+          { endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
           payload
         );
         sent++;
@@ -123,7 +125,7 @@ export async function dispatchOrderAlert(env, alert) {
         const rawReason = statusCode ? `HTTP_${statusCode}` : cleanText(error?.code || error?.name || 'UNKNOWN', 32);
         const reason = rawReason.toUpperCase().replace(/[^A-Z0-9_-]/g, '_').slice(0, 40) || 'UNKNOWN';
         failureReasons[reason] = (failureReasons[reason] || 0) + 1;
-        if ([404, 410].includes(statusCode)) dead.push(subscription.endpoint);
+        if (error?.code === 'PUSH_ENDPOINT_UNSUPPORTED' || [404, 410].includes(statusCode)) dead.push(subscription.endpoint);
       }
     }));
   } catch (error) {
@@ -155,12 +157,9 @@ export async function dispatchOrderAlert(env, alert) {
 
 export async function saveOwnerSubscription(env, payload) {
   const subscription = payload?.subscription;
-  const endpoint = cleanText(subscription?.endpoint, 2048);
+  const endpoint = validatePushEndpoint(cleanText(subscription?.endpoint, 2048));
   const p256dh = cleanText(subscription?.keys?.p256dh, 500);
   const auth = cleanText(subscription?.keys?.auth, 500);
-  let parsed;
-  try { parsed = new URL(endpoint); } catch (_) { throw new Error('Invalid push endpoint.'); }
-  if (parsed.protocol !== 'https:') throw new Error('Invalid push endpoint.');
   if (!p256dh || !auth) throw new Error('Invalid push subscription keys.');
   await env.DB.prepare(`INSERT INTO owner_push_subscriptions
     (owner_key,endpoint,p256dh,auth,expiration_time,updated_at)

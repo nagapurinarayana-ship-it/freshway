@@ -3,6 +3,7 @@ import { getStoreProfile } from './store-profile.js';
 import { buildOrderPlacedAlerts, dispatchOrderAlert } from './order-alerts.js';
 import { buildOrderChangeAlerts } from './admin-notifications.js';
 import { handleReverseGeocode } from './geocode-api.js';
+import { validatePushEndpoint } from './push-endpoint.js';
 
 const json = (data, status = 200, origin = '*') => new Response(JSON.stringify(data), {
   status,
@@ -259,8 +260,45 @@ async function updateProduct(env,id,payload){
   return{ok:true}
 }
 
-async function saveSubscription(env,payload){const s=payload.subscription;if(!payload.customerId||!s?.endpoint||!s?.keys?.p256dh||!s?.keys?.auth)throw new Error('Invalid push subscription.');await env.DB.prepare(`INSERT INTO push_subscriptions (customer_id,endpoint,p256dh,auth,expiration_time,updated_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(endpoint) DO UPDATE SET customer_id=excluded.customer_id,p256dh=excluded.p256dh,auth=excluded.auth,expiration_time=excluded.expiration_time,updated_at=CURRENT_TIMESTAMP`).bind(String(payload.customerId).slice(0,100),s.endpoint,s.keys.p256dh,s.keys.auth,s.expirationTime||null).run();return{ok:true}}
-async function broadcastPush(env,payload){if(!env.VAPID_PUBLIC_KEY||!env.VAPID_PRIVATE_KEY||!env.VAPID_SUBJECT)throw new Error('Web Push VAPID secrets are not configured.');webpush.setVapidDetails(env.VAPID_SUBJECT,env.VAPID_PUBLIC_KEY,env.VAPID_PRIVATE_KEY);const{results}=await env.DB.prepare('SELECT endpoint,p256dh,auth FROM push_subscriptions').all();let success=0,failure=0;const dead=[];await Promise.all((results||[]).map(async row=>{try{await webpush.sendNotification({endpoint:row.endpoint,keys:{p256dh:row.p256dh,auth:row.auth}},JSON.stringify({title:payload.title||'FreshWay',body:payload.body||'You have a new FreshWay update.',url:payload.url||'/',tag:payload.tag||`freshway-${Date.now()}`}));success++}catch(error){failure++;const status=error?.statusCode||0;if(status===404||status===410)dead.push(row.endpoint)}}));if(dead.length)await env.DB.batch(dead.map(endpoint=>env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint=?').bind(endpoint)));await env.DB.prepare('INSERT INTO notification_log (channel,title,body,recipient_count,success_count,failure_count) VALUES (?,?,?,?,?,?)').bind('app',payload.title||'FreshWay',payload.body||'',results?.length||0,success,failure).run();return{channel:'app',recipients:results?.length||0,success,failure}}
+async function saveSubscription(env,payload){
+  const s=payload?.subscription;
+  if(!payload.customerId||!s?.endpoint||!s?.keys?.p256dh||!s?.keys?.auth)throw new Error('Invalid push subscription.');
+  const endpoint=validatePushEndpoint(s.endpoint);
+  const p256dh=String(s.keys.p256dh).trim(),auth=String(s.keys.auth).trim();
+  if(!p256dh||!auth||p256dh.length>500||auth.length>500)throw new Error('Invalid push subscription keys.');
+  await env.DB.prepare(`INSERT INTO push_subscriptions (customer_id,endpoint,p256dh,auth,expiration_time,updated_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(endpoint) DO UPDATE SET customer_id=excluded.customer_id,p256dh=excluded.p256dh,auth=excluded.auth,expiration_time=excluded.expiration_time,updated_at=CURRENT_TIMESTAMP`).bind(String(payload.customerId).slice(0,100),endpoint,p256dh,auth,s.expirationTime||null).run();
+  return{ok:true};
+}
+async function broadcastPush(env,payload){
+  if(!env.VAPID_PUBLIC_KEY||!env.VAPID_PRIVATE_KEY||!env.VAPID_SUBJECT)throw new Error('Web Push VAPID secrets are not configured.');
+  webpush.setVapidDetails(env.VAPID_SUBJECT,env.VAPID_PUBLIC_KEY,env.VAPID_PRIVATE_KEY);
+  const {results}=await env.DB.prepare('SELECT endpoint,p256dh,auth FROM push_subscriptions').all();
+  const subscriptions=results||[];
+  let success=0,failure=0;
+  const dead=new Set(),valid=[];
+  for(const row of subscriptions){
+    try{validatePushEndpoint(row.endpoint);valid.push(row)}
+    catch(_){dead.add(row.endpoint);failure++}
+  }
+  const message=JSON.stringify({title:payload.title||'FreshWay',body:payload.body||'You have a new FreshWay update.',url:payload.url||'/',tag:payload.tag||`freshway-${Date.now()}`});
+  await Promise.all(valid.map(async row=>{
+    try{
+      const endpoint=validatePushEndpoint(row.endpoint);
+      await webpush.sendNotification({endpoint,keys:{p256dh:row.p256dh,auth:row.auth}},message);
+      success++;
+    }catch(error){
+      failure++;
+      const status=Number(error?.statusCode||0);
+      if(error?.code==='PUSH_ENDPOINT_UNSUPPORTED'||status===404||status===410)dead.add(row.endpoint);
+    }
+  }));
+  if(dead.size){
+    try{await env.DB.batch([...dead].map(endpoint=>env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint=?').bind(endpoint)))}
+    catch(error){console.error('FreshWay invalid push subscriptions could not be cleaned up:',error?.message||error)}
+  }
+  await env.DB.prepare('INSERT INTO notification_log (channel,title,body,recipient_count,success_count,failure_count) VALUES (?,?,?,?,?,?)').bind('app',payload.title||'FreshWay',payload.body||'',subscriptions.length,success,failure).run();
+  return{channel:'app',recipients:subscriptions.length,success,failure};
+}
 async function broadcastWhatsApp(env,payload){if(!env.WHATSAPP_ACCESS_TOKEN||!env.WHATSAPP_PHONE_NUMBER_ID||!env.WHATSAPP_GRAPH_VERSION)throw new Error('WhatsApp API secrets are not configured.');if(!payload.templateName)throw new Error('WhatsApp requires an approved template name for broadcast messaging.');const{results}=await env.DB.prepare('SELECT phone FROM customers WHERE phone IS NOT NULL AND whatsapp_opt_in=1').all();const url=`https://graph.facebook.com/${env.WHATSAPP_GRAPH_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`;let success=0,failure=0;await Promise.all((results||[]).map(async row=>{try{const response=await fetch(url,{method:'POST',headers:{'Authorization':`Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,'Content-Type':'application/json'},body:JSON.stringify({messaging_product:'whatsapp',to:String(row.phone).replace(/\D/g,''),type:'template',template:{name:payload.templateName,language:{code:payload.languageCode||'en_US'},...(payload.parameters?.length?{components:[{type:'body',parameters:payload.parameters.map(text=>({type:'text',text:String(text)}))}]}:{})}})});if(response.ok)success++;else failure++}catch(_){failure++}}));await env.DB.prepare('INSERT INTO notification_log (channel,title,body,recipient_count,success_count,failure_count) VALUES (?,?,?,?,?,?)').bind('whatsapp',payload.templateName,payload.body||'',results?.length||0,success,failure).run();return{channel:'whatsapp',recipients:results?.length||0,success,failure}}
 async function notificationHistory(env){const{results}=await env.DB.prepare('SELECT id,channel,title,body,recipient_count,success_count,failure_count,created_at FROM notification_log ORDER BY created_at DESC,id DESC LIMIT 50').all();return results||[]}
 
