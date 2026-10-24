@@ -75,9 +75,9 @@ function assertResponsiveViewportCss(css, label) {
 }
 
 function assertNativeInstallFlow(source, label) {
-  assert.match(source, /beforeinstallprompt/, label + ' must capture Chrome install availability');
-  assert.match(source, /promptEvent\\.prompt\\(\\)/, label + ' must invoke Chrome native install');
-  assert.match(source, /promptEvent\\.userChoice/, label + ' must handle install outcome');
+  assert.ok(source.includes('beforeinstallprompt'), label + ' must capture Chrome install availability');
+  assert.ok(source.includes('promptEvent.prompt()'), label + ' must invoke Chrome native install');
+  assert.ok(source.includes('promptEvent.userChoice'), label + ' must handle install outcome');
 }
 
 async function waitForFullImageFitAssets(base) {
