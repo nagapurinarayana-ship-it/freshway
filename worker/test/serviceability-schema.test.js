@@ -14,7 +14,7 @@ test('serviceable-area tables exist in both fresh schema and additive migration'
     assert.match(schema, new RegExp('CREATE TABLE IF NOT EXISTS ' + table + '\\s*\\('), 'fresh schema missing ' + table);
     assert.match(migration, new RegExp('CREATE TABLE IF NOT EXISTS ' + table + '\\s*\\('), 'migration missing ' + table);
   }
-  assert.match(migration, /INSERT OR IGNORE INTO serviceability_settings \(id,enforcement_mode,config_version\) VALUES \(1,'off',1\)/);
+  assert.match(migration, /INSERT OR IGNORE INTO serviceability_settings \\(id,enforcement_mode,config_version\\) VALUES \\(1,'off',1\\)/);
   assert.match(schema, /enforcement_mode TEXT NOT NULL DEFAULT 'off'/);
 });
 

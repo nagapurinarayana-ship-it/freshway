@@ -5,8 +5,7 @@ CREATE TABLE IF NOT EXISTS serviceability_settings (
   config_version INTEGER NOT NULL DEFAULT 1 CHECK(config_version >= 1),
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-INSERT OR IGNORE INTO serviceability_settings (id,enforcement_mode,config_version)
-VALUES (1,'off',1);
+INSERT OR IGNORE INTO serviceability_settings (id,enforcement_mode,config_version) VALUES (1,'off',1);
 
 CREATE TABLE IF NOT EXISTS delivery_zones (
   id TEXT PRIMARY KEY,

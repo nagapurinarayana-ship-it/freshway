@@ -298,11 +298,11 @@ function matchesZone(zone, destination) {
 export function evaluateZones(zoneValues, destinationInput) {
   const destination = normalizeDestination(destinationInput);
   const zones = (Array.isArray(zoneValues) ? zoneValues : []).map(zone => {
-    if (zone && zone.coverageMode) return normalizedZone({
-      ...zone,
-      pinCodes: zone.pinCodes || [],
-      polygon: zone.polygon || null
-    }, { ...zone, id: String(zone.id) });
+    if (zone && zone.coverageMode) {
+      // readZones already returns normalized domain objects. Preserve those
+      // values here instead of running the owner-input normalizer a second time.
+      return { ...zone, id: String(zone.id), pinCodes: pinsFromValue(zone.pinCodes || []) };
+    }
     return rowToZone(zone);
   });
   const matches = [];
