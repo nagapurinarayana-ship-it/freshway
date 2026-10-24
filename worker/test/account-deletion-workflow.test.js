@@ -11,9 +11,12 @@ test('signed-in deletion requests require JSON and an allowed browser origin', (
   assert.ok(passcodeAuth.includes("contentType !== 'application/json' || !requestOrigin || !isAllowedOrigin(env, requestOrigin)"));
 });
 
-test('account deletion completion calls the fulfilment helper', () => {
+test('account deletion completion calls the fulfilment helper and exposes safe failure diagnostics', () => {
   assert.match(adminAuth, /fulfillAccountDeletion/);
   assert.match(adminAuth, /status==='completed'/);
+  assert.match(adminAuth, /freshway_account_deletion_fulfilment_failed/);
+  assert.match(adminAuth, /no account data was changed/i);
+  assert.match(adminAuth, /Reference: '\+errorId/);
   assert.doesNotMatch(adminAuth, /cannot be marked complete yet/);
 });
 
