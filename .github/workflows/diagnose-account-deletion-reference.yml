@@ -24,7 +24,7 @@ jobs:
           node-version: 22
       - name: Install Worker dependencies
         working-directory: worker
-        run: npm ci
+        run: npm install --no-audit --no-fund
       - name: Inspect production column constraints (read-only)
         working-directory: worker
         env:
