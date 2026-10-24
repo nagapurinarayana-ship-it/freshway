@@ -29,7 +29,7 @@ const APP_SHELL = [
 '/icons/icon-512.png',
 '/icons/icon-192-maskable.png',
 '/icons/icon-512-maskable.png',
-'/icon.svg?v=20261008-brand-v1',
+'/icon.svg?v=20261024-master-logo-v1',
 '/freshway-logo-master.webp?v=20261008-master-v1',
 '/freshway-logo-clean.svg?v=20261008-brand-v1'
 ];
