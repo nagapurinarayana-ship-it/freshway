@@ -26,5 +26,5 @@
   "appVersion": "1.0.0",
   "webManifestUrl": "https://fwcoldpressed.in/manifest.webmanifest",
   "fallbackType": "customtabs",
-  "minSdkVersion": 23
+  "minSdkVersion": 24
 }
