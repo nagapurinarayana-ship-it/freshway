@@ -91,6 +91,7 @@ export async function updateOrder(env,id,payload){
   if(deliveryPlan&&!['Today','Tomorrow','Later','Unscheduled'].includes(deliveryPlan))throw new Error('Invalid delivery plan.');
   const current=await env.DB.prepare('SELECT delivery_status,payment_status,delivery_plan,customer_id,is_test_order FROM orders WHERE id=?').bind(id).first();
   if(!current)throw new Error('Order not found.');
+  const currentStatus=normalizeStatus(current.delivery_status);
   const currentTest=Number(current.is_test_order||0);
   const isTestOrder=hasTestFlag?(payload.isTestOrder?1:0):currentTest;
   const sets=[],params=[],guards=['id=?'],guardParams=[id];
@@ -101,12 +102,90 @@ export async function updateOrder(env,id,payload){
   if(!sets.length)throw new Error('No order change supplied.');
   sets.push('updated_at=CURRENT_TIMESTAMP');
   const sql='UPDATE orders SET '+sets.join(',')+' WHERE '+guards.join(' AND ');
+  const orderUpdate=env.DB.prepare(sql).bind(...params,...guardParams);
+  const guardedOrderWhere=guards.map(guard=>'o.'+guard).join(' AND ');
+  let updateResult;
+
+  // Keep stock reservation markers in sync with the order lifecycle. D1 batches
+  // are atomic: the stock movement, reservation-marker update, and order status
+  // update either all commit or all roll back.
+  const cancelling=status==='Cancelled'&&currentStatus!=='Cancelled'&&currentStatus!=='Delivered';
+  const reopening=Boolean(status)&&currentStatus==='Cancelled'&&status!=='Cancelled';
+  if(cancelling){
+    const reserved=(await env.DB.prepare(`SELECT product_id,SUM(stock_reserved_qty) AS reserved_qty
+      FROM order_items WHERE order_id=? AND stock_reserved_qty>0 GROUP BY product_id`).bind(id).all()).results||[];
+    if(reserved.length){
+      const statements=reserved.map(item=>env.DB.prepare(`UPDATE products SET stock_quantity=stock_quantity+?
+        WHERE id=? AND stock_managed=1 AND EXISTS(SELECT 1 FROM orders o WHERE ${guardedOrderWhere})`)
+        .bind(Number(item.reserved_qty),item.product_id,...guardParams));
+      statements.push(env.DB.prepare(`UPDATE order_items SET stock_reserved_qty=0
+        WHERE order_id=? AND stock_reserved_qty>0 AND EXISTS(SELECT 1 FROM orders o WHERE ${guardedOrderWhere})`)
+        .bind(id,...guardParams));
+      statements.push(orderUpdate);
+      let batchResult;
+      try{
+        batchResult=await env.DB.batch(statements);
+      }catch(error){
+        if(/stock_quantity|CHECK constraint failed|constraint failed/i.test(String(error?.message||''))){
+          throw new Error('ORDER_CONFLICT: Stock could not be restored safely. Refresh the order and try again.');
+        }
+        throw error;
+      }
+      updateResult=batchResult?.[batchResult.length-1];
+    }else{
+      updateResult=await orderUpdate.run();
+    }
+  }else if(reopening){
+    const needed=(await env.DB.prepare(`SELECT oi.product_id,
+        SUM(CASE WHEN oi.stock_reserved_qty=0 THEN oi.qty ELSE 0 END) AS reserve_qty,
+        MAX(p.stock_quantity) AS available_stock,MAX(p.name) AS product_name
+      FROM order_items oi JOIN products p ON p.id=oi.product_id AND p.stock_managed=1
+      WHERE oi.order_id=? GROUP BY oi.product_id
+      HAVING SUM(CASE WHEN oi.stock_reserved_qty=0 THEN oi.qty ELSE 0 END)>0`).bind(id).all()).results||[];
+    for(const item of needed){
+      const required=Number(item.reserve_qty||0),available=Number(item.available_stock||0);
+      if(available<required){
+        throw new Error(`ORDER_CONFLICT: Not enough stock to reopen this cancelled order for ${String(item.product_name||'a tracked product')}. Available: ${available}, required: ${required}. No changes were saved.`);
+      }
+    }
+    if(needed.length){
+      const statements=[];
+      for(const item of needed){
+        const quantity=Number(item.reserve_qty||0),productId=item.product_id;
+        // Rely on the database stock CHECK constraint as the final concurrency
+        // guard. If inventory changed after preflight, the whole batch rolls back.
+        statements.push(env.DB.prepare(`UPDATE products SET stock_quantity=stock_quantity-?
+          WHERE id=? AND stock_managed=1 AND EXISTS(SELECT 1 FROM orders o WHERE ${guardedOrderWhere})`)
+          .bind(quantity,productId,...guardParams));
+        statements.push(env.DB.prepare(`UPDATE order_items SET stock_reserved_qty=qty
+          WHERE order_id=? AND product_id=? AND stock_reserved_qty=0
+            AND EXISTS(SELECT 1 FROM orders o WHERE ${guardedOrderWhere})`)
+          .bind(id,productId,...guardParams));
+      }
+      statements.push(orderUpdate);
+      let batchResult;
+      try{
+        batchResult=await env.DB.batch(statements);
+      }catch(error){
+        if(/stock_quantity|CHECK constraint failed|constraint failed/i.test(String(error?.message||''))){
+          throw new Error('ORDER_CONFLICT: Stock changed while reopening this cancelled order. Refresh inventory and try again.');
+        }
+        throw error;
+      }
+      updateResult=batchResult?.[batchResult.length-1];
+    }else{
+      // Older cancellations may still carry a non-zero reservation marker because
+      // their stock was never released; don't reserve that inventory twice.
+      updateResult=await orderUpdate.run();
+    }
+  }else{
+    updateResult=await orderUpdate.run();
+  }
+  if(!updateResult?.meta?.changes)throw new Error('ORDER_CONFLICT: This order changed while you were saving. Refresh the order and try again.');
+
   // Persist the valid order lifecycle/payment change independently of invoice
   // validation. Missing HSN/GST metadata must not make an otherwise valid
   // status update fail or silently revert to the prior database value.
-  const result=await env.DB.prepare(sql).bind(...params,...guardParams).run();
-  if(!result.meta?.changes)throw new Error('ORDER_CONFLICT: This order changed while you were saving. Refresh the order and try again.');
-
   const shouldIssueInvoice=!isTestOrder&&!!status&&['Out for Delivery','Delivered'].includes(status);
   let invoiceSummary=null,invoiceWarning='',invoiceFallbackReason='';
   if(shouldIssueInvoice){
@@ -128,5 +207,5 @@ export async function updateOrder(env,id,payload){
       invoiceWarning=String(error?.message||'Invoice could not be issued. Review Billing & tax and product details.');
     }
   }
-  return{ok:true,status:status||normalizeStatus(current.delivery_status),payment:payment||current.payment_status,deliveryPlan:deliveryPlan||current.delivery_plan,isTestOrder,testClassificationChanged:hasTestFlag&&isTestOrder!==currentTest,invoice:invoiceSummary,...(invoiceFallbackReason?{invoiceFallbackReason}:{}),...(invoiceWarning?{invoiceWarning}:{})}
+  return{ok:true,status:status||currentStatus,payment:payment||current.payment_status,deliveryPlan:deliveryPlan||current.delivery_plan,isTestOrder,testClassificationChanged:hasTestFlag&&isTestOrder!==currentTest,invoice:invoiceSummary,...(invoiceFallbackReason?{invoiceFallbackReason}:{}),...(invoiceWarning?{invoiceWarning}:{})}
 }
