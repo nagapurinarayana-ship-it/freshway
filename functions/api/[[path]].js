@@ -45,7 +45,7 @@ export async function onRequest(context) {
   const buildRequest = target => new Request(target, {
     method,
     headers,
-    body: needsBody ? (isAddressApi ? addressBody : body) : undefined
+    body: needsBody ? ((isAddressApi || isStoreProfileApi) ? replayableBody : body) : undefined
   });
 
   const isJsonResponse = response => {
