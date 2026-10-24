@@ -179,7 +179,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BUNDLE="android-twa/generated/app-release-bundle.aab"
+          BUNDLE="android-twa/generated/app/build/outputs/bundle/release/app-release.aab"
           test -s "$BUNDLE"
           unzip -t "$BUNDLE"
           unzip -l "$BUNDLE" | grep -E 'BundleConfig.pb|base/manifest/AndroidManifest.xml'
@@ -189,6 +189,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: freshway-unsigned-twa-preflight
-          path: android-twa/generated/app-release-bundle.aab
+          path: android-twa/generated/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 7
