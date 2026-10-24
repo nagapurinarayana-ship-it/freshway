@@ -52,6 +52,7 @@ const required = {
   push_subscriptions: ['customer_id'],
   notification_events: ['customer_id', 'order_id'],
   account_deletion_requests: ['id', 'customer_id', 'phone_snapshot', 'status', 'source', 'admin_note', 'updated_at', 'processed_at'],
+  account_deletion_summary: ['id', 'completed_count', 'latest_completed_at'],
   auth_rate_limits: ['key', 'window_start', 'count']
 };
 
