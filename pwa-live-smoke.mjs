@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
-import { assertValidPng } from './pwa-icons-integrity.mjs';
 
 const BASE_URL = process.env.BASE_URL || 'https://freshway-f32.pages.dev';
 const VIEWPORT_STYLES_PATH = '/styles.css?v=20261022-invoice-ui-v1';
 const CUSTOMER_APP_PATH = '/app.js?v=20261021-home-navigation-refresh-v1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261021-guest-address-map-search-v3';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v73';
-const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261024-native-install-v1';
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v74';
+const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261024-native-install-v2';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchWithRetry(url, options = {}) {
@@ -230,21 +229,37 @@ assert.equal(manifest.start_url, '/');
 assert.equal(manifest.scope, '/');
 assert.equal(manifest.display, 'standalone');
 for (const size of ['192x192', '512x512']) {
-  assert.ok(manifest.icons.some(icon => icon.sizes === size && icon.type === 'image/png'));
+  assert.ok(
+    manifest.icons.some(icon => icon.sizes === size && icon.type === 'image/svg+xml'),
+    'manifest must declare the FreshWay brand SVG at ' + size
+  );
 }
-
-for (const [path, size] of [['/icons/icon-192.png',192], ['/icons/icon-512.png',512], ['/icons/icon-192-maskable.png',192], ['/icons/icon-512-maskable.png',512]]) {
-  const response = await fetchWithRetry(`${base}${path}`);
-  assert.equal(response.status, 200, path);
-  assert.match(response.headers.get('content-type') || '', /^image\/png/i, path);
-  const bytes = Buffer.from(await response.arrayBuffer());
-  assertValidPng(bytes, { width: size, height: size, label: 'Pages production ' + path });
-}
+assert.equal(manifest.icons.length, 2, 'manifest must not advertise legacy P-monogram PNG icons');
+assert.ok(
+  manifest.icons.every(icon => /^\/icons\/icon-(?:192|512)\.svg\?v=20261024-master-logo-v1$/.test(icon.src)),
+  'manifest icons must use the versioned FreshWay master-logo SVGs'
+);
 
 const logoResponse = await fetchWithRetry(`${base}/freshway-logo-master.webp?v=20261008-master-v1`);
 assert.equal(logoResponse.status, 200);
 assert.match(logoResponse.headers.get('content-type') || '', /^image\/webp/i, 'master FreshWay logo must be served as WebP');
-assert.ok((await logoResponse.arrayBuffer()).byteLength > 100, 'master FreshWay logo must contain image data');
+const masterLogoBase64 = Buffer.from(await logoResponse.arrayBuffer()).toString('base64');
+assert.ok(masterLogoBase64.length > 100, 'master FreshWay logo must contain image data');
+
+for (const [path, size] of [
+  ['/icons/icon-192.svg?v=20261024-master-logo-v1', 192],
+  ['/icons/icon-512.svg?v=20261024-master-logo-v1', 512]
+]) {
+  const response = await fetchWithRetry(`${base}${path}`);
+  assert.equal(response.status, 200, path);
+  assert.match(response.headers.get('content-type') || '', /^image\/svg\+xml/i, path);
+  const svg = await response.text();
+  assert.match(svg, /<svg\b[^>]*viewBox="0 0 512 512"/i, path + ' must be a scalable square SVG');
+  assert.match(svg, /data:image\/webp;base64,/i, path + ' must embed the brand asset for reliable icon rendering');
+  const embeddedLogo = svg.match(/href="data:image\/webp;base64,([^"]+)"/i)?.[1];
+  assert.equal(embeddedLogo, masterLogoBase64, path + ' must embed the exact current master FreshWay logo');
+  assert.match(svg, new RegExp(`width="${size}" height="${size}"`), path + ' must declare the expected intrinsic size');
+}
 
 assert.equal(new URL(adminResponse.url).pathname, '/admin.html');
 assert.equal(adminResponse.status, 200);
