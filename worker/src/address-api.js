@@ -77,13 +77,23 @@ async function findDuplicate(env, customerId, a) {
     ORDER BY is_default DESC,id DESC LIMIT 1`)
     .bind(customerId,a.label,a.recipient_name,a.delivery_phone,a.house_flat,a.building,a.floor,a.street,a.area,a.locality,a.city,a.district,a.state,a.pincode).first();
 }
+function normalizeDefaultStatement(env, customerId, preferredId = null) {
+  // This single statement either preserves the existing default, selects the
+  // requested address, or chooses the newest active address if none is default.
+  // Keeping normalization in one write avoids a cleared-default state on failure.
+  return env.DB.prepare(`UPDATE addresses
+    SET is_default=CASE WHEN id=COALESCE(
+      (SELECT id FROM addresses WHERE id=? AND customer_id=? AND deleted_at IS NULL LIMIT 1),
+      (SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL AND is_default=1 ORDER BY id DESC LIMIT 1),
+      (SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1)
+    ) THEN 1 ELSE 0 END
+    WHERE customer_id=? AND deleted_at IS NULL`)
+    .bind(preferredId, customerId, customerId, customerId, customerId);
+}
+
 async function ensureDefault(env, customerId) {
-  const current = await env.DB.prepare('SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL AND is_default=1 ORDER BY id DESC LIMIT 1').bind(customerId).first();
-  const next = current || await env.DB.prepare('SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1').bind(customerId).first();
-  if (next) {
-    // Normalize legacy accounts to exactly one default address.
-    await env.DB.prepare('UPDATE addresses SET is_default=CASE WHEN id=? THEN 1 ELSE 0 END WHERE customer_id=? AND deleted_at IS NULL').bind(next.id, customerId).run();
-  }
+  await normalizeDefaultStatement(env, customerId).run();
+  const next = await env.DB.prepare('SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL AND is_default=1 ORDER BY id DESC LIMIT 1').bind(customerId).first();
   return next?.id || null;
 }
 export async function handleAddress(request, env, customerId, action) {
