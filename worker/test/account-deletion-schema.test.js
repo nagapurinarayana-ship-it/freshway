@@ -5,6 +5,9 @@ import { readFileSync } from 'node:fs';
 const schema = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8');
 const migration = readFileSync(new URL('../migrations/0033_account_deletion_requests.sql', import.meta.url), 'utf8');
 const erasureMigration = readFileSync(new URL('../migrations/0034_customer_account_erasure.sql', import.meta.url), 'utf8');
+const snapshotRedactionMigration = readFileSync(new URL('../migrations/0035_nullable_snapshot_customer_id_for_erasure.sql', import.meta.url), 'utf8');
+const accountDeletion = readFileSync(new URL('../src/account-deletion.js', import.meta.url), 'utf8');
+const productionAudit = readFileSync(new URL('../scripts/audit-production-schema.mjs', import.meta.url), 'utf8');
 
 test('fresh schema and additive migration define the same account-deletion request table', () => {
   for (const source of [schema, migration]) {
@@ -31,4 +34,25 @@ test('customer tombstone schema supports account erasure without deleting histor
   assert.match(erasureMigration, /ALTER TABLE customers ADD COLUMN deleted_at TEXT/);
   assert.match(erasureMigration, /idx_customers_active_phone/);
   assert.match(erasureMigration, /WHERE deleted_at IS NULL AND phone IS NOT NULL AND phone <> ''/);
+});
+
+
+test('snapshot redaction migration makes customer_id nullable without dropping order/address integrity', () => {
+  const create = snapshotRedactionMigration.split('CREATE TABLE order_address_snapshots_erasure_safe')[1]?.split(');')[0] || '';
+  assert.match(create, /customer_id TEXT,/);
+  assert.doesNotMatch(create, /customer_id TEXT NOT NULL/);
+  assert.match(create, /FOREIGN KEY\(order_id\) REFERENCES orders\(id\) ON DELETE CASCADE/);
+  assert.match(create, /FOREIGN KEY\(address_id\) REFERENCES addresses\(id\) ON DELETE SET NULL/);
+  assert.match(snapshotRedactionMigration, /INSERT INTO order_address_snapshots_erasure_safe/);
+  assert.match(snapshotRedactionMigration, /DROP TABLE order_address_snapshots;/);
+  assert.match(snapshotRedactionMigration, /idx_order_address_snapshots_customer/);
+  assert.match(snapshotRedactionMigration, /idx_order_address_snapshots_coordinates/);
+  assert.match(accountDeletion, /UPDATE order_address_snapshots SET customer_id=NULL/);
+  assert.match(productionAudit, /order_address_snapshots\.customer_id must allow NULL for account erasure/);
+});
+
+test('production deletion errors only call foreign-key failures linked-record conflicts', () => {
+  const adminAuth = readFileSync(new URL('../src/admin-auth.js', import.meta.url), 'utf8');
+  assert.match(adminAuth, /foreignKeyConflict=\/foreign key constraint failed\/i\.test\(message\)/);
+  assert.match(adminAuth, /integrityConflict=\/not null constraint failed\|check constraint failed\|unique constraint failed\/i\.test\(message\)/);
 });

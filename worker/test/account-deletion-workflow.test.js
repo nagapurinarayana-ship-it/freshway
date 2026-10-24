@@ -16,6 +16,8 @@ test('account deletion completion calls the fulfilment helper and exposes safe f
   assert.match(adminAuth, /status==='completed'/);
   assert.match(adminAuth, /freshway_account_deletion_fulfilment_failed/);
   assert.match(adminAuth, /no account data was changed/i);
+  assert.match(adminAuth, /foreignKeyConflict=\/foreign key constraint failed\/i.test\(message\)/);
+  assert.match(adminAuth, /integrityConflict=\/not null constraint failed\|check constraint failed\|unique constraint failed\/i.test\(message\)/);
   assert.match(adminAuth, /Reference: '\+errorId/);
   assert.doesNotMatch(adminAuth, /cannot be marked complete yet/);
 });
