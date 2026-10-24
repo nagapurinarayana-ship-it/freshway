@@ -104,17 +104,16 @@ report.snapshotErasureCompatibility = {
 if (redactionMigrationApplied && (!snapshotCustomerId || Number(snapshotCustomerId.notnull) !== 0)) {
   problems.push('order_address_snapshots.customer_id must allow NULL for account erasure');
 }
-const deletionRequestColumns = rowsFor(
-  'PRAGMA table_info("account_deletion_requests")',
-  row => 'name' in row && 'notnull' in row
-);
-const deletionRequestCustomerId = deletionRequestColumns.find(row => String(row.name) === 'customer_id');
+const deletionSummaryColumns = rowsFor(
+  'PRAGMA table_info("account_deletion_summary")',
+  row => 'name' in row
+).map(row => String(row.name));
 report.accountDeletionAnonymizationCompatibility = {
   migrationApplied: accountDeletionAnonymizationApplied,
-  customerIdAllowsNull: deletionRequestCustomerId ? Number(deletionRequestCustomerId.notnull) === 0 : false
+  summaryTableReady: ['id','completed_count','latest_completed_at'].every(column => deletionSummaryColumns.includes(column))
 };
-if (accountDeletionAnonymizationApplied && (!deletionRequestCustomerId || Number(deletionRequestCustomerId.notnull) !== 0)) {
-  problems.push('account_deletion_requests.customer_id must allow NULL so completed requests can be anonymized');
+if (accountDeletionAnonymizationApplied && !report.accountDeletionAnonymizationCompatibility.summaryTableReady) {
+  problems.push('account_deletion_summary is missing required aggregate columns');
 }
 
 
