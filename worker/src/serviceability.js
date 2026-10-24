@@ -366,7 +366,8 @@ async function readZones(env, all = false) {
       ? 'SELECT * FROM delivery_zones ORDER BY priority DESC,id ASC'
       : "SELECT * FROM delivery_zones WHERE status IN ('active','paused') ORDER BY priority DESC,id ASC";
     const { results } = await env.DB.prepare(sql).all();
-    return (results || []).map(rowToZone);
+    // Keep database rows intact here; evaluateZones owns the single normalization boundary.
+    return results || [];
   } catch (error) {
     console.error('FreshWay serviceability zones unavailable:', error?.message || error);
     throw new ServiceabilityError("We couldn't verify delivery availability. Please try again.", 503, 'SERVICEABILITY_UNAVAILABLE');

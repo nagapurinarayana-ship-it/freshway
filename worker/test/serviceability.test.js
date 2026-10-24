@@ -134,7 +134,7 @@ test('enforced mode blocks uncovered addresses and passes matching active zones'
   assert.equal(denied.orderAllowed,false);
   assert.equal(denied.code,'OUTSIDE_SERVICE_AREA');
   const allowed = await checkServiceability(env,{pincode:'504001'});
-  assert.equal(allowed.orderAllowed,true);
+  assert.equal(allowed.orderAllowed,true, JSON.stringify(allowed));
   assert.equal(allowed.zone.id,'pin');
 });
 

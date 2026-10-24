@@ -92,10 +92,10 @@ async function createOrder(env, payload, ctx) {
   if (!/^\d{6}$/.test(String(address.pincode))) throw new Error('Enter a valid 6-digit PIN code.');
   const existing = await existingOrderByClientId(env, customerId, clientOrderId);
   if (existing) return existing;
+  const { items, total } = await validateOrderItems(env, rawItems);
   // Authoritative check before any customer/address/order writes, inventory updates, or notifications.
   const serviceability = await checkServiceability(env, address);
   if (!serviceability.orderAllowed) throw new ServiceabilityError(serviceability.message || "Delivery isn't available at this location yet.", 422, serviceability.code || 'DELIVERY_UNAVAILABLE');
-  const { items, total } = await validateOrderItems(env, rawItems);
   const phone = cleanPhone(customer.phone), customerName = String(customer.name).trim().slice(0, 100);
   const existingCustomer = await env.DB.prepare('SELECT phone FROM customers WHERE id=? LIMIT 1').bind(customerId).first();
   const registeredPhone = cleanPhone(existingCustomer?.phone);
