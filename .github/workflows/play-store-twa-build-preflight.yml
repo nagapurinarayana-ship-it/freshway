@@ -50,6 +50,60 @@ jobs:
         working-directory: android-twa
         run: npm test
 
+      - name: Verify live PWA manifest and PNG payloads
+        shell: bash
+        run: |
+          node <<'NODE'
+          const zlib = require('node:zlib');
+          const base = 'https://fwcoldpressed.in';
+          const parsePng = (buffer, label) => {
+            const signature = Buffer.from([137,80,78,71,13,10,26,10]);
+            if (buffer.length < 33 || !buffer.subarray(0, 8).equals(signature)) {
+              throw new Error(label + ': invalid PNG signature or too short (' + buffer.length + ' bytes)');
+            }
+            const width = buffer.readUInt32BE(16);
+            const height = buffer.readUInt32BE(20);
+            const idat = [];
+            let pos = 8;
+            let sawIend = false;
+            while (pos + 12 <= buffer.length) {
+              const length = buffer.readUInt32BE(pos);
+              const end = pos + 12 + length;
+              if (end > buffer.length) throw new Error(label + ': truncated PNG chunk at offset ' + pos);
+              const type = buffer.toString('ascii', pos + 4, pos + 8);
+              if (type === 'IDAT') idat.push(buffer.subarray(pos + 8, pos + 8 + length));
+              pos = end;
+              if (type === 'IEND') {
+                sawIend = true;
+                break;
+              }
+            }
+            if (!sawIend) throw new Error(label + ': missing PNG IEND chunk');
+            const pixels = zlib.inflateSync(Buffer.concat(idat));
+            if (!width || !height || pixels.length === 0) throw new Error(label + ': invalid dimensions or image data');
+            return {width, height, inflatedBytes:pixels.length, bytes:buffer.length};
+          };
+          (async () => {
+            const manifestResponse = await fetch(base + '/manifest.webmanifest', {cache:'no-store'});
+            if (!manifestResponse.ok) throw new Error('Live web manifest returned HTTP ' + manifestResponse.status);
+            const manifestText = await manifestResponse.text();
+            const manifest = JSON.parse(manifestText);
+            if (manifest.start_url !== '/' || manifest.scope !== '/' || manifest.display !== 'standalone') {
+              throw new Error('Live PWA manifest does not match customer app start URL/scope/display');
+            }
+            console.log('Live web manifest OK:', manifestResponse.status, manifestResponse.headers.get('content-type'));
+            for (const path of ['/icons/icon-512.png', '/icons/icon-512-maskable.png']) {
+              const response = await fetch(base + path, {cache:'no-store'});
+              if (!response.ok) throw new Error(path + ' returned HTTP ' + response.status);
+              const mime = (response.headers.get('content-type') || '').toLowerCase();
+              if (!mime.startsWith('image/png')) throw new Error(path + ' returned Content-Type ' + mime);
+              const buffer = Buffer.from(await response.arrayBuffer());
+              const parsed = parsePng(buffer, path);
+              console.log('Live PNG integrity OK:', path, JSON.stringify(parsed));
+            }
+          })().catch(error => { console.error(error.stack || error); process.exitCode = 1; });
+          NODE
+
       - name: Configure Bubblewrap SDK paths non-interactively
         shell: bash
         run: |
