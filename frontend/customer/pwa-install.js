@@ -19,7 +19,7 @@ const FreshWayPwaInstall=(()=>{
         ?'Tap here to install FreshWay as an app.'
         :isIos()
           ?'Use Share → Add to Home Screen to install FreshWay.'
-          :'Use your browser menu → Install app or Add to Home screen.';
+          :'Use Chrome menu → Install app (not Create shortcut).';
     }
   };
 
@@ -29,7 +29,7 @@ const FreshWayPwaInstall=(()=>{
     deferredPrompt=null;
     setAvailable();
     try{
-      promptEvent.prompt();
+      await promptEvent.prompt();
       const choice=await promptEvent.userChoice;
       const accepted=choice?.outcome==='accepted';
       if(accepted){
@@ -56,7 +56,7 @@ const FreshWayPwaInstall=(()=>{
       ?'Install FreshWay to add an app icon and open it in its own app window.'
       :isIos()
         ?'In Safari, tap <strong>Share</strong>, then choose <strong>Add to Home Screen</strong>.'
-        :'Tap the browser menu <strong>⋮</strong>, then choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.';
+        :'Open the Chrome menu <strong>⋮</strong> and choose <strong>Install app</strong>. If Chrome offers both <strong>Install</strong> and <strong>Create shortcut</strong>, choose <strong>Install</strong>.';
     const actionLabel=nativeAvailable?'Install FreshWay':'Got it';
     const modal=document.createElement('div');
     modal.className='modal';
@@ -73,7 +73,7 @@ const FreshWayPwaInstall=(()=>{
       const paragraph=modal.querySelector('p');
       if(paragraph)paragraph.innerHTML=isIos()
         ?'In Safari, tap <strong>Share</strong>, then choose <strong>Add to Home Screen</strong>.'
-        :'Chrome could not open the install prompt. Tap the browser menu <strong>⋮</strong>, then choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.';
+        :'Chrome could not open the install prompt. Open the Chrome menu <strong>⋮</strong> and choose <strong>Install app</strong>. If Chrome offers both choices, choose <strong>Install</strong>, not <strong>Create shortcut</strong>.';
       const action=modal.querySelector('.pwa-install-action');
       if(action)action.textContent='Got it';
     };
