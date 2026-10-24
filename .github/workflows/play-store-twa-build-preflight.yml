@@ -65,7 +65,7 @@ jobs:
           mkdir -p android-twa/generated
           cp android-twa/twa-manifest.json android-twa/generated/twa-manifest.json
           npx --yes @bubblewrap/cli@1.27.0 update \
-            --manifest=./android-twa/generated \
+            --manifest=./android-twa/generated/twa-manifest.json \
             --directory=./android-twa/generated \
             --skipVersionUpgrade
           test -s android-twa/generated/twa-manifest.json
