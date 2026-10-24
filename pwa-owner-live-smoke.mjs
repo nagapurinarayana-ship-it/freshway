@@ -8,9 +8,9 @@ const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261023-new-order-kpi-wa
 const EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT = '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v1';
 const EXPECTED_OWNER_ACCOUNT_DELETIONS_SCRIPT = '/admin/frontend/admin/account-deletions.js?v=20261023-account-deletion-clickfix-v4';
 const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1';
-const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261022-pin-save-v2';
+const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v1';
 const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261023-available-fields-invoice-v1';
-const EXPECTED_OWNER_CACHE = 'fw-owner-v38';
+const EXPECTED_OWNER_CACHE = 'fw-owner-v39';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -230,6 +230,11 @@ const assetResponses = await Promise.all(shellPaths.map(async path => {
   if (path.endsWith('.svg')) assert.match(type, /image\/svg\+xml/i, path);
   if (path.endsWith('.webp')) assert.match(type, /image\/webp/i, path);
   const bytes = await response.arrayBuffer();
+  if (path === EXPECTED_OWNER_STORE_PROFILE_SCRIPT) {
+    const deployedSource = new TextDecoder().decode(bytes);
+    assert.match(deployedSource, /function readProfileResponse\(data\)/, 'deployed Store Profile script must validate API responses before applying values');
+    assert.match(deployedSource, /incomplete Store Profile/, 'deployed Store Profile script must reject malformed responses without clearing the form');
+  }
   assert.ok(bytes.byteLength > 0, path + ' must not be empty');
   return { path, status: response.status, contentType: type, bytes: bytes.byteLength };
 }));
