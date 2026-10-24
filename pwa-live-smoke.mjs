@@ -208,6 +208,8 @@ const { indexResponse, indexHtml, adminResponse, adminHtml, swResponse, sw } =
 assert.equal(new URL(indexResponse.url).pathname, '/');
 assert.equal(indexResponse.status, 200);
 assert.match(indexHtml, /<link rel="manifest" href="\/manifest\.webmanifest">/);
+assert.ok(indexHtml.includes('icon.svg?v=20261024-master-logo-v1'), 'production home must use the current FreshWay brand favicon');
+assert.ok(indexHtml.includes('/icons/icon-192.svg?v=20261024-master-logo-v1'), 'production home must use the current FreshWay touch icon');
 
 const manifestResponse = await fetchWithRetry(`${base}/manifest.webmanifest`);
 const finalManifestUrl = new URL(manifestResponse.url);
@@ -241,6 +243,12 @@ assert.ok(
   manifest.icons.every(icon => /^\/icons\/icon-(?:192|512)\.svg\?v=20261024-master-logo-v1$/.test(icon.src)),
   'manifest icons must use the versioned FreshWay master-logo SVGs'
 );
+
+const faviconResponse = await fetchWithRetry(`${base}/icon.svg?v=20261024-master-logo-v1`);
+assert.equal(faviconResponse.status, 200);
+assert.match(faviconResponse.headers.get('content-type') || '', /^image\/svg\+xml/i, 'FreshWay favicon must be served as SVG');
+const faviconSvg = await faviconResponse.text();
+assert.ok(faviconSvg.includes('data:image/webp;base64,'), 'FreshWay favicon must embed the brand asset');
 
 const logoResponse = await fetchWithRetry(`${base}/freshway-logo-master.webp?v=20261008-master-v1`);
 assert.equal(logoResponse.status, 200);
