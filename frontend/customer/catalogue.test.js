@@ -22,6 +22,8 @@ assert.doesNotMatch(source,/productOk\)window\.FreshWayCustomerCatalogue\?\.clea
 assert.match(source,/window\.FreshWayCustomerCatalogue\?\.clear/);
 assert.match(source,/role="alert"/);
 assert.match(source,/fwCatalogueRetry/);
+assert.match(source,/const heading=\$\('\.section-heading'\),grid=\$\('#productGrid'\)/,'catalogue loading/error state identifies both product heading and grid');
+assert.match(source,/if\(loading\|\|errorMessage\)\{\s*if\(heading\)heading\.classList\.add\('fw-category-home-hidden'\);\s*if\(grid\)grid\.classList\.add\('fw-category-home-hidden'\);/,'zero-count product heading and grid stay hidden while loading or after a catalogue error');
 assert.match(source,/image_data&&x\.image_mime_type/);
 assert.match(source,/'data:'\+x\.image_mime_type/);
 assert.doesNotMatch(app,/FALLBACK_PRODUCTS/);
