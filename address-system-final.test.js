@@ -62,6 +62,8 @@ assert.ok(source.includes("(modalOrigin === 'home' ? '' : locationPanel)"),
   'the checkout/profile address editor must keep its existing location-panel order');
 assert.ok(source.includes("modalOrigin === 'home' ? '📍 Use current location or search'"),
   'the home address selector must expose a quick location action above saved addresses');
+assert.ok(source.includes("modalOrigin === 'home' ? 'Save & use address'"),
+  'the home editor must make it explicit that the confirmed location will be selected');
 assert.ok(source.includes("(modalOrigin === 'checkout' || modalOrigin === 'home') && returnedAddress"),
   'saving the selected home address must select it without changing its default flag');
 assert.ok(source.includes("if (modalOrigin === 'home' && returnedAddress) {") &&
@@ -79,8 +81,8 @@ assert.match(source, /id="addressModalTitle" tabindex="-1"/);
 assert.match(source, /modalReturnFocus/);
 assert.ok(index.includes('frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3'), 'HTML must load the current geocode field mapper');
 assert.ok(sw.includes('/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3'), 'service worker must cache the current geocode field mapper');
-assert.ok(index.includes('address-system-final.js?v=20261025-home-location-guest-v2'), 'HTML must load the current address module');
-assert.ok(sw.includes('/address-system-final.js?v=20261025-home-location-guest-v2'), 'service worker must cache the current address module');
+assert.ok(index.includes('address-system-final.js?v=20261025-home-location-guest-v3'), 'HTML must load the current address module');
+assert.ok(sw.includes('/address-system-final.js?v=20261025-home-location-guest-v3'), 'service worker must cache the current address module');
 assert.ok(index.includes('address-book.css?v=20261020-address-ui-hardening-v2'), 'HTML must load the current address CSS');
 assert.ok(sw.includes('/frontend/customer/address-book.css?v=20261020-address-ui-hardening-v2'), 'service worker must cache the current address CSS');
 assert.ok(index.includes('notifications.js?v=20261020-normalized-auth-phone-v2'), 'HTML must load the auth phone normalizer');
