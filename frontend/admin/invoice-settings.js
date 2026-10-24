@@ -4,12 +4,18 @@
   const $=selector=>document.querySelector(selector);
   let busy=false;
   let editRevision=0;
+  let savedRevision=0;
   const bool=value=>value===true||Number(value)===1;
   function setStatus(message,isError=false){
     const el=$('#invoiceSettingsStatus');
     if(!el)return;
     el.textContent=message;
     el.classList.toggle('error',isError);
+  }
+  function hasUnsavedChanges(){return editRevision!==savedRevision;}
+  function markEdited(){
+    editRevision++;
+    setStatus('Unsaved Billing & Tax changes. Press Save billing and tax details to keep them after reloading.');
   }
   function apply(settings){
     const s=settings||{};
@@ -25,6 +31,7 @@
     assign('invoiceStateCode',s.stateCode);
     assign('invoiceGstin',s.gstin);
     assign('invoiceFooter',s.footer);
+    savedRevision=editRevision;
     syncDocumentTypeHints();
     setStatus(bool(s.enabled)?'Invoice issuance is enabled. Saving these settings will also generate missing invoices for eligible dispatched and delivered orders.':'Invoice issuance is disabled. Existing invoices remain unchanged.');
   }
@@ -76,6 +83,7 @@
       // navigating away and back to Settings first.
       const api=window.FreshWayOwnerInvoiceSettingsApi||window.api;
       if(typeof api!=='function')throw new Error('Owner API is unavailable. Refresh the page and sign in again.');
+      const revisionAtSave=editRevision;
       const payload=collect();
       let fallbackNotice='';
       if(payload.enabled&&payload.documentType!=='commercial_invoice'&&!payload.gstin){
@@ -89,7 +97,9 @@
       }
       const data=await api('/admin/invoice-settings',{method:'PATCH',body:JSON.stringify(payload)});
       const saved=data?.invoiceSettings||{};
-      apply(saved);
+      const newerEdits=editRevision!==revisionAtSave;
+      if(newerEdits)savedRevision=revisionAtSave;
+      else apply(saved);
       if(saved.enableWarning&&bool(saved.enabled)){
         setStatus('Saved. Invoice issuance is enabled as a non-GST commercial order record. '+saved.enableWarning,false);
       }else if(saved.enableWarning){
@@ -120,6 +130,7 @@
           setStatus(summary+fallbackDetails+(failed?' '+failed+' order'+(failed===1?' needs':'s need')+' review.':'')+failureDetails+refundedDetails,failed>0);
         }
       }
+      if(newerEdits)setStatus('The submitted Billing & Tax settings were saved, but newer edits remain unsaved. Save again to persist those newer edits.');
     }catch(error){
       setStatus(error?.message||'Could not save invoice configuration.',true);
     }finally{
@@ -180,8 +191,8 @@
       const el=$('#'+id);
       if(!el||el.dataset.invoiceEditBound)continue;
       el.dataset.invoiceEditBound='1';
-      el.addEventListener('input',()=>{editRevision++;});
-      el.addEventListener('change',()=>{editRevision++;if(id==='invoiceDocumentType')syncDocumentTypeHints();});
+      el.addEventListener('input',markEdited);
+      el.addEventListener('change',()=>{markEdited();if(id==='invoiceDocumentType')syncDocumentTypeHints();});
     }
   }
   async function load({api}){
@@ -191,10 +202,11 @@
     // while the Owner settings requests are in flight, so it must not be inert.
     bindSaveButton();
     bindFieldEdits();
+    const hadUnsavedChanges=hasUnsavedChanges();
     const revisionAtRequest=editRevision;
     const data=await api('/admin/invoice-settings');
-    // A late initial GET must not overwrite edits made while it was in flight.
-    if(!busy&&revisionAtRequest===editRevision)apply(data?.invoiceSettings);
+    // Never overwrite local edits made before or during the settings GET.
+    if(!busy&&!hadUnsavedChanges&&revisionAtRequest===editRevision)apply(data?.invoiceSettings);
     const gstin=$('#invoiceGstin'),state=$('#invoiceStateCode');
     if(gstin&&state&&!gstin.dataset.autofillBound){
       gstin.dataset.autofillBound='1';
@@ -207,5 +219,5 @@
   }
   // admin.html is a static shell; wire this button as soon as this script loads.
   bindSaveButton();
-  window.FreshWayOwnerInvoiceSettings=Object.freeze({load,save,collect});
+  window.FreshWayOwnerInvoiceSettings=Object.freeze({load,save,collect,hasUnsavedChanges});
 })();
