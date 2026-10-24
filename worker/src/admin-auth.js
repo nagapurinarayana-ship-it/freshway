@@ -37,14 +37,14 @@ export default{async fetch(request,env,ctx){const url=new URL(request.url),reque
     // Completed rows are never returned individually. They are represented only by aggregate counts.
     const filter=status==='completed'?' WHERE 0':status?' WHERE status=?':" WHERE status<>'completed'";
     const params=status&&status!=='completed'?[status]:[];
-    const [rows,totals]=await Promise.all([
-      env.DB.prepare("SELECT id,CASE WHEN status='completed' OR phone_snapshot='REDACTED' THEN NULL ELSE substr(phone_snapshot,-4) END AS phone_last4,status,source,created_at,updated_at,processed_at,admin_note FROM account_deletion_requests"+filter+" ORDER BY CASE status WHEN 'pending' THEN 0 WHEN 'in_review' THEN 1 ELSE 2 END,created_at ASC LIMIT 100").bind(...params).all(),
-      env.DB.prepare("SELECT status,COUNT(*) AS total,MAX(processed_at) AS latest_processed_at FROM account_deletion_requests GROUP BY status").all()
+    const [rows,totals,completedSummary]=await Promise.all([
+      env.DB.prepare("SELECT id,substr(phone_snapshot,-4) AS phone_last4,status,source,created_at,updated_at,processed_at,admin_note FROM account_deletion_requests"+filter+" ORDER BY CASE status WHEN 'pending' THEN 0 WHEN 'in_review' THEN 1 ELSE 2 END,created_at ASC LIMIT 100").bind(...params).all(),
+      env.DB.prepare("SELECT status,COUNT(*) AS total FROM account_deletion_requests GROUP BY status").all(),
+      env.DB.prepare("SELECT completed_count,latest_completed_at FROM account_deletion_summary WHERE id=1").first()
     ]);
-    const summary={pending:0,in_review:0,completed:0,rejected:0,latestCompletedAt:null};
+    const summary={pending:0,in_review:0,completed:Number(completedSummary?.completed_count||0),rejected:0,latestCompletedAt:completedSummary?.latest_completed_at||null};
     for(const row of totals.results||[]){
       if(Object.prototype.hasOwnProperty.call(summary,row.status))summary[row.status]=Number(row.total||0);
-      if(row.status==='completed')summary.latestCompletedAt=row.latest_processed_at||null;
     }
     return response({requests:rows.results||[],summary},200,allowedOrigin);
   } catch(error) {
