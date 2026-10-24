@@ -135,3 +135,12 @@ assert.ok(categoryFoldStyles.includes('body.fw-category-selected .product-image{
 assert.match(categoryFoldStyles,/max-height:800px/,'short mobile screens receive an additional compact layout');
 assert.match(categoryFoldStyles,/\.product-image img\{[^}]*width:auto!important;height:100%!important;aspect-ratio:1\/1[^}]*max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center!important/,'category product images render as centered square artwork without stretching/cropping');
 console.log('four-product category fold-fit contract OK');
+
+
+const homeHtml=fs.readFileSync('index.html','utf8');
+assert.match(homeHtml,/<div class="location-card"><div class="location-card-copy">/,'home uses a compact delivery-location selector');
+assert.match(homeHtml,/<span class="location-pin" aria-hidden="true">⌖<\\/span> DELIVER TO/,'location selector clearly labels delivery destination');
+assert.match(homeHtml,/<button class="text-btn location-change-btn" id="addressBtn" type="button" aria-label="Change delivery location">/,'existing address helper remains the location-change action');
+assert.match(homeHtml,/styles\\.css\\?v=20261025-home-location-v1|styles\\.css\\?v=20261025-zepto-home-location-v1/,'home location UI cache-bust is current');
+assert.match(fs.readFileSync('styles.css','utf8'),/\\.location-card-copy\\{min-width:0;flex:1\\}/,'compact selector handles long addresses on mobile');
+console.log('Zepto-inspired home location selector contract OK');
