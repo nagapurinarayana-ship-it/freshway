@@ -78,7 +78,7 @@ test('guards every operational mutation against a request that is no longer in r
   const statements = fake.batchStatements;
   assert.ok(statements.length >= 7);
   for (const statement of statements) {
-    assert.match(statement.sql, /EXISTS \(SELECT 1 FROM account_deletion_requests WHERE id=\? AND customer_id=\? AND status='in_review'\)|UPDATE account_deletion_requests SET status='completed'[\s\S]*WHERE id=\? AND customer_id=\? AND status='in_review'/);
+    assert.match(statement.sql, /EXISTS \(SELECT 1 FROM account_deletion_requests WHERE id=\? AND customer_id=\? AND status='in_review'\)|DELETE FROM account_deletion_requests WHERE id=\? AND customer_id=\? AND status='in_review'/);
   }
 });
 
