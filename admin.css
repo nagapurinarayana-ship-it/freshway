@@ -195,3 +195,24 @@ button,input,textarea,select{touch-action:manipulation}
 .invoice-settings-panel .invoice-toggle>small{grid-column:2;color:var(--muted,#708078);font-size:11px;line-height:1.5}
 .invoice-settings-panel #invoiceSettingsStatus{font-size:12px;color:var(--muted,#708078)}
 .invoice-settings-panel #invoiceSettingsStatus.error{color:#b83d3d}
+
+
+/* Account deletion queue: compact status metrics and aggregate-only completed history. */
+.account-deletion-summary{display:grid;gap:10px;margin:14px 0 16px}
+.account-deletion-stat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.account-deletion-stat{min-width:0;border:1px solid var(--line);border-radius:12px;background:#fff;padding:12px}
+.account-deletion-stat span{display:block;font-size:10px;font-weight:800;color:var(--muted)}
+.account-deletion-stat strong{display:block;margin-top:4px;font-size:22px;line-height:1.1;font-weight:900;color:var(--g);font-variant-numeric:tabular-nums}
+.account-deletion-completed-summary{display:flex;align-items:center;justify-content:space-between;gap:14px;min-width:0;border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px}
+.account-deletion-completed-summary>div{min-width:0}
+.account-deletion-completed-summary .eyebrow{display:block}
+.account-deletion-completed-summary strong{display:block;margin-top:4px;font-size:25px;line-height:1.1;font-weight:900;color:var(--g);font-variant-numeric:tabular-nums}
+.account-deletion-completed-summary p{margin:7px 0 0;font-size:11px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere}
+.account-deletion-completed-summary small{flex:0 0 auto;max-width:42%;font-size:10px;line-height:1.45;text-align:right;color:var(--muted);overflow-wrap:anywhere}
+@media(max-width:800px){
+  .account-deletion-stat-grid{gap:8px}
+  .account-deletion-stat{padding:10px}
+  .account-deletion-stat strong{font-size:20px}
+  .account-deletion-completed-summary{align-items:flex-start;flex-direction:column;gap:8px;padding:12px}
+  .account-deletion-completed-summary small{max-width:none;text-align:left}
+}
