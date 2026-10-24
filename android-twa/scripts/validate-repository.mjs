@@ -27,7 +27,7 @@ const pngAssets = [
   { path: 'icons/icon-192.png', width: 192, height: 192, purpose: 'any' },
   { path: 'icons/icon-512.png', width: 512, height: 512, purpose: 'any' },
   { path: 'icons/icon-192-maskable.png', width: 192, height: 192, purpose: 'maskable' },
-  { path: 'icons/icon-512-maskable.png', width: 512, height: 512, purpose: 'maskable' }
+  { path: 'icons/icon-512.png', width: 512, height: 512, purpose: 'maskable' }
 ];
 
 for (const asset of pngAssets) {
@@ -39,7 +39,11 @@ for (const asset of pngAssets) {
   assert.equal(bytes.readUInt32BE(16), asset.width, asset.path + ' must be ' + asset.width + 'px wide.');
   assert.equal(bytes.readUInt32BE(20), asset.height, asset.path + ' must be ' + asset.height + 'px high.');
 
-  const icon = webManifest.icons.find((item) => new URL(item.src, 'https://fwcoldpressed.in').pathname === '/' + asset.path);
+  const icon = webManifest.icons.find((item) => {
+    const samePath = new URL(item.src, 'https://fwcoldpressed.in').pathname === '/' + asset.path;
+    const suitablePurpose = asset.purpose !== 'maskable' || String(item.purpose || '').split(' ').includes('maskable');
+    return samePath && suitablePurpose;
+  });
   assert.ok(icon, asset.path + ' must be declared in manifest.webmanifest.');
   assert.equal(icon.sizes, asset.width + 'x' + asset.height, asset.path + ' must declare its true size.');
   assert.equal(icon.type, 'image/png', asset.path + ' must declare image/png.');
@@ -54,7 +58,7 @@ for (const value of [config.iconUrl, config.maskableIconUrl, config.webManifestU
   assert.equal(url.hostname, 'fwcoldpressed.in');
 }
 assert.equal(new URL(config.iconUrl).pathname, '/icons/icon-512.png');
-assert.equal(new URL(config.maskableIconUrl).pathname, '/icons/icon-512-maskable.png');
+assert.equal(new URL(config.maskableIconUrl).pathname, '/icons/icon-512.png');
 
 assert.match(index, /<link rel="manifest" href="\/manifest\.webmanifest"/);
 assert.match(index, /id="privacyPolicyBtn"/, 'Customer app must expose the privacy policy.');

@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
+import { assertValidPng } from './pwa-icons-integrity.mjs';
 
 const BASE_URL = process.env.BASE_URL || 'https://freshway-f32.pages.dev';
 const VIEWPORT_STYLES_PATH = '/styles.css?v=20261022-invoice-ui-v1';
 const CUSTOMER_APP_PATH = '/app.js?v=20261021-home-navigation-refresh-v1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261021-guest-address-map-search-v3';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v72';
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v73';
+const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261024-native-install-v1';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchWithRetry(url, options = {}) {
@@ -72,6 +74,12 @@ function assertResponsiveViewportCss(css, label) {
   assert.match(css, /\.store-contact-cta\{[^}]*min-height:48px/, label + ' contact action must remain compact and tappable');
 }
 
+function assertNativeInstallFlow(source, label) {
+  assert.ok(source.includes('beforeinstallprompt'), label + ' must capture Chrome install availability');
+  assert.ok(source.includes('promptEvent.prompt()'), label + ' must invoke Chrome native install');
+  assert.ok(source.includes('promptEvent.userChoice'), label + ' must handle install outcome');
+}
+
 async function waitForFullImageFitAssets(base) {
   const viewportStylesPath = VIEWPORT_STYLES_PATH;
   const appPath = CUSTOMER_APP_PATH;
@@ -111,6 +119,7 @@ async function waitForFullImageFitAssets(base) {
       assert.ok(sw.includes("const CACHE = '" + EXPECTED_CUSTOMER_CACHE + "';"), 'customer service worker must publish the current cache version');
       assert.ok(sw.includes('if (cached && isVersionedCode) return cached'), 'versioned customer code should use a cache hit without a network request');
       assertCurrentScriptReference(indexHtml, indexResponse.url, appPath, 'production home');
+      assertCurrentScriptReference(indexHtml, indexResponse.url, PWA_INSTALL_SCRIPT_PATH, 'production home');
       assertCurrentScriptReference(indexHtml, indexResponse.url, promotionPath, 'production home');
       assert.ok(indexHtml.includes(viewportStylesPath.slice(1)), 'production home must reference current mobile viewport styles');
       assertCurrentScriptReference(indexHtml, indexResponse.url, customerCataloguePath, 'production home');
@@ -121,17 +130,19 @@ async function waitForFullImageFitAssets(base) {
       assert.ok(sw.includes(addressSystemPath), 'service worker must cache the current address editor');
       assertCurrentScriptReference(adminHtml, adminResponse.url, cataloguePath, 'production Owner');
       assert.ok(sw.includes(appPath), 'service worker does not cache the current app navigation script');
+      assert.ok(sw.includes(PWA_INSTALL_SCRIPT_PATH), 'service worker does not cache the current native install script');
       assert.ok(sw.includes(promotionPath), 'service worker does not cache the current promotion script');
       assert.ok(sw.includes(customerCataloguePath), 'service worker does not cache the current customer catalogue script');
 
-      const [viewportStylesResponse, appResponse, promotionResponse, customerCatalogueResponse, addressGeocodeResponse, addressSystemResponse, catalogueResponse] = await Promise.all([
+      const [viewportStylesResponse, appResponse, promotionResponse, customerCatalogueResponse, addressGeocodeResponse, addressSystemResponse, catalogueResponse, installResponse] = await Promise.all([
         fetch(`${base}${viewportStylesPath}`, { cache: 'no-store', redirect: 'follow' }),
         fetch(`${base}${appPath}`, { cache: 'no-store', redirect: 'follow' }),
         fetch(`${base}${promotionPath}`, { cache: 'no-store', redirect: 'follow' }),
         fetch(`${base}${customerCataloguePath}`, { cache: 'no-store', redirect: 'follow' }),
         fetch(`${base}${addressGeocodePath}`, { cache: 'no-store', redirect: 'follow' }),
         fetch(`${base}${addressSystemPath}`, { cache: 'no-store', redirect: 'follow' }),
-        fetch(`${base}${cataloguePath}`, { cache: 'no-store', redirect: 'follow' })
+        fetch(`${base}${cataloguePath}`, { cache: 'no-store', redirect: 'follow' }),
+        fetch(`${base}${PWA_INSTALL_SCRIPT_PATH}`, { cache: 'no-store', redirect: 'follow' })
       ]);
       assert.equal(viewportStylesResponse.status, 200, 'current mobile viewport stylesheet must load');
       assert.equal(appResponse.status, 200, 'current customer navigation app script must load');
@@ -140,6 +151,7 @@ async function waitForFullImageFitAssets(base) {
       assert.equal(addressGeocodeResponse.status, 200, 'current address geocode mapper must load');
       assert.equal(addressSystemResponse.status, 200, 'current address editor must load');
       assert.equal(catalogueResponse.status, 200, 'current Owner catalogue script must load');
+      assert.equal(installResponse.status, 200, 'current native install script must load');
       for (const [label, response] of [
         ['customer stylesheet', viewportStylesResponse],
         ['customer app script', appResponse],
@@ -147,17 +159,19 @@ async function waitForFullImageFitAssets(base) {
         ['customer catalogue script', customerCatalogueResponse],
         ['address geocoder script', addressGeocodeResponse],
         ['address editor script', addressSystemResponse],
-        ['Owner catalogue script', catalogueResponse]
+        ['Owner catalogue script', catalogueResponse],
+        ['customer native install script', installResponse]
       ]) assertImmutableCodeCache(response, label);
 
-      const [viewportStylesSource, appSource, promotionSource, customerCatalogueSource, addressGeocodeSource, addressSystemSource, catalogueSource] = await Promise.all([
-        viewportStylesResponse.text(), appResponse.text(), promotionResponse.text(), customerCatalogueResponse.text(), addressGeocodeResponse.text(), addressSystemResponse.text(), catalogueResponse.text()
+      const [viewportStylesSource, appSource, promotionSource, customerCatalogueSource, addressGeocodeSource, addressSystemSource, catalogueSource, installSource] = await Promise.all([
+        viewportStylesResponse.text(), appResponse.text(), promotionResponse.text(), customerCatalogueResponse.text(), addressGeocodeResponse.text(), addressSystemResponse.text(), catalogueResponse.text(), installResponse.text()
       ]);
       assert.ok(appSource.includes("function setView(name,options){if(name==='home'&&options?.history!=='none')window.freshWayCustomerCatalogueGoHome?.();navigation.setView(name,options)"), 'home navigation must reset category state for explicit Home actions only');
       assert.ok(customerCatalogueSource.includes("window.freshWayCustomerCatalogueGoHome=()=>{const state=window.history.state;if(state?.__freshwayCustomer&&state.category)window.history.replaceState({...state,category:null},'',window.location.href);setMode(null,{history:'none'})};"), 'category home reset must preserve navigation view history');
       assert.ok(customerCatalogueSource.includes("selected=(window.history.state?.__freshwayCustomer&&window.history.state.view==='home'?window.history.state.category:null)||getStoredCategory()||null"), 'refresh must restore the selected category from history or session state');
       assert.ok(customerCatalogueSource.includes("history:selected?'replace':'none'"), 'removed categories must not remain selected in browser history');
       assertResponsiveViewportCss(viewportStylesSource, 'production');
+      assertNativeInstallFlow(installSource, 'production install script');
       assert.match(promotionSource, /\.fw-promo-viewport\{[^}]*max-height:38svh/);
       assert.match(promotionSource, /sourceImage\.naturalWidth/);
       assert.match(promotionSource, /sourceImage\.naturalHeight/);
@@ -215,15 +229,17 @@ assert.equal(manifest.id, '/freshway');
 assert.equal(manifest.start_url, '/');
 assert.equal(manifest.scope, '/');
 assert.equal(manifest.display, 'standalone');
+assert.ok(manifest.icons.some(icon => new URL(icon.src, manifestResponse.url).pathname === '/icons/icon-512.png' && icon.type === 'image/png' && String(icon.purpose || '').split(' ').includes('maskable')), 'manifest must use the known-good 512px PNG for its maskable fallback');
 for (const size of ['192x192', '512x512']) {
   assert.ok(manifest.icons.some(icon => icon.sizes === size && icon.type === 'image/png'));
 }
 
-for (const path of ['/icons/icon-192.png', '/icons/icon-512.png', '/icons/icon-192-maskable.png', '/icons/icon-512-maskable.png']) {
+for (const [path, size] of [['/icons/icon-192.png',192], ['/icons/icon-512.png',512], ['/icons/icon-192-maskable.png',192]]) {
   const response = await fetchWithRetry(`${base}${path}`);
   assert.equal(response.status, 200, path);
   assert.match(response.headers.get('content-type') || '', /^image\/png/i, path);
-  assert.ok((await response.arrayBuffer()).byteLength > 100, path);
+  const bytes = Buffer.from(await response.arrayBuffer());
+  assertValidPng(bytes, { width: size, height: size, label: 'Pages production ' + path });
 }
 
 const logoResponse = await fetchWithRetry(`${base}/freshway-logo-master.webp?v=20261008-master-v1`);
@@ -268,12 +284,14 @@ async function verifyCustomDomain() {
   assert.ok(homeHtml.includes(VIEWPORT_STYLES_PATH.slice(1)), 'custom-domain home must reference the current mobile viewport stylesheet');
   assert.ok(sw.includes(VIEWPORT_STYLES_PATH), 'custom-domain service worker must cache the current mobile viewport stylesheet');
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/app.js?v=20261021-home-navigation-refresh-v1', 'custom-domain home');
+  assertCurrentScriptReference(homeHtml, homeResponse.url, PWA_INSTALL_SCRIPT_PATH, 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4', 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2', 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, ADDRESS_GEOCODE_PATH, 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, ADDRESS_SYSTEM_PATH, 'custom-domain home');
   assertCurrentScriptReference(adminHtml, adminResponse.url, '/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1', 'custom-domain Owner');
   assert.ok(sw.includes('/app.js?v=20261021-home-navigation-refresh-v1'), 'custom-domain service worker must cache the current app navigation script');
+  assert.ok(sw.includes(PWA_INSTALL_SCRIPT_PATH), 'custom-domain service worker must cache the current native install script');
   assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4'), 'custom-domain service worker must cache the current promotion script');
   assert.ok(sw.includes('/frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2'), 'custom-domain service worker must cache the current customer catalogue script');
   assert.ok(sw.includes(ADDRESS_GEOCODE_PATH), 'custom-domain service worker must cache the current address geocode mapper');
@@ -283,7 +301,7 @@ async function verifyCustomDomain() {
   assert.ok(shareMatch, 'custom-domain Open Graph image URL must exist');
   const shareImageUrl = new URL(shareMatch[1], customBase);
   assert.equal(shareImageUrl.origin, customBase, 'share image must not point to a different host');
-  const [shareImageResponse, healthResponse, productsResponse, categoriesResponse, customerCatalogueResponse, viewportStylesResponse, appResponse, addressGeocodeResponse, addressSystemResponse] = await Promise.all([
+  const [shareImageResponse, healthResponse, productsResponse, categoriesResponse, customerCatalogueResponse, viewportStylesResponse, appResponse, addressGeocodeResponse, addressSystemResponse, installResponse] = await Promise.all([
     fetchWithRetry(shareImageUrl.href, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/api/health`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/api/products`, { cache: 'no-store' }),
@@ -292,19 +310,22 @@ async function verifyCustomDomain() {
     fetchWithRetry(`${customBase}${VIEWPORT_STYLES_PATH}`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}${CUSTOMER_APP_PATH}`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}${ADDRESS_GEOCODE_PATH}`, { cache: 'no-store' }),
-    fetchWithRetry(`${customBase}${ADDRESS_SYSTEM_PATH}`, { cache: 'no-store' })
+    fetchWithRetry(`${customBase}${ADDRESS_SYSTEM_PATH}`, { cache: 'no-store' }),
+    fetchWithRetry(`${customBase}${PWA_INSTALL_SCRIPT_PATH}`, { cache: 'no-store' })
   ]);
   assert.equal(customerCatalogueResponse.status, 200, 'customer catalogue script must load on the custom domain');
   assert.equal(appResponse.status, 200, 'customer app navigation script must load on the custom domain');
   assert.equal(viewportStylesResponse.status, 200, 'mobile viewport stylesheet must load on the custom domain');
   assert.equal(addressGeocodeResponse.status, 200, 'address geocode mapper must load on the custom domain');
   assert.equal(addressSystemResponse.status, 200, 'address editor must load on the custom domain');
+  assert.equal(installResponse.status, 200, 'native install script must load on the custom domain');
   for (const [label, response] of [
     ['custom-domain customer catalogue script', customerCatalogueResponse],
     ['custom-domain viewport stylesheet', viewportStylesResponse],
     ['custom-domain customer app script', appResponse],
     ['custom-domain geocoder script', addressGeocodeResponse],
-    ['custom-domain address editor', addressSystemResponse]
+    ['custom-domain address editor', addressSystemResponse],
+    ['custom-domain native install script', installResponse]
   ]) assertImmutableCodeCache(response, label);
   const shareCacheControl = shareImageResponse.headers.get('cache-control') || '';
   assert.match(shareCacheControl, /public/i, 'WhatsApp share image must be cacheable');
@@ -315,6 +336,7 @@ async function verifyCustomDomain() {
   const appSource = await appResponse.text();
   const addressGeocodeSource = await addressGeocodeResponse.text();
   const addressSystemSource = await addressSystemResponse.text();
+  assertNativeInstallFlow(await installResponse.text(), 'custom-domain install script');
   assert.match(addressGeocodeSource,/houseFlat: first\(a\.house_number, a\.house_name\)/);
   assert.match(addressGeocodeSource,/pincode: indianPincode\(a\.postcode\)/);
   assert.match(addressGeocodeSource,/landmark: first\(result && result\.name, a\.amenity, a\.shop\)/);
