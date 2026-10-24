@@ -262,6 +262,11 @@ test('saved-address deletion soft-deletes rows so order foreign keys remain vali
             };
           }
         };
+      },
+      async batch(statements) {
+        const results = [];
+        for (const statement of statements) results.push(await statement.run());
+        return results;
       }
     }
   };
