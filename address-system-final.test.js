@@ -62,6 +62,14 @@ assert.ok(source.includes("(modalOrigin === 'home' ? '' : locationPanel)"),
   'the checkout/profile address editor must keep its existing location-panel order');
 assert.ok(source.includes("modalOrigin === 'home' ? '📍 Use current location or search'"),
   'the home address selector must expose a quick location action above saved addresses');
+assert.ok(source.includes("(modalOrigin === 'checkout' || modalOrigin === 'home') && returnedAddress"),
+  'saving the selected home address must select it without changing its default flag');
+assert.ok(source.includes("if (modalOrigin === 'home' && returnedAddress) {") &&
+  source.includes("toast(data.deduplicated ? 'Existing delivery address selected.' : 'Delivery address saved and selected.')"),
+  'after confirming a home address, close the selector and confirm the destination');
+assert.ok(source.includes("if (modalOrigin === 'checkout' && returnedAddress) {") &&
+  source.includes("toast('Address saved. You can now place your order.')"),
+  'the existing checkout address-save flow remains present');
 assert.match(source, /async function findSearch\(\)[\s\S]*?searchRequestId[\s\S]*?countrycodes: 'in'/,
   'map search must validate India-only results and ignore stale concurrent searches');
 assert.match(source, /No matching Indian map result/,
