@@ -122,14 +122,14 @@ test('off mode preserves legacy order behaviour without reading zones', async ()
 });
 
 test('shadow computes misses but never blocks an order', async () => {
-  const result = await checkServiceability(envFor('shadow',[row(zone('pin'))]),{pincode:'999999'});
+  const result = await checkServiceability(envFor('shadow',[zone('pin')]),{pincode:'999999'});
   assert.equal(result.serviceable,false);
   assert.equal(result.orderAllowed,true);
   assert.equal(result.code,'OUTSIDE_SERVICE_AREA');
 });
 
 test('enforced mode blocks uncovered addresses and passes matching active zones', async () => {
-  const env = envFor('enforced',[row(zone('pin'))]);
+  const env = envFor('enforced',[zone('pin')]);
   const denied = await checkServiceability(env,{pincode:'999999'});
   assert.equal(denied.orderAllowed,false);
   assert.equal(denied.code,'OUTSIDE_SERVICE_AREA');
