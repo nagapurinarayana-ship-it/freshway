@@ -128,7 +128,7 @@ jobs:
           const path = 'android-twa/generated/twa-manifest.json';
           const manifest = JSON.parse(fs.readFileSync(path, 'utf8'));
           manifest.maskableIconUrl = manifest.iconUrl;
-          fs.writeFileSync(path, JSON.stringify(manifest, null, 2) + '\\n');
+          fs.writeFileSync(path, JSON.stringify(manifest, null, 2) + '\n');
           console.log('Applied temporary Android-only launcher icon fallback. Repository and live PWA manifest/assets remain unchanged.');
           NODE
           npx --yes @bubblewrap/cli@1.27.0 update \
