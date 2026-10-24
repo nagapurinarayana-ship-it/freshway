@@ -24,7 +24,10 @@
   function renderSummary(summary) {
     const container = $('#accountDeletionSummary');
     if (!container) return;
-    const count = key => Number(summary?.[key] || 0);
+    const count = key => {
+      const value = summary?.[key];
+      return value == null || !Number.isFinite(Number(value)) ? '—' : Number(value).toLocaleString('en-IN');
+    };
     const completed = count('completed');
     const latest = summary?.latestCompletedAt;
     container.innerHTML = `
@@ -77,18 +80,14 @@
       const status = $('#accountDeletionStatus')?.value || '';
       const result = await request('/api/admin/account-deletion-requests' + (status ? '?status=' + encodeURIComponent(status) : ''));
       const rows = Array.isArray(result.requests) ? result.requests : [];
-      const fallbackSummary = {
-        pending: rows.filter(item => item.status === 'pending').length,
-        in_review: rows.filter(item => item.status === 'in_review').length,
-        completed: rows.filter(item => item.status === 'completed').length,
-        rejected: rows.filter(item => item.status === 'rejected').length,
-        latestCompletedAt: rows.filter(item => item.status === 'completed').map(item => item.processed_at).filter(Boolean).sort().at(-1) || null
-      };
-      renderSummary(result.summary || fallbackSummary);
+      const hasAggregateSummary = result.summary && typeof result.summary === 'object';
+      renderSummary(hasAggregateSummary ? result.summary : null);
       render(rows, status);
-      setMessage(status === 'completed'
-        ? 'Completed history is anonymised and represented by aggregate counts only.'
-        : 'Request queue loaded. Completed history is anonymised; customer-linked completed entries are not shown.');
+      setMessage(!hasAggregateSummary
+        ? 'Request queue loaded. Aggregate summary is temporarily unavailable until the API update is active; individual completed-request details remain hidden.'
+        : status === 'completed'
+          ? 'Completed history is represented by aggregate counts only.'
+          : 'Request queue loaded. Individual completed-request records are deleted; only aggregate completion metrics remain.');
     } catch (error) {
       setMessage(error.message || 'Could not load account-deletion requests.', true);
     } finally {
