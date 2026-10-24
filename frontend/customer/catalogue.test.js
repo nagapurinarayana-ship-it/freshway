@@ -151,6 +151,6 @@ const homeHtml=fs.readFileSync('index.html','utf8');
 assert.match(homeHtml,/<button class="location-card" id="addressBtn" type="button" aria-label="Choose delivery address">/,'home uses a single accessible tappable delivery-location selector');
 assert.ok(homeHtml.includes('<span class="location-eyebrow"><span class="location-dot" aria-hidden="true"></span> DELIVER TO</span>'),'location selector clearly labels delivery destination');
 assert.ok(homeHtml.includes('id="homeAddressMeta"'),'location selector has a concise guidance line for new and returning customers');
-assert.ok(homeHtml.includes('styles.css?v=20261025-zepto-home-location-v1'),'home location UI cache-bust is current');
-assert.ok(fs.readFileSync('styles.css','utf8').includes('button.location-card{'),'full-width selector has its own responsive styling');
+assert.ok(homeHtml.includes('frontend/customer/serviceability.css?v=20261025-serviceable-areas-v2'),'home location UI stylesheet cache-bust is current');
+assert.ok(fs.readFileSync('frontend/customer/serviceability.css','utf8').includes('button.location-card{'),'full-width selector has its own responsive styling');
 console.log('Zepto-inspired home location selector contract OK');
