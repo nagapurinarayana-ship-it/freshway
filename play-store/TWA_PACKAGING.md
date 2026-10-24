@@ -18,7 +18,7 @@ Re-check these values and icon URLs before building.
 
 - Application ID: `in.fwcoldpressed.freshway` (reverse-domain-derived from `fwcoldpressed.in`, with a FreshWay suffix).
 - Initial version name/code: `1.0.0` / `1`.
-- Minimum SDK in the checked-in configuration: 23.
+- Minimum Android SDK: 24 (Android 7.0). Bubblewrap's Android Browser Helper 2.7.4 declares API 24 as its minimum; API 23 devices cannot install this package.
 - Google Play target: Android 16 / API level 36 or higher, as required for new apps and updates from 31 August 2026.
 
 Verify the application ID is available in Play Console before the first publication. Treat it as permanent once published.
