@@ -102,6 +102,25 @@ async function checkProfileLoadResponseGuard() {
     assert.equal(addressField.value, 'Mancherial, Telangana', 'failed load must not erase the current business address');
   }
 
+  // A malformed PATCH response must not erase unsaved edits either.
+  element('storeAbout').value = 'Unsaved description that must survive a bad save response';
+  for (const response of [
+    null,
+    '<html>Not JSON</html>',
+    { storeProfile: [] },
+    { storeProfile: { storeName: 'FreshWay', address: 'Mancherial' } }
+  ]) {
+    await assert.rejects(
+      profile.save({ api: async () => response }),
+      /incomplete Store Profile/,
+      'a malformed save response must be rejected before applying server data'
+    );
+    assert.equal(nameField.value, 'FreshWay', 'failed save must preserve the store name');
+    assert.equal(addressField.value, 'Mancherial, Telangana', 'failed save must preserve the business address');
+    assert.equal(element('storeAbout').value, 'Unsaved description that must survive a bad save response',
+      'failed save must preserve unsaved edits');
+  }
+
   const validProfile = {
     storeName: 'FreshWay',
     about: 'Cold-pressed oils and rice',
