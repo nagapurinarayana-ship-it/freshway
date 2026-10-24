@@ -88,6 +88,8 @@ report.migrationCount = migrationRows.length;
 
 const snapshotRedactionMigration = '0035_nullable_snapshot_customer_id_for_erasure.sql';
 const redactionMigrationApplied = migrationRows.some(row => String(row.name) === snapshotRedactionMigration);
+const accountDeletionAnonymizationMigration = '0036_anonymize_completed_deletion_requests.sql';
+const accountDeletionAnonymizationApplied = migrationRows.some(row => String(row.name) === accountDeletionAnonymizationMigration);
 const snapshotColumns = rowsFor(
   'PRAGMA table_info("order_address_snapshots")',
   row => 'name' in row && 'notnull' in row
@@ -101,6 +103,18 @@ report.snapshotErasureCompatibility = {
 // once the migration is recorded; the Worker release runs this audit after migrations.
 if (redactionMigrationApplied && (!snapshotCustomerId || Number(snapshotCustomerId.notnull) !== 0)) {
   problems.push('order_address_snapshots.customer_id must allow NULL for account erasure');
+}
+const deletionRequestColumns = rowsFor(
+  'PRAGMA table_info("account_deletion_requests")',
+  row => 'name' in row && 'notnull' in row
+);
+const deletionRequestCustomerId = deletionRequestColumns.find(row => String(row.name) === 'customer_id');
+report.accountDeletionAnonymizationCompatibility = {
+  migrationApplied: accountDeletionAnonymizationApplied,
+  customerIdAllowsNull: deletionRequestCustomerId ? Number(deletionRequestCustomerId.notnull) === 0 : false
+};
+if (accountDeletionAnonymizationApplied && (!deletionRequestCustomerId || Number(deletionRequestCustomerId.notnull) !== 0)) {
+  problems.push('account_deletion_requests.customer_id must allow NULL so completed requests can be anonymized');
 }
 
 
