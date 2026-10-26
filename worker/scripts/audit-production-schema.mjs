@@ -44,7 +44,16 @@ const required = {
   addresses: ['id', 'customer_id', 'house', 'area', 'city', 'pincode', 'landmark', 'note', 'label', 'recipient_name', 'delivery_phone', 'building', 'floor', 'street', 'locality', 'district', 'state', 'latitude', 'longitude', 'accuracy_meters', 'location_source', 'place_id', 'location_updated_at', 'is_default', 'deleted_at'],
   products: ['id', 'name', 'unit', 'price', 'active', 'category_id', 'image_data', 'stock_managed', 'stock_quantity', 'low_stock_threshold'],
   categories: ['id', 'name', 'slug', 'active', 'display_order'],
-  orders: ['id', 'customer_id', 'address_id', 'customer_name', 'customer_phone', 'total', 'payment_status', 'delivery_status', 'delivery_plan', 'client_order_id', 'payment_collected_at', 'is_test_order', 'updated_at'],
+  orders: ['id', 'customer_id', 'address_id', 'customer_name', 'customer_phone', 'total', 'payment_status', 'delivery_status', 'delivery_plan', 'client_order_id', 'payment_collected_at', 'is_test_order', 'updated_at', 'scheduled_delivery_date', 'scheduled_slot_id', 'assigned_store_id', 'scheduled_start_minute', 'scheduled_end_minute', 'schedule_status'],
+  delivery_scheduling_settings: ['id', 'enabled', 'booking_horizon_days', 'same_day_cutoff_minutes', 'timezone', 'updated_at'],
+  delivery_stores: ['id', 'name', 'address', 'latitude', 'longitude', 'service_radius_km', 'is_active', 'created_at', 'updated_at'],
+  delivery_store_inventory: ['store_id', 'product_id', 'stock_quantity', 'updated_at'],
+  delivery_slots: ['id', 'store_id', 'delivery_date', 'start_minute', 'end_minute', 'capacity', 'is_active', 'created_at', 'updated_at'],
+  delivery_slot_reservations: ['id', 'order_id', 'slot_id', 'status', 'owner_override', 'override_reason', 'created_at', 'updated_at'],
+  delivery_store_inventory_reservations: ['id', 'order_id', 'store_id', 'product_id', 'qty', 'status', 'owner_override', 'override_reason', 'created_at', 'updated_at'],
+  order_action_requests: ['id', 'order_id', 'customer_id', 'request_type', 'requested_slot_id', 'reason', 'status', 'resolution_note', 'resolved_by', 'created_at', 'updated_at'],
+  order_audit_events: ['id', 'order_id', 'actor_type', 'actor_id', 'action', 'reason', 'before_json', 'after_json', 'created_at'],
+  order_operational_flags: ['id', 'order_id', 'flag_type', 'status', 'details_json', 'created_at', 'resolved_at'],
   order_items: ['id', 'order_id', 'product_id', 'name', 'unit', 'qty', 'price', 'line_total', 'stock_reserved_qty'],
   order_address_snapshots: ['order_id', 'customer_id', 'address_id', 'recipient_name', 'delivery_phone', 'house_flat', 'building', 'floor', 'street', 'area', 'locality', 'city', 'district', 'state', 'pincode', 'landmark', 'delivery_note', 'latitude', 'longitude', 'accuracy_meters', 'location_source', 'location_updated_at', 'place_name', 'place_id'],
   home_promotions: ['id', 'image_data', 'image_mime_type', 'alt_text', 'display_order', 'active'],
@@ -78,7 +87,16 @@ const expectedIndexes = [
   'idx_account_deletion_requests_one_active',
   'idx_account_deletion_requests_status_created',
   'idx_account_deletion_requests_customer_created',
-  'idx_addresses_customer_deleted'
+  'idx_addresses_customer_deleted',
+  'idx_delivery_one_active_slot_per_order',
+  'idx_delivery_slot_reservations_slot_state',
+  'idx_delivery_store_inventory_one_active',
+  'idx_delivery_store_inventory_product_state',
+  'idx_order_action_one_pending_type',
+  'idx_order_action_queue',
+  'idx_order_audit_timeline',
+  'idx_order_operational_one_open_flag',
+  'idx_order_operational_queue'
 ];
 report.requiredIndexes = Object.fromEntries(expectedIndexes.map(name => [name, indexNames.includes(name)]));
 for (const name of expectedIndexes) if (!indexNames.includes(name)) problems.push('missing index: ' + name);
@@ -86,6 +104,20 @@ for (const name of expectedIndexes) if (!indexNames.includes(name)) problems.pus
 const migrationRows = rowsFor('SELECT id,name FROM d1_migrations ORDER BY id', row => 'name' in row && 'id' in row);
 report.migrations = migrationRows.map(row => ({ id: row.id, name: row.name }));
 report.migrationCount = migrationRows.length;
+const deliveryMigrationNames = ['0037_order_delivery_scheduling.sql', '0038_anonymize_delivery_requests.sql'];
+report.deliveryMigrations = Object.fromEntries(deliveryMigrationNames.map(name => [name, migrationRows.some(row => String(row.name) === name)]));
+for (const name of deliveryMigrationNames) if (!report.deliveryMigrations[name]) problems.push('delivery migration not recorded as applied: ' + name);
+
+const requiredDeliveryTriggers = [
+  'delivery_slot_capacity_before_insert',
+  'delivery_slot_capacity_before_update',
+  'delivery_store_stock_before_insert',
+  'delivery_store_stock_before_update'
+];
+const triggerRows = rowsFor("SELECT name FROM sqlite_master WHERE type='trigger'", row => 'name' in row);
+const triggerNames = triggerRows.map(row => String(row.name));
+report.deliveryTriggers = Object.fromEntries(requiredDeliveryTriggers.map(name => [name, triggerNames.includes(name)]));
+for (const name of requiredDeliveryTriggers) if (!triggerNames.includes(name)) problems.push('missing delivery integrity trigger: ' + name);
 
 const snapshotRedactionMigration = '0035_nullable_snapshot_customer_id_for_erasure.sql';
 const redactionMigrationApplied = migrationRows.some(row => String(row.name) === snapshotRedactionMigration);
