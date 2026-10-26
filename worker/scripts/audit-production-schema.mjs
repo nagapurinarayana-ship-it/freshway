@@ -104,7 +104,7 @@ for (const name of expectedIndexes) if (!indexNames.includes(name)) problems.pus
 const migrationRows = rowsFor('SELECT id,name FROM d1_migrations ORDER BY id', row => 'name' in row && 'id' in row);
 report.migrations = migrationRows.map(row => ({ id: row.id, name: row.name }));
 report.migrationCount = migrationRows.length;
-const deliveryMigrationNames = ['0037_order_delivery_scheduling.sql', '0038_anonymize_delivery_requests.sql', '0040_order_delivered_at.sql'];
+const deliveryMigrationNames = ['0037_order_delivery_scheduling.sql', '0038_anonymize_delivery_requests.sql', '0039_customer_preferred_delivery_date.sql', '0040_order_delivered_at.sql'];
 report.deliveryMigrations = Object.fromEntries(deliveryMigrationNames.map(name => [name, migrationRows.some(row => String(row.name) === name)]));
 for (const name of deliveryMigrationNames) if (!report.deliveryMigrations[name]) problems.push('delivery migration not recorded as applied: ' + name);
 
