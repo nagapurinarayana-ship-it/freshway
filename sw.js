@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v76';
+const CACHE = 'freshway-v77';
 const APP_SHELL = [
 '/',
 '/index.html',
@@ -13,7 +13,9 @@ const APP_SHELL = [
 '/frontend/phone-display.js?v=20261009-phone-display-v1',
 '/frontend/customer/product-view.js?v=20261019-catalogue-premium-v1',
 '/frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2',
-'/notifications.js?v=20261020-normalized-auth-phone-v2',
+'/notifications.js?v=notif1',
+'/frontend/customer/notifications.js?v=notif2',
+'/frontend/customer/account-actions.js?v=notif3',
 '/address-fix.js?v=20261009-address-fallback-safety-v5',
 '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3',
 '/address-system-final.js?v=20261021-guest-address-map-search-v3',
@@ -43,12 +45,12 @@ event.waitUntil((async () => {
       await cache.put(asset, response.clone());
       return true;
     } catch (error) {
-      console.error('FreshWay service worker shell asset failed:', asset, error);
+      console.error('SW shell asset failed:', asset, error);
       return false;
     }
   }));
   if (!REQUIRED_SHELL.every(asset => results[APP_SHELL.indexOf(asset)])) {
-    throw new Error('FreshWay critical app shell could not be cached.');
+    throw new Error('App shell cache failed.');
   }
 })());
 self.skipWaiting();

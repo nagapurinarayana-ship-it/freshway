@@ -65,6 +65,8 @@ jobs:
           node frontend/customer/search.test.js
           node frontend/customer/orders-view.test.js
           node sw-notification-refresh.test.js
+          node frontend/customer/notifications.test.js
+          node frontend/customer/notifications-permissions.test.js
           node frontend/customer/keyboard.test.js
           node frontend/customer/cart-actions.test.js
           node frontend/customer/cart-bar.test.js
