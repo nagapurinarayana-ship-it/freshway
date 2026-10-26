@@ -181,56 +181,17 @@ async function resolveAvailableSlots(env, payload, requestedDate = '', excludeOr
   };
 }
 export async function prepareCheckoutDelivery(env, payload, items) {
-  const settings = await readSettings(env);
-  if (!Number(settings.enabled)) return null;
-  const selectedId = clean(payload.deliverySlotId || payload.delivery_slot_id);
-  if (!selectedId) throw new Error('Choose an available delivery date and time window before placing your order.');
-  const selected = await env.DB.prepare(
-    'SELECT s.id,s.store_id,s.delivery_date,s.start_minute,s.end_minute,s.capacity,s.is_active,ds.name store_name,' +
-    'ds.latitude,ds.longitude,ds.service_radius_km,ds.is_active store_active ' +
-    'FROM delivery_slots s JOIN delivery_stores ds ON ds.id=s.store_id WHERE s.id=? LIMIT 1'
-  ).bind(selectedId).first();
-  if (!selected || !dateValid(selected.delivery_date)) throw new Error('That delivery window is no longer available. Refresh the available slots.');
+  const raw = clean(payload.preferredDeliveryDate || payload.deliveryDate || payload.scheduledDeliveryDate);
+  if (!raw) return null;
+  if (!dateValid(raw)) throw new Error('Choose a valid preferred delivery date.');
   const now = istNowParts();
-  if (selected.delivery_date < now.date || selected.delivery_date > addDays(now.date, Number(settings.booking_horizon_days || 7)) ||
-      (selected.delivery_date === now.date && Number(selected.start_minute) < now.minute + Number(settings.same_day_cutoff_minutes || 0))) {
-    throw new Error('That delivery window has passed its booking cutoff. Choose another available window.');
-  }
-  const rows = await slotRows(env, selected.delivery_date, selected.delivery_date);
-  const activeStores = Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores WHERE is_active=1').first())?.count || 0);
-  const stock = await inventoryMap(env);
-  const address = payload.address || {};
-  const candidates = rows.filter(slot =>
-    Number(slot.start_minute) === Number(selected.start_minute) &&
-    Number(slot.end_minute) === Number(selected.end_minute) &&
-    slotCanBeCustomerBooked(slot, settings, now) &&
-    Number(slot.occupied) < Number(slot.capacity) &&
-    distanceFor(address, slot, activeStores) !== Infinity &&
-    inventoryFits(slot.store_id, items, stock)
-  ).map(slot => ({ ...slot, distance_km: distanceFor(address, slot, activeStores) }));
-  candidates.sort((a, b) => (a.distance_km ?? 0) - (b.distance_km ?? 0) || a.store_name.localeCompare(b.store_name));
-  if (!candidates.length) throw new Error('That delivery window just became unavailable or the full basket is not available at an eligible store. Refresh slots and try another window.');
-  const chosen = candidates[0];
-  return {
-    slotId: chosen.id, storeId: chosen.store_id, storeName: chosen.store_name, date: chosen.delivery_date,
-    startMinute: Number(chosen.start_minute), endMinute: Number(chosen.end_minute),
-    status: 'requested', deliveryPlan: chosen.delivery_date === now.date ? 'Today' : chosen.delivery_date === addDays(now.date, 1) ? 'Tomorrow' : 'Later'
-  };
+  if (raw < now.date || raw > addDays(now.date, 60)) throw new Error('Choose a delivery date between today and the next 60 days.');
+  return { date: raw, deliveryPlan: raw === now.date ? 'Today' : raw === addDays(now.date, 1) ? 'Tomorrow' : 'Later', status: 'requested' };
 }
 export function checkoutDeliveryStatements(env, orderId, delivery, items) {
   if (!delivery) return [];
-  const statements = [
-    env.DB.prepare('INSERT INTO delivery_slot_reservations (id,order_id,slot_id,status,owner_override,override_reason) VALUES (?,?,?,\'reserved\',0,\'\')')
-      .bind(id('slotres'), orderId, delivery.slotId),
-    env.DB.prepare('INSERT INTO order_audit_events (id,order_id,actor_type,actor_id,action,reason,before_json,after_json) VALUES (?,?,\'system\',?,\'delivery_requested\',\'\',NULL,?)')
-      .bind(id('audit'), orderId, delivery.storeId, enc({ date: delivery.date, startMinute: delivery.startMinute, endMinute: delivery.endMinute, storeId: delivery.storeId, status: 'requested' }))
-  ];
-  for (const item of items.filter(itemNeedsStock)) {
-    statements.push(env.DB.prepare(
-      'INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status,owner_override,override_reason) VALUES (?,?,?,?,?,\'reserved\',0,\'\')'
-    ).bind(id('stockres'), orderId, delivery.storeId, item.id, item.qty));
-  }
-  return statements;
+  return [env.DB.prepare("INSERT INTO order_audit_events (id,order_id,actor_type,actor_id,action,reason,before_json,after_json) VALUES (?,?,'system','checkout','delivery_date_requested','',NULL,?)")
+    .bind(id('audit'), orderId, enc({ date: delivery.date, status: 'requested' }))];
 }
 async function writeAudit(env, orderId, actorType, actorId, action, reason, before, after) {
   await env.DB.prepare(
@@ -252,30 +213,24 @@ function beforeCutoff(order, settings) {
   return Number(order.scheduled_start_minute) >= now.minute + Number(settings.same_day_cutoff_minutes || 0);
 }
 async function queueRequest(env, order, customerId, requestType, body = {}) {
-  const existing = await env.DB.prepare(
-    'SELECT id,status,request_type,requested_slot_id,reason FROM order_action_requests WHERE order_id=? AND request_type=? AND status=\'pending\' ORDER BY created_at DESC LIMIT 1'
-  ).bind(order.id, requestType).first();
+  const existing = await env.DB.prepare("SELECT id,status,request_type,requested_slot_id,requested_delivery_date,reason FROM order_action_requests WHERE order_id=? AND request_type=? AND status='pending' ORDER BY created_at DESC LIMIT 1").bind(order.id, requestType).first();
   if (existing) return { requestId: existing.id, status: existing.status, requestType: existing.request_type, alreadyRequested: true };
   const requestId = id('request'), reason = clean(body.reason).slice(0, 500), requestedSlotId = clean(body.slotId || body.requestedSlotId) || null;
+  const requestedDate = requestType === 'reschedule' ? clean(body.requestedDeliveryDate) : null;
+  if (requestType === 'reschedule' && (!dateValid(requestedDate) || requestedDate < istNowParts().date || requestedDate > addDays(istNowParts().date, 60))) throw new Error('Choose a valid delivery date between today and the next 60 days.');
   const statements = [
-    env.DB.prepare('INSERT INTO order_action_requests (id,order_id,customer_id,request_type,requested_slot_id,reason,status) VALUES (?,?,?,?,?,?,\'pending\')')
-      .bind(requestId, order.id, customerId, requestType, requestedSlotId, reason),
-    env.DB.prepare('INSERT INTO order_audit_events (id,order_id,actor_type,actor_id,action,reason,before_json,after_json) VALUES (?,?,\'customer\',?,?,?, ?,?)')
-      .bind(id('audit'), order.id, customerId, requestType + '_requested', reason, enc(order), enc({ requestId, requestType, requestedSlotId, status: 'pending' }))
+    env.DB.prepare("INSERT INTO order_action_requests (id,order_id,customer_id,request_type,requested_slot_id,requested_delivery_date,reason,status) VALUES (?,?,?,?,?,?,?,'pending')").bind(requestId, order.id, customerId, requestType, requestedSlotId, requestedDate, reason),
+    env.DB.prepare("INSERT INTO order_audit_events (id,order_id,actor_type,actor_id,action,reason,before_json,after_json) VALUES (?,?,'customer',?,?,?,?,?)").bind(id('audit'), order.id, customerId, requestType + '_requested', reason, enc(order), enc({ requestId, requestType, requestedSlotId, requestedDeliveryDate: requestedDate, status: 'pending' }))
   ];
-  if (requestType === 'reschedule') {
-    statements.push(env.DB.prepare('UPDATE orders SET schedule_status=\'change_requested\',updated_at=CURRENT_TIMESTAMP WHERE id=? AND customer_id=?')
-      .bind(order.id, customerId));
-  }
   try { await env.DB.batch(statements); }
   catch (error) {
     if (/unique|constraint/i.test(String(error?.message || ''))) {
-      const latest = await env.DB.prepare('SELECT id,status,request_type FROM order_action_requests WHERE order_id=? AND request_type=? AND status=\'pending\' LIMIT 1').bind(order.id, requestType).first();
+      const latest = await env.DB.prepare("SELECT id,status,request_type FROM order_action_requests WHERE order_id=? AND request_type=? AND status='pending' LIMIT 1").bind(order.id, requestType).first();
       if (latest) return { requestId: latest.id, status: latest.status, requestType: latest.request_type, alreadyRequested: true };
     }
     throw error;
   }
-  return { requestId, status: 'pending', requestType, message: 'Your request was sent to FreshWay. The order has not been changed yet.' };
+  return { requestId, status: 'pending', requestType, message: 'Your request was sent to FreshWay. The current delivery date remains in place until the Owner changes it.' };
 }
 async function notifyCustomerAndOwner(env, orderId, before, action, reason, after = null) {
   const latest = after || await env.DB.prepare(
@@ -437,25 +392,13 @@ async function customerAction(request, env, customerId, orderId, action) {
     return response({ ok: true, status: changed.status, message: 'Your order has been cancelled.' });
   }
   if (action === 'reschedule') {
-    const slotId = clean(body.slotId);
-    if (!slotId) return response({ error: 'Choose an available delivery window.' }, 400);
-    const selected = await env.DB.prepare(
-      'SELECT s.id,s.store_id,s.delivery_date,s.start_minute,s.end_minute,s.capacity,s.is_active,ds.name store_name,ds.latitude,ds.longitude,ds.service_radius_km,ds.is_active store_active FROM delivery_slots s JOIN delivery_stores ds ON ds.id=s.store_id WHERE s.id=? LIMIT 1'
-    ).bind(slotId).first();
-    if (!selected) return response({ error: 'That delivery window is no longer available.' }, 409);
-    if (order.delivery_status === 'Delivered' || order.delivery_status === 'Cancelled') return response({ error: 'This order cannot be rescheduled in its current status. Submit an issue or return request if it was delivered.' }, 409);
-    if (!beforeCutoff(order, settings)) {
-      const queued = await queueRequest(env, order, customerId, 'reschedule', { ...body, slotId });
-      return response({ ok: true, request: queued, status: order.delivery_status }, 202);
-    }
-    const slots = await resolveAvailableSlots(env, { address: body.address || {}, items: body.items || [] }, selected.delivery_date, order.id);
-    const valid = slots.slots.some(slot => slot.date === selected.delivery_date &&
-      slot.startMinute === Number(selected.start_minute) && slot.endMinute === Number(selected.end_minute));
-    if (!valid) return response({ error: 'That delivery window is full or cannot fulfil the full basket. Choose another window.' }, 409);
-    const result = await moveOrderSchedule(env, order, selected, 'customer', customerId, { address: body.address || {} });
-    return response(result);
+    const requestedDeliveryDate = clean(body.requestedDeliveryDate);
+    if (order.delivery_status === 'Delivered' || order.delivery_status === 'Cancelled') return response({ error: 'This order cannot be rescheduled in its current status.' }, 409);
+    if (!dateValid(requestedDeliveryDate) || requestedDeliveryDate < istNowParts().date || requestedDeliveryDate > addDays(istNowParts().date, 60)) return response({ error: 'Choose a valid delivery date between today and the next 60 days.' }, 400);
+    const queued = await queueRequest(env, order, customerId, 'reschedule', { ...body, requestedDeliveryDate });
+    return response({ ok: true, request: queued, message: queued.alreadyRequested ? 'A delivery-date change is already requested.' : 'Delivery date change requested.' }, 202);
   }
-  if (action === 'request') {
+  if (action === 'request' {
     const requestType = clean(body.requestType);
     if (!['cancellation','reschedule','return','issue'].includes(requestType)) return response({ error: 'Choose a valid order request type.' }, 400);
     if (requestType === 'return' && order.delivery_status !== 'Delivered') return response({ error: 'Return requests are available after delivery. For an active order, request cancellation.' }, 409);
@@ -507,6 +450,9 @@ async function auditOwnerAction(env, order, actorId, action, reason, after) {
 export async function handleAdminDeliveryRequest(request, env) {
   const url = new URL(request.url), path = url.pathname;
   if (path === '/api/admin/delivery' && request.method === 'GET') {
+    const orders = (await env.DB.prepare("SELECT id,customer_name,customer_phone,delivery_status,scheduled_delivery_date,delivery_plan,created_at,total FROM orders WHERE delivery_status NOT IN ('Delivered','Cancelled') ORDER BY CASE WHEN scheduled_delivery_date IS NULL THEN 1 ELSE 0 END,scheduled_delivery_date,created_at DESC LIMIT 300").all()).results || [];
+    const requests = (await env.DB.prepare("SELECT r.id,r.order_id,r.customer_id,r.request_type,r.requested_delivery_date,r.reason,r.status,r.created_at,o.delivery_status,o.total,o.scheduled_delivery_date,o.customer_name,c.phone customer_phone FROM order_action_requests r JOIN orders o ON o.id=r.order_id LEFT JOIN customers c ON c.id=r.customer_id WHERE r.status='pending' ORDER BY r.created_at LIMIT 200").all()).results || [];
+    return response({ ok:true, orders, requests, settings:{enabled:1}, stores:[],products:[],inventory:[],slots:[],operationalFlags:[] });
     await ensureStoreInventoryRows(env);
     const settings = await readSettings(env);
     const stores = (await env.DB.prepare('SELECT * FROM delivery_stores ORDER BY is_active DESC,name').all()).results || [];
@@ -528,7 +474,7 @@ export async function handleAdminDeliveryRequest(request, env) {
       'FROM delivery_slots s JOIN delivery_stores ds ON ds.id=s.store_id WHERE s.delivery_date>=? AND s.delivery_date<=? ORDER BY s.delivery_date,s.start_minute,ds.name LIMIT 500'
     ).bind(now.date, addDays(now.date, 60)).all();
     const requests = await env.DB.prepare(
-      'SELECT r.id,r.order_id,r.customer_id,r.request_type,r.requested_slot_id,r.reason,r.status,r.resolution_note,r.created_at,r.updated_at,' +
+      'SELECT r.id,r.order_id,r.customer_id,r.request_type,r.requested_slot_id,r.requested_delivery_date,r.reason,r.status,r.resolution_note,r.created_at,r.updated_at,' +
       'o.delivery_status,o.total,o.scheduled_delivery_date,o.scheduled_start_minute,o.scheduled_end_minute,o.customer_name,c.phone customer_phone ' +
       'FROM order_action_requests r JOIN orders o ON o.id=r.order_id LEFT JOIN customers c ON c.id=r.customer_id ' +
       'WHERE r.status=\'pending\' ORDER BY r.created_at LIMIT 200'
@@ -686,6 +632,16 @@ export async function handleAdminDeliveryRequest(request, env) {
     let body = {}; try { body = await request.json(); } catch (_) {}
     const orderId = decodeURIComponent(scheduleMatch[1]);
     const order = await getOrderForAction(env, orderId);
+    if (body.deliveryDate && !body.startTime && !body.endTime && !body.slotId) {
+      if (!order) throw new Error('Order not found.');
+      const date = clean(body.deliveryDate), now = istNowParts();
+      if (!dateValid(date) || date < now.date || date > addDays(now.date, 60)) throw new Error('Choose a valid delivery date between today and the next 60 days.');
+      const before = { ...order }, plan = date === now.date ? 'Today' : date === addDays(now.date,1) ? 'Tomorrow' : 'Later';
+      await env.DB.prepare("UPDATE orders SET scheduled_delivery_date=?,scheduled_slot_id=NULL,assigned_store_id=NULL,scheduled_start_minute=NULL,scheduled_end_minute=NULL,schedule_status='confirmed',delivery_plan=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(date,plan,orderId).run();
+      await writeAudit(env,orderId,'owner',clean(request.headers.get('X-Freshway-Owner-Id'))||'owner','delivery_date_changed',clean(body.reason),before,{date});
+      await notifyCustomerAndOwner(env,orderId,{customer_id:order.customer_id,delivery_status:order.delivery_status,payment_status:order.payment_status,delivery_plan:order.delivery_plan,is_test_order:order.is_test_order},'delivery_date_changed','Delivery date updated to '+date);
+      return response({ok:true,orderId,scheduledDelivery:{date}});
+    }
     if (!order) throw new Error('Order not found.');
     const slotId = clean(body.slotId);
     let target = null;
@@ -725,6 +681,15 @@ export async function handleAdminDeliveryRequest(request, env) {
       await updateOrder(env, row.order_id, { status: 'Cancelled' });
       const afterOrder = await env.DB.prepare('SELECT customer_id,delivery_status,payment_status,delivery_plan,is_test_order FROM orders WHERE id=?').bind(row.order_id).first();
       if (beforeOrder && afterOrder) await notifyCustomerAndOwner(env, row.order_id, { customer_id:beforeOrder.customer_id,delivery_status:beforeOrder.delivery_status,payment_status:beforeOrder.payment_status,delivery_plan:beforeOrder.delivery_plan,is_test_order:beforeOrder.is_test_order }, 'order_cancellation_request_approved', 'Your cancellation request has been approved.', afterOrder);
+    } else if (decision === 'approve' && row.request_type === 'reschedule' && row.requested_delivery_date) {
+      const order = await getOrderForAction(env,row.order_id);
+      if (!order) throw new Error('Order not found.');
+      const date = clean(body.deliveryDate) || row.requested_delivery_date, now = istNowParts();
+      if (!dateValid(date) || date < now.date || date > addDays(now.date,60)) throw new Error('Choose a valid delivery date between today and the next 60 days.');
+      const plan = date===now.date?'Today':date===addDays(now.date,1)?'Tomorrow':'Later';
+      await env.DB.prepare("UPDATE orders SET scheduled_delivery_date=?,scheduled_slot_id=NULL,assigned_store_id=NULL,scheduled_start_minute=NULL,scheduled_end_minute=NULL,schedule_status='confirmed',delivery_plan=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(date,plan,row.order_id).run();
+      await writeAudit(env,row.order_id,'owner','owner','delivery_date_change_approved',note,order,{date});
+      await notifyCustomerAndOwner(env,row.order_id,{customer_id:order.customer_id,delivery_status:order.delivery_status,payment_status:order.payment_status,delivery_plan:order.delivery_plan,is_test_order:order.is_test_order},'delivery_date_changed','Delivery date updated to '+date);
     } else if (decision === 'approve' && row.request_type === 'reschedule') {
       if (!row.requested_slot_id) throw new Error('This reschedule request has no target delivery window.');
       const order = await getOrderForAction(env, row.order_id);
@@ -740,7 +705,9 @@ export async function handleAdminDeliveryRequest(request, env) {
       // returned or suitable for restocking. Owner must use the stock correction workflow.
       await writeAudit(env, row.order_id, 'owner', 'owner', 'return_request_approved', note, row, { status: 'approved' });
     }
-    if (decision === 'reject' && row.request_type === 'reschedule') {
+    if (decision === 'reject' && row.request_type === 'reschedule' && row.requested_delivery_date) {
+      // Keep the currently selected delivery date unchanged.
+    } else if (decision === 'reject' && row.request_type === 'reschedule') {
       const order = await getOrderForAction(env, row.order_id);
       if (order && order.schedule_status === 'change_requested') {
         // Restore the exact status from before the request. Order status alone
