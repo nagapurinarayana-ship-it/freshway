@@ -93,6 +93,14 @@ async function inventoryMap(env, excludeOrderId = '') {
   });
   return map;
 }
+async function ensureStoreInventoryRows(env) {
+  // New stock-managed products may be created after stores already exist. Add missing
+  // per-store rows at zero so they can be explicitly allocated without inventing stock.
+  await env.DB.prepare(
+    'INSERT OR IGNORE INTO delivery_store_inventory (store_id,product_id,stock_quantity) ' +
+    'SELECT s.id,p.id,0 FROM delivery_stores s CROSS JOIN products p WHERE p.stock_managed=1'
+  ).run();
+}
 function itemNeedsStock(item) {
   return Number(item.stockReservedQty ?? item.stock_reserved_qty ?? 0) > 0;
 }
@@ -354,7 +362,7 @@ async function moveOrderSchedule(env, order, target, actorType, actorId, options
     if (newStoreId) {
       for (const line of lines.filter(itemNeedsStock)) {
         statements.push(env.DB.prepare(
-          'INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status,owner_override,override_reason) VALUES (?,?,?,?,?,?,?,?,?)'
+          'INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status,owner_override,override_reason) VALUES (?,?,?,?,?,?,?,?)'
         ).bind(id('stockres'), order.id, newStoreId, line.id, Number(line.qty), stockConflict ? 'conflict' : 'reserved',
           stockConflict ? 1 : 0, stockConflict ? (reason || 'Owner override: insufficient store inventory') : ''));
       }
@@ -489,6 +497,7 @@ async function auditOwnerAction(env, order, actorId, action, reason, after) {
 export async function handleAdminDeliveryRequest(request, env) {
   const url = new URL(request.url), path = url.pathname;
   if (path === '/api/admin/delivery' && request.method === 'GET') {
+    await ensureStoreInventoryRows(env);
     const settings = await readSettings(env);
     const stores = (await env.DB.prepare('SELECT * FROM delivery_stores ORDER BY is_active DESC,name').all()).results || [];
     const products = (await env.DB.prepare('SELECT id,name,unit,price,stock_managed,stock_quantity,low_stock_threshold,active FROM products ORDER BY name').all()).results || [];
@@ -574,6 +583,7 @@ export async function handleAdminDeliveryRequest(request, env) {
     const storeId = decodeURIComponent(inventoryMatch[1]);
     const store = await env.DB.prepare('SELECT id FROM delivery_stores WHERE id=?').bind(storeId).first();
     if (!store) throw new Error('Delivery store not found.');
+    await ensureStoreInventoryRows(env);
     if (!Array.isArray(body.items) || body.items.length > 500) throw new Error('Enter a valid store inventory list.');
     const productRows = (await env.DB.prepare('SELECT id,stock_managed FROM products WHERE stock_managed=1').all()).results || [];
     const requested = new Map();
