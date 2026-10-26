@@ -398,11 +398,11 @@ async function customerAction(request, env, customerId, orderId, action) {
     const plan = requestedDeliveryDate === istNowParts().date ? 'Today' : requestedDeliveryDate === addDays(istNowParts().date, 1) ? 'Tomorrow' : 'Later';
     const before = { ...order };
     const dateStatements = [];
-    if (order.scheduled_slot_id || order.assigned_store_id) {
+    if (order.scheduled_slot_id) {
+      // Changing only the date releases the old slot, not the store's basket-stock reservation.
       dateStatements.push(env.DB.prepare("UPDATE delivery_slot_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(order.id));
-      dateStatements.push(env.DB.prepare("UPDATE delivery_store_inventory_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(order.id));
     }
-    dateStatements.push(env.DB.prepare("UPDATE orders SET scheduled_delivery_date=?,scheduled_slot_id=NULL,assigned_store_id=NULL,scheduled_start_minute=NULL,scheduled_end_minute=NULL,schedule_status='confirmed',delivery_plan=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND delivery_status NOT IN ('Delivered','Cancelled')").bind(requestedDeliveryDate, plan, order.id));
+    dateStatements.push(env.DB.prepare("UPDATE orders SET scheduled_delivery_date=?,scheduled_slot_id=NULL,scheduled_start_minute=NULL,scheduled_end_minute=NULL,schedule_status='confirmed',delivery_plan=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND delivery_status NOT IN ('Delivered','Cancelled')").bind(requestedDeliveryDate, plan, order.id));
     await env.DB.batch(dateStatements);
     const updated = await getOrderForAction(env, order.id);
     if (!updated || updated.scheduled_delivery_date !== requestedDeliveryDate) throw new Error('Delivery date could not be saved. Refresh and try again.');
