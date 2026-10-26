@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 const BASE_URL = process.env.BASE_URL || 'https://freshway-f32.pages.dev';
-const VIEWPORT_STYLES_PATH = '/styles.css?v=20261026-delivery-schedule-v1';
+const VIEWPORT_STYLES_PATH = '/styles.css?v=20261026-checkout-nav-clear-v1';
 const CUSTOMER_APP_PATH = '/app.js?v=20261026-checkout-delivery-refresh-v1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261021-guest-address-map-search-v3';
