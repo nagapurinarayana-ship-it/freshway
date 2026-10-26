@@ -21,7 +21,7 @@ function fixture() {
         values: [],
         bind(...values) { this.values = values; return this; },
         async first() {
-          if (sql.startsWith('SELECT delivery_status,payment_status,delivery_plan,customer_id,is_test_order FROM orders')) {
+          if (sql.startsWith('SELECT delivery_status,payment_status,delivery_plan,customer_id,is_test_order')) {
             return { ...row };
           }
           if (sql.startsWith('SELECT customer_id,delivery_status,payment_status,delivery_plan FROM orders')) {
@@ -44,6 +44,7 @@ function fixture() {
       };
       return statement;
     }
+    ,async batch(statements) { const results=[]; for (const statement of statements) results.push(await statement.run()); return results; }
   };
   return { DB, row };
 }
