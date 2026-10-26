@@ -205,7 +205,7 @@ for (const asset of requiredOwnerAssets) {
       String(icon.purpose || '').split(' ').includes(expected.purpose)
     ), 'Owner manifest must reference the correct FreshWay icon: ' + expected.path);
   }
-  assert.doesNotMatch(JSON.stringify(manifest.icons), /\\/admin\\/icons\\/icon-(?:192|512)\\.svg/, 'Owner manifest must not reference legacy SVG icon paths');
+  assert.ok(!JSON.stringify(manifest.icons).includes('/admin/icons/icon-192.svg') && !JSON.stringify(manifest.icons).includes('/admin/icons/icon-512.svg'), 'Owner manifest must not reference legacy SVG icon paths');
   for (const icon of manifest.icons) assert.ok(icon.src.startsWith('/admin/'), 'Owner install icon must remain under its app path');
 }
 {

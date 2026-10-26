@@ -193,7 +193,7 @@ for (const expected of expectedOwnerIcons) {
     String(icon.purpose || '').split(' ').includes(expected.purpose)
   ), 'Owner manifest must reference the approved FreshWay brand icon ' + expected.path);
 }
-assert.doesNotMatch(JSON.stringify(manifest.icons), /\\/admin\\/icons\\/icon-(?:192|512)\\.svg/, 'Owner manifest must not reference the old SVG icon paths');
+assert.ok(!JSON.stringify(manifest.icons).includes('/admin/icons/icon-192.svg') && !JSON.stringify(manifest.icons).includes('/admin/icons/icon-512.svg'), 'Owner manifest must not reference the old SVG icon paths');
 assert.ok(manifest.icons.every(icon => icon.src.startsWith('/admin/')), 'Owner installation icons must remain under /admin/');
 
 const { response: workerResponse, worker } = await fetchCurrentOwnerServiceWorker();

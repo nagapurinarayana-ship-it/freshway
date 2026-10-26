@@ -236,7 +236,7 @@ const expectedBrandIcons = [
   { path: '/icons/icon-512-maskable-v2.png', size: '512x512', pixels: 512, purpose: 'maskable' }
 ];
 assert.equal(manifest.icons.length, expectedBrandIcons.length, 'customer manifest must expose only the approved FreshWay brand PNG icons');
-assert.doesNotMatch(JSON.stringify(manifest.icons), /\\/icons\\/icon-(?:192|512)\\.svg/, 'customer manifest must not reference the old SVG icon paths');
+assert.ok(!JSON.stringify(manifest.icons).includes('/icons/icon-192.svg') && !JSON.stringify(manifest.icons).includes('/icons/icon-512.svg'), 'customer manifest must not reference the old SVG icon paths');
 for (const expected of expectedBrandIcons) {
   assert.ok(
     manifest.icons.some(icon =>
@@ -249,7 +249,7 @@ for (const expected of expectedBrandIcons) {
   );
   const response = await fetchWithRetry(`${base}${expected.path}?v=20261026-brand-v2`, { cache: 'no-store' });
   assert.equal(response.status, 200, expected.path);
-  assert.match(response.headers.get('content-type') || '', /^image\\/png/i, expected.path);
+  assert.ok((response.headers.get('content-type') || '').toLowerCase().startsWith('image/png'), expected.path + ' must be served as PNG');
   const png = Buffer.from(await response.arrayBuffer());
   assert.ok(png.length > 64, expected.path + ' must contain PNG data');
   assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', expected.path + ' must have a valid PNG signature');
