@@ -736,11 +736,23 @@ export async function handleAdminDeliveryRequest(request, env) {
     if (decision === 'reject' && row.request_type === 'reschedule') {
       const order = await getOrderForAction(env, row.order_id);
       if (order && order.schedule_status === 'change_requested') {
-        const restoredScheduleStatus = order.scheduled_slot_id
-          ? (order.delivery_status === 'New' ? 'requested' : 'confirmed')
-          : 'unscheduled';
+        // Restore the exact status from before the request. Order status alone
+        // cannot distinguish a requested schedule from an Owner-confirmed one.
+        const priorAudit = await env.DB.prepare(
+          "SELECT before_json FROM order_audit_events WHERE order_id=? AND action='reschedule_requested' " +
+          "AND json_valid(after_json)=1 AND json_extract(after_json,'$.requestId')=? " +
+          "ORDER BY created_at DESC,id DESC LIMIT 1"
+        ).bind(row.order_id, requestId).first();
+        let priorScheduleStatus = '';
+        try { priorScheduleStatus = String(JSON.parse(priorAudit?.before_json || '{}').schedule_status || ''); } catch (_) {}
+        const validScheduleStatuses = ['unscheduled','requested','confirmed','conflict','completed','cancelled'];
+        const restoredScheduleStatus = validScheduleStatuses.includes(priorScheduleStatus)
+          ? priorScheduleStatus
+          : order.scheduled_slot_id
+            ? (order.delivery_status === 'New' ? 'requested' : 'confirmed')
+            : 'unscheduled';
         await env.DB.prepare(
-          'UPDATE orders SET schedule_status=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND schedule_status=\'change_requested\''
+          "UPDATE orders SET schedule_status=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND schedule_status='change_requested'"
         ).bind(restoredScheduleStatus, row.order_id).run();
         await writeAudit(env, row.order_id, 'owner', 'owner', 'reschedule_request_rejected_schedule_restored',
           note, { schedule_status: order.schedule_status }, { schedule_status: restoredScheduleStatus });
