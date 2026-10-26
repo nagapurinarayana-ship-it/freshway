@@ -1,27 +1,36 @@
 name: FreshWay production D1 schema audit
 
 on:
+  # Run after the production release has applied migrations and deployed the Worker.
+  # This avoids racing the migration step on pushes that change worker/**.
+  workflow_run:
+    workflows: ["FreshWay Worker release"]
+    types: [completed]
+  # Allow the workflow edit itself to be validated; it does not deploy Worker code.
   push:
     branches: [main]
     paths:
       - ".github/workflows/d1-schema-audit.yml"
-      - "worker/scripts/audit-production-schema.mjs"
-      - "worker/schema.sql"
-      - "worker/migrations/**"
-      - "worker/src/address-api.js"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: freshway-production-d1-schema-audit
+  cancel-in-progress: false
+
 jobs:
   audit:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     name: Read-only production D1 schema audit
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: Checkout
+      - name: Checkout the code used by the production release
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
