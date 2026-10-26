@@ -120,3 +120,29 @@ test('Owner delivery routes are mounted in the authenticated admin API and keep 
   assert.ok(delivery.includes('order_audit_events'));
   assert.ok(delivery.includes('order_operational_flags'));
 });
+
+test('store reassignment uses valid reservation SQL and stock-managed products receive per-store inventory rows', () => {
+  const delivery = read('../src/delivery-scheduling.js');
+  const worker = read('../src/index.js');
+  const moveStart = delivery.indexOf('async function moveOrderSchedule');
+  const transferSqlAt = delivery.indexOf(
+    'INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status,owner_override,override_reason)',
+    moveStart
+  );
+  assert.ok(transferSqlAt >= 0, 'store-transfer reservation insert must exist');
+  const transferSql = delivery.slice(transferSqlAt, delivery.indexOf('\n', transferSqlAt));
+  assert.ok(transferSql.includes('VALUES (?,?,?,?,?,?,?,?)'),
+    'eight inventory reservation columns must have exactly eight placeholders');
+  assert.ok(!transferSql.includes('VALUES (?,?,?,?,?,?,?,?,?)'),
+    'store reassignment must not send a mismatched nine-placeholder insert');
+
+  assert.ok(delivery.includes('async function ensureStoreInventoryRows(env)'));
+  assert.ok(delivery.includes('await ensureStoreInventoryRows(env);'),
+    'Owner inventory view and stock updates must repair missing inventory rows safely');
+  assert.ok(worker.includes('if(stockManaged){'),
+    'creating a stock-managed product must initialise store inventory when stores exist');
+  assert.ok(worker.includes('if(Number(current.stock_managed)===0&&payload.stockManaged===true)'),
+    'enabling stock management on an existing product must initialise store inventory');
+  assert.ok(worker.includes('INSERT OR IGNORE INTO delivery_store_inventory'),
+    'product create/update must not duplicate inventory rows');
+});
