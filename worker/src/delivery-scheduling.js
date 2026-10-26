@@ -332,6 +332,8 @@ async function moveOrderSchedule(env, order, target, actorType, actorId, options
   }
   const newStoreId = chosen?.store_id || order.assigned_store_id || null;
   const newSlotId = chosen?.id || null;
+  if (owner && override && !reason) throw new Error('Enter a reason for the Owner override.');
+  if (owner && slotConflict && !override) throw new Error('This delivery window has a capacity, availability, date, or inventory conflict. Enable Owner override and add a reason to continue.');
   const status = currentStatus === 'Delivered' ? 'completed' :
     currentStatus === 'Cancelled' ? 'conflict' :
     slotConflict && owner && override ? 'conflict' : 'reserved';
@@ -724,7 +726,7 @@ export async function handleAdminDeliveryRequest(request, env) {
     await writeAudit(env, row.order_id, 'owner', 'owner', 'order_request_' + nextStatus, note, row, { status: nextStatus, order: latest });
     return response({ ok: true, requestId, status: nextStatus, orderStatus: latest?.delivery_status });
   }
-  const flagMatch = path.match(/^\\/api\\/admin\\/delivery\\/flags\\/([^/]+)$/);
+  const flagMatch = path.match(/^\/api\/admin\/delivery\/flags\/([^/]+)$/);
   if (flagMatch && request.method === 'PATCH') {
     let body = {}; try { body = await request.json(); } catch (_) {}
     const flagId = decodeURIComponent(flagMatch[1]), note = clean(body.note).slice(0,500);
