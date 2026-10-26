@@ -131,7 +131,8 @@ test('Owner approval applies the requested or edited delivery date without creat
     assert.equal(db.db.prepare("SELECT schedule_status FROM orders WHERE id='order-reschedule-approve'").get().schedule_status,'confirmed');
     assert.equal(db.db.prepare("SELECT scheduled_slot_id FROM orders WHERE id='order-reschedule-approve'").get().scheduled_slot_id,null);
     assert.equal(db.db.prepare("SELECT status FROM order_action_requests WHERE id=?").get(requestId).status,'approved');
-    assert.equal(db.db.prepare("SELECT COUNT(*) count FROM delivery_slot_reservations WHERE order_id='order-reschedule-approve'").get().count,1);
+    assert.equal(db.db.prepare("SELECT status FROM delivery_slot_reservations WHERE order_id='order-reschedule-approve'").get().status,'released');
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-reschedule-approve'").get().status,'released');
     assert.deepEqual(db.db.prepare('PRAGMA foreign_key_check').all(),[]);
   } finally { db.close(); }
 });
