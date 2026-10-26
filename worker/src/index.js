@@ -192,18 +192,18 @@ async function adminOrders(env,url){
   const totalRow=await env.DB.prepare(`SELECT COUNT(*) total FROM orders o JOIN addresses a ON a.id=o.address_id${clause}`).bind(...binds).first();
   const total=Number(totalRow?.total||0);
   const offset=(page-1)*limit;
-  const {results:orderRows}=await env.DB.prepare(`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.is_test_order,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.payment_collected_at,a.house,a.area,a.city,a.pincode,a.landmark,a.note FROM orders o JOIN addresses a ON a.id=o.address_id${clause} ORDER BY ${sortSql} LIMIT ? OFFSET ?`).bind(...binds,limit,offset).all();
+  const {results:orderRows}=await env.DB.prepare(`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.is_test_order,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.delivered_at,o.payment_collected_at,a.house,a.area,a.city,a.pincode,a.landmark,a.note FROM orders o JOIN addresses a ON a.id=o.address_id${clause} ORDER BY ${sortSql} LIMIT ? OFFSET ?`).bind(...binds,limit,offset).all();
   const rows=orderRows||[];
   if(!rows.length)return {orders:[],pagination:{page,limit,total,pages:Math.ceil(total/limit)}};
   const ids=rows.map(x=>x.id),placeholders=ids.map(()=>'?').join(',');
   const {results:itemRows}=await env.DB.prepare(`SELECT order_id,product_id,name,unit,qty,price,line_total FROM order_items WHERE order_id IN (${placeholders}) ORDER BY order_id,id ASC`).bind(...ids).all();
   const itemMap=new Map(ids.map(id=>[id,[]]));
   for(const item of itemRows||[])itemMap.get(item.order_id)?.push({id:item.product_id,name:item.name,unit:item.unit,qty:item.qty,price:item.price,lineTotal:item.line_total});
-  const orders=rows.map(r=>({id:r.id,isTestOrder:Number(r.is_test_order)===1,customer:{name:r.customer_name,phone:r.customer_phone},address:{house:r.house,area:r.area,city:r.city,pincode:r.pincode,landmark:r.landmark,note:r.note},items:itemMap.get(r.id)||[],total:r.total,payment:r.payment_status,status:r.delivery_status,deliveryPlan:r.delivery_plan,createdAt:r.created_at,updatedAt:r.updated_at,paymentCollectedAt:r.payment_collected_at}));
+  const orders=rows.map(r=>({id:r.id,isTestOrder:Number(r.is_test_order)===1,customer:{name:r.customer_name,phone:r.customer_phone},address:{house:r.house,area:r.area,city:r.city,pincode:r.pincode,landmark:r.landmark,note:r.note},items:itemMap.get(r.id)||[],total:r.total,payment:r.payment_status,status:r.delivery_status,deliveryPlan:r.delivery_plan,createdAt:r.created_at,updatedAt:r.updated_at,deliveredAt:r.delivered_at,paymentCollectedAt:r.payment_collected_at}));
   return {orders,pagination:{page,limit,total,pages:Math.ceil(total/limit)}};
 }
 async function updateOrder(env,id,payload){
-  const {results}=await env.DB.prepare('SELECT delivery_status,payment_status,delivery_plan,customer_id,is_test_order FROM orders WHERE id=?').bind(id).all();
+  const {results}=await env.DB.prepare('SELECT delivery_status,payment_status,delivery_plan,customer_id,is_test_order,delivered_at FROM orders WHERE id=?').bind(id).all();
   const current=results?.[0];
   if(!current)throw new Error('Order not found.');
   const {status,payment,deliveryPlan}=validateOrderPatch(current,payload);
@@ -212,6 +212,7 @@ async function updateOrder(env,id,payload){
   const testClassificationChanged=hasTestFlag&&nextTestFlag!==Number(current.is_test_order||0);
   const sets=[],params=[];
   if(status){sets.push('delivery_status=?');params.push(status)}
+  if(status==='Delivered'&&current.delivery_status!=='Delivered'&&!current.delivered_at)sets.push('delivered_at=CURRENT_TIMESTAMP');
   if(payment){sets.push('payment_status=?');params.push(payment);if(payment==='Collected')sets.push('payment_collected_at=CURRENT_TIMESTAMP')}
   if(deliveryPlan){sets.push('delivery_plan=?');params.push(deliveryPlan)}
   if(testClassificationChanged){sets.push('is_test_order=?');params.push(nextTestFlag)}
