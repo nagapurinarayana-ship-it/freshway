@@ -6,6 +6,7 @@ import test from 'node:test';
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 const migration37 = read('../migrations/0037_order_delivery_scheduling.sql');
 const migration38 = read('../migrations/0038_anonymize_delivery_requests.sql');
+const migration39 = read('../migrations/0039_customer_preferred_delivery_date.sql');
 const migration40 = read('../migrations/0040_order_delivered_at.sql');
 const productionSchemaAudit = read('../scripts/audit-production-schema.mjs');
 
@@ -55,7 +56,9 @@ test('0037 then 0038 migrate a legacy D1-like database without losing requests o
     assert.equal(oldRequest.customer_id, 'customer-1');
 
     db.exec(migration38);
+    db.exec(migration39);
     db.exec(migration40);
+    assert.ok(db.prepare('PRAGMA table_info(order_action_requests)').all().some(column => column.name === 'requested_delivery_date'), '0039 must add the customer preferred delivery date');
     assert.ok(db.prepare('PRAGMA table_info(orders)').all().some(column => column.name === 'delivered_at'), '0040 must add the actual delivery timestamp');
     const rebuiltRequest = db.prepare("SELECT * FROM order_action_requests WHERE id='request-1'").get();
     assert.equal(rebuiltRequest.customer_id, 'customer-1');
@@ -93,6 +96,12 @@ test('0038 rejects an invalid customer id after the request relationship becomes
   }
 });
 
+
+test('Owner date-only endpoint rejects edits to delivered or cancelled orders', () => {
+  const delivery = read('../src/delivery-scheduling.js');
+  assert.ok(delivery.includes("['delivered', 'cancelled'].includes(String(order.delivery_status || '').trim().toLowerCase())"));
+  assert.ok(delivery.includes('Delivery date cannot be changed for a delivered or cancelled order.'));
+});
 
 test('production schema audit requires the delivery scheduling schema, migrations, indexes and integrity triggers', () => {
   for (const table of [
