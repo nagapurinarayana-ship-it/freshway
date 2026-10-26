@@ -40,27 +40,34 @@ export function buildPreviewConfig(productionConfig, {
     throw new Error('FRESHWAY_PREVIEW_APP_ORIGINS must include FRESHWAY_PREVIEW_APP_ORIGIN.');
   }
 
-  const preview = structuredClone(productionConfig);
-  preview.name = 'freshway-api-preview';
-  preview.d1_databases = preview.d1_databases.map(binding => binding.binding === 'DB'
-    ? { ...binding, database_name: 'freshway-preview', database_id: previewId }
-    : binding);
-  preview.vars = {
-    ...(preview.vars || {}),
-    FRESHWAY_ENVIRONMENT: 'development',
-    APP_ORIGIN: primaryOrigin,
-    APP_ORIGINS: origins.join(',')
+  if ((productionConfig.d1_databases || []).length !== 1 || productionDatabase.binding !== 'DB') {
+    throw new Error('Preview builder supports exactly one source D1 binding (DB); explicitly redesign it before production adds more database bindings.');
+  }
+
+  // Build from an allowlist rather than cloning the production config. New production
+  // bindings, vars, routes and cron triggers must never leak into the preview implicitly.
+  return {
+    name: 'freshway-api-preview',
+    main: productionConfig.main,
+    compatibility_date: productionConfig.compatibility_date,
+    compatibility_flags: Array.isArray(productionConfig.compatibility_flags)
+      ? [...productionConfig.compatibility_flags]
+      : [],
+    d1_databases: [{
+      binding: 'DB',
+      database_name: 'freshway-preview',
+      database_id: previewId
+    }],
+    vars: {
+      FRESHWAY_ENVIRONMENT: 'development',
+      APP_ORIGIN: primaryOrigin,
+      APP_ORIGINS: origins.join(',')
+    },
+    secrets: {
+      required: ['ADMIN_TOKEN', 'CUSTOMER_SESSION_SECRET', 'ADMIN_SESSION_SECRET']
+    },
+    workers_dev: true
   };
-  // Cron cleanup is operationally unnecessary in a preview and is intentionally disabled.
-  delete preview.triggers;
-  // Keep deployment preview-only even if production config gains a custom route later.
-  delete preview.routes;
-  preview.secrets = {
-    ...(preview.secrets || {}),
-    required: ['ADMIN_TOKEN', 'CUSTOMER_SESSION_SECRET', 'ADMIN_SESSION_SECRET']
-  };
-  preview.workers_dev = true;
-  return preview;
 }
 
 function main() {
