@@ -39,15 +39,13 @@
         booking.mountReschedule(target, {
           order,
           getAddress:() => order.address || {},
-          onConfirm:async slot => {
-            if (!slot?.id) throw new Error('Choose an available delivery window.');
+          onConfirm:async requestedDeliveryDate => {
+            if(!requestedDeliveryDate)throw new Error('Choose a delivery date.');
             const api = request(); if (!api) throw new Error('Order actions are temporarily unavailable.');
             const result = await api('/api/orders/' + encodeURIComponent(orderId) + '/reschedule', {
-              method:'POST',
-              body:JSON.stringify({ slotId:slot.id, address:order.address || {}, items:(order.items || []).map(item => ({ id:item.id, qty:Number(item.qty) })) })
+              method:'POST', body:JSON.stringify({ requestedDeliveryDate })
             });
-            if (result.request?.status === 'pending') feedback('Your reschedule request was sent. Your current delivery time remains until FreshWay confirms the change.');
-            else feedback('Delivery time updated.');
+            feedback(result.message || 'Delivery date updated.');
             target.hidden = true;
             document.dispatchEvent(new CustomEvent('freshway:order-actions-changed', { detail:{ orderId, action:'reschedule' } }));
           }
