@@ -17,7 +17,7 @@ assert.match(el.innerHTML,/awaiting dispatch/);
 assert.match(el.innerHTML,/invoice PDF will be available here after dispatch/i);
 assert.doesNotMatch(el.innerHTML,/once invoice issuance is enabled/i);
 api.render(document,[{...base,id:'FW-2',status:'Delivered',deliveryPlan:'Tomorrow'}],helpers);
-assert.match(el.innerHTML,/class="status delivered">Delivered/);
+assert.match(el.innerHTML,/class="status delivered">delivered/);
 assert.match(el.innerHTML,/help with a dispatched order/i);
 assert.doesNotMatch(el.innerHTML,/Tomorrow/);
 api.render(document,[{...base,id:'FW-3',status:'Cancelled',deliveryPlan:'Today'}],helpers);
