@@ -1,0 +1,291 @@
+name: FreshWay isolated preview Worker
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/preview-worker.yml"
+      - ".github/preview-worker/**"
+      - "worker/wrangler.jsonc"
+      - "worker/src/**"
+      - "worker/migrations/**"
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Branch or commit to deploy to the isolated preview Worker
+        required: true
+        default: feat/order-cancel-delivery-scheduling
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freshway-isolated-preview-worker
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate preview isolation and Worker tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted preview tooling
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.pull_request.head.sha }}
+          path: tooling
+      - name: Checkout selected feature source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_ref || github.event.pull_request.head.sha }}
+          path: source
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Install Worker dependencies
+        working-directory: source/worker
+        run: npm install
+      - name: Run all Worker tests
+        working-directory: source/worker
+        run: npm test
+      - name: Test preview isolation guards
+        run: node --test tooling/.github/preview-worker/test/preview-config.test.js
+      - name: Verify preview config refuses production D1
+        env:
+          FRESHWAY_PREVIEW_D1_DATABASE_ID: "00000000-0000-4000-8000-000000000001"
+          FRESHWAY_PREVIEW_APP_ORIGIN: "https://feat-order-cancel-delivery-s.freshway-f32.pages.dev"
+          FRESHWAY_PREVIEW_APP_ORIGINS: "https://feat-order-cancel-delivery-s.freshway-f32.pages.dev"
+        run: |
+          set -euo pipefail
+          node tooling/.github/preview-worker/build-preview-config.mjs > source/worker/wrangler.preview.generated.jsonc
+          node --input-type=module - source/worker/wrangler.preview.generated.jsonc <<'NODE'
+          import fs from 'node:fs';
+          const config = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const production = JSON.parse(fs.readFileSync('tooling/worker/wrangler.jsonc', 'utf8'));
+          const database = config.d1_databases?.find(item => item.binding === 'DB');
+          const productionDatabase = production.d1_databases?.find(item => item.binding === 'DB');
+          if (config.name !== 'freshway-api-preview' ||
+              config.vars?.FRESHWAY_ENVIRONMENT !== 'development' ||
+              database?.database_name !== 'freshway-preview' ||
+              !productionDatabase?.database_id ||
+              database?.database_id?.toLowerCase() === productionDatabase.database_id.toLowerCase() ||
+              config.triggers || config.routes) {
+            throw new Error('Preview configuration is not isolated from production.');
+          }
+          console.log('Preview configuration is isolated from production D1, routes, and cron triggers.');
+          const bootstrapPath = 'source/worker/wrangler.preview.bootstrap.jsonc';
+          const bootstrap = { ...config };
+          delete bootstrap.secrets;
+          fs.writeFileSync(bootstrapPath, JSON.stringify(bootstrap, null, 2) + '\n', { mode: 0o600 });
+          const parsedBootstrap = JSON.parse(fs.readFileSync(bootstrapPath, 'utf8'));
+          const bootstrapDb = parsedBootstrap.d1_databases?.find(item => item.binding === 'DB');
+          if (parsedBootstrap.name !== config.name ||
+              bootstrapDb?.database_id !== database.database_id ||
+              parsedBootstrap.secrets !== undefined ||
+              parsedBootstrap.triggers || parsedBootstrap.routes) {
+            throw new Error('Bootstrap configuration is not a safe preview-only copy.');
+          }
+          console.log('Preview bootstrap config is parseable and omits required-secret validation until secrets are attached.');
+          NODE
+
+  deploy:
+    name: Migrate and deploy isolated preview Worker
+    # The workflow itself must be run from the reviewed infrastructure branch.
+    # Source code to test is selected separately with the source_ref input.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/infra/isolated-preview-worker'
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: preview
+    steps:
+      - name: Checkout trusted preview tooling
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: tooling
+      - name: Checkout selected feature source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source_ref }}
+          path: source
+      - name: Checkout production baseline schema
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          path: baseline
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Install Worker dependencies
+        working-directory: source/worker
+        run: npm install
+      - name: Install trusted Wrangler tooling
+        working-directory: tooling/worker
+        run: npm install
+      - name: Audit Worker dependencies
+        working-directory: source/worker
+        run: npm audit --audit-level=high
+      - name: Run all Worker tests
+        working-directory: source/worker
+        run: npm test
+      - name: Test preview isolation guards using trusted tooling
+        run: node --test tooling/.github/preview-worker/test/preview-config.test.js
+      - name: Require preview-only credentials and validate the target
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FRESHWAY_PREVIEW_D1_DATABASE_ID: ${{ vars.FRESHWAY_PREVIEW_D1_DATABASE_ID }}
+          FRESHWAY_PREVIEW_APP_ORIGIN: ${{ vars.FRESHWAY_PREVIEW_APP_ORIGIN }}
+          FRESHWAY_PREVIEW_APP_ORIGINS: ${{ vars.FRESHWAY_PREVIEW_APP_ORIGINS }}
+          FRESHWAY_PREVIEW_WORKER_URL: ${{ vars.FRESHWAY_PREVIEW_WORKER_URL }}
+          PREVIEW_ADMIN_TOKEN: ${{ secrets.PREVIEW_ADMIN_TOKEN }}
+          PREVIEW_CUSTOMER_SESSION_SECRET: ${{ secrets.PREVIEW_CUSTOMER_SESSION_SECRET }}
+          PREVIEW_ADMIN_SESSION_SECRET: ${{ secrets.PREVIEW_ADMIN_SESSION_SECRET }}
+        run: |
+          set -euo pipefail
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID FRESHWAY_PREVIEW_D1_DATABASE_ID FRESHWAY_PREVIEW_APP_ORIGIN FRESHWAY_PREVIEW_APP_ORIGINS FRESHWAY_PREVIEW_WORKER_URL PREVIEW_ADMIN_TOKEN PREVIEW_CUSTOMER_SESSION_SECRET PREVIEW_ADMIN_SESSION_SECRET; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required preview environment value: $name"
+              exit 1
+            fi
+          done
+          node --input-type=module <<'NODE'
+          const url = new URL(process.env.FRESHWAY_PREVIEW_WORKER_URL);
+          if (url.protocol !== 'https:' || url.origin !== process.env.FRESHWAY_PREVIEW_WORKER_URL ||
+              !url.hostname.startsWith('freshway-api-preview.') || !url.hostname.endsWith('.workers.dev')) {
+            throw new Error('FRESHWAY_PREVIEW_WORKER_URL must be the HTTPS workers.dev origin of freshway-api-preview.');
+          }
+          NODE
+      - name: Generate a preview-only Wrangler configuration from trusted tooling
+        env:
+          FRESHWAY_PREVIEW_D1_DATABASE_ID: ${{ vars.FRESHWAY_PREVIEW_D1_DATABASE_ID }}
+          FRESHWAY_PREVIEW_APP_ORIGIN: ${{ vars.FRESHWAY_PREVIEW_APP_ORIGIN }}
+          FRESHWAY_PREVIEW_APP_ORIGINS: ${{ vars.FRESHWAY_PREVIEW_APP_ORIGINS }}
+        run: node tooling/.github/preview-worker/build-preview-config.mjs > source/worker/wrangler.preview.generated.jsonc
+      - name: Generate first-deploy config without required-secret validation
+        run: |
+          node --input-type=module - source/worker/wrangler.preview.generated.jsonc source/worker/wrangler.preview.bootstrap.jsonc <<'NODE'
+          import fs from 'node:fs';
+          const source = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          delete source.secrets;
+          fs.writeFileSync(process.argv[3], JSON.stringify(source, null, 2) + '\n', { mode: 0o600 });
+          NODE
+      - name: Initialize the isolated preview D1 schema and apply feature migrations
+        working-directory: tooling/worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FRESHWAY_PREVIEW_D1_DATABASE_ID: ${{ vars.FRESHWAY_PREVIEW_D1_DATABASE_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          config="../../source/worker/wrangler.preview.generated.jsonc"
+          marker_result="$RUNNER_TEMP/freshway-preview-marker.json"
+          npx wrangler d1 execute freshway-preview --remote --json --command "SELECT name FROM sqlite_master WHERE type='table' AND name='freshway_preview_metadata'" --config "$config" > "$marker_result"
+          marker_state="$(node --input-type=module - "$marker_result" <<'NODE'
+          import fs from 'node:fs';
+          const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const rows = (Array.isArray(payload) ? payload[0] : payload)?.results;
+          if (!Array.isArray(rows)) throw new Error('Unexpected D1 marker query response.');
+          process.stdout.write(rows.length ? 'present' : 'missing');
+          NODE
+          )"
+          if [ "$marker_state" = present ]; then
+            npx wrangler d1 execute freshway-preview --remote --json --command "SELECT database_id FROM freshway_preview_metadata WHERE id=1" --config "$config" > "$marker_result"
+            node --input-type=module - "$marker_result" "$FRESHWAY_PREVIEW_D1_DATABASE_ID" <<'NODE'
+          import fs from 'node:fs';
+          const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const rows = (Array.isArray(payload) ? payload[0] : payload)?.results;
+          if (!Array.isArray(rows) || rows.length !== 1 || String(rows[0].database_id).toLowerCase() !== String(process.argv[3]).toLowerCase()) {
+            throw new Error('Preview database marker does not match the configured D1 UUID. Refusing to touch this database.');
+          }
+          NODE
+            echo "Preview D1 is already initialized for this UUID; skipping schema and migrations."
+          else
+            npx wrangler d1 execute freshway-preview --remote --json --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' LIMIT 1" --config "$config" > "$marker_result"
+            node --input-type=module - "$marker_result" <<'NODE'
+          import fs from 'node:fs';
+          const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const rows = (Array.isArray(payload) ? payload[0] : payload)?.results;
+          if (!Array.isArray(rows)) throw new Error('Unexpected D1 emptiness query response.');
+          if (rows.length) throw new Error('Unmarked preview D1 is not empty. Refusing to initialize or use an existing database; create a new empty freshway-preview database.');
+          NODE
+            # Start from the actual production baseline schema, then apply the feature's
+            # incremental migrations. This verifies ALTER TABLE/rebuilds against a real
+            # pre-feature schema instead of bypassing migration behavior with feature schema.sql.
+            npx wrangler d1 execute freshway-preview --remote --file ../../baseline/worker/schema.sql --config "$config"
+            npx wrangler d1 execute freshway-preview --remote --file ../../source/worker/migrations/0037_order_delivery_scheduling.sql --config "$config"
+            # Seed one isolated fixture before the request-table rebuild so the preview
+            # verifies that migration 0038 preserves real rows and recreates its indexes.
+            npx wrangler d1 execute freshway-preview --remote --command "INSERT INTO customers (id,name,phone) VALUES ('preview-migration-customer','Preview migration test','9999999999'); INSERT INTO addresses (customer_id,house,area,city,pincode) VALUES ('preview-migration-customer','Test house','Test area','Test city','500001'); INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,is_test_order) VALUES ('preview-migration-order','preview-migration-customer',(SELECT id FROM addresses WHERE customer_id='preview-migration-customer'),'Preview migration test','9999999999',100,1); INSERT INTO order_action_requests (id,order_id,customer_id,request_type,reason,status) VALUES ('preview-migration-request','preview-migration-order','preview-migration-customer','issue','migration-preservation-check','pending')" --config "$config"
+            npx wrangler d1 execute freshway-preview --remote --file ../../source/worker/migrations/0038_anonymize_delivery_requests.sql --config "$config"
+            npx wrangler d1 execute freshway-preview --remote --json --command "SELECT id,order_id,customer_id,reason,status FROM order_action_requests WHERE id='preview-migration-request'" --config "$config" > "$marker_result"
+            node --input-type=module - "$marker_result" <<'NODE'
+          import fs from 'node:fs';
+          const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const rows = (Array.isArray(payload) ? payload[0] : payload)?.results;
+          const row = Array.isArray(rows) ? rows[0] : null;
+          if (!row || row.id !== 'preview-migration-request' || row.order_id !== 'preview-migration-order' ||
+              row.customer_id !== 'preview-migration-customer' || row.reason !== 'migration-preservation-check' || row.status !== 'pending') {
+            throw new Error('Migration 0038 did not preserve the existing order-action request row.');
+          }
+          NODE
+            npx wrangler d1 execute freshway-preview --remote --json --command "SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_order_action_one_pending_type','idx_order_action_queue')" --config "$config" > "$marker_result"
+            node --input-type=module - "$marker_result" <<'NODE'
+          import fs from 'node:fs';
+          const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const rows = (Array.isArray(payload) ? payload[0] : payload)?.results;
+          const names = new Set((Array.isArray(rows) ? rows : []).map(row => row.name));
+          if (!names.has('idx_order_action_one_pending_type') || !names.has('idx_order_action_queue')) {
+            throw new Error('Migration 0038 did not recreate the order-action indexes.');
+          }
+          NODE
+            npx wrangler d1 execute freshway-preview --remote --file ../../source/worker/migrations/0039_customer_preferred_delivery_date.sql --config "$config"
+            npx wrangler d1 execute freshway-preview --remote --file ../../source/worker/migrations/0040_order_delivered_at.sql --config "$config"
+            # Remove only the synthetic fixture; no real customer/order data is touched.
+            npx wrangler d1 execute freshway-preview --remote --command "DELETE FROM order_action_requests WHERE id='preview-migration-request'; DELETE FROM orders WHERE id='preview-migration-order'; DELETE FROM addresses WHERE customer_id='preview-migration-customer'; DELETE FROM customers WHERE id='preview-migration-customer'" --config "$config"
+            npx wrangler d1 execute freshway-preview --remote --command "CREATE TABLE IF NOT EXISTS freshway_preview_metadata (id INTEGER PRIMARY KEY CHECK(id=1), database_id TEXT NOT NULL, initialized_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP); INSERT OR IGNORE INTO freshway_preview_metadata (id,database_id) VALUES (1,'$FRESHWAY_PREVIEW_D1_DATABASE_ID')" --config "$config"
+          fi
+          npx wrangler d1 execute freshway-preview --remote --json --command "SELECT delivered_at, scheduled_delivery_date, scheduled_start_minute FROM orders LIMIT 0; SELECT requested_delivery_date FROM order_action_requests LIMIT 0; SELECT status FROM delivery_slot_reservations LIMIT 0; SELECT status FROM delivery_store_inventory_reservations LIMIT 0" --config "$config" > /dev/null
+      - name: Bootstrap the preview Worker without attaching production routes
+        working-directory: tooling/worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --config ../../source/worker/wrangler.preview.bootstrap.jsonc
+      - name: Configure preview-only authentication secrets
+        working-directory: tooling/worker
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIEW_ADMIN_TOKEN: ${{ secrets.PREVIEW_ADMIN_TOKEN }}
+          PREVIEW_CUSTOMER_SESSION_SECRET: ${{ secrets.PREVIEW_CUSTOMER_SESSION_SECRET }}
+          PREVIEW_ADMIN_SESSION_SECRET: ${{ secrets.PREVIEW_ADMIN_SESSION_SECRET }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$PREVIEW_ADMIN_TOKEN" | npx wrangler secret put ADMIN_TOKEN --config ../../source/worker/wrangler.preview.generated.jsonc
+          printf '%s' "$PREVIEW_CUSTOMER_SESSION_SECRET" | npx wrangler secret put CUSTOMER_SESSION_SECRET --config ../../source/worker/wrangler.preview.generated.jsonc
+          printf '%s' "$PREVIEW_ADMIN_SESSION_SECRET" | npx wrangler secret put ADMIN_SESSION_SECRET --config ../../source/worker/wrangler.preview.generated.jsonc
+      - name: Final deploy with required-secret validation
+        working-directory: tooling/worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --config ../../source/worker/wrangler.preview.generated.jsonc
+      - name: Smoke-test the deployed preview Worker
+        env:
+          FRESHWAY_PREVIEW_WORKER_URL: ${{ vars.FRESHWAY_PREVIEW_WORKER_URL }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 30 "$FRESHWAY_PREVIEW_WORKER_URL/api/admin/status" > "$RUNNER_TEMP/freshway-preview-status.json"
+          node --input-type=module - "$RUNNER_TEMP/freshway-preview-status.json" <<'NODE'
+          import fs from 'node:fs';
+          const status = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (status.ok !== true || typeof status.version !== 'string' || !status.version) {
+            throw new Error('Preview Worker status endpoint did not return the expected healthy response.');
+          }
+          console.log('Preview Worker is responding:', status.version);
+          NODE
