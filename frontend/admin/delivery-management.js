@@ -12,7 +12,7 @@
   const addDays = (date, days) => { const p=date.split('-').map(Number),d=new Date(Date.UTC(p[0],p[1]-1,p[2]+days));return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0'); };
   const time = value => String(Math.floor(num(value)/60)).padStart(2,'0')+':'+String(num(value)%60).padStart(2,'0');
   let snapshot={settings:{enabled:0,booking_horizon_days:7,same_day_cutoff_minutes:120},stores:[],products:[],inventory:[],slots:[],requests:[],operationalFlags:[]};
-  let loading=false,activeScheduleOrderId='',scheduleMutationQueued=false;
+  let loading=false,snapshotLoaded=false,activeScheduleOrderId='',scheduleMutationQueued=false;
   async function api(path,options){
     const settings=options||{};
     const response=await fetch('/api'+path,{...settings,credentials:'include',cache:'no-store',headers:{'Content-Type':'application/json',...(settings.headers||{})}});
@@ -71,10 +71,9 @@
     if(loading)return;loading=true;
     try{
       const data=await api('/admin/delivery');
-      snapshot=Object.assign(snapshot,data);
+      snapshot=Object.assign(snapshot,data);snapshotLoaded=true;
       render();
       showStatus('Loaded '+snapshot.stores.length+' store(s), '+snapshot.slots.length+' delivery windows, '+snapshot.requests.length+' pending customer request(s).',false);
-      if(activeScheduleOrderId)void renderScheduleEditor(activeScheduleOrderId);
     }catch(error){showStatus(error.message||'Could not load delivery management.',true)}
     finally{loading=false}
   }
@@ -157,6 +156,7 @@
   async function renderScheduleEditor(orderId){
     const body=document.querySelector('#modalBody');if(!body||!orderId)return;
     activeScheduleOrderId=orderId;
+    if(!snapshotLoaded){if(loading)return;await load();if(!snapshotLoaded)return;}
     let order;
     try{
       const testOrders=body.textContent.includes('TEST ORDER')?'1':'0';
@@ -166,6 +166,7 @@
     if(!order||!body.isConnected)return;
     let panel=body.querySelector('[data-fw-owner-schedule-panel]');
     if(!panel){panel=document.createElement('section');panel.className='fw-delivery-admin-panel fw-owner-order-schedule';panel.dataset.fwOwnerSchedulePanel='1';body.appendChild(panel)}
+    panel.dataset.orderId=orderId;
     const activeSlots=snapshot.slots.slice().sort((a,b)=>String(a.delivery_date).localeCompare(String(b.delivery_date))||num(a.start_minute)-num(b.start_minute));
     const current=order.scheduledDelivery||null;
     const options=['<option value="">Manual date and time (Owner override)</option>'].concat(activeSlots.map(slot=>{
@@ -215,7 +216,7 @@
       if(!orderId){activeScheduleOrderId='';return}
       if(body.querySelector('[data-fw-owner-schedule-panel]')?.dataset.orderId===orderId)return;
       body.querySelector('[data-fw-owner-schedule-panel]')?.remove();
-      if(!snapshot.stores.length&&!snapshot.slots.length){void load().then(()=>void renderScheduleEditor(orderId));return}
+      if(!snapshotLoaded){if(!loading)void load().then(()=>void renderScheduleEditor(orderId));return}
       void renderScheduleEditor(orderId);
     };
     const observer=new MutationObserver(()=>{if(scheduleMutationQueued)return;scheduleMutationQueued=true;queueMicrotask(()=>{scheduleMutationQueued=false;inspect()})});
