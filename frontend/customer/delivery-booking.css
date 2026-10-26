@@ -35,3 +35,5 @@
 .fw-delivery-date-option.selected{border-color:#0f7a4b;background:#eaf7ef;box-shadow:0 0 0 2px rgba(15,122,75,.12)}
 .fw-delivery-date-summary{margin:10px 0 0;font-size:13px;color:#173d2c}
 @media(max-width:380px){.fw-delivery-date-options{grid-template-columns:1fr}.fw-delivery-date-option{min-height:54px}}
+
+body:has(#checkoutView.active-view) .bottom-nav{display:none}
