@@ -133,8 +133,8 @@ self.addEventListener('push', event => {
   try { data = event.data.json(); } catch (_) { data = { body: event.data.text() }; }
   event.waitUntil(self.registration.showNotification(data.title || 'FreshWay order alert', {
     body: data.body || 'There is an update to a FreshWay order.',
-    icon: data.icon || '/admin/icons/icon-192.svg',
-    badge: data.badge || '/admin/icons/icon-192.svg',
+    icon: data.icon || '/admin/icons/icon-192-brand-v2.png?v=20261026-brand-v2',
+    badge: data.badge || '/admin/icons/icon-192-brand-v2.png?v=20261026-brand-v2',
     tag: data.tag || 'freshway-owner-order-alert',
     data: { url: data.url || '/admin/#orders', ...(data.data || {}) }
   }));

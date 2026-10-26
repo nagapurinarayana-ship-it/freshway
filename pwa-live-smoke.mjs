@@ -259,6 +259,8 @@ for (const expected of expectedBrandIcons) {
 assert.ok(sw.includes('/icons/icon-192-brand-v2.png?v=20261026-brand-v2'), 'customer service worker must cache the branded 192px icon');
 assert.ok(sw.includes('/icons/icon-512-brand-v2.png?v=20261026-brand-v2'), 'customer service worker must cache the branded 512px icon');
 assert.ok(sw.includes('/icons/icon-512-maskable-v2.png?v=20261026-brand-v2'), 'customer service worker must cache the branded maskable icon');
+assert.ok(sw.includes("icon: data.icon || '/icons/icon-192-brand-v2.png?v=20261026-brand-v2'"), 'customer push notifications must default to the FreshWay brand icon');
+assert.ok(sw.includes("badge: data.badge || '/icons/icon-192-brand-v2.png?v=20261026-brand-v2'"), 'customer push notifications must default to the FreshWay brand badge');
 
 const logoResponse = await fetchWithRetry(`${base}/freshway-logo-master.webp?v=20261008-master-v1`);
 assert.equal(logoResponse.status, 200);

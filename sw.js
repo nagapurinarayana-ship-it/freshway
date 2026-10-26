@@ -122,8 +122,8 @@ try {
 event.waitUntil((async () => {
   await self.registration.showNotification(data.title || 'FreshWay', {
     body: data.body || 'You have a new FreshWay update.',
-    icon: data.icon || '/icon.svg',
-    badge: data.badge || '/icon.svg',
+    icon: data.icon || '/icons/icon-192-brand-v2.png?v=20261026-brand-v2',
+    badge: data.badge || '/icons/icon-192-brand-v2.png?v=20261026-brand-v2',
     tag: data.tag || 'freshway-notification',
     data: { url: data.url || '/', ...(data.data || {}) }
   });

@@ -201,6 +201,8 @@ assertFreshResponse(workerResponse, 'Owner service worker');
 assert.match(workerResponse.headers.get('content-type') || '', /javascript/i);
 assert.equal(workerResponse.headers.get('service-worker-allowed'), '/admin/');
 assert.ok(worker.includes("const CACHE = '" + EXPECTED_OWNER_CACHE + "';"), 'Owner service worker must publish the latest cache version');
+assert.ok(worker.includes("icon: data.icon || '/admin/icons/icon-192-brand-v2.png?v=20261026-brand-v2'"), 'Owner notifications must default to the FreshWay brand icon');
+assert.ok(worker.includes("badge: data.badge || '/admin/icons/icon-192-brand-v2.png?v=20261026-brand-v2'"), 'Owner notifications must default to the FreshWay brand badge');
 assert.ok(worker.includes(EXPECTED_OWNER_CSS), 'Owner service worker shell must cache the latest Owner CSS version');
   assert.ok(worker.includes(EXPECTED_OWNER_ADMIN_SCRIPT), 'Owner service worker shell must cache the latest Owner script');
 assert.ok(worker.includes(EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT), 'Owner service worker shell must cache the refreshed invoice settings script');
