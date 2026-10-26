@@ -188,3 +188,9 @@ test('Owner manual scheduling preserves the explicitly selected store and labels
   assert.ok(delivery.includes("(!selected && owner ? 'manual_schedule_without_slot'"),
     'manual schedules without a configured capacity slot must create a clear operational exception');
 });
+
+test('Owner override never silently switches away from the explicitly selected store slot', () => {
+  const delivery = read('../src/delivery-scheduling.js');
+  assert.ok(delivery.includes('candidates = rows.filter(slot => slot.id === selected.id)'),
+    'override must apply to the slot the Owner selected, not a different store with matching times');
+});
