@@ -77,10 +77,10 @@ jobs:
           NODE
 
   deploy:
-
-  deploy:
     name: Migrate and deploy isolated preview Worker
-    if: github.event_name == 'workflow_dispatch'
+    # The workflow itself must be run from the reviewed infrastructure branch.
+    # Source code to test is selected separately with the source_ref input.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/infra/isolated-preview-worker'
     needs: validate
     runs-on: ubuntu-latest
     environment: preview
