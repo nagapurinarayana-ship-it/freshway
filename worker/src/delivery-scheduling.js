@@ -77,12 +77,16 @@ async function readSettings(env) {
   const row = await env.DB.prepare('SELECT enabled,booking_horizon_days,same_day_cutoff_minutes,timezone,updated_at FROM delivery_scheduling_settings WHERE id=1').first();
   return row || { enabled: 0, booking_horizon_days: 7, same_day_cutoff_minutes: 120, timezone: 'Asia/Kolkata' };
 }
-async function inventoryMap(env) {
-  const rows = (await env.DB.prepare(
-    'SELECT i.store_id,i.product_id,i.stock_quantity,COALESCE(SUM(CASE WHEN r.status IN (\'reserved\',\'conflict\') THEN r.qty ELSE 0 END),0) reserved_qty ' +
-    'FROM delivery_store_inventory i LEFT JOIN delivery_store_inventory_reservations r ON r.store_id=i.store_id AND r.product_id=i.product_id ' +
-    'GROUP BY i.store_id,i.product_id'
-  ).all()).results || [];
+async function inventoryMap(env, excludeOrderId = '') {
+  const sql = excludeOrderId
+    ? 'SELECT i.store_id,i.product_id,i.stock_quantity,COALESCE(SUM(CASE WHEN r.status IN (\'reserved\',\'conflict\') THEN r.qty ELSE 0 END),0) reserved_qty ' +
+      'FROM delivery_store_inventory i LEFT JOIN delivery_store_inventory_reservations r ON r.store_id=i.store_id AND r.product_id=i.product_id AND r.order_id<>? ' +
+      'GROUP BY i.store_id,i.product_id'
+    : 'SELECT i.store_id,i.product_id,i.stock_quantity,COALESCE(SUM(CASE WHEN r.status IN (\'reserved\',\'conflict\') THEN r.qty ELSE 0 END),0) reserved_qty ' +
+      'FROM delivery_store_inventory i LEFT JOIN delivery_store_inventory_reservations r ON r.store_id=i.store_id AND r.product_id=i.product_id ' +
+      'GROUP BY i.store_id,i.product_id';
+  const query = env.DB.prepare(sql);
+  const rows = (await (excludeOrderId ? query.bind(excludeOrderId) : query).all()).results || [];
   const map = new Map();
   for (const row of rows) map.set(row.store_id + '|' + row.product_id, {
     quantity: Number(row.stock_quantity || 0), reserved: Number(row.reserved_qty || 0)
@@ -307,7 +311,7 @@ async function moveOrderSchedule(env, order, target, actorType, actorId, options
   if (selected) {
     const rows = await slotRows(env, targetDate, targetDate);
     const activeStores = Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores WHERE is_active=1').first())?.count || 0);
-    const stock = await inventoryMap(env);
+    const stock = await inventoryMap(env, order.id);
     const lines = (await env.DB.prepare('SELECT product_id id,qty,stock_reserved_qty stockReservedQty FROM order_items WHERE order_id=?').bind(order.id).all()).results || [];
     candidates = rows.filter(slot => slot.id === selected.id || (override &&
       Number(slot.start_minute) === start && Number(slot.end_minute) === end))
@@ -337,7 +341,7 @@ async function moveOrderSchedule(env, order, target, actorType, actorId, options
   const lines = (await env.DB.prepare('SELECT product_id id,qty,stock_reserved_qty stockReservedQty FROM order_items WHERE order_id=?').bind(order.id).all()).results || [];
   const stock = await inventoryMap(env);
   let stockConflict = false;
-  if (changingStore && newStoreId) {
+  if (newStoreId) {
     stockConflict = !inventoryFits(newStoreId, lines, stock);
     if (stockConflict && !(owner && override)) throw new Error('That store cannot fulfil the full basket. Choose another available window.');
   }
@@ -486,6 +490,17 @@ export async function handleAdminDeliveryRequest(request, env) {
     const settings = await readSettings(env);
     const stores = (await env.DB.prepare('SELECT * FROM delivery_stores ORDER BY is_active DESC,name').all()).results || [];
     const products = (await env.DB.prepare('SELECT id,name,unit,price,stock_managed,stock_quantity,low_stock_threshold,active FROM products ORDER BY name').all()).results || [];
+    const inventory = (await env.DB.prepare(
+      'SELECT i.store_id,i.product_id,p.name product_name,p.unit,p.stock_managed,i.stock_quantity,'+
+      'COALESCE(SUM(CASE WHEN r.status IN (\'reserved\',\'conflict\') THEN r.qty ELSE 0 END),0) reserved_qty,'+
+      'MAX(0,i.stock_quantity-COALESCE(SUM(CASE WHEN r.status IN (\'reserved\',\'conflict\') THEN r.qty ELSE 0 END),0)) available_qty '+
+      'FROM delivery_store_inventory i JOIN products p ON p.id=i.product_id '+
+      'LEFT JOIN delivery_store_inventory_reservations r ON r.store_id=i.store_id AND r.product_id=i.product_id '+
+      'GROUP BY i.store_id,i.product_id ORDER BY i.store_id,p.name'
+    ).all()).results || [];
+    const operationalFlags = (await env.DB.prepare(
+      "SELECT f.id,f.order_id,f.flag_type,f.details_json,f.created_at,o.delivery_status,o.customer_name FROM order_operational_flags f JOIN orders o ON o.id=f.order_id WHERE f.status='open' ORDER BY f.created_at DESC LIMIT 100"
+    ).all()).results || [];
     const now = istNowParts();
     const slots = await env.DB.prepare(
       'SELECT s.*,ds.name store_name,(SELECT COUNT(*) FROM delivery_slot_reservations r WHERE r.slot_id=s.id AND r.status IN (\'reserved\',\'conflict\')) occupied ' +
@@ -497,7 +512,7 @@ export async function handleAdminDeliveryRequest(request, env) {
       'FROM order_action_requests r JOIN orders o ON o.id=r.order_id LEFT JOIN customers c ON c.id=r.customer_id ' +
       'WHERE r.status=\'pending\' ORDER BY r.created_at LIMIT 200'
     ).all();
-    return response({ ok: true, settings, stores, products, slots: slots.results || [], requests: requests.results || [] });
+    return response({ ok: true, settings, stores, products, inventory, operationalFlags, slots: slots.results || [], requests: requests.results || [] });
   }
   if (path === '/api/admin/delivery' && request.method === 'PATCH') {
     let body = {}; try { body = await request.json(); } catch (_) {}
@@ -531,6 +546,25 @@ export async function handleAdminDeliveryRequest(request, env) {
     }
     await env.DB.batch(statements);
     return response({ ok: true, store: { id: storeId, name, address, latitude, longitude, service_radius_km: radius, is_active: 1 }, initialInventory: inventorySeed === null ? 'copied-current-global-available-stock' : 'zero-stock-requires-setup' }, 201);
+  }
+  const storeMatch = path.match(/^\/api\/admin\/delivery\/stores\/([^/]+)$/);
+  if (storeMatch && request.method === 'PATCH') {
+    let body = {}; try { body = await request.json(); } catch (_) {}
+    const storeId = decodeURIComponent(storeMatch[1]);
+    const current = await env.DB.prepare('SELECT * FROM delivery_stores WHERE id=?').bind(storeId).first();
+    if (!current) throw new Error('Delivery store not found.');
+    const name = clean(body.name === undefined ? current.name : body.name).slice(0, 120);
+    const address = clean(body.address === undefined ? current.address : body.address).slice(0, 300);
+    const latitude = Number(body.latitude === undefined ? current.latitude : body.latitude);
+    const longitude = Number(body.longitude === undefined ? current.longitude : body.longitude);
+    const radius = Number(body.serviceRadiusKm === undefined ? current.service_radius_km : body.serviceRadiusKm);
+    const active = body.isActive === undefined ? Number(current.is_active) : body.isActive ? 1 : 0;
+    if (!name) throw new Error('Enter the store name.');
+    if (!Number.isFinite(latitude) || Math.abs(latitude) > 90 || !Number.isFinite(longitude) || Math.abs(longitude) > 180) throw new Error('Enter valid store map coordinates.');
+    if (!Number.isFinite(radius) || radius < 0.1 || radius > 100) throw new Error('Invalid store delivery radius.');
+    await env.DB.prepare('UPDATE delivery_stores SET name=?,address=?,latitude=?,longitude=?,service_radius_km=?,is_active=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')
+      .bind(name,address,latitude,longitude,radius,active,storeId).run();
+    return response({ ok: true, store: { ...current, name, address, latitude, longitude, service_radius_km: radius, is_active: active } });
   }
   const inventoryMatch = path.match(/^\/api\/admin\/delivery\/stores\/([^/]+)\/inventory$/);
   if (inventoryMatch && request.method === 'PATCH') {
@@ -614,6 +648,16 @@ export async function handleAdminDeliveryRequest(request, env) {
     await env.DB.prepare('UPDATE delivery_slots SET capacity=?,is_active=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(capacity, active, slotId).run();
     const count = Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_slot_reservations WHERE slot_id=? AND status IN (\'reserved\',\'conflict\')').bind(slotId).first())?.count || 0);
     return response({ ok: true, slot: { ...current, capacity, is_active: active, occupied: count, overbooked: count > capacity }, warning: count > capacity ? 'Existing reservations exceed this slot capacity.' : '' });
+  }
+  const orderHistoryMatch = path.match(/^\/api\/admin\/delivery\/orders\/([^/]+)\/history$/);
+  if (orderHistoryMatch && request.method === 'GET') {
+    const orderId = decodeURIComponent(orderHistoryMatch[1]);
+    const order = await getOrderForAction(env, orderId);
+    if (!order) throw new Error('Order not found.');
+    const events = (await env.DB.prepare('SELECT id,actor_type,actor_id,action,reason,before_json,after_json,created_at FROM order_audit_events WHERE order_id=? ORDER BY created_at DESC,id DESC LIMIT 100').bind(orderId).all()).results || [];
+    const flags = (await env.DB.prepare("SELECT id,flag_type,status,details_json,created_at,updated_at FROM order_operational_flags WHERE order_id=? ORDER BY created_at DESC").bind(orderId).all()).results || [];
+    const reservations = (await env.DB.prepare("SELECT r.id,r.status,r.owner_override,r.override_reason,r.updated_at,s.delivery_date,s.start_minute,s.end_minute,ds.name store_name FROM delivery_slot_reservations r LEFT JOIN delivery_slots s ON s.id=r.slot_id LEFT JOIN delivery_stores ds ON ds.id=s.store_id WHERE r.order_id=? ORDER BY r.created_at DESC LIMIT 30").bind(orderId).all()).results || [];
+    return response({ ok: true, order, events, flags, reservations });
   }
   const scheduleMatch = path.match(/^\/api\/admin\/delivery\/orders\/([^/]+)\/schedule$/);
   if (scheduleMatch && request.method === 'PATCH') {

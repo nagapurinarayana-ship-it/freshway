@@ -35,7 +35,10 @@ export async function handleAdminData(request,env){
     if(/^ORDER_CONFLICT:/.test(message))return json({error:message.replace(/^ORDER_CONFLICT:\s*/,''),code:'ORDER_CONFLICT'},409);
     if (/DELIVERY_SLOT_FULL|DELIVERY_SLOT_CLOSED/i.test(message)) return json({error:'That delivery slot is no longer available. Refresh the delivery schedule and try again.',code:'ORDER_CONFLICT'},409);
     if (/DELIVERY_STORE_STOCK_LOW/i.test(message)) return json({error:'The selected store no longer has enough stock for this basket.',code:'ORDER_CONFLICT'},409);
-    if (u.pathname === '/api/admin/delivery' || u.pathname.startsWith('/api/admin/delivery/')) return json({error:message || 'Could not save delivery settings.'},400);
+    if (u.pathname === '/api/admin/delivery' || u.pathname.startsWith('/api/admin/delivery/')) {
+      const safeMessage = /SQLITE|D1_ERROR|constraint failed|internal error/i.test(message) ? 'The delivery operation could not be saved safely. Refresh and review the current inventory and schedule.' : message;
+      return json({error:safeMessage || 'Could not save delivery settings.'},400);
+    }
     if(/^(Invalid |Choose a valid invoice|Invoice issuance is not enabled|Invoice series prefix|Enter the store name|Enter the legal business name used on invoices|Enter the complete business address used on invoices|Enter the seller state|Enter a valid two-digit seller GST state code|Enter a valid 15-character GSTIN|Seller state code must match|Seller state name and GST state code do not match|V1 requires|Add a valid HSN|Confirm the GST classification|Set the approved GST rate|The delivery address needs a valid state|This order has no invoice items|Invoices cannot be issued|Order not found|No order change|Delivery plan|Payment|Cash can|Only collected|Collected cash|Cannot change)/i.test(message))return json({error:message},400);
     const errorId=crypto.randomUUID();
     console.error(JSON.stringify({event:'freshway_admin_data_error',errorId,method:request.method,path:u.pathname,message,stack:e?.stack||''}));
