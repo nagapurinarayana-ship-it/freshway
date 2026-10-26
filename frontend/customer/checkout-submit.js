@@ -45,9 +45,9 @@
         const orderPayload=customerCheckout.payload(data,address,cartItems().map(x=>({id:x.product.id,qty:x.qty})),id,clientOrderId,$('#whatsappOptIn')?.checked||false);
         const deliveryBooking=window.FreshWayCustomerDeliveryBookingInstance;
         if(deliveryBooking?.checkoutEnabled?.()){
-          const deliverySlotId=deliveryBooking.selectedCheckoutSlotId?.();
-          if(!deliverySlotId)throw new Error('Choose an available delivery date and time before placing your order.');
-          orderPayload.deliverySlotId=deliverySlotId;
+          const preferredDeliveryDate=deliveryBooking.selectedCheckoutDate?.();
+          if(!preferredDeliveryDate)throw new Error('Choose a preferred delivery day before placing your order.');
+          orderPayload.preferredDeliveryDate=preferredDeliveryDate;
         }
         const result=await api('/api/orders',{method:'POST',body:JSON.stringify(orderPayload)});
         const registeredPhone=customerAuth.registeredPhone?.()||'';
