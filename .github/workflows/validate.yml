@@ -98,10 +98,16 @@ jobs:
           const manifest = JSON.parse(fs.readFileSync('manifest.webmanifest', 'utf8'));
           if (manifest.name !== 'FreshWay' || manifest.short_name !== 'FreshWay') throw new Error('PWA names are invalid');
           if (manifest.id !== '/freshway' || manifest.start_url !== '/' || manifest.scope !== '/' || manifest.display !== 'standalone') throw new Error('PWA identity/display contract is invalid');
-          for (const [size, file] of [['192x192','icon-192.svg'],['512x512','icon-512.svg']]) {
-            if (!manifest.icons.some(icon => icon.sizes === size && icon.type === 'image/svg+xml' && icon.src.includes(file) && String(icon.purpose || '').split(' ').includes('any'))) throw new Error('Missing Owner-matched FreshWay brand SVG ' + size);
+          const expectedBrandIcons = [
+            { path: '/icons/icon-192-brand-v2.png', size: '192x192', purpose: 'any' },
+            { path: '/icons/icon-512-brand-v2.png', size: '512x512', purpose: 'any' },
+            { path: '/icons/icon-512-maskable-v2.png', size: '512x512', purpose: 'maskable' }
+          ];
+          if (manifest.icons.length !== expectedBrandIcons.length) throw new Error('Customer manifest must expose only the approved FreshWay PNG icons');
+          for (const expected of expectedBrandIcons) {
+            if (!manifest.icons.some(icon => new URL(icon.src, 'https://fwcoldpressed.in').pathname === expected.path && icon.sizes === expected.size && icon.type === 'image/png' && String(icon.purpose || '').split(' ').includes(expected.purpose))) throw new Error('Missing approved FreshWay brand PNG ' + expected.size);
           }
-          if (manifest.icons.some(icon => icon.type === 'image/png' && new URL(icon.src, 'https://fwcoldpressed.in').pathname.endsWith('.png'))) throw new Error('Customer manifest must not use legacy P-branded raster icons');
+          if (manifest.icons.some(icon => ['/icons/icon-192.svg','/icons/icon-512.svg'].includes(new URL(icon.src, 'https://fwcoldpressed.in').pathname))) throw new Error('Customer manifest must not use the previous SVG icon paths');
           
           for (const file of ['frontend/phone-display.js','frontend/customer/pwa-install.js','frontend/customer/pwa-install.css','frontend/customer/promotions.js','icons/icon-192-brand-v2.png','icons/icon-512-brand-v2.png','icons/icon-512-maskable-v2.png','sw.js','admin/manifest.webmanifest','admin/sw.js','functions/admin/[[path]].js']) {
             if (!fs.existsSync(file)) throw new Error('Missing PWA asset ' + file);
@@ -111,6 +117,7 @@ jobs:
           if (!pwa.includes("navigator.serviceWorker.register('/sw.js'")) throw new Error('PWA service worker registration missing');
           if (!pwa.includes('beforeinstallprompt') || !pwa.includes('deferredPrompt') || !pwa.includes('promptEvent.prompt()') || !pwa.includes('promptEvent.userChoice')) throw new Error('FreshWay must retain and invoke Chrome\'s native install prompt when available');
           if (!index.includes('pwa-install.js?v=20261024-native-install-v1')) throw new Error('Customer shell must load the native-install-capable script version');
+          if (!index.includes('/icons/icon-192-brand-v2.png?v=20261026-brand-v2')) throw new Error('Customer favicon and Apple touch icon must use the approved FreshWay brand PNG');
           for (const required of ['manifest.webmanifest','pwa-install.css','pwa-install.js']) {
             if (!index.includes(required)) throw new Error('index.html is missing ' + required);
           }
@@ -118,16 +125,27 @@ jobs:
           if (ownerManifest.name !== 'FreshWay Owner' || ownerManifest.id !== '/admin/freshway-owner') throw new Error('Owner PWA identity is invalid');
           if (ownerManifest.start_url !== '/admin/' || ownerManifest.scope !== '/admin/' || ownerManifest.display !== 'standalone') throw new Error('Owner PWA scope/start URL is invalid');
           if (ownerManifest.id === manifest.id) throw new Error('Customer and Owner PWAs must have distinct manifest identities');
-          if (!ownerManifest.icons.length || ownerManifest.icons.some(icon => !icon.src.startsWith('/admin/'))) throw new Error('Owner install icons must be served inside /admin/');
+          const expectedOwnerIcons = [
+            { path: '/admin/icons/icon-192-brand-v2.png', size: '192x192', purpose: 'any' },
+            { path: '/admin/icons/icon-512-brand-v2.png', size: '512x512', purpose: 'any' },
+            { path: '/admin/icons/icon-512-maskable-v2.png', size: '512x512', purpose: 'maskable' }
+          ];
+          if (ownerManifest.icons.length !== expectedOwnerIcons.length) throw new Error('Owner manifest must expose only the approved FreshWay PNG icons');
+          for (const expected of expectedOwnerIcons) {
+            if (!ownerManifest.icons.some(icon => new URL(icon.src, 'https://fwcoldpressed.in').pathname === expected.path && icon.sizes === expected.size && icon.type === 'image/png' && String(icon.purpose || '').split(' ').includes(expected.purpose))) throw new Error('Missing Owner FreshWay brand PNG ' + expected.size);
+          }
+          if (ownerManifest.icons.some(icon => ['/admin/icons/icon-192.svg','/admin/icons/icon-512.svg'].includes(new URL(icon.src, 'https://fwcoldpressed.in').pathname))) throw new Error('Owner manifest must not use the previous SVG icon paths');
+          if (ownerManifest.icons.some(icon => !icon.src.startsWith('/admin/'))) throw new Error('Owner install icons must be served inside /admin/');
           const ownerSw = fs.readFileSync('admin/sw.js', 'utf8');
           if (!/const CACHE = 'fw-owner-v[0-9]+'/.test(ownerSw)) throw new Error('Owner service worker cache version missing');
           if (!ownerSw.includes("if (!url.pathname.startsWith('/admin/')) return;")) throw new Error('Owner service worker is not limited to its route scope');
           if (ownerSw.includes("'/admin.css") || ownerSw.includes("'/admin.js") || ownerSw.includes("'/frontend/")) throw new Error('Owner service-worker shell contains out-of-scope root assets');
           const sw = fs.readFileSync('sw.js', 'utf8');
           if (!/const CACHE = 'freshway-v\d+'/.test(sw)) throw new Error('Service worker cache version missing');
-          for (const icon of ['/icons/icon-192.svg?v=20261008-brand-v1','/icons/icon-512.svg?v=20261008-brand-v1','/icon.svg?v=20261008-brand-v1','/freshway-logo-clean.svg?v=20261008-brand-v1','/freshway-logo-master.webp?v=20261008-master-v1']) {
-            if (!sw.includes(icon)) throw new Error('PWA icon is not cached: ' + icon);
+          for (const icon of ['/icons/icon-192-brand-v2.png?v=20261026-brand-v2','/icons/icon-512-brand-v2.png?v=20261026-brand-v2','/icons/icon-512-maskable-v2.png?v=20261026-brand-v2','/freshway-logo-clean.svg?v=20261008-brand-v1','/freshway-logo-master.webp?v=20261008-master-v1']) {
+            if (!sw.includes(icon)) throw new Error('FreshWay PWA brand asset is not cached: ' + icon);
           }
+          if (sw.includes('/icons/icon-192.svg') || sw.includes('/icons/icon-512.svg') || sw.includes('/icon.svg')) throw new Error('Customer service worker must not precache previous icon paths');
           if (sw.includes(".catch(() => {})")) throw new Error('Service worker install failures must not be silently swallowed');
           const canonical = fs.readFileSync('freshway-logo.svg', 'utf8');
           const canonicalJpeg = canonical.match(/data:image\/jpeg;base64,([^"]+)/)?.[1];
