@@ -28,23 +28,29 @@ jobs:
     name: Validate preview isolation and Worker tests
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout source
+      - name: Checkout trusted preview tooling
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.pull_request.head.sha }}
+          path: tooling
+      - name: Checkout selected feature source
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_ref || github.event.pull_request.head.sha }}
+          path: source
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
           node-version: 24
           package-manager-cache: false
       - name: Install Worker dependencies
-        working-directory: worker
+        working-directory: source/worker
         run: npm install
       - name: Run all Worker tests
-        working-directory: worker
+        working-directory: source/worker
         run: npm test
       - name: Test preview isolation guards
-        run: node --test .github/preview-worker/test/preview-config.test.js
+        run: node --test tooling/.github/preview-worker/test/preview-config.test.js
       - name: Verify preview config refuses production D1
         env:
           FRESHWAY_PREVIEW_D1_DATABASE_ID: "00000000-0000-4000-8000-000000000001"
@@ -52,11 +58,11 @@ jobs:
           FRESHWAY_PREVIEW_APP_ORIGINS: "https://feat-order-cancel-delivery-s.freshway-f32.pages.dev"
         run: |
           set -euo pipefail
-          node .github/preview-worker/build-preview-config.mjs > worker/wrangler.preview.generated.jsonc
-          node --input-type=module - worker/wrangler.preview.generated.jsonc <<'NODE'
+          node tooling/.github/preview-worker/build-preview-config.mjs > source/worker/wrangler.preview.generated.jsonc
+          node --input-type=module - source/worker/wrangler.preview.generated.jsonc <<'NODE'
           import fs from 'node:fs';
           const config = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-          const production = JSON.parse(fs.readFileSync('worker/wrangler.jsonc', 'utf8'));
+          const production = JSON.parse(fs.readFileSync('tooling/worker/wrangler.jsonc', 'utf8'));
           const database = config.d1_databases?.find(item => item.binding === 'DB');
           const productionDatabase = production.d1_databases?.find(item => item.binding === 'DB');
           if (config.name !== 'freshway-api-preview' ||
@@ -69,6 +75,8 @@ jobs:
           }
           console.log('Preview configuration is isolated from production D1, routes, and cron triggers.');
           NODE
+
+  deploy:
 
   deploy:
     name: Migrate and deploy isolated preview Worker
