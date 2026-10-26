@@ -113,7 +113,8 @@ test('customer reschedule rejects delivered and cancelled orders without changin
   for (const status of ['Delivered','Cancelled']) {
     const db=new SQLiteD1();
     try {
-      db.seedOrder('order-terminal',{date:'2026-10-27',status});
+      db.seedOrder('order-terminal',{date:'2026-10-27'});
+      db.db.prepare('UPDATE orders SET delivery_status=? WHERE id=?').run(status,'order-terminal');
       const response=await handleCustomerDeliveryRequest(new Request(
         'https://api.example.test/api/orders/order-terminal/reschedule',
         {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestedDeliveryDate:'2026-10-28'})}
