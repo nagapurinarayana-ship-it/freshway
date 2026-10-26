@@ -41,6 +41,31 @@ test('delivery slot endpoint stays safely disabled until Owner configures schedu
   assert.deepEqual(body.slots, []);
 });
 
+test('delivery slot endpoint fails closed without leaking database schema errors when preview migrations are missing', async () => {
+  const env = {
+    DB: {
+      prepare() {
+        return {
+          bind() { return this; },
+          async first() { throw new Error('D1_ERROR: no such table: delivery_scheduling_settings: SQLITE_ERROR'); },
+          async all() { return { results: []; } },
+          async run() { return { meta: { changes: 0 }; } }
+        };
+      }
+    }
+  };
+  const request = new Request('https://freshway.example/api/delivery/slots', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ address: {}, items: [{ id: 'rice', qty: 1 }] })
+  });
+  const response = await handleCustomerDeliveryRequest(request, env, '');
+  assert.equal(response.status, 503);
+  const body = await response.json();
+  assert.equal(body.code, 'DELIVERY_SCHEMA_UNAVAILABLE');
+  assert.match(body.error, /temporarily unavailable/i);
+  assert.doesNotMatch(body.error, /delivery_scheduling_settings|D1_ERROR|SQLITE_ERROR/i);
+});
+
 test('checkout cannot bypass an enabled delivery-slot requirement', async () => {
   const env = envWithSettings({ id: 1, enabled: 1, booking_horizon_days: 7, same_day_cutoff_minutes: 120, timezone: 'Asia/Kolkata' });
   await assert.rejects(
