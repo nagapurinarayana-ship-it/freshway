@@ -473,7 +473,7 @@ export async function handleCustomerDeliveryRequest(request, env, customerId) {
     try { return response(await resolveAvailableSlots(env, body, clean(body.date))); }
     catch (error) {
       if (deliverySchemaMissing(error)) {
-        console.error('FreshWay delivery availability is unavailable because the preview database schema is incomplete:', error?.message || error);
+        console.error('FreshWay delivery availability is unavailable because a required database schema table is missing:', error?.message || error);
         return response({ error: 'Delivery availability is temporarily unavailable in this environment. Please try again later.', code: 'DELIVERY_SCHEMA_UNAVAILABLE' }, 503);
       }
       return response({ error: error.message || 'Could not load available delivery windows.' }, 400);
