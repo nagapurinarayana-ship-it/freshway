@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { createProduct, updateProduct } from '../src/catalogue-api.js';
+import { addProduct as addLegacyProduct, updateProduct as updateLegacyProduct } from '../src/index.js';
 
 class SQLiteD1 {
   constructor() {
@@ -153,5 +154,33 @@ test('enabling tracking with multiple active stores does not create phantom glob
       {store_id:'store-a',stock_quantity:0},
       {store_id:'store-b',stock_quantity:0}
     ]);
+  } finally { db.close(); }
+});
+
+test('legacy product endpoint also seeds store inventory and keeps tracked stock aggregate authoritative', async () => {
+  const db = new SQLiteD1();
+  try {
+    db.seedStore('store-a',1);
+    db.seedStore('store-b',1);
+    const created = await addLegacyProduct({DB:db},{
+      id:'legacy-product',name:'Sunflower Oil',unit:'litre',price:150,stockManaged:true,stockQuantity:20
+    });
+    assert.equal(created.stock_quantity,0);
+    assert.equal(created.stockAllocationRequired,true);
+    assert.deepEqual(db.inventory('legacy-product'),[
+      {store_id:'store-a',stock_quantity:0},
+      {store_id:'store-b',stock_quantity:0}
+    ]);
+
+    // Give one store its authoritative on-hand quantity, then prove a stale
+    // catalogue form value cannot overwrite the aggregate with zero.
+    await db.prepare("UPDATE delivery_store_inventory SET stock_quantity=9 WHERE store_id='store-a' AND product_id='legacy-product'").run();
+    await db.prepare("UPDATE products SET stock_quantity=9 WHERE id='legacy-product'").run();
+    const result = await updateLegacyProduct({DB:db},'legacy-product',{
+      name:'Sunflower Oil',price:155,stockManaged:true,stockQuantity:0
+    });
+    assert.equal(result.stockQuantity,9);
+    assert.equal(db.product('legacy-product').stock_quantity,9);
+    assert.equal(db.inventory('legacy-product').find(row=>row.store_id==='store-a').stock_quantity,9);
   } finally { db.close(); }
 });
