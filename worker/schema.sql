@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS orders (
   schedule_status TEXT NOT NULL DEFAULT 'unscheduled' CHECK(schedule_status IN ('unscheduled','requested','confirmed','change_requested','conflict','completed','cancelled')),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  delivered_at TEXT,
   payment_collected_at TEXT,
   client_order_id TEXT UNIQUE,
   is_test_order INTEGER NOT NULL DEFAULT 0 CHECK(is_test_order IN (0,1)),
