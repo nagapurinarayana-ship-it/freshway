@@ -146,18 +146,26 @@ jobs:
           FRESHWAY_PREVIEW_APP_ORIGIN: ${{ vars.FRESHWAY_PREVIEW_APP_ORIGIN }}
           FRESHWAY_PREVIEW_APP_ORIGINS: ${{ vars.FRESHWAY_PREVIEW_APP_ORIGINS }}
         run: node tooling/.github/preview-worker/build-preview-config.mjs > source/worker/wrangler.preview.generated.jsonc
+      - name: Generate first-deploy config without required-secret validation
+        run: |
+          node --input-type=module - source/worker/wrangler.preview.generated.jsonc source/worker/wrangler.preview.bootstrap.jsonc <<'NODE'
+          import fs from 'node:fs';
+          const source = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          delete source.secrets;
+          fs.writeFileSync(process.argv[3], JSON.stringify(source, null, 2) + '\\n', { mode: 0o600 });
+          NODE
       - name: Apply migrations to the isolated preview D1 database
         working-directory: tooling/worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler d1 migrations apply freshway-preview --remote --config ../../source/worker/wrangler.preview.generated.jsonc
-      - name: Deploy the preview Worker
+      - name: Bootstrap the preview Worker without attaching production routes
         working-directory: tooling/worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy --config ../../source/worker/wrangler.preview.generated.jsonc
+        run: npx wrangler deploy --config ../../source/worker/wrangler.preview.bootstrap.jsonc
       - name: Configure preview-only authentication secrets
         working-directory: tooling/worker
         shell: bash
@@ -172,6 +180,12 @@ jobs:
           printf '%s' "$PREVIEW_ADMIN_TOKEN" | npx wrangler secret put ADMIN_TOKEN --config ../../source/worker/wrangler.preview.generated.jsonc
           printf '%s' "$PREVIEW_CUSTOMER_SESSION_SECRET" | npx wrangler secret put CUSTOMER_SESSION_SECRET --config ../../source/worker/wrangler.preview.generated.jsonc
           printf '%s' "$PREVIEW_ADMIN_SESSION_SECRET" | npx wrangler secret put ADMIN_SESSION_SECRET --config ../../source/worker/wrangler.preview.generated.jsonc
+      - name: Final deploy with required-secret validation
+        working-directory: tooling/worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --config ../../source/worker/wrangler.preview.generated.jsonc
       - name: Smoke-test the deployed preview Worker
         env:
           FRESHWAY_PREVIEW_WORKER_URL: ${{ vars.FRESHWAY_PREVIEW_WORKER_URL }}
