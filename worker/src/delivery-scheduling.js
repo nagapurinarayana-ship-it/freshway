@@ -453,33 +453,6 @@ export async function handleAdminDeliveryRequest(request, env) {
     const orders = (await env.DB.prepare("SELECT id,customer_name,customer_phone,delivery_status,scheduled_delivery_date,delivery_plan,created_at,total FROM orders WHERE delivery_status NOT IN ('Delivered','Cancelled') ORDER BY CASE WHEN scheduled_delivery_date IS NULL THEN 1 ELSE 0 END,scheduled_delivery_date,created_at DESC LIMIT 300").all()).results || [];
     const requests = (await env.DB.prepare("SELECT r.id,r.order_id,r.customer_id,r.request_type,r.requested_delivery_date,r.reason,r.status,r.created_at,o.delivery_status,o.total,o.scheduled_delivery_date,o.customer_name,c.phone customer_phone FROM order_action_requests r JOIN orders o ON o.id=r.order_id LEFT JOIN customers c ON c.id=r.customer_id WHERE r.status='pending' ORDER BY r.created_at LIMIT 200").all()).results || [];
     return response({ ok:true, orders, requests, settings:{enabled:1}, stores:[],products:[],inventory:[],slots:[],operationalFlags:[] });
-    await ensureStoreInventoryRows(env);
-    const settings = await readSettings(env);
-    const stores = (await env.DB.prepare('SELECT * FROM delivery_stores ORDER BY is_active DESC,name').all()).results || [];
-    const products = (await env.DB.prepare('SELECT id,name,unit,price,stock_managed,stock_quantity,low_stock_threshold,active FROM products ORDER BY name').all()).results || [];
-    const inventory = (await env.DB.prepare(
-      'SELECT i.store_id,i.product_id,p.name product_name,p.unit,p.stock_managed,i.stock_quantity,'+
-      'COALESCE(SUM(CASE WHEN r.status IN (\'reserved\',\'conflict\') THEN r.qty ELSE 0 END),0) reserved_qty,'+
-      'MAX(0,i.stock_quantity-COALESCE(SUM(CASE WHEN r.status IN (\'reserved\',\'conflict\') THEN r.qty ELSE 0 END),0)) available_qty '+
-      'FROM delivery_store_inventory i JOIN products p ON p.id=i.product_id '+
-      'LEFT JOIN delivery_store_inventory_reservations r ON r.store_id=i.store_id AND r.product_id=i.product_id '+
-      'GROUP BY i.store_id,i.product_id ORDER BY i.store_id,p.name'
-    ).all()).results || [];
-    const operationalFlags = (await env.DB.prepare(
-      "SELECT f.id,f.order_id,f.flag_type,f.details_json,f.created_at,o.delivery_status,o.customer_name FROM order_operational_flags f JOIN orders o ON o.id=f.order_id WHERE f.status='open' ORDER BY f.created_at DESC LIMIT 100"
-    ).all()).results || [];
-    const now = istNowParts();
-    const slots = await env.DB.prepare(
-      'SELECT s.*,ds.name store_name,(SELECT COUNT(*) FROM delivery_slot_reservations r WHERE r.slot_id=s.id AND r.status IN (\'reserved\',\'conflict\')) occupied ' +
-      'FROM delivery_slots s JOIN delivery_stores ds ON ds.id=s.store_id WHERE s.delivery_date>=? AND s.delivery_date<=? ORDER BY s.delivery_date,s.start_minute,ds.name LIMIT 500'
-    ).bind(now.date, addDays(now.date, 60)).all();
-    const requests = await env.DB.prepare(
-      'SELECT r.id,r.order_id,r.customer_id,r.request_type,r.requested_slot_id,r.requested_delivery_date,r.reason,r.status,r.resolution_note,r.created_at,r.updated_at,' +
-      'o.delivery_status,o.total,o.scheduled_delivery_date,o.scheduled_start_minute,o.scheduled_end_minute,o.customer_name,c.phone customer_phone ' +
-      'FROM order_action_requests r JOIN orders o ON o.id=r.order_id LEFT JOIN customers c ON c.id=r.customer_id ' +
-      'WHERE r.status=\'pending\' ORDER BY r.created_at LIMIT 200'
-    ).all();
-    return response({ ok: true, settings, stores, products, inventory, operationalFlags, slots: slots.results || [], requests: requests.results || [] });
   }
   if (path === '/api/admin/delivery' && request.method === 'PATCH') {
     let body = {}; try { body = await request.json(); } catch (_) {}
