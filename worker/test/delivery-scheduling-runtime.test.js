@@ -139,7 +139,8 @@ test('Owner can still save an order delivery date directly without creating slot
     assert.equal(db.db.prepare("SELECT schedule_status FROM orders WHERE id='order-owner-date'").get().schedule_status,'confirmed');
     assert.equal(db.db.prepare("SELECT scheduled_slot_id FROM orders WHERE id='order-owner-date'").get().scheduled_slot_id,null);
     assert.equal(db.db.prepare("SELECT status FROM delivery_slot_reservations WHERE order_id='order-owner-date'").get().status,'released');
-    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-owner-date'").get().status,'released');
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-owner-date'").get().status,'reserved');
+    assert.equal(db.db.prepare("SELECT assigned_store_id FROM orders WHERE id='order-owner-date'").get().assigned_store_id,'store-1');
     assert.deepEqual(db.db.prepare('PRAGMA foreign_key_check').all(),[]);
   } finally { db.close(); }
 });
