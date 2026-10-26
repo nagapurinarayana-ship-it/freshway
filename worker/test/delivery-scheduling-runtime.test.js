@@ -112,6 +112,30 @@ test('rejecting a customer reschedule restores the exact previously confirmed sc
   } finally { db.close(); }
 });
 
+test('Owner approval applies the requested or edited delivery date without creating slot reservations', async () => {
+  const db=new SQLiteD1();
+  try {
+    db.seedOrder('order-reschedule-approve',{date:'2026-10-27',status:'confirmed'});
+    const customerResponse=await handleCustomerDeliveryRequest(new Request(
+      'https://api.example.test/api/orders/order-reschedule-approve/reschedule',
+      {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestedDeliveryDate:'2026-10-28'})}
+    ),{DB:db},'customer-1');
+    assert.equal(customerResponse.status,202);
+    const requestId=(await customerResponse.json()).request.requestId;
+    const ownerResponse=await handleAdminDeliveryRequest(new Request(
+      'https://api.example.test/api/admin/delivery/requests/'+encodeURIComponent(requestId),
+      {method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({decision:'approve',deliveryDate:'2026-10-29',note:'Date checked with customer'})}
+    ),{DB:db});
+    assert.equal(ownerResponse.status,200);
+    assert.equal(db.db.prepare("SELECT scheduled_delivery_date FROM orders WHERE id='order-reschedule-approve'").get().scheduled_delivery_date,'2026-10-29');
+    assert.equal(db.db.prepare("SELECT schedule_status FROM orders WHERE id='order-reschedule-approve'").get().schedule_status,'confirmed');
+    assert.equal(db.db.prepare("SELECT scheduled_slot_id FROM orders WHERE id='order-reschedule-approve'").get().scheduled_slot_id,null);
+    assert.equal(db.db.prepare("SELECT status FROM order_action_requests WHERE id=?").get(requestId).status,'approved');
+    assert.equal(db.db.prepare("SELECT COUNT(*) count FROM delivery_slot_reservations WHERE order_id='order-reschedule-approve'").get().count,1);
+    assert.deepEqual(db.db.prepare('PRAGMA foreign_key_check').all(),[]);
+  } finally { db.close(); }
+});
+
 test('checkout creates an order with a server-validated preferred date and reserves global stock exactly once', async () => {
   const db=new SQLiteD1();
   try {
