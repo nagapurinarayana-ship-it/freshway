@@ -60,7 +60,7 @@
   function renderRequests(){
     const host=$('.fw-delivery-request-list');if(!host)return;
     if(!snapshot.requests.length){host.innerHTML='<p class="muted">No customer requests are waiting.</p>';return}
-    host.innerHTML=snapshot.requests.map(row=>'<article class="fw-delivery-request"><div class="section-head"><div><strong>'+esc(row.request_type)+' · '+esc(row.order_id)+'</strong><small>'+esc(row.customer_name||'Customer')+' · '+esc(row.customer_phone||'')+'</small></div><span class="fw-delivery-pill">'+esc(row.status||'pending')+'</span></div><p>'+esc(row.reason||'No reason provided.')+'</p><p class="muted">Current order status: '+esc(row.delivery_status||'Unknown')+(row.scheduled_delivery_date?' · Scheduled '+esc(row.scheduled_delivery_date)+' '+time(row.scheduled_start_minute)+'–'+time(row.scheduled_end_minute):'')+'</p><label>Decision note<input type="text" maxlength="500" data-fw-request-note="'+esc(row.id)+'" placeholder="Optional note for the audit history"></label>'+(row.request_type==='reschedule'?'<label class="fw-check"><input type="checkbox" data-fw-request-override="'+esc(row.id)+'"><span>Approve with Owner override if the slot or stock has a conflict</span></label>':'')+'<div class="fw-slot-actions"><button type="button" class="primary" data-fw-request-decision="approve" data-request-id="'+esc(row.id)+'">Approve</button><button type="button" class="ghost" data-fw-request-decision="reject" data-request-id="'+esc(row.id)+'">Reject</button></div></article>').join('');
+    host.innerHTML=snapshot.requests.map(row=>'<article class="fw-delivery-request"><div class="section-head"><div><strong>'+esc(row.request_type)+' · '+esc(row.order_id)+'</strong><small>'+esc(row.customer_name||'Customer')+' · '+esc(row.customer_phone||'')+'</small></div><span class="fw-delivery-pill">'+esc(row.status||'pending')+'</span></div><p>'+esc(row.reason||'No reason provided.')+'</p><p class="muted">Current order status: '+esc(row.delivery_status||'Unknown')+(row.scheduled_delivery_date?' · Scheduled '+esc(row.scheduled_delivery_date)+' '+time(row.scheduled_start_minute)+'–'+time(row.scheduled_end_minute):'')+'</p><label>Decision note<input type="text" maxlength="500" data-fw-request-note="'+esc(row.id)+'" placeholder="Optional note for the audit history"></label>'+(row.request_type==='reschedule'?'<label class="fw-check"><input type="checkbox" data-fw-request-override="'+esc(row.id)+'"><span>Approve with Owner override if the slot or stock has a conflict</span></label>':'')+'<div class="fw-slot-actions"><button type="button" class="primary" data-fw-request-decision="approve" data-request-id="'+esc(row.id)+'">Approve</button><button type="button" class="ghost" data-fw-request-decision="reject" data-request-id="'+esc(row.id)+'">Reject</button>'+(row.request_type==='return'||row.request_type==='issue'?'<button type="button" class="ghost" data-fw-request-decision="complete" data-request-id="'+esc(row.id)+'">Mark resolved</button>':'')+'</div></article>').join('');
   }
   function renderFlags(){
     const host=$('.fw-delivery-flag-list');if(!host)return;
@@ -103,7 +103,7 @@
       try{await api('/admin/delivery/stores/'+encodeURIComponent(storeId)+'/inventory',{method:'PATCH',body:JSON.stringify({items})});showStatus('Store inventory saved. Existing reservations were preserved.',false);await load()}
       catch(error){showStatus(error.message,true)}finally{button.disabled=false}
     });
-    root.addEventListener('click',async event=>{
+    if(!root.dataset.fwDeliveryClickBound){root.dataset.fwDeliveryClickBound='1';root.addEventListener('click',async event=>{
       const storeToggle=event.target.closest('[data-fw-store-toggle]');
       const storeEdit=event.target.closest('[data-fw-store-edit]');
       if(storeToggle||storeEdit){
@@ -151,7 +151,7 @@
         try{await api('/admin/delivery/flags/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({status:'resolved',note})});showStatus('Exception marked reviewed and added to the audit history.',false);await load()}
         catch(error){showStatus(error.message,true)}finally{if(resolve.isConnected)resolve.disabled=false}
       }
-    });
+    });}
   }
   async function renderScheduleEditor(orderId){
     const body=document.querySelector('#modalBody');if(!body||!orderId)return;
@@ -181,6 +181,7 @@
     form.elements.override.addEventListener('change',()=>{form.elements.reason.required=form.elements.override.checked;});
     form.addEventListener('submit',async event=>{
       event.preventDefault();const data=new FormData(form),override=!!form.elements.override.checked,reason=String(data.get('reason')||'').trim(),slotId=String(data.get('slotId')||'');
+      if(!slotId&&!override){showScheduleStatus(panel,'Manual date and time must be saved as an Owner override. Tick the override box and add a reason.',true);form.elements.override.focus();return}
       if(override&&!reason){showScheduleStatus(panel,'Add a reason for the Owner override.',true);form.elements.reason.focus();return}
       if(!slotId&&(!String(data.get('deliveryDate')||'')||!String(data.get('startTime')||'')||!String(data.get('endTime')||''))){showScheduleStatus(panel,'Enter a date and valid time range.',true);return}
       const button=form.querySelector('[type=submit]');button.disabled=true;showScheduleStatus(panel,'Saving delivery schedule…',false);
