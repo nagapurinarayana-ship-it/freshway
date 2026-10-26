@@ -28,6 +28,8 @@ Never use production authentication secrets in the preview environment, and neve
 
 ## Running and verification
 
+**Important:** GitHub only exposes `workflow_dispatch` for a workflow once the workflow file is present on the repository's default branch. While this PR remains unmerged, CI can validate the preview tooling, but it cannot be manually dispatched to perform the deployment. Keep the application feature PR separate. After the infrastructure PR is reviewed and approved for merging, the workflow can be run manually without merging the application feature PR.
+
 After the preview D1 database, Worker URL, Pages binding, variables, and secrets are configured, open **Actions → FreshWay isolated preview Worker → Run workflow**. In the workflow-branch selector, select the reviewed infrastructure branch `infra/isolated-preview-worker`; in the `source_ref` input, select `feat/order-cancel-delivery-scheduling` (or the exact feature branch/commit to test). The deployment job deliberately skips if the workflow itself is dispatched from any other branch; this keeps secrets separate from unreviewed workflow edits.
 
 The workflow runs all Worker tests, rejects a preview D1 UUID that matches production, applies the repository migrations to `freshway-preview`, deploys only `freshway-api-preview`, configures only preview authentication secrets, and probes `/api/admin/status`. It disables preview cron triggers and never targets the production Worker name.
