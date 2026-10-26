@@ -407,6 +407,7 @@ CREATE TABLE IF NOT EXISTS order_action_requests (
   customer_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
   request_type TEXT NOT NULL CHECK(request_type IN ('cancellation','reschedule','return','issue')),
   requested_slot_id TEXT REFERENCES delivery_slots(id) ON DELETE RESTRICT,
+  requested_delivery_date TEXT,
   reason TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected','completed')),
   resolution_note TEXT NOT NULL DEFAULT '',
