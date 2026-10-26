@@ -17,7 +17,13 @@
           if (result.request?.status === 'pending') feedback('Your cancellation request was sent. The order remains active until FreshWay confirms it.');
           else feedback(result.message || 'Your order has been cancelled.');
           document.dispatchEvent(new CustomEvent('freshway:order-actions-changed', { detail:{ orderId, action:'cancel' } }));
-        } catch (error) { feedback(error?.message || 'Could not cancel this order. Refresh and try again.'); }
+        } catch (error) {
+          feedback(error?.message || 'Could not cancel this order. Refresh and try again.');
+          // The server is authoritative. If Owner changed the order after this
+          // screen loaded, refresh the card so status, payment and delivery date
+          // immediately match the latest order state.
+          document.dispatchEvent(new CustomEvent('freshway:order-actions-changed', { detail:{ orderId, action:'refresh' } }));
+        }
         finally { if (cancel.isConnected) cancel.disabled = false; }
         return;
       }
