@@ -146,3 +146,18 @@ test('store reassignment uses valid reservation SQL and stock-managed products r
   assert.ok(worker.includes('INSERT OR IGNORE INTO delivery_store_inventory'),
     'product create/update must not duplicate inventory rows');
 });
+
+test('customer cancellation uses customer audit identity and rejected reschedules restore the displayed schedule state', () => {
+  const delivery = read('../src/delivery-scheduling.js');
+  const cancelStart = delivery.indexOf('async function customerAction');
+  const cancelEnd = delivery.indexOf('export async function handleCustomerDeliveryRequest', cancelStart);
+  const customerActions = delivery.slice(cancelStart, cancelEnd);
+  assert.ok(customerActions.includes("actorType: 'customer', actorId: customerId, reason: cancelReason"),
+    'customer cancellation must not be attributed to the Owner');
+  assert.ok(!customerActions.includes("await writeAudit(env, order.id, 'customer', customerId, 'order_cancelled_by_customer'"),
+    'customer cancellation must not create a duplicate audit entry');
+  assert.ok(delivery.includes("decision === 'reject' && row.request_type === 'reschedule'"));
+  assert.ok(delivery.includes('reschedule_request_rejected_schedule_restored'),
+    'rejected reschedule requests must leave My Orders showing the existing schedule');
+  assert.ok(delivery.includes("order.delivery_status === 'New' ? 'requested' : 'confirmed'"));
+});
