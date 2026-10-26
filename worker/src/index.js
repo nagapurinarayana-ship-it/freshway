@@ -239,24 +239,38 @@ async function updateOrder(env,id,payload){
 }
 
 async function addProduct(env,payload){
-  const id=String(payload.id||`p-${Date.now()}-${Math.random().toString(36).slice(2,6)}`).trim().slice(0,100),name=String(payload.name||'').trim().slice(0,100),unit=String(payload.unit||'').trim().slice(0,30),price=Number(payload.price),emoji=String(payload.emoji||'🛒').slice(0,8),stockManaged=payload.stockManaged===true,stockQuantity=Number(payload.stockQuantity??0),lowStockThreshold=Number(payload.lowStockThreshold??5);
+  const id=String(payload.id||`p-${Date.now()}-${Math.random().toString(36).slice(2,6)}`).trim().slice(0,100),
+    name=String(payload.name||'').trim().slice(0,100),unit=String(payload.unit||'').trim().slice(0,30),
+    price=Number(payload.price),emoji=String(payload.emoji||'🛒').slice(0,8),
+    stockManaged=payload.stockManaged===true,requestedStock=Number(payload.stockQuantity??0),
+    lowStockThreshold=Number(payload.lowStockThreshold??5);
   if(!name||!unit||!Number.isFinite(price)||price<0)throw new Error('Product name, unit and valid price are required.');
-  if(!Number.isInteger(stockQuantity)||stockQuantity<0||!Number.isInteger(lowStockThreshold)||lowStockThreshold<0)throw new Error('Enter valid stock values.');
-  const statements=[env.DB.prepare(`INSERT INTO products (id,name,unit,price,emoji,active,stock_managed,stock_quantity,low_stock_threshold) VALUES (?,?,?,?,?,?,?,?,?)`).bind(id,name,unit,Math.round(price),emoji,1,stockManaged?1:0,stockQuantity,lowStockThreshold)];
-  if(stockManaged){
-    // Keep the entered quantity at the only active store when allocation is unambiguous.
-    // With multiple stores, initialise local quantities to zero and require explicit allocation.
-    statements.push(env.DB.prepare(`INSERT OR IGNORE INTO delivery_store_inventory (store_id,product_id,stock_quantity)
-      SELECT s.id,?,CASE WHEN s.is_active=1 AND (SELECT COUNT(*) FROM delivery_stores WHERE is_active=1)=1 THEN ? ELSE 0 END
-      FROM delivery_stores s`).bind(id,stockQuantity));
-  }
+  if(!Number.isInteger(requestedStock)||requestedStock<0||!Number.isInteger(lowStockThreshold)||lowStockThreshold<0)throw new Error('Enter valid stock values.');
+  const activeStores=stockManaged?Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores WHERE is_active=1').first())?.count||0):0;
+  const allStores=stockManaged?Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores').first())?.count||0):0;
+  const stockQuantity=stockManaged&&activeStores>1?0:requestedStock;
+  const statements=[env.DB.prepare(`INSERT INTO products (id,name,unit,price,emoji,active,stock_managed,stock_quantity,low_stock_threshold) VALUES (?,?,?,?,?,?,?,?,?)`)
+    .bind(id,name,unit,Math.round(price),emoji,1,stockManaged?1:0,stockQuantity,lowStockThreshold)];
+  if(stockManaged&&allStores>0)statements.push(env.DB.prepare(
+    'INSERT OR IGNORE INTO delivery_store_inventory (store_id,product_id,stock_quantity) '+
+    'SELECT s.id,?,CASE WHEN ?=1 AND s.is_active=1 THEN ? ELSE 0 END FROM delivery_stores s'
+  ).bind(id,activeStores,requestedStock));
   await env.DB.batch(statements);
-  return{id,name,unit,price:Math.round(price),emoji,active:1,stock_managed:stockManaged?1:0,stock_quantity:stockQuantity,low_stock_threshold:lowStockThreshold}
+  return{id,name,unit,price:Math.round(price),emoji,active:1,stock_managed:stockManaged?1:0,
+    stock_quantity:stockQuantity,low_stock_threshold:lowStockThreshold,
+    stockAllocationRequired:Boolean(stockManaged&&activeStores>1&&requestedStock>0)};
 }
 
 async function updateProduct(env,id,payload){
   const current=await env.DB.prepare('SELECT stock_managed,stock_quantity FROM products WHERE id=?').bind(id).first();
   if(!current)throw new Error('Product not found.');
+  const currentManaged=Number(current.stock_managed)===1;
+  const nextManaged=payload.stockManaged===undefined?currentManaged:payload.stockManaged===true;
+  if(currentManaged&&!nextManaged)throw new Error('Stock tracking cannot be disabled after it is enabled.');
+  const activeStores=nextManaged?Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores WHERE is_active=1').first())?.count||0):0;
+  const allStores=nextManaged?Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores').first())?.count||0):0;
+  const changingToManaged=!currentManaged&&nextManaged;
+  const storeManagedQuantity=currentManaged&&nextManaged&&activeStores>0;
   const sets=[],params=[];
   let nextStockQuantity=Number(current.stock_quantity||0);
   if(payload.name!==undefined){const v=String(payload.name).trim().slice(0,100);if(!v)throw new Error('Product name cannot be empty.');sets.push('name=?');params.push(v)}
@@ -264,23 +278,32 @@ async function updateProduct(env,id,payload){
   if(payload.price!==undefined){const v=Number(payload.price);if(!Number.isFinite(v)||v<0)throw new Error('Invalid price.');sets.push('price=?');params.push(Math.round(v))}
   if(payload.emoji!==undefined){sets.push('emoji=?');params.push(String(payload.emoji).slice(0,8))}
   if(payload.active!==undefined){sets.push('active=?');params.push(payload.active?1:0)}
-  if(payload.stockManaged!==undefined){const next=payload.stockManaged?1:0;if(Number(current.stock_managed)===1&&next===0)throw new Error('Stock tracking cannot be disabled after it has been enabled.');sets.push('stock_managed=?');params.push(next)}
-  if(payload.stockQuantity!==undefined){const v=Number(payload.stockQuantity);if(!Number.isInteger(v)||v<0)throw new Error('Invalid stock quantity.');nextStockQuantity=v;sets.push('stock_quantity=?');params.push(v)}
+  if(payload.stockManaged!==undefined){sets.push('stock_managed=?');params.push(nextManaged?1:0)}
+  if(payload.stockQuantity!==undefined){
+    const v=Number(payload.stockQuantity);
+    if(!Number.isInteger(v)||v<0)throw new Error('Invalid stock quantity.');
+    if(!storeManagedQuantity){nextStockQuantity=changingToManaged&&activeStores>1?0:v;sets.push('stock_quantity=?');params.push(nextStockQuantity);}
+  }
+  if(changingToManaged&&activeStores>1&&nextStockQuantity!==0){
+    nextStockQuantity=0;sets.push('stock_quantity=?');params.push(0);
+  }
   if(payload.lowStockThreshold!==undefined){const v=Number(payload.lowStockThreshold);if(!Number.isInteger(v)||v<0)throw new Error('Invalid low-stock threshold.');sets.push('low_stock_threshold=?');params.push(v)}
-  if(!sets.length)throw new Error('No product change supplied.');
+  if(!sets.length){
+    if(storeManagedQuantity&&payload.stockQuantity!==undefined)throw new Error('Managed stock quantities must be changed in Delivery Scheduling for the selected store.');
+    throw new Error('No product change supplied.');
+  }
   sets.push('updated_at=CURRENT_TIMESTAMP');params.push(id);
   const statements=[env.DB.prepare(`UPDATE products SET ${sets.join(',')} WHERE id=?`).bind(...params)];
-  if(Number(current.stock_managed)===0&&payload.stockManaged===true){
-    // A transition to store-managed stock must create per-store rows too.
-    // Only seed stock into one active store when the destination is unambiguous.
-    statements.push(env.DB.prepare(`INSERT OR IGNORE INTO delivery_store_inventory (store_id,product_id,stock_quantity)
-      SELECT s.id,?,CASE WHEN s.is_active=1 AND (SELECT COUNT(*) FROM delivery_stores WHERE is_active=1)=1 THEN ? ELSE 0 END
-      FROM delivery_stores s`).bind(id,nextStockQuantity));
-  }
+  if(changingToManaged&&allStores>0)statements.push(env.DB.prepare(
+    'INSERT OR IGNORE INTO delivery_store_inventory (store_id,product_id,stock_quantity) '+
+    'SELECT s.id,?,CASE WHEN ?=1 AND s.is_active=1 THEN ? ELSE 0 END FROM delivery_stores s'
+  ).bind(id,activeStores,Number(payload.stockQuantity??current.stock_quantity??0)));
+  else if(currentManaged&&nextManaged&&allStores>0)statements.push(env.DB.prepare(
+    'INSERT OR IGNORE INTO delivery_store_inventory (store_id,product_id,stock_quantity) SELECT s.id,?,0 FROM delivery_stores s'
+  ).bind(id));
   const results=await env.DB.batch(statements);
-  const result=results?.[0];
-  if(!result?.meta?.changes)throw new Error('Product not found.');
-  return{ok:true}
+  if(!results?.[0]?.meta?.changes)throw new Error('Product not found.');
+  return{ok:true,stockQuantity:nextStockQuantity,stockAllocationRequired:Boolean(changingToManaged&&activeStores>1&&Number(payload.stockQuantity??current.stock_quantity??0)>0)};
 }
 
 async function saveSubscription(env,payload){
@@ -325,7 +348,7 @@ async function broadcastPush(env,payload){
 async function broadcastWhatsApp(env,payload){if(!env.WHATSAPP_ACCESS_TOKEN||!env.WHATSAPP_PHONE_NUMBER_ID||!env.WHATSAPP_GRAPH_VERSION)throw new Error('WhatsApp API secrets are not configured.');if(!payload.templateName)throw new Error('WhatsApp requires an approved template name for broadcast messaging.');const{results}=await env.DB.prepare('SELECT phone FROM customers WHERE phone IS NOT NULL AND whatsapp_opt_in=1').all();const url=`https://graph.facebook.com/${env.WHATSAPP_GRAPH_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`;let success=0,failure=0;await Promise.all((results||[]).map(async row=>{try{const response=await fetch(url,{method:'POST',headers:{'Authorization':`Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,'Content-Type':'application/json'},body:JSON.stringify({messaging_product:'whatsapp',to:String(row.phone).replace(/\D/g,''),type:'template',template:{name:payload.templateName,language:{code:payload.languageCode||'en_US'},...(payload.parameters?.length?{components:[{type:'body',parameters:payload.parameters.map(text=>({type:'text',text:String(text)}))}]}:{})}})});if(response.ok)success++;else failure++}catch(_){failure++}}));await env.DB.prepare('INSERT INTO notification_log (channel,title,body,recipient_count,success_count,failure_count) VALUES (?,?,?,?,?,?)').bind('whatsapp',payload.templateName,payload.body||'',results?.length||0,success,failure).run();return{channel:'whatsapp',recipients:results?.length||0,success,failure}}
 async function notificationHistory(env){const{results}=await env.DB.prepare('SELECT id,channel,title,body,recipient_count,success_count,failure_count,created_at FROM notification_log ORDER BY created_at DESC,id DESC LIMIT 50').all();return results||[]}
 
-export { normalizePaymentFilter, validateOrderPatch, validateOrderItems, updateOrder };
+export { normalizePaymentFilter, validateOrderPatch, validateOrderItems, updateOrder, addProduct, updateProduct };
 
 export default{async fetch(request,env,ctx){const cors=origin(env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{'access-control-allow-origin':cors,'access-control-allow-methods':'GET,POST,PATCH,OPTIONS','access-control-allow-headers':'Content-Type,Authorization,X-Freshway-Admin-Token'}});const url=new URL(request.url);try{
 if(url.pathname==='/api/health'&&request.method==='GET')return json({ok:true,service:'freshway-api'},200,cors);if(url.pathname==='/api/geocode/reverse'&&request.method==='GET')return handleReverseGeocode(request,{origin:cors,fetcher:fetch,cache:typeof caches!=='undefined'?caches.default:null,waitUntil:promise=>ctx?.waitUntil?.(promise)});if(url.pathname==='/api/store-profile'&&request.method==='GET')return json({storeProfile:await getStoreProfile(env)},200,cors);
