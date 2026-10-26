@@ -549,7 +549,7 @@ export async function handleAdminDeliveryRequest(request, env) {
     await env.DB.batch(statements);
     return response({ ok: true, store: { id: storeId, name, address, latitude, longitude, service_radius_km: radius, is_active: 1 }, initialInventory: inventorySeed === null ? 'copied-current-global-available-stock' : 'zero-stock-requires-setup' }, 201);
   }
-  const storeMatch = path.match(/^\/api\/admin\/delivery\/stores\/([^/]+)$/);
+  const storeMatch = path.match(new RegExp('^/api/admin/delivery/stores/([^/]+)$'));
   if (storeMatch && request.method === 'PATCH') {
     let body = {}; try { body = await request.json(); } catch (_) {}
     const storeId = decodeURIComponent(storeMatch[1]);
@@ -568,7 +568,7 @@ export async function handleAdminDeliveryRequest(request, env) {
       .bind(name,address,latitude,longitude,radius,active,storeId).run();
     return response({ ok: true, store: { ...current, name, address, latitude, longitude, service_radius_km: radius, is_active: active } });
   }
-  const inventoryMatch = path.match(/^\/api\/admin\/delivery\/stores\/([^/]+)\/inventory$/);
+  const inventoryMatch = path.match(new RegExp('^/api/admin/delivery/stores/([^/]+)/inventory$'));
   if (inventoryMatch && request.method === 'PATCH') {
     let body = {}; try { body = await request.json(); } catch (_) {}
     const storeId = decodeURIComponent(inventoryMatch[1]);
@@ -638,7 +638,7 @@ export async function handleAdminDeliveryRequest(request, env) {
     const slots = await env.DB.prepare('SELECT COUNT(*) count FROM delivery_slots WHERE store_id=? AND delivery_date>=? AND delivery_date<=? AND start_minute=? AND end_minute=?').bind(storeId, from, to, start, end).first();
     return response({ ok: true, createdOrExisting: Number(slots?.count || 0), storeId, fromDate: from, toDate: to, startTime: body.startTime, endTime: body.endTime }, 201);
   }
-  const slotMatch = path.match(/^\/api\/admin\/delivery\/slots\/([^/]+)$/);
+  const slotMatch = path.match(new RegExp('^/api/admin/delivery/slots/([^/]+)$'));
   if (slotMatch && request.method === 'PATCH') {
     let body = {}; try { body = await request.json(); } catch (_) {}
     const slotId = decodeURIComponent(slotMatch[1]);
@@ -651,7 +651,7 @@ export async function handleAdminDeliveryRequest(request, env) {
     const count = Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_slot_reservations WHERE slot_id=? AND status IN (\'reserved\',\'conflict\')').bind(slotId).first())?.count || 0);
     return response({ ok: true, slot: { ...current, capacity, is_active: active, occupied: count, overbooked: count > capacity }, warning: count > capacity ? 'Existing reservations exceed this slot capacity.' : '' });
   }
-  const orderHistoryMatch = path.match(/^\/api\/admin\/delivery\/orders\/([^/]+)\/history$/);
+  const orderHistoryMatch = path.match(new RegExp('^/api/admin/delivery/orders/([^/]+)/history$'));
   if (orderHistoryMatch && request.method === 'GET') {
     const orderId = decodeURIComponent(orderHistoryMatch[1]);
     const order = await getOrderForAction(env, orderId);
@@ -661,7 +661,7 @@ export async function handleAdminDeliveryRequest(request, env) {
     const reservations = (await env.DB.prepare("SELECT r.id,r.status,r.owner_override,r.override_reason,r.updated_at,s.delivery_date,s.start_minute,s.end_minute,ds.name store_name FROM delivery_slot_reservations r LEFT JOIN delivery_slots s ON s.id=r.slot_id LEFT JOIN delivery_stores ds ON ds.id=s.store_id WHERE r.order_id=? ORDER BY r.created_at DESC LIMIT 30").bind(orderId).all()).results || [];
     return response({ ok: true, order, events, flags, reservations });
   }
-  const scheduleMatch = path.match(/^\/api\/admin\/delivery\/orders\/([^/]+)\/schedule$/);
+  const scheduleMatch = path.match(new RegExp('^/api/admin/delivery/orders/([^/]+)/schedule$'));
   if (scheduleMatch && request.method === 'PATCH') {
     let body = {}; try { body = await request.json(); } catch (_) {}
     const orderId = decodeURIComponent(scheduleMatch[1]);
@@ -692,7 +692,7 @@ export async function handleAdminDeliveryRequest(request, env) {
       'WHERE r.status=\'pending\' ORDER BY r.created_at LIMIT 200'
     ).all()).results || [] });
   }
-  const requestMatch = path.match(/^\/api\/admin\/delivery\/requests\/([^/]+)$/);
+  const requestMatch = path.match(new RegExp('^/api/admin/delivery/requests/([^/]+)$'));
   if (requestMatch && request.method === 'PATCH') {
     let body = {}; try { body = await request.json(); } catch (_) {}
     const requestId = decodeURIComponent(requestMatch[1]), decision = clean(body.decision), note = clean(body.note).slice(0, 500);
@@ -726,7 +726,7 @@ export async function handleAdminDeliveryRequest(request, env) {
     await writeAudit(env, row.order_id, 'owner', 'owner', 'order_request_' + nextStatus, note, row, { status: nextStatus, order: latest });
     return response({ ok: true, requestId, status: nextStatus, orderStatus: latest?.delivery_status });
   }
-  const flagMatch = path.match(/^\/api\/admin\/delivery\/flags\/([^/]+)$/);
+  const flagMatch = path.match(new RegExp('^/api/admin/delivery/flags/([^/]+)$'));
   if (flagMatch && request.method === 'PATCH') {
     let body = {}; try { body = await request.json(); } catch (_) {}
     const flagId = decodeURIComponent(flagMatch[1]), note = clean(body.note).slice(0,500);
