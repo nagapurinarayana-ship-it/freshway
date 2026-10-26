@@ -108,6 +108,11 @@ jobs:
         with:
           ref: ${{ inputs.source_ref }}
           path: source
+      - name: Checkout production baseline schema
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          path: baseline
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
@@ -167,7 +172,7 @@ jobs:
           delete source.secrets;
           fs.writeFileSync(process.argv[3], JSON.stringify(source, null, 2) + '\n', { mode: 0o600 });
           NODE
-      - name: Initialize the isolated preview D1 schema safely
+      - name: Initialize the isolated preview D1 schema and apply feature migrations
         working-directory: tooling/worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -197,6 +202,7 @@ jobs:
             throw new Error('Preview database marker does not match the configured D1 UUID. Refusing to touch this database.');
           }
           NODE
+            echo "Preview D1 is already initialized for this UUID; skipping schema and migrations."
           else
             npx wrangler d1 execute freshway-preview --remote --json --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' LIMIT 1" --config "$config" > "$marker_result"
             node --input-type=module - "$marker_result" <<'NODE'
@@ -206,12 +212,15 @@ jobs:
           if (!Array.isArray(rows)) throw new Error('Unexpected D1 emptiness query response.');
           if (rows.length) throw new Error('Unmarked preview D1 is not empty. Refusing to initialize or use an existing database; create a new empty freshway-preview database.');
           NODE
+            # Start from the actual production baseline schema, then apply the feature's
+            # incremental migrations. This verifies ALTER TABLE/rebuilds against a real
+            # pre-feature schema instead of bypassing migration behavior with feature schema.sql.
+            npx wrangler d1 execute freshway-preview --remote --file ../../baseline/worker/schema.sql --config "$config"
+            for migration in 0037_order_delivery_scheduling.sql 0038_anonymize_delivery_requests.sql 0039_customer_preferred_delivery_date.sql 0040_order_delivered_at.sql; do
+              npx wrangler d1 execute freshway-preview --remote --file "../../source/worker/migrations/$migration" --config "$config"
+            done
+            npx wrangler d1 execute freshway-preview --remote --command "CREATE TABLE IF NOT EXISTS freshway_preview_metadata (id INTEGER PRIMARY KEY CHECK(id=1), database_id TEXT NOT NULL, initialized_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP); INSERT OR IGNORE INTO freshway_preview_metadata (id,database_id) VALUES (1,'$FRESHWAY_PREVIEW_D1_DATABASE_ID')" --config "$config"
           fi
-          # The repository's SQL files are incremental migrations for an already
-          # initialized database; the initial preview database must use the canonical
-          # full schema instead of attempting migration 0001 against missing tables.
-          npx wrangler d1 execute freshway-preview --remote --file ../../source/worker/schema.sql --config "$config"
-          npx wrangler d1 execute freshway-preview --remote --command "CREATE TABLE IF NOT EXISTS freshway_preview_metadata (id INTEGER PRIMARY KEY CHECK(id=1), database_id TEXT NOT NULL, initialized_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP); INSERT OR IGNORE INTO freshway_preview_metadata (id,database_id) VALUES (1,'$FRESHWAY_PREVIEW_D1_DATABASE_ID')" --config "$config"
           npx wrangler d1 execute freshway-preview --remote --json --command "SELECT delivered_at, scheduled_delivery_date, scheduled_start_minute FROM orders LIMIT 0; SELECT requested_delivery_date FROM order_action_requests LIMIT 0; SELECT status FROM delivery_slot_reservations LIMIT 0; SELECT status FROM delivery_store_inventory_reservations LIMIT 0" --config "$config" > /dev/null
       - name: Bootstrap the preview Worker without attaching production routes
         working-directory: tooling/worker
