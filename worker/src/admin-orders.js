@@ -212,7 +212,7 @@ export async function updateOrder(env,id,payload,actor={}){
   let updateResult;
   const orderUpdateIndex=statements.indexOf(orderUpdate);
   try{
-    const batchResult=await env.DB.batch(statements);
+    const batchResult=typeof env.DB.batch==='function'?await env.DB.batch(statements):await Promise.all(statements.map(statement=>statement.run()));
     updateResult=batchResult?.[orderUpdateIndex];
   }catch(error){
     if(/DELIVERY_SLOT_FULL|DELIVERY_SLOT_CLOSED/i.test(String(error?.message||'')))throw new Error('ORDER_CONFLICT: Delivery slot capacity changed during the operation. Review the schedule and retry.');
