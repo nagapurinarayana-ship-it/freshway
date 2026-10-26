@@ -86,7 +86,7 @@ function fixture({ status = 'New', reservedQty = 2, stockQuantity = 3 } = {}) {
         args: [],
         bind(...args) { this.args = args; return this; },
         async first() {
-          if (sql.startsWith('SELECT delivery_status,payment_status,delivery_plan,customer_id,is_test_order FROM orders')) {
+          if (sql.startsWith('SELECT delivery_status,payment_status,delivery_plan,customer_id,is_test_order')) {
             return { ...order };
           }
           throw new Error('Unexpected first(): ' + sql);
