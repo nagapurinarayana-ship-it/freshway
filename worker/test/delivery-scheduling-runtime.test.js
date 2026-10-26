@@ -100,7 +100,8 @@ test('customer reschedule saves the new date directly and releases old slot and 
     assert.equal(db.db.prepare("SELECT schedule_status FROM orders WHERE id='order-reschedule'").get().schedule_status,'confirmed');
     assert.equal(db.db.prepare("SELECT scheduled_slot_id FROM orders WHERE id='order-reschedule'").get().scheduled_slot_id,null);
     assert.equal(db.db.prepare("SELECT status FROM delivery_slot_reservations WHERE order_id='order-reschedule'").get().status,'released');
-    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-reschedule'").get().status,'released');
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-reschedule'").get().status,'reserved');
+    assert.equal(db.db.prepare("SELECT assigned_store_id FROM orders WHERE id='order-reschedule'").get().assigned_store_id,'store-1');
     assert.equal(db.db.prepare("SELECT COUNT(*) count FROM order_action_requests WHERE order_id='order-reschedule' AND request_type='reschedule'").get().count,0);
     const audit=db.db.prepare("SELECT actor_type,actor_id,action FROM order_audit_events WHERE order_id='order-reschedule' AND action='delivery_date_changed_by_customer'").get();
     assert.equal(audit.actor_type,'customer');
