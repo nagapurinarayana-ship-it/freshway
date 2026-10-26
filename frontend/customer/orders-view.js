@@ -15,10 +15,18 @@
     if(status==='delivered'||status==='out for delivery'||status==='dispatched')return '<p class="muted invoice-pending">No invoice is available for download yet. Contact FreshWay if you need help with a dispatched order.</p>';
     return '<p class="muted invoice-pending">Your order is awaiting dispatch. The invoice PDF will be available here after dispatch.</p>';
   };
+  const indiaDate=value=>{
+    if(!value)return '';
+    const raw=String(value),date=new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw)?raw:raw.replace(' ','T')+'Z');
+    if(Number.isNaN(date.getTime()))return raw.slice(0,10);
+    const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date),values={};
+    parts.forEach(part=>values[part.type]=part.value);
+    return values.year+'-'+values.month+'-'+values.day;
+  };
   const scheduleText=o=>{
     if(String(o.status||'').toLowerCase()==='delivered'){
-      const deliveredDate=o.deliveredAt||o.updatedAt||o.createdAt;
-      return deliveredDate?'Delivered on '+String(deliveredDate).slice(0,10):'Delivered';
+      const deliveredDate=indiaDate(o.deliveredAt||o.updatedAt||o.createdAt);
+      return deliveredDate?'Delivered on '+deliveredDate:'Delivered';
     }
     return o.scheduledDelivery?.date?'Delivery date: '+String(o.scheduledDelivery.date):'';
   };
