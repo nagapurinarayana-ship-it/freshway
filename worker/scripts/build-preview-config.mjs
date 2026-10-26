@@ -54,6 +54,10 @@ export function buildPreviewConfig(productionConfig, {
   delete preview.triggers;
   // Keep deployment preview-only even if production config gains a custom route later.
   delete preview.routes;
+  preview.secrets = {
+    ...(preview.secrets || {}),
+    required: ['ADMIN_TOKEN', 'CUSTOMER_SESSION_SECRET', 'ADMIN_SESSION_SECRET']
+  };
   preview.workers_dev = true;
   return preview;
 }
