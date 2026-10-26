@@ -18,6 +18,7 @@ function fixture({ status = 'New', reservedQty = 2, stockQuantity = 3 } = {}) {
 
   function evaluate(sql, args, state) {
     calls.push({ sql, args });
+    if (sql.startsWith('INSERT INTO order_audit_events') || sql.startsWith('INSERT INTO order_operational_flags')) return { meta: { changes: 1 } };
     if (sql.startsWith('UPDATE products SET stock_quantity=stock_quantity+?')) {
       const [qty, productId] = args;
       const p = state.products.get(productId);
