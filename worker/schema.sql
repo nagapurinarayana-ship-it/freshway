@@ -404,7 +404,7 @@ CREATE INDEX IF NOT EXISTS idx_delivery_store_inventory_product_state
 CREATE TABLE IF NOT EXISTS order_action_requests (
   id TEXT PRIMARY KEY,
   order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
-  customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
+  customer_id TEXT REFERENCES customers(id) ON DELETE SET NULL,
   request_type TEXT NOT NULL CHECK(request_type IN ('cancellation','reschedule','return','issue')),
   requested_slot_id TEXT REFERENCES delivery_slots(id) ON DELETE RESTRICT,
   reason TEXT NOT NULL DEFAULT '',
