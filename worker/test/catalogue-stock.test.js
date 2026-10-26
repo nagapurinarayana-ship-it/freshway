@@ -63,7 +63,7 @@ class SQLiteD1 {
   }
   product(id) { return this.db.prepare('SELECT * FROM products WHERE id=?').get(id); }
   inventory(productId) {
-    return this.db.prepare('SELECT store_id,stock_quantity FROM delivery_store_inventory WHERE product_id=? ORDER BY store_id').all(productId);
+    return this.db.prepare('SELECT store_id,stock_quantity FROM delivery_store_inventory WHERE product_id=? ORDER BY store_id').all(productId).map(row => ({...row}));
   }
 }
 
