@@ -123,7 +123,7 @@ test('Owner delivery routes are mounted in the authenticated admin API and keep 
 
 test('store reassignment uses valid reservation SQL and stock-managed products receive per-store inventory rows', () => {
   const delivery = read('../src/delivery-scheduling.js');
-  const worker = read('../src/index.js');
+  const worker = read('../src/catalogue-api.js');
   const moveStart = delivery.indexOf('async function moveOrderSchedule');
   const transferSqlAt = delivery.indexOf(
     'INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status,owner_override,override_reason)',
