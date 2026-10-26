@@ -338,7 +338,7 @@ async function moveOrderSchedule(env, order, target, actorType, actorId, options
     const fallback = await env.DB.prepare('SELECT s.id,s.store_id,s.delivery_date,s.start_minute,s.end_minute,s.capacity,s.is_active,ds.name store_name,ds.latitude,ds.longitude,ds.service_radius_km,ds.is_active store_active FROM delivery_slots s JOIN delivery_stores ds ON ds.id=s.store_id WHERE s.id=?').bind(selected.id).first();
     if (fallback) chosen = { ...fallback, occupied: 0 };
   }
-  const newStoreId = chosen?.store_id || order.assigned_store_id || null;
+  const newStoreId = chosen?.store_id || target.store_id || order.assigned_store_id || null;
   const newSlotId = chosen?.id || null;
   if (owner && override && !reason) throw new Error('Enter a reason for the Owner override.');
   if (owner && slotConflict && !override) throw new Error('This delivery window has a capacity, availability, date, or inventory conflict. Enable Owner override and add a reason to continue.');
@@ -385,7 +385,7 @@ async function moveOrderSchedule(env, order, target, actorType, actorId, options
   ).bind(id('audit'), order.id, actorType, actorId || '', actorType === 'owner' ? 'delivery_rescheduled_by_owner' : 'delivery_rescheduled_by_customer',
     reason, enc(before), enc({ date: targetDate, startMinute: start, endMinute: end, slotId: newSlotId, storeId: newStoreId, status: scheduleStatus })));
   if (slotConflict || stockConflict || !newStoreId || currentStatus === 'Cancelled') {
-    const type = stockConflict ? 'store_stock_shortfall' : slotConflict ? 'slot_overbooked_or_inactive' : 'delivery_unassigned';
+    const type = stockConflict ? 'store_stock_shortfall' : (!selected && owner ? 'manual_schedule_without_slot' : slotConflict ? 'slot_overbooked_or_inactive' : 'delivery_unassigned');
     statements.push(env.DB.prepare(
       'INSERT INTO order_operational_flags (id,order_id,flag_type,status,details_json) VALUES (?,?,?,\'open\',?) ' +
       'ON CONFLICT DO NOTHING'
