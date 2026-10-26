@@ -18,8 +18,9 @@ class SQLiteD1 {
         VALUES ('store-1','Test Store','Test Address',17.385,78.4867,10,1);
       INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity)
         VALUES ('store-1','product-1',5);
-      INSERT INTO delivery_scheduling_settings (id,enabled,booking_horizon_days,same_day_cutoff_minutes,timezone)
-        VALUES (1,1,7,120,'Asia/Kolkata');
+      UPDATE delivery_scheduling_settings
+        SET enabled=1,booking_horizon_days=7,same_day_cutoff_minutes=120,timezone='Asia/Kolkata'
+        WHERE id=1;
       INSERT INTO delivery_slots (id,store_id,delivery_date,start_minute,end_minute,capacity,is_active)
         VALUES ('slot-old','store-1','2026-01-01',600,720,5,1);
       INSERT INTO delivery_slots (id,store_id,delivery_date,start_minute,end_minute,capacity,is_active)
