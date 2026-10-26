@@ -105,7 +105,7 @@ test('production schema audit requires the delivery scheduling schema, migration
     'scheduled_end_minute','schedule_status'
   ]) assert.ok(productionSchemaAudit.includes("'" + column + "'"), 'production audit must verify orders.' + column);
   for (const migration of [
-    '0037_order_delivery_scheduling.sql','0038_anonymize_delivery_requests.sql'
+    '0037_order_delivery_scheduling.sql','0038_anonymize_delivery_requests.sql','0039_customer_preferred_delivery_date.sql','0040_order_delivered_at.sql'
   ]) assert.ok(productionSchemaAudit.includes(migration), 'production audit must require ' + migration);
   for (const trigger of [
     'delivery_slot_capacity_before_insert','delivery_slot_capacity_before_update',
