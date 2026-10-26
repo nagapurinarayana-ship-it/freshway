@@ -412,7 +412,12 @@ async function customerAction(request, env, customerId, orderId, action) {
   }
   if (action === 'request') {
     const requestType = clean(body.requestType);
-    if (!['cancellation','reschedule','return','issue'].includes(requestType)) return response({ error: 'Choose a valid order request type.' }, 400);
+    if (!['cancellation','return','issue'].includes(requestType)) {
+      if (requestType === 'reschedule') {
+        return response({ error: 'Delivery dates update directly. Use Change delivery date on My Orders; no approval request is needed.' }, 409);
+      }
+      return response({ error: 'Choose a valid order request type.' }, 400);
+    }
     if (requestType === 'return' && order.delivery_status !== 'Delivered') return response({ error: 'Return requests are available after delivery. For an active order, request cancellation.' }, 409);
     const queued = await queueRequest(env, order, customerId, requestType, body);
     return response({ ok: true, request: queued }, 202);
