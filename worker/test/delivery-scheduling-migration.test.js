@@ -6,6 +6,7 @@ import test from 'node:test';
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 const migration37 = read('../migrations/0037_order_delivery_scheduling.sql');
 const migration38 = read('../migrations/0038_anonymize_delivery_requests.sql');
+const migration40 = read('../migrations/0040_order_delivered_at.sql');
 const productionSchemaAudit = read('../scripts/audit-production-schema.mjs');
 
 function legacyDatabase() {
@@ -54,6 +55,8 @@ test('0037 then 0038 migrate a legacy D1-like database without losing requests o
     assert.equal(oldRequest.customer_id, 'customer-1');
 
     db.exec(migration38);
+    db.exec(migration40);
+    assert.ok(db.prepare('PRAGMA table_info(orders)').all().some(column => column.name === 'delivered_at'), '0040 must add the actual delivery timestamp');
     const rebuiltRequest = db.prepare("SELECT * FROM order_action_requests WHERE id='request-1'").get();
     assert.equal(rebuiltRequest.customer_id, 'customer-1');
     assert.equal(rebuiltRequest.reason, 'private customer text');
