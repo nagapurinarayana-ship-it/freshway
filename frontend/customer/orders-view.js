@@ -28,7 +28,9 @@
       const deliveredDate=indiaDate(o.deliveredAt);
       return deliveredDate?'Delivered on '+deliveredDate:'Delivered';
     }
-    return o.scheduledDelivery?.date?'Delivery date: '+String(o.scheduledDelivery.date):'';
+    if(!o.scheduledDelivery?.date)return '';
+    const date=String(o.scheduledDelivery.date),start=String(o.scheduledDelivery.startTime||''),end=String(o.scheduledDelivery.endTime||'');
+    return 'Delivery date: '+date+(start&&end?' · '+start+'–'+end:'');
   };
   const actions=(o,esc)=>{
     const id=esc(o.id),status=String(o.status||'').toLowerCase();
