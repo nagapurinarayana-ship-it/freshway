@@ -66,16 +66,28 @@ test('delivery slot endpoint fails closed without leaking database schema errors
   assert.doesNotMatch(body.error, /delivery_scheduling_settings|D1_ERROR|SQLITE_ERROR/i);
 });
 
-test('checkout cannot bypass an enabled delivery-slot requirement', async () => {
-  const env = envWithSettings({ id: 1, enabled: 1, booking_horizon_days: 7, same_day_cutoff_minutes: 120, timezone: 'Asia/Kolkata' });
+test('checkout requires a valid preferred delivery date and no longer requires a delivery slot', async () => {
   await assert.rejects(
-    () => prepareCheckoutDelivery(env, { address: {} }, [{ id: 'rice', qty: 1 }]),
-    /Choose an available delivery date and time window/i
+    () => prepareCheckoutDelivery(envWithSettings({ id: 1, enabled: 1 }), {}, [{ id: 'rice', qty: 1 }]),
+    /Choose a preferred delivery date/i
   );
+  await assert.rejects(
+    () => prepareCheckoutDelivery(envWithSettings({ id: 1, enabled: 1 }), { preferredDeliveryDate: '2026-02-30' }, [{ id: 'rice', qty: 1 }]),
+    /valid preferred delivery date/i
+  );
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone:'Asia/Kolkata', year:'numeric', month:'2-digit', day:'2-digit' }).formatToParts(new Date()).reduce((o,p)=>(o[p.type]=p.value,o),{});
+  const today = parts.year+'-'+parts.month+'-'+parts.day;
+  const dateParts = today.split('-').map(Number);
+  const tomorrowDate = new Date(Date.UTC(dateParts[0], dateParts[1]-1, dateParts[2]+1));
+  const tomorrow = tomorrowDate.getUTCFullYear()+'-'+String(tomorrowDate.getUTCMonth()+1).padStart(2,'0')+'-'+String(tomorrowDate.getUTCDate()).padStart(2,'0');
+  const delivery = await prepareCheckoutDelivery(envWithSettings({ id: 1, enabled: 0 }), { preferredDeliveryDate: tomorrow }, [{ id:'rice',qty:1 }]);
+  assert.equal(delivery.date, tomorrow);
+  assert.equal(delivery.status, 'requested');
 });
 
 test('numbered migration contains every delivery table, order field and concurrency trigger', () => {
   const migration = read('../migrations/0037_order_delivery_scheduling.sql');
+  const preferredDateMigration = read('../migrations/0039_customer_preferred_delivery_date.sql');
   const schema = read('../schema.sql');
   for (const field of [
     'scheduled_delivery_date', 'scheduled_slot_id', 'assigned_store_id',
@@ -84,6 +96,8 @@ test('numbered migration contains every delivery table, order field and concurre
     assert.match(migration, new RegExp('ALTER TABLE orders ADD COLUMN ' + field));
     assert.ok(schema.includes(field), 'baseline schema missing ' + field);
   }
+  assert.ok(preferredDateMigration.includes('ALTER TABLE order_action_requests ADD COLUMN requested_delivery_date TEXT'));
+  assert.ok(schema.includes('requested_delivery_date TEXT'));
   for (const table of [
     'delivery_scheduling_settings', 'delivery_stores', 'delivery_store_inventory',
     'delivery_slots', 'delivery_slot_reservations', 'delivery_store_inventory_reservations',
@@ -101,7 +115,7 @@ test('numbered migration contains every delivery table, order field and concurre
   }
 });
 
-test('customer checkout and My Orders UI are wired to server-authoritative delivery slots and authenticated actions', () => {
+test('customer checkout and My Orders use a simple preferred delivery date and authenticated actions', () => {
   const html = read('../../index.html');
   const app = read('../../app.js');
   const picker = read('../../frontend/customer/delivery-booking.js');
@@ -112,7 +126,10 @@ test('customer checkout and My Orders UI are wired to server-authoritative deliv
   assert.ok(html.includes('frontend/customer/order-actions.js'));
   assert.ok(app.includes('FreshWayCustomerDeliveryBookingInstance'));
   assert.ok(app.includes('freshway:order-actions-changed'));
-  assert.ok(picker.includes("api('/api/delivery/slots'"));
+  assert.ok(picker.includes('Choose delivery day'));
+  assert.ok(picker.includes('Tomorrow'));
+  assert.ok(picker.includes('Choose date'));
+  assert.ok(!picker.includes("api('/api/delivery/slots'"));
   assert.ok(actions.includes('/cancel'));
   assert.ok(actions.includes('/reschedule'));
   assert.ok(actions.includes('/request'));
@@ -122,16 +139,17 @@ test('customer checkout and My Orders UI are wired to server-authoritative deliv
   assert.ok(auth.includes('handleCustomerDeliveryRequest(request, env, deliveryCustomerId)'));
 });
 
-test('Owner delivery UI prevents duplicate delegated handlers and requires reasoned manual overrides', () => {
+test('Owner delivery UI only exposes date confirmation and customer date-change requests', () => {
   const html = read('../../admin.html');
   const js = read('../../frontend/admin/delivery-management.js');
   assert.ok(html.includes('frontend/admin/delivery-management.js'));
-  assert.ok(js.includes('if(!root.dataset.fwDeliveryClickBound)'));
-  assert.ok(js.includes('panel.dataset.orderId=orderId'));
-  assert.ok(js.includes('Manual date and time must be saved as an Owner override'));
+  assert.ok(js.includes('Delivery date'));
+  assert.ok(js.includes('data-confirm-date'));
+  assert.ok(js.includes('data-request-decision'));
   assert.ok(js.includes('/admin/delivery/orders/'));
-  assert.ok(js.includes('/admin/delivery/flags/'));
-  assert.ok(js.includes('Mark resolved'));
+  assert.ok(js.includes('/admin/delivery/requests/'));
+  assert.ok(!js.includes('Create delivery windows'));
+  assert.ok(!js.includes('Store-level stock'));
 });
 
 test('Owner delivery routes are mounted in the authenticated admin API and keep an audit trail', () => {
