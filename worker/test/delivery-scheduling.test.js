@@ -180,3 +180,11 @@ test('account deletion redacts delivery request PII and preserves anonymous oper
   assert.ok(deletion.includes('json_remove(before_json'));
   assert.ok(deletion.includes('json_remove(after_json'));
 });
+
+test('Owner manual scheduling preserves the explicitly selected store and labels unslotted overrides accurately', () => {
+  const delivery = read('../src/delivery-scheduling.js');
+  assert.ok(delivery.includes('const newStoreId = chosen?.store_id || target.store_id || order.assigned_store_id || null;'),
+    'custom Owner schedules must honour the store selected in the form');
+  assert.ok(delivery.includes("(!selected && owner ? 'manual_schedule_without_slot'"),
+    'manual schedules without a configured capacity slot must create a clear operational exception');
+});
