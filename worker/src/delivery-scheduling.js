@@ -619,6 +619,9 @@ export async function handleAdminDeliveryRequest(request, env) {
     const order = await getOrderForAction(env, orderId);
     if (body.deliveryDate && !body.startTime && !body.endTime && !body.slotId) {
       if (!order) throw new Error('Order not found.');
+      if (['delivered', 'cancelled'].includes(String(order.delivery_status || '').trim().toLowerCase())) {
+        throw new Error('Delivery date cannot be changed for a delivered or cancelled order.');
+      }
       const date = clean(body.deliveryDate), now = istNowParts();
       if (!dateValid(date) || date < now.date || date > addDays(now.date, 60)) throw new Error('Choose a valid delivery date between today and the next 60 days.');
       const before = { ...order }, plan = date === now.date ? 'Today' : date === addDays(now.date,1) ? 'Tomorrow' : 'Later';
