@@ -11,9 +11,12 @@ const production = {
   vars: {
     FRESHWAY_ENVIRONMENT: 'production',
     APP_ORIGIN: 'https://fwcoldpressed.in',
-    APP_ORIGINS: 'https://fwcoldpressed.in,https://freshway-f32.pages.dev'
+    APP_ORIGINS: 'https://fwcoldpressed.in,https://freshway-f32.pages.dev',
+    PRODUCTION_ONLY_MARKER: 'must-not-leak'
   },
-  triggers: { crons: ['17 * * * *'] }
+  triggers: { crons: ['17 * * * *'] },
+  routes: [{ pattern: 'fwcoldpressed.in/*', zone_name: 'fwcoldpressed.in' }],
+  kv_namespaces: [{ binding: 'PRODUCTION_CACHE', id: 'production-kv-id' }]
 };
 const valid = {
   databaseId: previewId,
@@ -30,10 +33,12 @@ test('preview config uses a dedicated Worker and an explicitly separate D1 datab
   assert.equal(config.vars.FRESHWAY_ENVIRONMENT, 'development');
   assert.equal(config.vars.APP_ORIGIN, valid.appOrigin);
   assert.equal(config.vars.APP_ORIGINS, valid.appOrigins);
+  assert.equal('PRODUCTION_ONLY_MARKER' in config.vars, false, 'production-only variables must not leak into preview');
   assert.equal(config.workers_dev, true);
   assert.deepEqual(config.secrets.required, ['ADMIN_TOKEN', 'CUSTOMER_SESSION_SECRET', 'ADMIN_SESSION_SECRET']);
   assert.equal('triggers' in config, false);
   assert.equal('routes' in config, false);
+  assert.equal('kv_namespaces' in config, false, 'production resource bindings must not leak into preview');
   assert.equal(production.d1_databases[0].database_id, productionId, 'building a preview must not mutate production config');
 });
 
@@ -41,6 +46,14 @@ test('preview config fails closed when the database ID is missing, invalid, or p
   assert.throws(() => buildPreviewConfig(production, { ...valid, databaseId: '' }), /valid Cloudflare D1 UUID/i);
   assert.throws(() => buildPreviewConfig(production, { ...valid, databaseId: 'not-a-uuid' }), /valid Cloudflare D1 UUID/i);
   assert.throws(() => buildPreviewConfig(production, { ...valid, databaseId: productionId }), /matches production/i);
+});
+
+test('preview config fails closed if production adds a second D1 binding', () => {
+  const expanded = {
+    ...production,
+    d1_databases: [...production.d1_databases, { binding: 'ANALYTICS_DB', database_name: 'analytics', database_id: '00000000-0000-4000-8000-000000000002' }]
+  };
+  assert.throws(() => buildPreviewConfig(expanded, valid), /exactly one source D1 binding/i);
 });
 
 test('preview config accepts HTTPS origins only and requires the primary origin in the allowlist', () => {
