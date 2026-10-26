@@ -107,14 +107,25 @@ async function slotRows(env, fromDate, toDate) {
     'WHERE s.delivery_date>=? AND s.delivery_date<=? ORDER BY s.delivery_date,s.start_minute,ds.name'
   ).bind(fromDate, toDate).all()).results || [];
 }
-function cleanItems(raw) {
-  if (!Array.isArray(raw)) return [];
-  const seen = new Set();
-  return raw.map(item => ({
-    id: clean(item.id || item.productId || item.product_id),
-    qty: int(item.qty ?? item.quantity, 0),
-    stockReservedQty: int(item.stockReservedQty ?? item.stock_reserved_qty, 0)
-  })).filter(item => item.id && item.qty > 0 && item.qty <= 99 && !seen.has(item.id) && seen.add(item.id));
+async function cleanItems(env, raw) {
+  if (!Array.isArray(raw) || !raw.length) return [];
+  const quantities = new Map();
+  for (const item of raw) {
+    const productId = clean(item?.id || item?.productId || item?.product_id);
+    const qty = int(item?.qty ?? item?.quantity, 0);
+    if (!productId || qty < 1 || qty > 99) throw new Error('The basket contains an invalid product quantity. Refresh the cart and try again.');
+    const combined = (quantities.get(productId) || 0) + qty;
+    if (combined > 99) throw new Error('Maximum quantity for a product is 99.');
+    quantities.set(productId, combined);
+  }
+  const ids = [...quantities.keys()];
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = (await env.DB.prepare('SELECT id,stock_managed FROM products WHERE active=1 AND id IN (' + placeholders + ')').bind(...ids).all()).results || [];
+  if (rows.length !== ids.length) throw new Error('One or more products are no longer available. Refresh your cart and try again.');
+  return rows.map(product => {
+    const qty = quantities.get(product.id);
+    return { id: product.id, qty, stockReservedQty: Number(product.stock_managed) === 1 ? qty : 0 };
+  });
 }
 async function resolveAvailableSlots(env, payload, requestedDate = '') {
   const settings = await readSettings(env);
@@ -124,7 +135,7 @@ async function resolveAvailableSlots(env, payload, requestedDate = '') {
   if (!dateValid(dateFrom)) throw new Error('Invalid delivery date.');
   const dateTo = addDays(now.date, Number(settings.booking_horizon_days || 7));
   if (dateFrom < now.date || dateFrom > dateTo) throw new Error('Choose a date within the available delivery window.');
-  const items = cleanItems(payload.items);
+  const items = await cleanItems(env, payload.items);
   if (!items.length) return { enabled: true, settings, slots: [], message: 'Add products to your cart to check delivery availability.' };
   const activeStores = (await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores WHERE is_active=1').first())?.count || 0;
   const stock = await inventoryMap(env);
@@ -306,8 +317,10 @@ async function moveOrderSchedule(env, order, target, actorType, actorId, options
     candidates.sort((a, b) => (a.distance_km ?? 0) - (b.distance_km ?? 0) || a.store_name.localeCompare(b.store_name));
   }
   let chosen = candidates[0] || null;
+  const ownReservation = chosen ? await env.DB.prepare("SELECT COUNT(*) count FROM delivery_slot_reservations WHERE order_id=? AND slot_id=? AND status IN ('reserved','conflict')").bind(order.id, chosen.id).first() : null;
+  const occupiedExcludingThisOrder = Math.max(0, Number(chosen?.occupied || 0) - Number(ownReservation?.count || 0));
   const slotConflict = !chosen || pastOrCutoff || !Number(chosen.is_active) || !Number(chosen.store_active) ||
-    Number(chosen.occupied) >= Number(chosen.capacity);
+    occupiedExcludingThisOrder >= Number(chosen.capacity);
   if (!chosen && !owner) throw new Error('That delivery window is no longer available. Refresh available slots.');
   if (!chosen && owner && selected) {
     const fallback = await env.DB.prepare('SELECT s.id,s.store_id,s.delivery_date,s.start_minute,s.end_minute,s.capacity,s.is_active,ds.name store_name,ds.latitude,ds.longitude,ds.service_radius_km,ds.is_active store_active FROM delivery_slots s JOIN delivery_stores ds ON ds.id=s.store_id WHERE s.id=?').bind(selected.id).first();
@@ -412,6 +425,7 @@ async function customerAction(request, env, customerId, orderId, action) {
       'SELECT s.id,s.store_id,s.delivery_date,s.start_minute,s.end_minute,s.capacity,s.is_active,ds.name store_name,ds.latitude,ds.longitude,ds.service_radius_km,ds.is_active store_active FROM delivery_slots s JOIN delivery_stores ds ON ds.id=s.store_id WHERE s.id=? LIMIT 1'
     ).bind(slotId).first();
     if (!selected) return response({ error: 'That delivery window is no longer available.' }, 409);
+    if (order.delivery_status === 'Delivered' || order.delivery_status === 'Cancelled') return response({ error: 'This order cannot be rescheduled in its current status. Submit an issue or return request if it was delivered.' }, 409);
     if (!beforeCutoff(order, settings)) {
       const queued = await queueRequest(env, order, customerId, 'reschedule', { ...body, slotId });
       return response({ ok: true, request: queued, status: order.delivery_status }, 202);
