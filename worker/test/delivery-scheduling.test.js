@@ -116,7 +116,7 @@ test('Owner delivery routes are mounted in the authenticated admin API and keep 
   assert.ok(adminData.includes('handleAdminDeliveryRequest'));
   assert.ok(adminData.includes("u.pathname === '/api/admin/delivery'"));
   assert.ok(adminAuth.includes('handleAdminData'));
-  assert.ok(delivery.includes('scheduleMatch = path.match'));
+  assert.ok(delivery.includes('const scheduleMatch'));
   assert.ok(delivery.includes('order_audit_events'));
   assert.ok(delivery.includes('order_operational_flags'));
 });
