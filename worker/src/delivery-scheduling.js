@@ -131,7 +131,7 @@ async function cleanItems(env, raw) {
     return { id: product.id, qty, stockReservedQty: Number(product.stock_managed) === 1 ? qty : 0 };
   });
 }
-async function resolveAvailableSlots(env, payload, requestedDate = '') {
+async function resolveAvailableSlots(env, payload, requestedDate = '', excludeOrderId = '') {
   const settings = await readSettings(env);
   if (!Number(settings.enabled)) return { enabled: false, settings, slots: [] };
   const now = istNowParts();
@@ -142,7 +142,7 @@ async function resolveAvailableSlots(env, payload, requestedDate = '') {
   const items = await cleanItems(env, payload.items);
   if (!items.length) return { enabled: true, settings, slots: [], message: 'Add products to your cart to check delivery availability.' };
   const activeStores = (await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores WHERE is_active=1').first())?.count || 0;
-  const stock = await inventoryMap(env);
+  const stock = await inventoryMap(env, excludeOrderId);
   const rows = await slotRows(env, dateFrom, dateTo);
   const eligible = [];
   for (const slot of rows) {
@@ -339,7 +339,7 @@ async function moveOrderSchedule(env, order, target, actorType, actorId, options
   const oldStore = order.assigned_store_id || null;
   const changingStore = !!(newStoreId && newStoreId !== oldStore);
   const lines = (await env.DB.prepare('SELECT product_id id,qty,stock_reserved_qty stockReservedQty FROM order_items WHERE order_id=?').bind(order.id).all()).results || [];
-  const stock = await inventoryMap(env);
+  const stock = await inventoryMap(env, order.id);
   let stockConflict = false;
   if (newStoreId) {
     stockConflict = !inventoryFits(newStoreId, lines, stock);
@@ -434,7 +434,7 @@ async function customerAction(request, env, customerId, orderId, action) {
       const queued = await queueRequest(env, order, customerId, 'reschedule', { ...body, slotId });
       return response({ ok: true, request: queued, status: order.delivery_status }, 202);
     }
-    const slots = await resolveAvailableSlots(env, { address: body.address || {}, items: body.items || [] }, selected.delivery_date);
+    const slots = await resolveAvailableSlots(env, { address: body.address || {}, items: body.items || [] }, selected.delivery_date, order.id);
     const valid = slots.slots.some(slot => slot.date === selected.delivery_date &&
       slot.startMinute === Number(selected.start_minute) && slot.endMinute === Number(selected.end_minute));
     if (!valid) return response({ error: 'That delivery window is full or cannot fulfil the full basket. Choose another window.' }, 409);
@@ -699,7 +699,10 @@ export async function handleAdminDeliveryRequest(request, env) {
     if (!row) throw new Error('Order request not found.');
     if (row.status !== 'pending' && !(decision === 'complete' && row.status === 'approved')) throw new Error('This request has already been resolved.');
     if (decision === 'approve' && row.request_type === 'cancellation') {
+      const beforeOrder = await getOrderForAction(env, row.order_id);
       await updateOrder(env, row.order_id, { status: 'Cancelled' });
+      const afterOrder = await env.DB.prepare('SELECT customer_id,delivery_status,payment_status,delivery_plan,is_test_order FROM orders WHERE id=?').bind(row.order_id).first();
+      if (beforeOrder && afterOrder) await notifyCustomerAndOwner(env, row.order_id, { customer_id:beforeOrder.customer_id,delivery_status:beforeOrder.delivery_status,payment_status:beforeOrder.payment_status,delivery_plan:beforeOrder.delivery_plan,is_test_order:beforeOrder.is_test_order }, 'order_cancellation_request_approved', 'Your cancellation request has been approved.', afterOrder);
     } else if (decision === 'approve' && row.request_type === 'reschedule') {
       if (!row.requested_slot_id) throw new Error('This reschedule request has no target delivery window.');
       const order = await getOrderForAction(env, row.order_id);
@@ -720,6 +723,19 @@ export async function handleAdminDeliveryRequest(request, env) {
     const latest = await getOrderForAction(env, row.order_id);
     await writeAudit(env, row.order_id, 'owner', 'owner', 'order_request_' + nextStatus, note, row, { status: nextStatus, order: latest });
     return response({ ok: true, requestId, status: nextStatus, orderStatus: latest?.delivery_status });
+  }
+  const flagMatch = path.match(/^\\/api\\/admin\\/delivery\\/flags\\/([^/]+)$/);
+  if (flagMatch && request.method === 'PATCH') {
+    let body = {}; try { body = await request.json(); } catch (_) {}
+    const flagId = decodeURIComponent(flagMatch[1]), note = clean(body.note).slice(0,500);
+    if (clean(body.status) !== 'resolved') throw new Error('Choose resolved as the exception status.');
+    if (!note) throw new Error('Enter a short note describing what was reviewed.');
+    const flag = await env.DB.prepare('SELECT * FROM order_operational_flags WHERE id=?').bind(flagId).first();
+    if (!flag) throw new Error('Delivery exception not found.');
+    if (flag.status === 'resolved') return response({ok:true,alreadyResolved:true,status:'resolved'});
+    await env.DB.prepare('UPDATE order_operational_flags SET status=\'resolved\',updated_at=CURRENT_TIMESTAMP WHERE id=? AND status=\'open\'').bind(flagId).run();
+    await writeAudit(env, flag.order_id, 'owner', clean(request.headers.get('X-Freshway-Owner-Id')) || 'owner', 'operational_flag_resolved', note, flag, {...flag,status:'resolved'});
+    return response({ok:true,status:'resolved',flagId});
   }
   return null;
 }
