@@ -182,7 +182,7 @@ async function resolveAvailableSlots(env, payload, requestedDate = '', excludeOr
 }
 export async function prepareCheckoutDelivery(env, payload, items) {
   const raw = clean(payload.preferredDeliveryDate || payload.deliveryDate || payload.scheduledDeliveryDate);
-  if (!raw) return null;
+  if (!raw) throw new Error('Choose a preferred delivery date before placing your order.');
   if (!dateValid(raw)) throw new Error('Choose a valid preferred delivery date.');
   const now = istNowParts();
   if (raw < now.date || raw > addDays(now.date, 60)) throw new Error('Choose a delivery date between today and the next 60 days.');
