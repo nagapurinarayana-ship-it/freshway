@@ -4,6 +4,7 @@ import { buildOrderPlacedAlerts, dispatchOrderAlert } from './order-alerts.js';
 import { buildOrderChangeAlerts } from './admin-notifications.js';
 import { handleReverseGeocode } from './geocode-api.js';
 import { validatePushEndpoint } from './push-endpoint.js';
+import { prepareCheckoutDelivery, checkoutDeliveryStatements } from './delivery-scheduling.js';
 
 const json = (data, status = 200, origin = '*') => new Response(JSON.stringify(data), {
   status,
@@ -92,6 +93,7 @@ async function createOrder(env, payload, ctx) {
   const existing = await existingOrderByClientId(env, customerId, clientOrderId);
   if (existing) return existing;
   const { items, total } = await validateOrderItems(env, rawItems);
+  const deliverySelection = await prepareCheckoutDelivery(env, payload, items);
   const phone = cleanPhone(customer.phone), customerName = String(customer.name).trim().slice(0, 100);
   const existingCustomer = await env.DB.prepare('SELECT phone FROM customers WHERE id=? LIMIT 1').bind(customerId).first();
   const registeredPhone = cleanPhone(existingCustomer?.phone);
@@ -106,20 +108,23 @@ async function createOrder(env, payload, ctx) {
   const addressId = addressResult?.meta?.last_row_id; if (!addressId) throw new Error('Could not save delivery address.');
   const id = orderId(), createdAt = now();
   const stockUpdates=items.filter(item=>item.stockReservedQty>0).map(item=>env.DB.prepare('UPDATE products SET stock_quantity=stock_quantity-? WHERE id=? AND stock_managed=1').bind(item.stockReservedQty,item.id));
-  const statements=[...stockUpdates,env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at) VALUES (?,?,?,?,?,?, 'Not Collected','New','Tomorrow',?,?,?)`).bind(id,customerId,addressId,customerName,phone,total,clientOrderId||null,createdAt,createdAt),...items.map(item=>env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total,stock_reserved_qty,hsn_code,gst_rate_bps,gst_rate_confirmed) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).bind(id,item.id,item.name,item.unit,item.qty,item.price,item.lineTotal,item.stockReservedQty,item.hsn_code||'',Number(item.gst_rate_bps||0),Number(item.gst_rate_confirmed||0)))];
+  const deliveryPlan=deliverySelection?.deliveryPlan||'Tomorrow';
+  const statements=[...stockUpdates,env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at,scheduled_delivery_date,scheduled_slot_id,assigned_store_id,scheduled_start_minute,scheduled_end_minute,schedule_status) VALUES (?,?,?,?,?,?, 'Not Collected','New',?,?,?,?,?,?,?,?,?,?)`).bind(id,customerId,addressId,customerName,phone,total,deliveryPlan,clientOrderId||null,createdAt,createdAt,deliverySelection?.date||null,deliverySelection?.slotId||null,deliverySelection?.storeId||null,deliverySelection?.startMinute??null,deliverySelection?.endMinute??null,deliverySelection?'requested':'unscheduled'),...items.map(item=>env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total,stock_reserved_qty,hsn_code,gst_rate_bps,gst_rate_confirmed) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).bind(id,item.id,item.name,item.unit,item.qty,item.price,item.lineTotal,item.stockReservedQty,item.hsn_code||'',Number(item.gst_rate_bps||0),Number(item.gst_rate_confirmed||0))),...checkoutDeliveryStatements(env,id,deliverySelection,items)];
   try { await env.DB.batch(statements); } catch (error) {
     await env.DB.prepare('DELETE FROM addresses WHERE id=?').bind(addressId).run();
     if (clientOrderId && /unique|constraint/i.test(error?.message || '')) {
       const duplicate = await existingOrderByClientId(env, customerId, clientOrderId);
       if (duplicate) return duplicate;
     }
+    if (/DELIVERY_SLOT_FULL|DELIVERY_SLOT_CLOSED/i.test(error?.message || '')) throw new Error('That delivery window just filled. Choose another available time window.');
+    if (/DELIVERY_STORE_STOCK_LOW/i.test(error?.message || '')) throw new Error('The selected store can no longer fulfil the full basket. Refresh delivery availability and try again.');
     if (/stock_quantity/i.test(error?.message || '')) throw new Error('Stock changed while you were checking out. Please refresh your cart and try again.');
     throw error;
   }
   const placedAlerts = buildOrderPlacedAlerts({ id, customerId, customerName, total, items });
   const alertWork = scheduleOrderAlerts(ctx, env, placedAlerts);
   if (alertWork) await alertWork;
-  return { id, customerId, total, payment: 'Not Collected', status: 'New', deliveryPlan: 'Tomorrow', createdAt, updatedAt: createdAt, address: { ...address, pincode: String(address.pincode) }, items };
+  return { id, customerId, total, payment: 'Not Collected', status: 'New', deliveryPlan, scheduledDelivery: deliverySelection ? { date: deliverySelection.date, startMinute: deliverySelection.startMinute, endMinute: deliverySelection.endMinute, startTime: String(Math.floor(deliverySelection.startMinute/60)).padStart(2,'0')+':'+String(deliverySelection.startMinute%60).padStart(2,'0'), endTime: String(Math.floor(deliverySelection.endMinute/60)).padStart(2,'0')+':'+String(deliverySelection.endMinute%60).padStart(2,'0'), storeId: deliverySelection.storeId, storeName: deliverySelection.storeName, status: 'requested' } : null, createdAt, updatedAt: createdAt, address: { ...address, pincode: String(address.pincode) }, items };
 }
 
 async function customerOrders(env, customerId) {

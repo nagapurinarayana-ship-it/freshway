@@ -26,6 +26,7 @@ const routes = [
 export async function handleAdminData(request,env){
   const u=new URL(request.url);
   try{
+    if (u.pathname.startsWith('/api/admin/delivery/')) { const delivery=await handleAdminDeliveryRequest(request,env); if(delivery)return delivery; }
     const route=routes.find(x=>x.match(u,request.method));
     return route?json(await route.run(request,env,u)):null;
   }catch(e){
