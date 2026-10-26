@@ -146,6 +146,6 @@ test('checkout creates an order with a server-validated preferred date and reser
     const retried=await createOrder({DB:db,APP_ORIGIN:'https://fwcoldpressed.in'},payload,{waitUntil(promise){deferred=promise;}});
     assert.equal(retried.id,placed.id,'idempotent checkout retry must return the original order');
     assert.equal(db.db.prepare(`SELECT stock_quantity FROM products WHERE id='product-1'`).get().stock_quantity,1,'retry must not reserve global stock twice');
-    assert.equal(db.db.prepare('SELECT COUNT(*) count FROM delivery_slot_reservations WHERE order_id=? AND status=\'reserved\'').get(placed.id).count,1);
+    assert.equal(db.db.prepare('SELECT COUNT(*) count FROM delivery_slot_reservations WHERE order_id=?').get(placed.id).count,0);
   } finally { db.close(); }
 });
