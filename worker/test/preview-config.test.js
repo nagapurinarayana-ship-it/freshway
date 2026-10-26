@@ -31,6 +31,7 @@ test('preview config uses a dedicated Worker and an explicitly separate D1 datab
   assert.equal(config.vars.APP_ORIGIN, valid.appOrigin);
   assert.equal(config.vars.APP_ORIGINS, valid.appOrigins);
   assert.equal(config.workers_dev, true);
+  assert.deepEqual(config.secrets.required, ['ADMIN_TOKEN', 'CUSTOMER_SESSION_SECRET', 'ADMIN_SESSION_SECRET']);
   assert.equal('triggers' in config, false);
   assert.equal('routes' in config, false);
   assert.equal(production.d1_databases[0].database_id, productionId, 'building a preview must not mutate production config');
