@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const schema = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8');
-const migration = readFileSync(new URL('../migrations/0037_serviceable_areas.sql', import.meta.url), 'utf8');
+const migration = readFileSync(new URL('../migrations/0041_serviceable_areas.sql', import.meta.url), 'utf8');
 const serviceability = readFileSync(new URL('../src/serviceability.js', import.meta.url), 'utf8');
 const worker = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
 const admin = readFileSync(new URL('../src/admin-data.js', import.meta.url), 'utf8');
