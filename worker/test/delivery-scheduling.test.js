@@ -161,3 +161,22 @@ test('customer cancellation uses customer audit identity and rejected reschedule
     'rejected reschedule requests must leave My Orders showing the existing schedule');
   assert.ok(delivery.includes("order.delivery_status === 'New' ? 'requested' : 'confirmed'"));
 });
+
+test('account deletion redacts delivery request PII and preserves anonymous operational history', () => {
+  const schema = read('../schema.sql');
+  const migration = read('../migrations/0038_anonymize_delivery_requests.sql');
+  const deletion = read('../src/account-deletion.js');
+  const tableStart = schema.indexOf('CREATE TABLE IF NOT EXISTS order_action_requests');
+  const tableEnd = schema.indexOf(');', tableStart);
+  const table = schema.slice(tableStart, tableEnd);
+  assert.match(table, /customer_id TEXT REFERENCES customers\(id\) ON DELETE SET NULL/);
+  assert.doesNotMatch(table, /customer_id TEXT NOT NULL REFERENCES customers\(id\)/);
+  assert.ok(migration.includes('CREATE TABLE order_action_requests_rebuilt'));
+  assert.ok(migration.includes('customer_id TEXT REFERENCES customers(id) ON DELETE SET NULL'));
+  assert.ok(migration.includes('INSERT INTO order_action_requests_rebuilt'));
+  assert.ok(migration.includes('DROP TABLE order_action_requests'));
+  assert.ok(deletion.includes('UPDATE order_action_requests SET customer_id=NULL,reason=\'\',resolution_note=\'\''));
+  assert.ok(deletion.includes('UPDATE order_audit_events SET actor_id=CASE'));
+  assert.ok(deletion.includes('json_remove(before_json'));
+  assert.ok(deletion.includes('json_remove(after_json'));
+});
