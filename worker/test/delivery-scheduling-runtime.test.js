@@ -84,55 +84,61 @@ test('customer cancellation atomically releases stock and slot reservations and 
   } finally { db.close(); }
 });
 
-test('rejecting a customer reschedule restores the exact previously confirmed schedule state', async () => {
+test('customer reschedule saves the new date directly and releases old slot and stock reservations', async () => {
   const db=new SQLiteD1();
   try {
     db.seedOrder('order-reschedule',{date:'2026-01-01',status:'confirmed'});
     const customerResponse=await handleCustomerDeliveryRequest(new Request(
       'https://api.example.test/api/orders/order-reschedule/reschedule',
-      {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestedDeliveryDate:'2026-10-28',reason:'Please move my delivery'})}
+      {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestedDeliveryDate:'2026-10-28'})}
     ),{DB:db},'customer-1');
-    assert.equal(customerResponse.status,202);
-    const customerResult=await customerResponse.json();
-    const requestId=customerResult.request.requestId;
-    assert.ok(requestId);
+    assert.equal(customerResponse.status,200);
+    const result=await customerResponse.json();
+    assert.equal(result.status,'updated');
+    assert.equal(result.scheduledDelivery.date,'2026-10-28');
+    assert.equal(db.db.prepare("SELECT scheduled_delivery_date FROM orders WHERE id='order-reschedule'").get().scheduled_delivery_date,'2026-10-28');
     assert.equal(db.db.prepare("SELECT schedule_status FROM orders WHERE id='order-reschedule'").get().schedule_status,'confirmed');
-    assert.equal(db.db.prepare("SELECT scheduled_delivery_date FROM orders WHERE id='order-reschedule'").get().scheduled_delivery_date,'2026-01-01');
-    assert.equal(db.db.prepare('SELECT requested_delivery_date FROM order_action_requests WHERE id=?').get(requestId).requested_delivery_date,'2026-10-28');
-
-    const ownerResponse=await handleAdminDeliveryRequest(new Request(
-      'https://api.example.test/api/admin/delivery/requests/'+encodeURIComponent(requestId),
-      {method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({decision:'reject',note:'Keep the original confirmed schedule'})}
-    ),{DB:db});
-    assert.equal(ownerResponse.status,200);
-    assert.equal((await ownerResponse.json()).status,'rejected');
-    assert.equal(db.db.prepare("SELECT schedule_status FROM orders WHERE id='order-reschedule'").get().schedule_status,'confirmed');
-    assert.equal(db.db.prepare("SELECT status FROM order_action_requests WHERE id=?").get(requestId).status,'rejected');
+    assert.equal(db.db.prepare("SELECT scheduled_slot_id FROM orders WHERE id='order-reschedule'").get().scheduled_slot_id,null);
+    assert.equal(db.db.prepare("SELECT status FROM delivery_slot_reservations WHERE order_id='order-reschedule'").get().status,'released');
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-reschedule'").get().status,'released');
+    assert.equal(db.db.prepare("SELECT COUNT(*) count FROM order_action_requests WHERE order_id='order-reschedule' AND request_type='reschedule'").get().count,0);
+    const audit=db.db.prepare("SELECT actor_type,actor_id,action FROM order_audit_events WHERE order_id='order-reschedule' AND action='delivery_date_changed_by_customer'").get();
+    assert.equal(audit.actor_type,'customer');
+    assert.equal(audit.actor_id,'customer-1');
     assert.deepEqual(db.db.prepare('PRAGMA foreign_key_check').all(),[]);
   } finally { db.close(); }
 });
 
-test('Owner approval applies the requested or edited delivery date without creating slot reservations', async () => {
+test('customer reschedule rejects delivered and cancelled orders without changing their dates', async () => {
+  for (const status of ['Delivered','Cancelled']) {
+    const db=new SQLiteD1();
+    try {
+      db.seedOrder('order-terminal',{date:'2026-10-27',status});
+      const response=await handleCustomerDeliveryRequest(new Request(
+        'https://api.example.test/api/orders/order-terminal/reschedule',
+        {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestedDeliveryDate:'2026-10-28'})}
+      ),{DB:db},'customer-1');
+      assert.equal(response.status,409);
+      assert.equal(db.db.prepare("SELECT scheduled_delivery_date FROM orders WHERE id='order-terminal'").get().scheduled_delivery_date,'2026-10-27');
+      assert.equal(db.db.prepare("SELECT COUNT(*) count FROM order_action_requests WHERE order_id='order-terminal' AND request_type='reschedule'").get().count,0);
+    } finally { db.close(); }
+  }
+});
+
+test('Owner can still save an order delivery date directly without creating slot reservations', async () => {
   const db=new SQLiteD1();
   try {
-    db.seedOrder('order-reschedule-approve',{date:'2026-10-27',status:'confirmed'});
-    const customerResponse=await handleCustomerDeliveryRequest(new Request(
-      'https://api.example.test/api/orders/order-reschedule-approve/reschedule',
-      {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestedDeliveryDate:'2026-10-28'})}
-    ),{DB:db},'customer-1');
-    assert.equal(customerResponse.status,202);
-    const requestId=(await customerResponse.json()).request.requestId;
+    db.seedOrder('order-owner-date',{date:'2026-10-27',status:'confirmed'});
     const ownerResponse=await handleAdminDeliveryRequest(new Request(
-      'https://api.example.test/api/admin/delivery/requests/'+encodeURIComponent(requestId),
-      {method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({decision:'approve',deliveryDate:'2026-10-29',note:'Date checked with customer'})}
+      'https://api.example.test/api/admin/delivery/orders/order-owner-date/schedule',
+      {method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({deliveryDate:'2026-10-29'})}
     ),{DB:db});
     assert.equal(ownerResponse.status,200);
-    assert.equal(db.db.prepare("SELECT scheduled_delivery_date FROM orders WHERE id='order-reschedule-approve'").get().scheduled_delivery_date,'2026-10-29');
-    assert.equal(db.db.prepare("SELECT schedule_status FROM orders WHERE id='order-reschedule-approve'").get().schedule_status,'confirmed');
-    assert.equal(db.db.prepare("SELECT scheduled_slot_id FROM orders WHERE id='order-reschedule-approve'").get().scheduled_slot_id,null);
-    assert.equal(db.db.prepare("SELECT status FROM order_action_requests WHERE id=?").get(requestId).status,'approved');
-    assert.equal(db.db.prepare("SELECT status FROM delivery_slot_reservations WHERE order_id='order-reschedule-approve'").get().status,'released');
-    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-reschedule-approve'").get().status,'released');
+    assert.equal(db.db.prepare("SELECT scheduled_delivery_date FROM orders WHERE id='order-owner-date'").get().scheduled_delivery_date,'2026-10-29');
+    assert.equal(db.db.prepare("SELECT schedule_status FROM orders WHERE id='order-owner-date'").get().schedule_status,'confirmed');
+    assert.equal(db.db.prepare("SELECT scheduled_slot_id FROM orders WHERE id='order-owner-date'").get().scheduled_slot_id,null);
+    assert.equal(db.db.prepare("SELECT status FROM delivery_slot_reservations WHERE order_id='order-owner-date'").get().status,'released');
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-owner-date'").get().status,'released');
     assert.deepEqual(db.db.prepare('PRAGMA foreign_key_check').all(),[]);
   } finally { db.close(); }
 });
