@@ -139,15 +139,16 @@ test('customer checkout and My Orders use a simple preferred delivery date and a
   assert.ok(auth.includes('handleCustomerDeliveryRequest(request, env, deliveryCustomerId)'));
 });
 
-test('Owner delivery UI only exposes date confirmation and customer date-change requests', () => {
+test('Owner delivery UI edits dates directly on orders without a separate request queue', () => {
   const html = read('../../admin.html');
   const js = read('../../frontend/admin/delivery-management.js');
   assert.ok(html.includes('frontend/admin/delivery-management.js'));
-  assert.ok(js.includes('Delivery date'));
+  assert.ok(js.includes('Delivery dates'));
   assert.ok(js.includes('data-confirm-date'));
-  assert.ok(js.includes('data-request-decision'));
   assert.ok(js.includes('/admin/delivery/orders/'));
-  assert.ok(js.includes('/admin/delivery/requests/'));
+  assert.ok(!js.includes('data-request-decision'));
+  assert.ok(!js.includes('/admin/delivery/requests/'));
+  assert.ok(!js.includes('Requested date changes'));
   assert.ok(!js.includes('Create delivery windows'));
   assert.ok(!js.includes('Store-level stock'));
 });
