@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v75';
+const CACHE = 'freshway-v76';
 const APP_SHELL = [
 '/',
 '/index.html',
@@ -22,10 +22,10 @@ const APP_SHELL = [
 '/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4',
 '/frontend/customer/store-info.js?v=20261021-shop-map-link-v1',
 '/frontend/customer/profile.js?v=20261009-customer-profile-v2',
-'/icons/icon-192.svg?v=20261008-brand-v1',
-'/icons/icon-512.svg?v=20261008-brand-v1',
+'/icons/icon-192-brand-v2.png?v=20261026-brand-v2',
+'/icons/icon-512-brand-v2.png?v=20261026-brand-v2',
+'/icons/icon-512-maskable-v2.png?v=20261026-brand-v2',
 '/frontend/customer/pwa-install.js?v=20261024-native-install-v1',
-'/icon.svg?v=20261008-brand-v1',
 '/freshway-logo-master.webp?v=20261008-master-v1',
 '/freshway-logo-clean.svg?v=20261008-brand-v1'
 ];
@@ -122,8 +122,8 @@ try {
 event.waitUntil((async () => {
   await self.registration.showNotification(data.title || 'FreshWay', {
     body: data.body || 'You have a new FreshWay update.',
-    icon: data.icon || '/icon.svg',
-    badge: data.badge || '/icon.svg',
+    icon: data.icon || '/icons/icon-192-brand-v2.png?v=20261026-brand-v2',
+    badge: data.badge || '/icons/icon-192-brand-v2.png?v=20261026-brand-v2',
     tag: data.tag || 'freshway-notification',
     data: { url: data.url || '/', ...(data.data || {}) }
   });

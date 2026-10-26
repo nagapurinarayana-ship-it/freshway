@@ -27,8 +27,9 @@ const OWNER_ASSETS = new Map([
   ['frontend/media/catalogue/sunflower-oil.svg', '/frontend/media/catalogue/sunflower-oil.svg'],
   ['frontend/media/catalogue/hmt-rice.svg', '/frontend/media/catalogue/hmt-rice.svg'],
   ['frontend/media/catalogue/sona-masuri.svg', '/frontend/media/catalogue/sona-masuri.svg'],
-  ['icons/icon-192.svg', '/icons/icon-192.svg'],
-  ['icons/icon-512.svg', '/icons/icon-512.svg']
+  ['icons/icon-192-brand-v2.png', '/icons/icon-192-brand-v2.png'],
+  ['icons/icon-512-brand-v2.png', '/icons/icon-512-brand-v2.png'],
+  ['icons/icon-512-maskable-v2.png', '/icons/icon-512-maskable-v2.png']
 ]);
 
 function responseWithHeaders(response, { worker = false, manifest = false, cacheControl = OWNER_CACHE_CONTROL } = {}) {

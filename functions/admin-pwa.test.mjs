@@ -29,7 +29,7 @@ assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_INVOICE_SETTINGS_S
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1';"), 'production Owner smoke must demand the current push setup version');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2';"), 'production Owner smoke must demand the current business profile and shop pin editor');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261023-available-fields-invoice-v1';"), 'production Owner smoke must demand the cache-busted order lifecycle map handler');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v41';"), 'production Owner smoke must demand the current service-worker cache');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v42';"), 'production Owner smoke must demand the current service-worker cache');
 assert.ok(ownerLiveSmokeSource.includes('assert.match(deployedSource, /function readProfileResponse\\(data\\)/'), 'production Owner smoke must verify deployed Store Profile response guard code, not only a matching URL');
 assert.ok(ownerLiveSmokeSource.includes('incomplete Store Profile'), 'production Owner smoke must verify malformed profile payload protection is deployed');
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerAppShell/);
@@ -61,8 +61,9 @@ const requiredOwnerAssets = [
   'frontend/media/catalogue/sunflower-oil.svg',
   'frontend/media/catalogue/hmt-rice.svg',
   'frontend/media/catalogue/sona-masuri.svg',
-  'icons/icon-192.svg',
-  'icons/icon-512.svg'
+  'icons/icon-192-brand-v2.png',
+  'icons/icon-512-brand-v2.png',
+  'icons/icon-512-maskable-v2.png'
 ];
 
 function makeContext(path, method = 'GET') {
@@ -190,7 +191,21 @@ for (const asset of requiredOwnerAssets) {
   assert.equal(manifest.start_url, '/admin/');
   assert.equal(manifest.scope, '/admin/');
   assert.equal(manifest.display, 'standalone');
-  assert.ok(manifest.icons.length >= 2);
+  const expectedIcons = [
+    { path: '/admin/icons/icon-192-brand-v2.png', size: '192x192', purpose: 'any' },
+    { path: '/admin/icons/icon-512-brand-v2.png', size: '512x512', purpose: 'any' },
+    { path: '/admin/icons/icon-512-maskable-v2.png', size: '512x512', purpose: 'maskable' }
+  ];
+  assert.equal(manifest.icons.length, expectedIcons.length, 'Owner manifest must expose only the approved FreshWay brand icons');
+  for (const expected of expectedIcons) {
+    assert.ok(manifest.icons.some(icon =>
+      new URL(icon.src, 'https://fwcoldpressed.in').pathname === expected.path &&
+      icon.sizes === expected.size &&
+      icon.type === 'image/png' &&
+      String(icon.purpose || '').split(' ').includes(expected.purpose)
+    ), 'Owner manifest must reference the correct FreshWay icon: ' + expected.path);
+  }
+  assert.ok(!JSON.stringify(manifest.icons).includes('/admin/icons/icon-192.svg') && !JSON.stringify(manifest.icons).includes('/admin/icons/icon-512.svg'), 'Owner manifest must not reference legacy SVG icon paths');
   for (const icon of manifest.icons) assert.ok(icon.src.startsWith('/admin/'), 'Owner install icon must remain under its app path');
 }
 {

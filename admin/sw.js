@@ -1,9 +1,10 @@
-const CACHE = 'fw-owner-v41';
+const CACHE = 'fw-owner-v42';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
-  '/admin/icons/icon-192.svg',
-  '/admin/icons/icon-512.svg',
+  '/admin/icons/icon-192-brand-v2.png?v=20261026-brand-v2',
+  '/admin/icons/icon-512-brand-v2.png?v=20261026-brand-v2',
+  '/admin/icons/icon-512-maskable-v2.png?v=20261026-brand-v2',
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/owner-pwa-install.css?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261024-deletion-privacy-v1',
@@ -132,8 +133,8 @@ self.addEventListener('push', event => {
   try { data = event.data.json(); } catch (_) { data = { body: event.data.text() }; }
   event.waitUntil(self.registration.showNotification(data.title || 'FreshWay order alert', {
     body: data.body || 'There is an update to a FreshWay order.',
-    icon: data.icon || '/admin/icons/icon-192.svg',
-    badge: data.badge || '/admin/icons/icon-192.svg',
+    icon: data.icon || '/admin/icons/icon-192-brand-v2.png?v=20261026-brand-v2',
+    badge: data.badge || '/admin/icons/icon-192-brand-v2.png?v=20261026-brand-v2',
     tag: data.tag || 'freshway-owner-order-alert',
     data: { url: data.url || '/admin/#orders', ...(data.data || {}) }
   }));

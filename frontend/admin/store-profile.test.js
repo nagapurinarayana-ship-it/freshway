@@ -72,7 +72,7 @@ assert.ok(!source.includes('loadGoogleMaps'), 'Owner picker must not require a p
 assert.ok(!source.includes("api('/admin/maps/config')"), 'Owner picker must not depend on a paid map provider config endpoint');
 assert.ok(ownerSw.includes('frontend/admin/store-profile.js?v=20261024-response-guard-v2'), 'Owner PWA shell must cache the free map-picker module');
 assert.ok(source.includes('loadLeaflet'), 'OpenStreetMap picker must be available without paid map APIs');
-assert.ok(ownerSw.includes("const CACHE = 'fw-owner-v41'"), 'Owner PWA cache must be refreshed for the new picker');
+assert.ok(ownerSw.includes("const CACHE = 'fw-owner-v42'"), 'Owner PWA cache must be refreshed for the new picker');
 
 assert.match(css, /\.shop-location-map\s*\{/);
 assert.match(source, /The saved pin stays unchanged until you do/);

@@ -5,7 +5,7 @@ const VIEWPORT_STYLES_PATH = '/styles.css?v=20261022-invoice-ui-v1';
 const CUSTOMER_APP_PATH = '/app.js?v=20261021-home-navigation-refresh-v1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261021-guest-address-map-search-v3';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v75';
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v76';
 const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261024-native-install-v1';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -206,6 +206,8 @@ const { indexResponse, indexHtml, adminResponse, adminHtml, swResponse, sw } =
 assert.equal(new URL(indexResponse.url).pathname, '/');
 assert.equal(indexResponse.status, 200);
 assert.match(indexHtml, /<link rel="manifest" href="\/manifest\.webmanifest">/);
+assert.match(indexHtml, /<link rel="icon" href="\/icons\/icon-192-brand-v2\.png\?v=20261026-brand-v2" type="image\/png" sizes="192x192">/, 'customer favicon must use the approved FreshWay brand PNG');
+assert.match(indexHtml, /<link rel="apple-touch-icon" href="\/icons\/icon-192-brand-v2\.png\?v=20261026-brand-v2">/, 'customer Apple touch icon must use the approved FreshWay brand PNG');
 
 const manifestResponse = await fetchWithRetry(`${base}/manifest.webmanifest`);
 const finalManifestUrl = new URL(manifestResponse.url);
@@ -229,31 +231,36 @@ assert.equal(manifest.start_url, '/');
 assert.equal(manifest.scope, '/');
 assert.equal(manifest.display, 'standalone');
 const expectedBrandIcons = [
-  { path: '/icons/icon-192.svg', size: '192x192' },
-  { path: '/icons/icon-512.svg', size: '512x512' }
+  { path: '/icons/icon-192-brand-v2.png', size: '192x192', pixels: 192, purpose: 'any' },
+  { path: '/icons/icon-512-brand-v2.png', size: '512x512', pixels: 512, purpose: 'any' },
+  { path: '/icons/icon-512-maskable-v2.png', size: '512x512', pixels: 512, purpose: 'maskable' }
 ];
+assert.equal(manifest.icons.length, expectedBrandIcons.length, 'customer manifest must expose only the approved FreshWay brand PNG icons');
+assert.ok(!JSON.stringify(manifest.icons).includes('/icons/icon-192.svg') && !JSON.stringify(manifest.icons).includes('/icons/icon-512.svg'), 'customer manifest must not reference the old SVG icon paths');
 for (const expected of expectedBrandIcons) {
   assert.ok(
     manifest.icons.some(icon =>
       new URL(icon.src, manifestResponse.url).pathname === expected.path &&
       icon.sizes === expected.size &&
-      icon.type === 'image/svg+xml' &&
-      String(icon.purpose || '').split(' ').includes('any')
+      icon.type === 'image/png' &&
+      String(icon.purpose || '').split(' ').includes(expected.purpose)
     ),
-    `manifest must use the Owner-matched FreshWay brand icon ${expected.path}`
+    `manifest must use the approved FreshWay brand icon ${expected.path}`
   );
-  const response = await fetchWithRetry(`${base}${expected.path}?v=20261008-brand-v1`, { cache: 'no-store' });
+  const response = await fetchWithRetry(`${base}${expected.path}?v=20261026-brand-v2`, { cache: 'no-store' });
   assert.equal(response.status, 200, expected.path);
-  assert.match(response.headers.get('content-type') || '', /^image\/svg\+xml/i, expected.path);
-  const svg = await response.text();
-  assert.ok(svg.startsWith('<svg'), expected.path + ' must be a valid SVG icon');
-  assert.ok(svg.includes('data:image/jpeg;base64,'), expected.path + ' must contain the official FreshWay brand artwork');
+  assert.ok((response.headers.get('content-type') || '').toLowerCase().startsWith('image/png'), expected.path + ' must be served as PNG');
+  const png = Buffer.from(await response.arrayBuffer());
+  assert.ok(png.length > 64, expected.path + ' must contain PNG data');
+  assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', expected.path + ' must have a valid PNG signature');
+  assert.equal(png.readUInt32BE(16), expected.pixels, expected.path + ' must have the expected width');
+  assert.equal(png.readUInt32BE(20), expected.pixels, expected.path + ' must have the expected height');
 }
-assert.equal(
-  manifest.icons.some(icon => icon.type === 'image/png' && new URL(icon.src, manifestResponse.url).pathname.endsWith('.png')),
-  false,
-  'customer manifest must not offer the obsolete P-branded raster icons'
-);
+assert.ok(sw.includes('/icons/icon-192-brand-v2.png?v=20261026-brand-v2'), 'customer service worker must cache the branded 192px icon');
+assert.ok(sw.includes('/icons/icon-512-brand-v2.png?v=20261026-brand-v2'), 'customer service worker must cache the branded 512px icon');
+assert.ok(sw.includes('/icons/icon-512-maskable-v2.png?v=20261026-brand-v2'), 'customer service worker must cache the branded maskable icon');
+assert.ok(sw.includes("icon: data.icon || '/icons/icon-192-brand-v2.png?v=20261026-brand-v2'"), 'customer push notifications must default to the FreshWay brand icon');
+assert.ok(sw.includes("badge: data.badge || '/icons/icon-192-brand-v2.png?v=20261026-brand-v2'"), 'customer push notifications must default to the FreshWay brand badge');
 
 const logoResponse = await fetchWithRetry(`${base}/freshway-logo-master.webp?v=20261008-master-v1`);
 assert.equal(logoResponse.status, 200);
