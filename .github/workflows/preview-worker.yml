@@ -74,6 +74,19 @@ jobs:
             throw new Error('Preview configuration is not isolated from production.');
           }
           console.log('Preview configuration is isolated from production D1, routes, and cron triggers.');
+          const bootstrapPath = 'source/worker/wrangler.preview.bootstrap.jsonc';
+          const bootstrap = { ...config };
+          delete bootstrap.secrets;
+          fs.writeFileSync(bootstrapPath, JSON.stringify(bootstrap, null, 2) + '\n', { mode: 0o600 });
+          const parsedBootstrap = JSON.parse(fs.readFileSync(bootstrapPath, 'utf8'));
+          const bootstrapDb = parsedBootstrap.d1_databases?.find(item => item.binding === 'DB');
+          if (parsedBootstrap.name !== config.name ||
+              bootstrapDb?.database_id !== database.database_id ||
+              parsedBootstrap.secrets !== undefined ||
+              parsedBootstrap.triggers || parsedBootstrap.routes) {
+            throw new Error('Bootstrap configuration is not a safe preview-only copy.');
+          }
+          console.log('Preview bootstrap config is parseable and omits required-secret validation until secrets are attached.');
           NODE
 
   deploy:
@@ -152,7 +165,7 @@ jobs:
           import fs from 'node:fs';
           const source = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
           delete source.secrets;
-          fs.writeFileSync(process.argv[3], JSON.stringify(source, null, 2) + '\\n', { mode: 0o600 });
+          fs.writeFileSync(process.argv[3], JSON.stringify(source, null, 2) + '\n', { mode: 0o600 });
           NODE
       - name: Apply migrations to the isolated preview D1 database
         working-directory: tooling/worker
