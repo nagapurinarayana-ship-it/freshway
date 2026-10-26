@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { handleAdminDeliveryRequest, handleCustomerDeliveryRequest } from '../src/delivery-scheduling.js';
+import { createOrder } from '../src/index.js';
 
 class SQLiteD1 {
   constructor() {
@@ -106,5 +107,44 @@ test('rejecting a customer reschedule restores the exact previously confirmed sc
     assert.equal(db.db.prepare("SELECT schedule_status FROM orders WHERE id='order-reschedule'").get().schedule_status,'confirmed');
     assert.equal(db.db.prepare("SELECT status FROM order_action_requests WHERE id=?").get(requestId).status,'rejected');
     assert.deepEqual(db.db.prepare('PRAGMA foreign_key_check').all(),[]);
+  } finally { db.close(); }
+});
+
+test('checkout creates an order with a server-validated slot and reserves global, store and slot stock exactly once', async () => {
+  const db=new SQLiteD1();
+  try {
+    db.db.prepare(`UPDATE delivery_scheduling_settings
+      SET enabled=1,booking_horizon_days=7,same_day_cutoff_minutes=120,timezone='Asia/Kolkata' WHERE id=1`).run();
+    let deferred;
+    const ctx={waitUntil(promise){deferred=promise;}};
+    const payload={
+      customerId:'customer-1',
+      customer:{name:'Test Customer',phone:'1234567890'},
+      address:{house:'1-1',area:'Test Area',city:'Test City',pincode:'500001',latitude:17.385,longitude:78.4867},
+      items:[{id:'product-1',qty:2}],
+      deliverySlotId:'slot-new',
+      clientOrderId:'checkout-test-0001'
+    };
+    const placed=await createOrder({DB:db,APP_ORIGIN:'https://fwcoldpressed.in'},payload,ctx);
+    if(deferred)await deferred;
+    assert.ok(placed.id);
+    assert.equal(placed.scheduledDelivery.date,'2026-10-28');
+    assert.equal(placed.scheduledDelivery.storeId,'store-1');
+    const order=db.db.prepare('SELECT delivery_status,scheduled_delivery_date,scheduled_slot_id,assigned_store_id,schedule_status FROM orders WHERE id=?').get(placed.id);
+    assert.equal(order.delivery_status,'New');
+    assert.equal(order.scheduled_delivery_date,'2026-10-28');
+    assert.equal(order.scheduled_slot_id,'slot-new');
+    assert.equal(order.assigned_store_id,'store-1');
+    assert.equal(order.schedule_status,'requested');
+    assert.equal(db.db.prepare(`SELECT stock_quantity FROM products WHERE id='product-1'`).get().stock_quantity,1);
+    assert.equal(db.db.prepare('SELECT stock_reserved_qty FROM order_items WHERE order_id=?').get(placed.id).stock_reserved_qty,2);
+    assert.equal(db.db.prepare('SELECT qty FROM delivery_store_inventory_reservations WHERE order_id=? AND status=\'reserved\'').get(placed.id).qty,2);
+    assert.equal(db.db.prepare('SELECT COUNT(*) count FROM delivery_slot_reservations WHERE order_id=? AND slot_id=\'slot-new\' AND status=\'reserved\'').get(placed.id).count,1);
+    assert.deepEqual(db.db.prepare('PRAGMA foreign_key_check').all(),[]);
+
+    const retried=await createOrder({DB:db,APP_ORIGIN:'https://fwcoldpressed.in'},payload,{waitUntil(promise){deferred=promise;}});
+    assert.equal(retried.id,placed.id,'idempotent checkout retry must return the original order');
+    assert.equal(db.db.prepare(`SELECT stock_quantity FROM products WHERE id='product-1'`).get().stock_quantity,1,'retry must not reserve global stock twice');
+    assert.equal(db.db.prepare('SELECT COUNT(*) count FROM delivery_slot_reservations WHERE order_id=? AND status=\'reserved\'').get(placed.id).count,1);
   } finally { db.close(); }
 });
