@@ -139,7 +139,7 @@ test('store reassignment uses valid reservation SQL and stock-managed products r
   assert.ok(delivery.includes('async function ensureStoreInventoryRows(env)'));
   assert.ok(delivery.includes('await ensureStoreInventoryRows(env);'),
     'Owner inventory view and stock updates must repair missing inventory rows safely');
-  assert.ok(worker.includes('if(stockManaged){'),
+  assert.ok(worker.includes('if(stockManaged&&allStores>0)statements.push('),
     'creating a stock-managed product must initialise store inventory when stores exist');
   assert.ok(worker.includes('if(Number(current.stock_managed)===0&&payload.stockManaged===true)'),
     'enabling stock management on an existing product must initialise store inventory');
