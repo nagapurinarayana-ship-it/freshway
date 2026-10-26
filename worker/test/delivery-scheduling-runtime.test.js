@@ -84,7 +84,7 @@ test('customer cancellation atomically releases stock and slot reservations and 
   } finally { db.close(); }
 });
 
-test('customer reschedule saves the new date directly and releases old slot and stock reservations', async () => {
+test('customer reschedule saves the date, releases the old slot, and preserves store stock reservations', async () => {
   const db=new SQLiteD1();
   try {
     db.seedOrder('order-reschedule',{date:'2026-01-01',status:'confirmed'});
