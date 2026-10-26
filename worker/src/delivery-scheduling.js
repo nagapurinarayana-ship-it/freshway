@@ -426,8 +426,10 @@ async function customerAction(request, env, customerId, orderId, action) {
       customer_id: order.customer_id, delivery_status: order.delivery_status, payment_status: order.payment_status,
       delivery_plan: order.delivery_plan, is_test_order: order.is_test_order
     };
-    const changed = await updateOrder(env, order.id, { status: 'Cancelled' });
-    await writeAudit(env, order.id, 'customer', customerId, 'order_cancelled_by_customer', clean(body.reason).slice(0, 500), order, changed);
+    const cancelReason = clean(body.reason).slice(0, 500) || 'Requested by customer';
+    const changed = await updateOrder(env, order.id, { status: 'Cancelled' }, {
+      actorType: 'customer', actorId: customerId, reason: cancelReason
+    });
     const after = await env.DB.prepare('SELECT customer_id,delivery_status,payment_status,delivery_plan,is_test_order FROM orders WHERE id=?').bind(order.id).first();
     await notifyCustomerAndOwner(env, order.id, before, 'order_cancelled_by_customer', 'Your order has been cancelled.', after);
     return response({ ok: true, status: changed.status, message: 'Your order has been cancelled.' });
@@ -729,6 +731,19 @@ export async function handleAdminDeliveryRequest(request, env) {
       // Approving a return request is a decision, not proof that goods were physically
       // returned or suitable for restocking. Owner must use the stock correction workflow.
       await writeAudit(env, row.order_id, 'owner', 'owner', 'return_request_approved', note, row, { status: 'approved' });
+    }
+    if (decision === 'reject' && row.request_type === 'reschedule') {
+      const order = await getOrderForAction(env, row.order_id);
+      if (order && order.schedule_status === 'change_requested') {
+        const restoredScheduleStatus = order.scheduled_slot_id
+          ? (order.delivery_status === 'New' ? 'requested' : 'confirmed')
+          : 'unscheduled';
+        await env.DB.prepare(
+          'UPDATE orders SET schedule_status=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND schedule_status=\'change_requested\''
+        ).bind(restoredScheduleStatus, row.order_id).run();
+        await writeAudit(env, row.order_id, 'owner', 'owner', 'reschedule_request_rejected_schedule_restored',
+          note, { schedule_status: order.schedule_status }, { schedule_status: restoredScheduleStatus });
+      }
     }
     const nextStatus = decision === 'approve' ? 'approved' : decision === 'reject' ? 'rejected' : 'completed';
     await env.DB.prepare('UPDATE order_action_requests SET status=?,resolution_note=?,resolved_by=\'owner\',updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(nextStatus, note, requestId).run();
