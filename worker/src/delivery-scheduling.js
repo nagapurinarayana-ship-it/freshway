@@ -398,7 +398,7 @@ async function customerAction(request, env, customerId, orderId, action) {
     const queued = await queueRequest(env, order, customerId, 'reschedule', { ...body, requestedDeliveryDate });
     return response({ ok: true, request: queued, message: queued.alreadyRequested ? 'A delivery-date change is already requested.' : 'Delivery date change requested.' }, 202);
   }
-  if (action === 'request' {
+  if (action === 'request') {
     const requestType = clean(body.requestType);
     if (!['cancellation','reschedule','return','issue'].includes(requestType)) return response({ error: 'Choose a valid order request type.' }, 400);
     if (requestType === 'return' && order.delivery_status !== 'Delivered') return response({ error: 'Return requests are available after delivery. For an active order, request cancellation.' }, 409);
