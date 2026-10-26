@@ -90,13 +90,15 @@ test('rejecting a customer reschedule restores the exact previously confirmed sc
     db.seedOrder('order-reschedule',{date:'2026-01-01',status:'confirmed'});
     const customerResponse=await handleCustomerDeliveryRequest(new Request(
       'https://api.example.test/api/orders/order-reschedule/reschedule',
-      {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({slotId:'slot-new',reason:'Please move my delivery'})}
+      {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestedDeliveryDate:'2026-10-28',reason:'Please move my delivery'})}
     ),{DB:db},'customer-1');
     assert.equal(customerResponse.status,202);
     const customerResult=await customerResponse.json();
     const requestId=customerResult.request.requestId;
     assert.ok(requestId);
-    assert.equal(db.db.prepare("SELECT schedule_status FROM orders WHERE id='order-reschedule'").get().schedule_status,'change_requested');
+    assert.equal(db.db.prepare("SELECT schedule_status FROM orders WHERE id='order-reschedule'").get().schedule_status,'confirmed');
+    assert.equal(db.db.prepare("SELECT scheduled_delivery_date FROM orders WHERE id='order-reschedule'").get().scheduled_delivery_date,'2026-01-01');
+    assert.equal(db.db.prepare('SELECT requested_delivery_date FROM order_action_requests WHERE id=?').get(requestId).requested_delivery_date,'2026-10-28');
 
     const ownerResponse=await handleAdminDeliveryRequest(new Request(
       'https://api.example.test/api/admin/delivery/requests/'+encodeURIComponent(requestId),
@@ -110,7 +112,7 @@ test('rejecting a customer reschedule restores the exact previously confirmed sc
   } finally { db.close(); }
 });
 
-test('checkout creates an order with a server-validated slot and reserves global, store and slot stock exactly once', async () => {
+test('checkout creates an order with a server-validated preferred date and reserves global stock exactly once', async () => {
   const db=new SQLiteD1();
   try {
     db.db.prepare(`UPDATE delivery_scheduling_settings
@@ -122,24 +124,23 @@ test('checkout creates an order with a server-validated slot and reserves global
       customer:{name:'Test Customer',phone:'1234567890'},
       address:{house:'1-1',area:'Test Area',city:'Test City',pincode:'500001',latitude:17.385,longitude:78.4867},
       items:[{id:'product-1',qty:2}],
-      deliverySlotId:'slot-new',
+      preferredDeliveryDate:'2026-10-28',
       clientOrderId:'checkout-test-0001'
     };
     const placed=await createOrder({DB:db,APP_ORIGIN:'https://fwcoldpressed.in'},payload,ctx);
     if(deferred)await deferred;
     assert.ok(placed.id);
     assert.equal(placed.scheduledDelivery.date,'2026-10-28');
-    assert.equal(placed.scheduledDelivery.storeId,'store-1');
     const order=db.db.prepare('SELECT delivery_status,scheduled_delivery_date,scheduled_slot_id,assigned_store_id,schedule_status FROM orders WHERE id=?').get(placed.id);
     assert.equal(order.delivery_status,'New');
     assert.equal(order.scheduled_delivery_date,'2026-10-28');
-    assert.equal(order.scheduled_slot_id,'slot-new');
-    assert.equal(order.assigned_store_id,'store-1');
+    assert.equal(order.scheduled_slot_id,null);
+    assert.equal(order.assigned_store_id,null);
     assert.equal(order.schedule_status,'requested');
     assert.equal(db.db.prepare(`SELECT stock_quantity FROM products WHERE id='product-1'`).get().stock_quantity,1);
     assert.equal(db.db.prepare('SELECT stock_reserved_qty FROM order_items WHERE order_id=?').get(placed.id).stock_reserved_qty,2);
-    assert.equal(db.db.prepare('SELECT qty FROM delivery_store_inventory_reservations WHERE order_id=? AND status=\'reserved\'').get(placed.id).qty,2);
-    assert.equal(db.db.prepare('SELECT COUNT(*) count FROM delivery_slot_reservations WHERE order_id=? AND slot_id=\'slot-new\' AND status=\'reserved\'').get(placed.id).count,1);
+    assert.equal(db.db.prepare('SELECT COUNT(*) count FROM delivery_store_inventory_reservations WHERE order_id=?').get(placed.id).count,0);
+    assert.equal(db.db.prepare('SELECT COUNT(*) count FROM delivery_slot_reservations WHERE order_id=?').get(placed.id).count,0);
     assert.deepEqual(db.db.prepare('PRAGMA foreign_key_check').all(),[]);
 
     const retried=await createOrder({DB:db,APP_ORIGIN:'https://fwcoldpressed.in'},payload,{waitUntil(promise){deferred=promise;}});
