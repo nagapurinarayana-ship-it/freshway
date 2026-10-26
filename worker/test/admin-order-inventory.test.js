@@ -157,10 +157,11 @@ test('cancelling a live order atomically restores reserved stock and clears rese
   assert.equal(f.products.get('p1').stock_quantity, 5);
   assert.equal(f.items[0].stock_reserved_qty, 0);
   assert.equal(f.batches.length, 1);
-  assert.equal(f.batches[0].length, 3);
+  assert.equal(f.batches[0].length, 4);
   assert.match(f.batches[0][0].sql, /stock_quantity=stock_quantity\+\?/);
   assert.match(f.batches[0][1].sql, /UPDATE order_items SET stock_reserved_qty=0/);
   assert.match(f.batches[0][2].sql, /UPDATE orders SET/);
+  assert.match(f.batches[0][3].sql, /INSERT INTO order_audit_events/);
   assert.ok(f.batches[0].slice(0, 2).every(statement => /EXISTS\(SELECT 1 FROM orders o WHERE o\.id=\? AND o\.delivery_status IS \?/.test(statement.sql)));
   assert.match(f.batches[0][2].sql, /WHERE id=\? AND delivery_status IS \?/);
 
@@ -183,17 +184,16 @@ test('reopening a cancelled order reserves tracked inventory in the same batch a
   assert.match(f.batches[0][2].sql, /UPDATE orders SET/);
 });
 
-test('reopening a cancelled order with insufficient stock makes no changes', async () => {
+test('Owner can reopen an order with insufficient stock while recording an operational conflict', async () => {
   const f = fixture({ status: 'Cancelled', reservedQty: 0, stockQuantity: 1 });
 
-  await assert.rejects(
-    () => updateOrder(f.env, f.order.id, { status: 'Confirmed' }),
-    /ORDER_CONFLICT: Not enough stock to reopen this cancelled order/i
-  );
-  assert.equal(f.order.delivery_status, 'Cancelled');
-  assert.equal(f.products.get('p1').stock_quantity, 1);
-  assert.equal(f.items[0].stock_reserved_qty, 0);
-  assert.equal(f.batches.length, 0);
+  const result = await updateOrder(f.env, f.order.id, { status: 'Confirmed' });
+  assert.equal(result.status, 'Confirmed');
+  assert.equal(f.order.delivery_status, 'Confirmed');
+  assert.equal(f.products.get('p1').stock_quantity, 1, 'Owner correction must not drive stock negative');
+  assert.equal(f.items[0].stock_reserved_qty, 0, 'insufficient stock must not be falsely reserved');
+  assert.equal(f.batches.length, 1);
+  assert.ok(f.batches[0].some(statement => /INSERT INTO order_operational_flags/.test(statement.sql)));
 });
 
 test('cancelling an already delivered order does not restore fulfilled inventory', async () => {
@@ -203,7 +203,8 @@ test('cancelling an already delivered order does not restore fulfilled inventory
   assert.equal(result.status, 'Cancelled');
   assert.equal(f.products.get('p1').stock_quantity, 3);
   assert.equal(f.items[0].stock_reserved_qty, 2);
-  assert.equal(f.batches.length, 0);
+  assert.equal(f.batches.length, 1, 'Owner correction is audited even when stock was already reserved');
+  assert.ok(f.batches[0].some(statement => /INSERT INTO order_audit_events/.test(statement.sql)));
 });
 
 test('reopening a legacy cancelled order with its old reservation marker does not reserve stock twice', async () => {
@@ -212,5 +213,6 @@ test('reopening a legacy cancelled order with its old reservation marker does no
   assert.equal(f.products.get('p1').stock_quantity, 3);
   assert.equal(f.items[0].stock_reserved_qty, 2);
   assert.equal(f.order.delivery_status, 'Confirmed');
-  assert.equal(f.batches.length, 0);
+  assert.equal(f.batches.length, 1);
+  assert.ok(!f.batches[0].some(statement => /UPDATE products SET stock_quantity=stock_quantity-/.test(statement.sql)));
 });
