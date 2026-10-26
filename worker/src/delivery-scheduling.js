@@ -610,11 +610,13 @@ export async function handleAdminDeliveryRequest(request, env) {
       const date = clean(body.deliveryDate), now = istNowParts();
       if (!dateValid(date) || date < now.date || date > addDays(now.date, 60)) throw new Error('Choose a valid delivery date between today and the next 60 days.');
       const before = { ...order }, plan = date === now.date ? 'Today' : date === addDays(now.date,1) ? 'Tomorrow' : 'Later';
-      await env.DB.batch([
-        env.DB.prepare("UPDATE delivery_slot_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(orderId),
-        env.DB.prepare("UPDATE delivery_store_inventory_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(orderId),
-        env.DB.prepare("UPDATE orders SET scheduled_delivery_date=?,scheduled_slot_id=NULL,assigned_store_id=NULL,scheduled_start_minute=NULL,scheduled_end_minute=NULL,schedule_status='confirmed',delivery_plan=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(date,plan,orderId)
-      ]);
+      const dateStatements = [];
+      if (order.scheduled_slot_id || order.assigned_store_id) {
+        dateStatements.push(env.DB.prepare("UPDATE delivery_slot_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(orderId));
+        dateStatements.push(env.DB.prepare("UPDATE delivery_store_inventory_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(orderId));
+      }
+      dateStatements.push(env.DB.prepare("UPDATE orders SET scheduled_delivery_date=?,scheduled_slot_id=NULL,assigned_store_id=NULL,scheduled_start_minute=NULL,scheduled_end_minute=NULL,schedule_status='confirmed',delivery_plan=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(date,plan,orderId));
+      await env.DB.batch(dateStatements);
       await writeAudit(env,orderId,'owner',clean(request.headers.get('X-Freshway-Owner-Id'))||'owner','delivery_date_changed',clean(body.reason),before,{date});
       await notifyCustomerAndOwner(env,orderId,{customer_id:order.customer_id,delivery_status:order.delivery_status,payment_status:order.payment_status,delivery_plan:order.delivery_plan,is_test_order:order.is_test_order},'delivery_date_changed','Delivery date updated to '+date);
       return response({ok:true,orderId,scheduledDelivery:{date}});
@@ -664,11 +666,13 @@ export async function handleAdminDeliveryRequest(request, env) {
       const date = clean(body.deliveryDate) || row.requested_delivery_date, now = istNowParts();
       if (!dateValid(date) || date < now.date || date > addDays(now.date,60)) throw new Error('Choose a valid delivery date between today and the next 60 days.');
       const plan = date===now.date?'Today':date===addDays(now.date,1)?'Tomorrow':'Later';
-      await env.DB.batch([
-        env.DB.prepare("UPDATE delivery_slot_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(row.order_id),
-        env.DB.prepare("UPDATE delivery_store_inventory_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(row.order_id),
-        env.DB.prepare("UPDATE orders SET scheduled_delivery_date=?,scheduled_slot_id=NULL,assigned_store_id=NULL,scheduled_start_minute=NULL,scheduled_end_minute=NULL,schedule_status='confirmed',delivery_plan=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(date,plan,row.order_id)
-      ]);
+      const dateStatements = [];
+      if (order.scheduled_slot_id || order.assigned_store_id) {
+        dateStatements.push(env.DB.prepare("UPDATE delivery_slot_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(row.order_id));
+        dateStatements.push(env.DB.prepare("UPDATE delivery_store_inventory_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(row.order_id));
+      }
+      dateStatements.push(env.DB.prepare("UPDATE orders SET scheduled_delivery_date=?,scheduled_slot_id=NULL,assigned_store_id=NULL,scheduled_start_minute=NULL,scheduled_end_minute=NULL,schedule_status='confirmed',delivery_plan=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(date,plan,row.order_id));
+      await env.DB.batch(dateStatements);
       await writeAudit(env,row.order_id,'owner','owner','delivery_date_change_approved',note,order,{date});
       await notifyCustomerAndOwner(env,row.order_id,{customer_id:order.customer_id,delivery_status:order.delivery_status,payment_status:order.payment_status,delivery_plan:order.delivery_plan,is_test_order:order.is_test_order},'delivery_date_changed','Delivery date updated to '+date);
     } else if (decision === 'approve' && row.request_type === 'reschedule') {
