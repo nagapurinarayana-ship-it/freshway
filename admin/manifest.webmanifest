@@ -10,16 +10,22 @@
   "theme_color": "#0f7a4b",
   "icons": [
     {
-      "src": "/admin/icons/icon-192.svg",
+      "src": "/admin/icons/icon-192-brand-v2.png?v=20261026-brand-v2",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/admin/icons/icon-512.svg",
+      "src": "/admin/icons/icon-512-brand-v2.png?v=20261026-brand-v2",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/admin/icons/icon-512-maskable-v2.png?v=20261026-brand-v2",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

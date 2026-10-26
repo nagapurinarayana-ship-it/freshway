@@ -61,8 +61,9 @@ const requiredOwnerAssets = [
   'frontend/media/catalogue/sunflower-oil.svg',
   'frontend/media/catalogue/hmt-rice.svg',
   'frontend/media/catalogue/sona-masuri.svg',
-  'icons/icon-192.svg',
-  'icons/icon-512.svg'
+  'icons/icon-192-brand-v2.png',
+  'icons/icon-512-brand-v2.png',
+  'icons/icon-512-maskable-v2.png'
 ];
 
 function makeContext(path, method = 'GET') {
@@ -190,7 +191,21 @@ for (const asset of requiredOwnerAssets) {
   assert.equal(manifest.start_url, '/admin/');
   assert.equal(manifest.scope, '/admin/');
   assert.equal(manifest.display, 'standalone');
-  assert.ok(manifest.icons.length >= 2);
+  const expectedIcons = [
+    { path: '/admin/icons/icon-192-brand-v2.png', size: '192x192', purpose: 'any' },
+    { path: '/admin/icons/icon-512-brand-v2.png', size: '512x512', purpose: 'any' },
+    { path: '/admin/icons/icon-512-maskable-v2.png', size: '512x512', purpose: 'maskable' }
+  ];
+  assert.equal(manifest.icons.length, expectedIcons.length, 'Owner manifest must expose only the approved FreshWay brand icons');
+  for (const expected of expectedIcons) {
+    assert.ok(manifest.icons.some(icon =>
+      new URL(icon.src, 'https://fwcoldpressed.in').pathname === expected.path &&
+      icon.sizes === expected.size &&
+      icon.type === 'image/png' &&
+      String(icon.purpose || '').split(' ').includes(expected.purpose)
+    ), 'Owner manifest must reference the correct FreshWay icon: ' + expected.path);
+  }
+  assert.doesNotMatch(JSON.stringify(manifest.icons), /\\/admin\\/icons\\/icon-(?:192|512)\\.svg/, 'Owner manifest must not reference legacy SVG icon paths');
   for (const icon of manifest.icons) assert.ok(icon.src.startsWith('/admin/'), 'Owner install icon must remain under its app path');
 }
 {

@@ -10,7 +10,7 @@ const EXPECTED_OWNER_ACCOUNT_DELETIONS_SCRIPT = '/admin/frontend/admin/account-d
 const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1';
 const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2';
 const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261023-available-fields-invoice-v1';
-const EXPECTED_OWNER_CACHE = 'fw-owner-v41';
+const EXPECTED_OWNER_CACHE = 'fw-owner-v42';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -179,7 +179,21 @@ assert.equal(manifest.id, '/admin/freshway-owner');
 assert.equal(manifest.start_url, '/admin/');
 assert.equal(manifest.scope, '/admin/');
 assert.equal(manifest.display, 'standalone');
-assert.ok(manifest.icons.length >= 2);
+const expectedOwnerIcons = [
+  { path: '/admin/icons/icon-192-brand-v2.png', size: '192x192', purpose: 'any' },
+  { path: '/admin/icons/icon-512-brand-v2.png', size: '512x512', purpose: 'any' },
+  { path: '/admin/icons/icon-512-maskable-v2.png', size: '512x512', purpose: 'maskable' }
+];
+assert.equal(manifest.icons.length, expectedOwnerIcons.length, 'Owner manifest must expose only the approved FreshWay brand PNG icons');
+for (const expected of expectedOwnerIcons) {
+  assert.ok(manifest.icons.some(icon =>
+    new URL(icon.src, manifestResponse.url).pathname === expected.path &&
+    icon.sizes === expected.size &&
+    icon.type === 'image/png' &&
+    String(icon.purpose || '').split(' ').includes(expected.purpose)
+  ), 'Owner manifest must reference the approved FreshWay brand icon ' + expected.path);
+}
+assert.doesNotMatch(JSON.stringify(manifest.icons), /\\/admin\\/icons\\/icon-(?:192|512)\\.svg/, 'Owner manifest must not reference the old SVG icon paths');
 assert.ok(manifest.icons.every(icon => icon.src.startsWith('/admin/')), 'Owner installation icons must remain under /admin/');
 
 const { response: workerResponse, worker } = await fetchCurrentOwnerServiceWorker();
