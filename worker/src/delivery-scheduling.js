@@ -8,6 +8,7 @@ const response = (data, status = 200) => new Response(JSON.stringify(data), {
   status,
   headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'private, no-store' }
 });
+const deliverySchemaMissing = error => /no such table:\\s*(?:delivery_scheduling_settings|delivery_stores|delivery_store_inventory|delivery_slots|delivery_slot_reservations|delivery_store_inventory_reservations|order_action_requests|order_audit_events|order_operational_flags)\\b/i.test(String(error?.message || error || ''));
 const id = prefix => prefix + '-' + crypto.randomUUID();
 const int = (value, fallback = 0) => {
   const n = Number(value);
@@ -470,7 +471,13 @@ export async function handleCustomerDeliveryRequest(request, env, customerId) {
     let body = {};
     try { body = await request.json(); } catch (_) {}
     try { return response(await resolveAvailableSlots(env, body, clean(body.date))); }
-    catch (error) { return response({ error: error.message || 'Could not load available delivery windows.' }, 400); }
+    catch (error) {
+      if (deliverySchemaMissing(error)) {
+        console.error('FreshWay delivery availability is unavailable because the preview database schema is incomplete:', error?.message || error);
+        return response({ error: 'Delivery availability is temporarily unavailable in this environment. Please try again later.', code: 'DELIVERY_SCHEMA_UNAVAILABLE' }, 503);
+      }
+      return response({ error: error.message || 'Could not load available delivery windows.' }, 400);
+    }
   }
   const match = url.pathname.match(/^\/api\/orders\/([^/]+)\/(cancel|reschedule|request)$/);
   if (match && request.method === 'POST') {
