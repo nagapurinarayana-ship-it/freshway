@@ -201,7 +201,7 @@
           guestAddressMode = true;
           addressLoadError = 'Sign in to load and manage your saved delivery addresses.';
           renderDisplays();
-          if (options && options.showError && !(modalOrigin === 'checkout' && guestAddressMode)) toast(addressLoadError);
+          if (options && options.showError && !guestAddressMode) toast(addressLoadError);
           if ($('#addressModal') && !$('#addressModal').classList.contains('hidden') && !(options && options.deferRender)) renderManager();
           return false;
         }
@@ -389,7 +389,7 @@
       return Number(address.id) === Number(addressId);
     }) || null;
     const isEditing = !!editingAddress;
-    const guestDraft = modalOrigin === 'checkout' && guestAddressMode && activeAddress && activeAddress.id == null ? activeAddress : null;
+    const guestDraft = guestAddressMode && activeAddress && activeAddress.id == null ? activeAddress : null;
     const source = normalizeAddress(editingAddress || guestDraft || newAddressDraft());
     editorLabel = source.label || 'Home';
     editorCoordinates = validCoords(source.latitude, source.longitude) ? {
@@ -401,7 +401,7 @@
     const element = modal();
     element.innerHTML =
       '<div class="modal-sheet address-modal-sheet address-editor-sheet" role="document">' +
-      '<div class="modal-head fw-address-modal-head"><div><span class="eyebrow">' + (isEditing ? 'EDIT ADDRESS' : 'NEW ADDRESS') + '</span><h2 id="addressModalTitle" tabindex="-1">' + (isEditing ? 'Edit delivery address' : 'Add delivery address') + '</h2><p class="fw-address-subtitle">' + (modalOrigin === 'checkout' && guestAddressMode ? 'Use this address for your current order. Sign in to save it for next time.' : 'Save it once. We will use your default next time.') + '</p></div>' +
+      '<div class="modal-head fw-address-modal-head"><div><span class="eyebrow">' + (isEditing ? 'EDIT ADDRESS' : 'NEW ADDRESS') + '</span><h2 id="addressModalTitle" tabindex="-1">' + (isEditing ? 'Edit delivery address' : 'Add delivery address') + '</h2><p class="fw-address-subtitle">' + (guestAddressMode ? 'Use this delivery location for this visit. Sign in to save it for next time.' : 'Save it once. We will use your default next time.') + '</p></div>' +
       '<button type="button" class="icon-btn" data-close-modal aria-label="Close address editor">×</button></div>' +
       '<div class="fw-address-editor-body">' +
       '<div class="address-labels fw-address-labels">' +
@@ -784,13 +784,13 @@
     // Guests can prepare an address for this checkout without creating an account
     // or calling the authenticated address-book API. The order flow may still ask
     // them to verify their phone before submission.
-    if (modalOrigin === 'checkout' && guestAddressMode && !editingAddress) {
+    if (guestAddressMode && !editingAddress) {
       address.id = null;
       address.isDefault = false;
       activeAddress = normalizeAddress(address);
       renderDisplays();
       hideModal();
-      toast('Delivery address ready for this order. Sign in to save it for next time.');
+      toast('Delivery location set for this visit. Sign in to save it for next time.');
       return;
     }
     const saveButton = $('#fwAddressSave');
@@ -886,10 +886,9 @@
     renderLoadingManager();
     loadSaved({ preserveSelection: true, showError: true, deferRender: true }).then(function (loaded) {
       if (!loaded) {
-        if (modalOrigin === 'checkout' && guestAddressMode) {
+        if (guestAddressMode) {
           addressLoadError = '';
           buildEditor(editAddressId != null && addresses.some(function (address) { return Number(address.id) === Number(editAddressId); }) ? editAddressId : null);
-          toast('Add a delivery address for this order. Sign in is only needed to save it to your account.');
           return;
         }
         renderManager(); return;
