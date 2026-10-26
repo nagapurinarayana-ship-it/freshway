@@ -53,7 +53,7 @@ const required = {
   delivery_store_inventory_reservations: ['id', 'order_id', 'store_id', 'product_id', 'qty', 'status', 'owner_override', 'override_reason', 'created_at', 'updated_at'],
   order_action_requests: ['id', 'order_id', 'customer_id', 'request_type', 'requested_slot_id', 'reason', 'status', 'resolution_note', 'resolved_by', 'created_at', 'updated_at'],
   order_audit_events: ['id', 'order_id', 'actor_type', 'actor_id', 'action', 'reason', 'before_json', 'after_json', 'created_at'],
-  order_operational_flags: ['id', 'order_id', 'flag_type', 'status', 'details_json', 'created_at', 'resolved_at'],
+  order_operational_flags: ['id', 'order_id', 'flag_type', 'status', 'details_json', 'created_at', 'updated_at'],
   order_items: ['id', 'order_id', 'product_id', 'name', 'unit', 'qty', 'price', 'line_total', 'stock_reserved_qty'],
   order_address_snapshots: ['order_id', 'customer_id', 'address_id', 'recipient_name', 'delivery_phone', 'house_flat', 'building', 'floor', 'street', 'area', 'locality', 'city', 'district', 'state', 'pincode', 'landmark', 'delivery_note', 'latitude', 'longitude', 'accuracy_meters', 'location_source', 'location_updated_at', 'place_name', 'place_id'],
   home_promotions: ['id', 'image_data', 'image_mime_type', 'alt_text', 'display_order', 'active'],
