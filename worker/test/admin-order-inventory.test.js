@@ -178,10 +178,11 @@ test('reopening a cancelled order reserves tracked inventory in the same batch a
   assert.equal(f.products.get('p1').stock_quantity, 3);
   assert.equal(f.items[0].stock_reserved_qty, 2);
   assert.equal(f.batches.length, 1);
-  assert.equal(f.batches[0].length, 3);
+  assert.equal(f.batches[0].length, 4);
   assert.match(f.batches[0][0].sql, /stock_quantity=stock_quantity-\?/);
   assert.match(f.batches[0][1].sql, /UPDATE order_items SET stock_reserved_qty=qty/);
   assert.match(f.batches[0][2].sql, /UPDATE orders SET/);
+  assert.match(f.batches[0][3].sql, /INSERT INTO order_audit_events/);
 });
 
 test('Owner can reopen an order with insufficient stock while recording an operational conflict', async () => {
