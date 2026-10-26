@@ -110,6 +110,21 @@ test('customer reschedule saves the date, releases the old slot, and preserves s
   } finally { db.close(); }
 });
 
+test('legacy generic request cannot queue a delivery-date approval request', async () => {
+  const db=new SQLiteD1();
+  try {
+    db.seedOrder('order-legacy-reschedule',{date:'2026-10-27',status:'confirmed'});
+    const response=await handleCustomerDeliveryRequest(new Request(
+      'https://api.example.test/api/orders/order-legacy-reschedule/request',
+      {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestType:'reschedule',requestedDeliveryDate:'2026-10-28'})}
+    ),{DB:db},'customer-1');
+    assert.equal(response.status,409);
+    assert.match((await response.json()).error,/Delivery dates update directly/i);
+    assert.equal(db.db.prepare("SELECT scheduled_delivery_date FROM orders WHERE id='order-legacy-reschedule'").get().scheduled_delivery_date,'2026-10-27');
+    assert.equal(db.db.prepare("SELECT COUNT(*) count FROM order_action_requests WHERE order_id='order-legacy-reschedule' AND request_type='reschedule'").get().count,0);
+  } finally { db.close(); }
+});
+
 test('customer reschedule rejects delivered and cancelled orders without changing their dates', async () => {
   for (const status of ['Delivered','Cancelled']) {
     const db=new SQLiteD1();
