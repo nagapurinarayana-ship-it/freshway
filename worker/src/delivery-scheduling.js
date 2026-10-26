@@ -395,8 +395,20 @@ async function customerAction(request, env, customerId, orderId, action) {
     const requestedDeliveryDate = clean(body.requestedDeliveryDate);
     if (order.delivery_status === 'Delivered' || order.delivery_status === 'Cancelled') return response({ error: 'This order cannot be rescheduled in its current status.' }, 409);
     if (!dateValid(requestedDeliveryDate) || requestedDeliveryDate < istNowParts().date || requestedDeliveryDate > addDays(istNowParts().date, 60)) return response({ error: 'Choose a valid delivery date between today and the next 60 days.' }, 400);
-    const queued = await queueRequest(env, order, customerId, 'reschedule', { ...body, requestedDeliveryDate });
-    return response({ ok: true, request: queued, message: queued.alreadyRequested ? 'A delivery-date change is already requested.' : 'Delivery date change requested.' }, 202);
+    const plan = requestedDeliveryDate === istNowParts().date ? 'Today' : requestedDeliveryDate === addDays(istNowParts().date, 1) ? 'Tomorrow' : 'Later';
+    const before = { ...order };
+    const dateStatements = [];
+    if (order.scheduled_slot_id || order.assigned_store_id) {
+      dateStatements.push(env.DB.prepare("UPDATE delivery_slot_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(order.id));
+      dateStatements.push(env.DB.prepare("UPDATE delivery_store_inventory_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(order.id));
+    }
+    dateStatements.push(env.DB.prepare("UPDATE orders SET scheduled_delivery_date=?,scheduled_slot_id=NULL,assigned_store_id=NULL,scheduled_start_minute=NULL,scheduled_end_minute=NULL,schedule_status='confirmed',delivery_plan=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND delivery_status NOT IN ('Delivered','Cancelled')").bind(requestedDeliveryDate, plan, order.id));
+    await env.DB.batch(dateStatements);
+    const updated = await getOrderForAction(env, order.id);
+    if (!updated || updated.scheduled_delivery_date !== requestedDeliveryDate) throw new Error('Delivery date could not be saved. Refresh and try again.');
+    await writeAudit(env, order.id, 'customer', customerId, 'delivery_date_changed_by_customer', '', before, { date: requestedDeliveryDate, delivery_plan: plan });
+    await notifyCustomerAndOwner(env, order.id, { customer_id: order.customer_id, delivery_status: order.delivery_status, payment_status: order.payment_status, delivery_plan: order.delivery_plan, is_test_order: order.is_test_order }, 'delivery_date_changed', 'Your delivery date is now ' + requestedDeliveryDate + '.');
+    return response({ ok: true, status: 'updated', scheduledDelivery: { date: requestedDeliveryDate }, message: 'Delivery date updated.' });
   }
   if (action === 'request') {
     const requestType = clean(body.requestType);
