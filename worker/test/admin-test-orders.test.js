@@ -9,7 +9,7 @@ function fixture({testFlag=0}={}) {
     async first(){if(sql.includes('SELECT delivery_status,payment_status,delivery_plan,customer_id,is_test_order'))return{delivery_status:'New',payment_status:'Not Collected',delivery_plan:'Tomorrow',customer_id:'cust-test',is_test_order:testFlag};if(sql.includes('COUNT(*)'))return{count:1};return null},
     async all(){if(sql.includes('SELECT COUNT(*) count'))return{results:[{count:1}]};if(sql.includes('SELECT o.id'))return{results:[row]};if(sql.includes('SELECT order_id'))return{results:[{order_id:row.id,product_id:'rice',name:'Rice',unit:'kg',qty:1,price:120,line_total:120}]};return{results:[]}},
     async run(){return{meta:{changes:1}}}
-  }}}}};
+  }}}}},async batch(statements){const results=[];for(const statement of statements)results.push(await statement.run());return results}};
   return{env:{DB},calls};
 }
 
