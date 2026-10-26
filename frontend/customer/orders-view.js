@@ -16,14 +16,11 @@
     return '<p class="muted invoice-pending">Your order is awaiting dispatch. The invoice PDF will be available here after dispatch.</p>';
   };
   const scheduleText=o=>{
-    const schedule=o.scheduledDelivery;
-    if(!schedule?.date)return 'Delivery time will be confirmed by FreshWay.';
-    const when=String(schedule.date);
-    const times=schedule.startTime&&schedule.endTime?' · '+schedule.startTime+'–'+schedule.endTime+' IST':'';
-    const store=schedule.storeName?' · '+schedule.storeName:'';
-    const state=String(schedule.status||o.scheduleStatus||'').toLowerCase();
-    const extra=state==='change_requested'?' · Change requested':state==='conflict'?' · FreshWay is reviewing a scheduling conflict':'';
-    return 'Scheduled for '+when+times+store+extra;
+    if(String(o.status||'').toLowerCase()==='delivered'){
+      const deliveredDate=o.deliveredAt||o.updatedAt||o.createdAt;
+      return deliveredDate?'Delivered on '+String(deliveredDate).slice(0,10):'Delivered';
+    }
+    return o.scheduledDelivery?.date?'Delivery date: '+String(o.scheduledDelivery.date):'';
   };
   const actions=(o,esc)=>{
     const id=esc(o.id),status=String(o.status||'').toLowerCase();
@@ -31,7 +28,7 @@
     let html='<div class="fw-customer-order-actions">';
     if(!delivered&&!cancelled){
       html+='<button type="button" class="secondary-btn" data-customer-order-cancel="'+id+'">Cancel order</button>';
-      if(o.scheduledDelivery?.date)html+='<button type="button" class="secondary-btn" data-customer-order-reschedule="'+id+'" aria-expanded="false">Reschedule delivery</button>';
+      if(o.scheduledDelivery?.date)html+='<button type="button" class="secondary-btn" data-customer-order-reschedule="'+id+'" aria-expanded="false">Change delivery date</button>';
       html+='<button type="button" class="text-btn" data-customer-order-open-request="issue">Contact FreshWay</button>';
     }else if(delivered){
       html+='<button type="button" class="secondary-btn" data-customer-order-open-request="issue">Report an issue</button><button type="button" class="secondary-btn" data-customer-order-open-request="return">Request a return</button>';
