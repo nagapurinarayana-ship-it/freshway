@@ -216,9 +216,36 @@ jobs:
             # incremental migrations. This verifies ALTER TABLE/rebuilds against a real
             # pre-feature schema instead of bypassing migration behavior with feature schema.sql.
             npx wrangler d1 execute freshway-preview --remote --file ../../baseline/worker/schema.sql --config "$config"
-            for migration in 0037_order_delivery_scheduling.sql 0038_anonymize_delivery_requests.sql 0039_customer_preferred_delivery_date.sql 0040_order_delivered_at.sql; do
-              npx wrangler d1 execute freshway-preview --remote --file "../../source/worker/migrations/$migration" --config "$config"
-            done
+            npx wrangler d1 execute freshway-preview --remote --file ../../source/worker/migrations/0037_order_delivery_scheduling.sql --config "$config"
+            # Seed one isolated fixture before the request-table rebuild so the preview
+            # verifies that migration 0038 preserves real rows and recreates its indexes.
+            npx wrangler d1 execute freshway-preview --remote --command "INSERT INTO customers (id,name,phone) VALUES ('preview-migration-customer','Preview migration test','9999999999'); INSERT INTO addresses (customer_id,house,area,city,pincode) VALUES ('preview-migration-customer','Test house','Test area','Test city','500001'); INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,is_test_order) VALUES ('preview-migration-order','preview-migration-customer',(SELECT id FROM addresses WHERE customer_id='preview-migration-customer'),'Preview migration test','9999999999',100,1); INSERT INTO order_action_requests (id,order_id,customer_id,request_type,reason,status) VALUES ('preview-migration-request','preview-migration-order','preview-migration-customer','issue','migration-preservation-check','pending')" --config "$config"
+            npx wrangler d1 execute freshway-preview --remote --file ../../source/worker/migrations/0038_anonymize_delivery_requests.sql --config "$config"
+            npx wrangler d1 execute freshway-preview --remote --json --command "SELECT id,order_id,customer_id,reason,status FROM order_action_requests WHERE id='preview-migration-request'" --config "$config" > "$marker_result"
+            node --input-type=module - "$marker_result" <<'NODE'
+          import fs from 'node:fs';
+          const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const rows = (Array.isArray(payload) ? payload[0] : payload)?.results;
+          const row = Array.isArray(rows) ? rows[0] : null;
+          if (!row || row.id !== 'preview-migration-request' || row.order_id !== 'preview-migration-order' ||
+              row.customer_id !== 'preview-migration-customer' || row.reason !== 'migration-preservation-check' || row.status !== 'pending') {
+            throw new Error('Migration 0038 did not preserve the existing order-action request row.');
+          }
+          NODE
+            npx wrangler d1 execute freshway-preview --remote --json --command "SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_order_action_one_pending_type','idx_order_action_queue')" --config "$config" > "$marker_result"
+            node --input-type=module - "$marker_result" <<'NODE'
+          import fs from 'node:fs';
+          const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const rows = (Array.isArray(payload) ? payload[0] : payload)?.results;
+          const names = new Set((Array.isArray(rows) ? rows : []).map(row => row.name));
+          if (!names.has('idx_order_action_one_pending_type') || !names.has('idx_order_action_queue')) {
+            throw new Error('Migration 0038 did not recreate the order-action indexes.');
+          }
+          NODE
+            npx wrangler d1 execute freshway-preview --remote --file ../../source/worker/migrations/0039_customer_preferred_delivery_date.sql --config "$config"
+            npx wrangler d1 execute freshway-preview --remote --file ../../source/worker/migrations/0040_order_delivered_at.sql --config "$config"
+            # Remove only the synthetic fixture; no real customer/order data is touched.
+            npx wrangler d1 execute freshway-preview --remote --command "DELETE FROM order_action_requests WHERE id='preview-migration-request'; DELETE FROM orders WHERE id='preview-migration-order'; DELETE FROM addresses WHERE customer_id='preview-migration-customer'; DELETE FROM customers WHERE id='preview-migration-customer'" --config "$config"
             npx wrangler d1 execute freshway-preview --remote --command "CREATE TABLE IF NOT EXISTS freshway_preview_metadata (id INTEGER PRIMARY KEY CHECK(id=1), database_id TEXT NOT NULL, initialized_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP); INSERT OR IGNORE INTO freshway_preview_metadata (id,database_id) VALUES (1,'$FRESHWAY_PREVIEW_D1_DATABASE_ID')" --config "$config"
           fi
           npx wrangler d1 execute freshway-preview --remote --json --command "SELECT delivered_at, scheduled_delivery_date, scheduled_start_minute FROM orders LIMIT 0; SELECT requested_delivery_date FROM order_action_requests LIMIT 0; SELECT status FROM delivery_slot_reservations LIMIT 0; SELECT status FROM delivery_store_inventory_reservations LIMIT 0" --config "$config" > /dev/null
