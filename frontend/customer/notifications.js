@@ -3,6 +3,7 @@
 (function(){
   const service=()=>window.FreshWayNotifications;
   const enable=()=>service().enable();
+  const getStatus=()=>service().getStatus();
   const registerCustomer=(name,phone,whatsappOptIn=false)=>service().registerCustomer(name,phone,whatsappOptIn);
-  window.FreshWayCustomerNotifications=Object.freeze({enable,registerCustomer});
+  window.FreshWayCustomerNotifications=Object.freeze({enable,getStatus,registerCustomer});
 })();
