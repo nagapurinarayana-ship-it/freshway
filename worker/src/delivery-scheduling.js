@@ -321,8 +321,9 @@ async function moveOrderSchedule(env, order, target, actorType, actorId, options
     const activeStores = Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores WHERE is_active=1').first())?.count || 0);
     const stock = await inventoryMap(env, order.id);
     const lines = (await env.DB.prepare('SELECT product_id id,qty,stock_reserved_qty stockReservedQty FROM order_items WHERE order_id=?').bind(order.id).all()).results || [];
-    candidates = rows.filter(slot => slot.id === selected.id || (override &&
-      Number(slot.start_minute) === start && Number(slot.end_minute) === end))
+    // An Owner selecting a configured slot expects that exact store/window. An override
+    // may bypass capacity/availability guards, but must never silently switch stores.
+    candidates = rows.filter(slot => slot.id === selected.id)
       .map(slot => ({ ...slot, distance_km: distanceFor(options.address || {}, slot, activeStores) }))
       .filter(slot => owner || (slotCanBeCustomerBooked(slot, settings, now) &&
         Number(slot.occupied) < Number(slot.capacity) && slot.distance_km !== Infinity && inventoryFits(slot.store_id, lines, stock)));
