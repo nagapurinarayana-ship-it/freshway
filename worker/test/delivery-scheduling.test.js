@@ -50,7 +50,7 @@ test('checkout cannot bypass an enabled delivery-slot requirement', async () => 
 });
 
 test('numbered migration contains every delivery table, order field and concurrency trigger', () => {
-  const migration = read('../migrations/0022_delivery_scheduling.sql');
+  const migration = read('../migrations/0037_order_delivery_scheduling.sql');
   const schema = read('../schema.sql');
   for (const field of [
     'scheduled_delivery_date', 'scheduled_slot_id', 'assigned_store_id',
