@@ -13,6 +13,11 @@ const base={createdAt:'2026-09-08',items:[],total:240,address:{house:'1',area:'A
 api.render(document,[{...base,id:'FW-1',status:'New',deliveryPlan:'Today'}],helpers);
 assert.match(el.innerHTML,/FW-1/);
 assert.match(el.innerHTML,/Today/);
+api.render(document,[{...base,id:'FW-SLOT',status:'Confirmed',deliveryPlan:'Later',scheduledDelivery:{date:'2026-10-29',startTime:'10:00',endTime:'12:00'}}],helpers);
+assert.match(el.innerHTML,/Delivery date: 2026-10-29 · 10:00–12:00/,'show the selected delivery time window on My Orders');
+api.render(document,[{...base,id:'FW-DATE-ONLY',status:'Confirmed',deliveryPlan:'Later',scheduledDelivery:{date:'2026-10-29',startTime:'',endTime:''}}],helpers);
+assert.match(el.innerHTML,/Delivery date: 2026-10-29/);
+assert.doesNotMatch(el.innerHTML,/10:00–12:00/,'date-only Owner/customer changes should not show a stale slot time');
 assert.match(el.innerHTML,/awaiting dispatch/);
 assert.match(el.innerHTML,/invoice PDF will be available here after dispatch/i);
 assert.doesNotMatch(el.innerHTML,/once invoice issuance is enabled/i);
