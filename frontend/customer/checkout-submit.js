@@ -42,9 +42,16 @@
         await customerAuth.ensureAuthenticated(phone);
         const id=customerId();
         if(!id)throw new Error('Please log in before placing your order.');
-        const result=await api('/api/orders',{method:'POST',body:JSON.stringify(customerCheckout.payload(data,address,cartItems().map(x=>({id:x.product.id,qty:x.qty})),id,clientOrderId,$('#whatsappOptIn')?.checked||false))});
+        const orderPayload=customerCheckout.payload(data,address,cartItems().map(x=>({id:x.product.id,qty:x.qty})),id,clientOrderId,$('#whatsappOptIn')?.checked||false);
+        const deliveryBooking=window.FreshWayCustomerDeliveryBookingInstance;
+        if(deliveryBooking?.checkoutEnabled?.()){
+          const preferredDeliveryDate=deliveryBooking.selectedCheckoutDate?.();
+          if(!preferredDeliveryDate)throw new Error('Choose a preferred delivery day before placing your order.');
+          orderPayload.preferredDeliveryDate=preferredDeliveryDate;
+        }
+        const result=await api('/api/orders',{method:'POST',body:JSON.stringify(orderPayload)});
         const registeredPhone=customerAuth.registeredPhone?.()||'';
-        const order={id:result.id,customer:{name:customerAuth.registeredName?.()||name,phone:registeredPhone},address:{...address,recipientName:address.recipientName||name,deliveryPhone:phone},items:(result.items||[]).map(i=>({name:i.name,unit:i.unit,qty:i.qty,price:i.price,lineTotal:i.lineTotal})),total:result.total,payment:result.payment,status:result.status,deliveryPlan:result.deliveryPlan,createdAt:result.createdAt,updatedAt:result.updatedAt};
+        const order={id:result.id,customer:{name:customerAuth.registeredName?.()||name,phone:registeredPhone},address:{...address,recipientName:address.recipientName||name,deliveryPhone:phone},items:(result.items||[]).map(i=>({name:i.name,unit:i.unit,qty:i.qty,price:i.price,lineTotal:i.lineTotal})),total:result.total,payment:result.payment,status:result.status,deliveryPlan:result.deliveryPlan,scheduledDelivery:result.scheduledDelivery||null,scheduleStatus:result.scheduledDelivery?.status||'unscheduled',createdAt:result.createdAt,updatedAt:result.updatedAt};
         state.orders=[order,...state.orders.filter(x=>x.id!==order.id)];
         state.cart={};
         state.profile.address=customerAddress.format(address);

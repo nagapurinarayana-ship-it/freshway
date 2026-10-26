@@ -52,6 +52,27 @@ const cartItems=()=>catalogueCart.items(state,PRODUCTS);
 const cartTotal=()=>catalogueCart.total(state,PRODUCTS);
 const cartCount=()=>catalogueCart.count(state,PRODUCTS);
 function toast(msg){customerFeedback.show(document,msg)}
+const checkoutDeliveryAddress=()=>{
+  const selected=window.FreshWayAddressSystem?.getSelectedAddress?.()||null;
+  const formAddress=customerAddressFlow.read(document,customerAddress);
+  const merged=selected?Object.assign({},formAddress,{
+    house:selected.houseFlat||selected.house||formAddress.house,
+    area:selected.area||formAddress.area,
+    city:selected.city||formAddress.city,
+    pincode:selected.pincode||formAddress.pincode,
+    landmark:selected.landmark||formAddress.landmark,
+    note:selected.note||formAddress.note
+  }):formAddress;
+  const normalized=customerAddress.normalize(merged||{});
+  const point=selected||merged||{};
+  if(point.latitude!==undefined||point.lat!==undefined)normalized.latitude=point.latitude??point.lat;
+  if(point.longitude!==undefined||point.lng!==undefined)normalized.longitude=point.longitude??point.lng;
+  return normalized;
+};
+const customerDeliveryBooking=window.FreshWayCustomerDeliveryBooking?.create({api,getItems:()=>cartItems().map(item=>({id:item.product.id,qty:item.qty})),getAddress:checkoutDeliveryAddress,toast});
+window.FreshWayCustomerDeliveryBookingInstance=customerDeliveryBooking||null;
+customerDeliveryBooking?.mountCheckout($('#checkoutDeliveryPicker'));
+$('#checkoutForm')?.addEventListener('change',event=>{if(!event.target.closest('#checkoutDeliveryPicker'))void customerDeliveryBooking?.refreshCheckout?.()});
 function renderProducts(filter=''){customerProductView.render(PRODUCTS,state,filter,{esc,money,changeQty,updateCartBar})}
 const updateCartBar=()=>{
   customerCartBar.update(document,{count:cartCount(),total:cartTotal(),money})
@@ -62,12 +83,13 @@ function latestOrder(){return customerOrders.latest(state.orders)}
 function prefillCheckout(){const last=latestOrder(),saved=state.profile?.checkout||{},a=customerProfile.savedAddress(state.profile,last),normalizePhone=customerCheckout.normalizePhone||((value)=>String(value||'').replace(/\D/g,'').replace(/^91(?=\d{10}$)/,''));const fields=[['#customerName',saved.name||last?.customer?.name||''],['#customerPhone',normalizePhone(saved.phone||last?.customer?.phone||'')]];fields.forEach(([sel,val])=>{const el=$(sel);if(el&&!el.value)el.value=val});customerAddressFlow.fill(document,a,{onlyEmpty:true})}
 function renderProfile(){const last=latestOrder(),name=$('#profileName'),phone=$('#profilePhone'),addr=$('#profileAddressText'),home=$('#homeAddress');if(name)name.textContent=customerAuth.registeredName?.()||customerProfile.name(state.profile,last);if(phone){const registered=customerAuth.registeredPhone?.()||'';phone.textContent=registered?(window.FreshWayPhoneDisplay?.format(registered)||registered):customerProfile.phone(state.profile,last)}if(addr)addr.textContent=customerProfile.displayAddress(state.profile);if(home)home.textContent=customerProfile.homeAddress(state.profile);window.FreshWayAddressSystem?.renderDisplays?.()}
 const customerOrderData=customerOrdersDataModule.create({api,customerId,readState:()=>state,save,renderOrders,renderProfile,toast,document,intervalMs:0});
+document.addEventListener('freshway:order-actions-changed',()=>{void customerOrderData.load()});
 let customerFreshness=null;
-function handleView(name){if(name==='orders'){renderOrders();customerOrderData.load();customerOrderData.start()}else customerOrderData.stop();if(name==='cart')renderCart();if(name==='checkout'){prefillCheckout();updateCartBar();window.FreshWayAddressSystem?.syncCheckout?.()}if(name==='profile'){renderProfile();window.FreshWayAddressSystem?.renderDisplays?.()}if(name==='about'||name==='contact')customerStoreInfo?.show(name,{api,toast}).catch(error=>toast(error.message));customerFreshness?.onView(name)}
+function handleView(name){if(name==='orders'){renderOrders();customerOrderData.load();customerOrderData.start()}else customerOrderData.stop();if(name==='cart')renderCart();if(name==='checkout'){prefillCheckout();updateCartBar();window.FreshWayAddressSystem?.syncCheckout?.();void customerDeliveryBooking?.refreshCheckout?.()}if(name==='profile'){renderProfile();window.FreshWayAddressSystem?.renderDisplays?.()}if(name==='about'||name==='contact')customerStoreInfo?.show(name,{api,toast}).catch(error=>toast(error.message));customerFreshness?.onView(name)}
 const navigation=customerNavigation.create({document,onView:handleView,afterView:name=>window.FreshWaySeo?.setView(name)});
 customerFreshness=customerStateFreshness?.create({document,getView:()=>document.querySelector('.view.active-view')?.id?.replace(/View$/,'')||'home',refreshCatalogue:()=>window.freshWayCustomerCatalogueRefresh?.(),refreshOrders:()=>customerOrderData.load(),refreshPromotions:()=>customerPromotions?.refresh?.(),renderProfile});
 function setView(name,options){if(name==='home'&&options?.history!=='none')window.freshWayCustomerCatalogueGoHome?.();navigation.setView(name,options)}
-function changeQty(id,delta){const current=Number(state.cart[id]||0);const next=catalogueCart.nextQuantity(current,delta);if(delta>0&&current>=99){toast('Maximum quantity is 99');return}if(next<=0)delete state.cart[id];else state.cart[id]=next;save();renderProducts($('#searchInput')?.value||'');if($('#cartView')?.classList.contains('active-view'))renderCart()}
+function changeQty(id,delta){const current=Number(state.cart[id]||0);const next=catalogueCart.nextQuantity(current,delta);if(delta>0&&current>=99){toast('Maximum quantity is 99');return}if(next<=0)delete state.cart[id];else state.cart[id]=next;save();renderProducts($('#searchInput')?.value||'');if($('#cartView')?.classList.contains('active-view'))renderCart();if($('#checkoutView')?.classList.contains('active-view'))void customerDeliveryBooking?.refreshCheckout?.()}
 function openAddressModal(){customerModal.open(document)}
 function closeModal(){customerModal.close(document)}
 function showConfirmation(order){customerConfirmation.show(order,{esc,planText:customerOrderDisplay.planText,setView,updateCartBar,toast});renderProfile()}

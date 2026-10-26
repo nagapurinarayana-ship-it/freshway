@@ -14,6 +14,7 @@ const OWNER_ASSETS = new Map([
   ['freshway-logo-clean.svg', '/freshway-logo-clean.svg'],
   ['frontend/phone-display.js', '/frontend/phone-display.js'],
   ['frontend/admin/store-profile.js', '/frontend/admin/store-profile.js'],
+  ['frontend/admin/delivery-management.js', '/frontend/admin/delivery-management.js'],
   ['frontend/admin/invoice-settings.js', '/frontend/admin/invoice-settings.js'],
   ['frontend/admin/account-deletions.js', '/frontend/admin/account-deletions.js'],
   ['frontend/catalogue-media.js', '/frontend/catalogue-media.js'],

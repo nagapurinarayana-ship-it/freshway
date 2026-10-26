@@ -1,0 +1,39 @@
+/* Customer delivery slot picker and My Orders actions — scoped to avoid changing the catalogue or checkout fields. */
+.fw-delivery-picker{margin:14px 0;padding:16px;border:1px solid #dce9e0;border-radius:16px;background:#f8fbf9;min-width:0}
+.fw-delivery-picker[hidden],.fw-customer-reschedule[hidden],.fw-customer-request-panel[hidden]{display:none!important}
+.fw-delivery-picker-head h3{margin:5px 0;font-size:17px;color:#173d2c}
+.fw-delivery-picker-head p,.fw-delivery-slot-status{margin:5px 0 12px;font-size:12px;line-height:1.5;color:#5d6c63}
+.fw-delivery-date-label{display:grid;gap:6px;font-size:11px;font-weight:800;color:#526158;margin:12px 0}
+.fw-delivery-date-label input{width:100%;min-height:44px;padding:10px;border:1px solid #ccdcd1;border-radius:10px;background:#fff;font:inherit;color:#183b2b}
+.fw-delivery-slot-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.fw-delivery-slot{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0;min-height:90px;padding:12px;border:1px solid #d5e2d9;border-radius:12px;background:#fff;color:#1f3b2c;text-align:left;cursor:pointer}
+.fw-delivery-slot strong{font-size:14px;font-weight:900;line-height:1.25}
+.fw-delivery-slot span{font-size:11px;color:#66766c}
+.fw-delivery-slot small{font-size:10px;color:#66766c;overflow-wrap:anywhere}
+.fw-delivery-slot.selected{border-color:#0f7a4b;background:#eaf7ef;box-shadow:0 0 0 2px rgba(15,122,75,.12)}
+.fw-delivery-slot:focus-visible,.fw-delivery-date-label input:focus-visible{outline:2px solid #0f7a4b;outline-offset:2px}
+.fw-delivery-empty{grid-column:1/-1;padding:14px;border:1px dashed #c4d6ca;border-radius:10px;background:#fff;color:#5b6c61;font-size:12px;line-height:1.5}
+.fw-customer-schedule-copy{margin:12px 0;padding:11px 12px;border:1px solid #e4ece6;border-radius:12px;background:#f8fbf9}
+.fw-customer-schedule-copy strong{display:block;margin-top:5px;color:#234333;font-size:12px}
+.fw-customer-schedule-copy p{margin:5px 0 0;color:#64736a;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+.fw-customer-order-actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
+.fw-customer-order-actions button{min-height:42px;flex:1 1 130px}
+.fw-customer-order-actions .text-btn{border:1px solid transparent;background:transparent;color:#0f7a4b;font:inherit;font-weight:800;padding:9px 10px;border-radius:10px;cursor:pointer}
+.fw-customer-order-actions button:disabled{opacity:.6;cursor:wait}
+.fw-customer-request-panel,.fw-customer-reschedule{margin-top:12px;padding:14px;border:1px solid #dce9e0;border-radius:13px;background:#f8fbf9}
+.fw-customer-request-panel>strong{display:block;font-size:13px;color:#1c3f2d}
+.fw-customer-request-panel textarea{display:block;width:100%;margin-top:10px;padding:11px;border:1px solid #d1ded5;border-radius:10px;background:#fff;color:#183b2b;font:inherit;font-size:13px;line-height:1.5;resize:vertical;box-sizing:border-box}
+.fw-customer-request-panel textarea:focus{outline:2px solid #0f7a4b;outline-offset:1px}
+.fw-customer-reschedule .fw-delivery-picker{margin:0;padding:0;border:0;background:transparent}
+@media(max-width:420px){.fw-delivery-slot-grid{grid-template-columns:1fr}.fw-delivery-picker{padding:13px}.fw-customer-order-actions button{flex-basis:100%}}
+
+/* Compact date-only delivery choice. */
+.fw-delivery-date-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
+.fw-delivery-date-option{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:5px;min-width:0;min-height:70px;padding:10px;border:1px solid #d5e2d9;border-radius:12px;text-align:left;white-space:normal}
+.fw-delivery-date-option strong{font-size:13px}
+.fw-delivery-date-option span{font-size:11px;color:#66766c}
+.fw-delivery-date-option.selected{border-color:#0f7a4b;background:#eaf7ef;box-shadow:0 0 0 2px rgba(15,122,75,.12)}
+.fw-delivery-date-summary{margin:10px 0 0;font-size:13px;color:#173d2c}
+@media(max-width:380px){.fw-delivery-date-options{grid-template-columns:1fr}.fw-delivery-date-option{min-height:54px}}
+
+body:has(#checkoutView.active-view) .bottom-nav{display:none}

@@ -216,3 +216,83 @@ button,input,textarea,select{touch-action:manipulation}
   .account-deletion-completed-summary{align-items:flex-start;flex-direction:column;gap:8px;padding:12px}
   .account-deletion-completed-summary small{max-width:none;text-align:left}
 }
+
+/* Delivery scheduling operations — scoped to the Owner delivery screen and order-schedule panel. */
+#deliveryManagement{display:grid;gap:14px;margin-top:20px;min-width:0}
+.fw-delivery-admin-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.fw-delivery-admin-head h2{margin:5px 0;font-size:21px}
+.fw-delivery-admin-head p,.fw-delivery-admin-panel>p{margin:5px 0;color:var(--muted);font-size:11px;line-height:1.55}
+.fw-delivery-admin-status{margin:0;padding:10px 12px;border:1px solid #cde5d5;border-radius:10px;background:#f1faf4;color:#225f3c;font-size:11px;line-height:1.5}
+.fw-delivery-admin-status.error,.fw-schedule-save-status.error{border-color:#f0c7c4;background:#fff5f4;color:#a12d26}
+.fw-delivery-admin-panel{display:grid;gap:12px;min-width:0;padding:16px;border:1px solid var(--line);border-radius:14px;background:#fff}
+.fw-delivery-admin-panel h3{margin:0;font-size:14px}
+.fw-delivery-admin-panel h4{margin:14px 0 6px;font-size:12px}
+.fw-delivery-admin-panel label{display:grid;gap:6px;min-width:0;font-size:10px;font-weight:800;color:var(--muted)}
+.fw-delivery-admin-panel input:not([type=checkbox]),.fw-delivery-admin-panel select{width:100%;min-width:0;min-height:40px;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);font:inherit;font-size:11px;box-sizing:border-box}
+.fw-delivery-admin-panel input:focus-visible,.fw-delivery-admin-panel select:focus-visible{outline:2px solid var(--g);outline-offset:1px}
+.fw-delivery-admin-panel small{display:block;color:var(--muted);font-size:9px;line-height:1.45;overflow-wrap:anywhere}
+.fw-delivery-admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.fw-delivery-admin-grid-panels{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.fw-delivery-admin-grid-panels .fw-delivery-admin-panel{align-content:start}
+.fw-delivery-admin-panel .fw-check{display:flex;align-items:flex-start;gap:9px;color:var(--ink);font-size:11px;font-weight:700;line-height:1.45}
+.fw-delivery-admin-panel .fw-check input{flex:0 0 18px;width:18px;height:18px;margin:1px 0 0;accent-color:var(--g)}
+.fw-delivery-admin-panel .section-head{align-items:flex-start}
+.fw-delivery-pill{display:inline-flex;align-items:center;flex:0 0 auto;border-radius:999px;padding:4px 8px;background:#f1f4f2;color:#68776e;font-size:9px;font-weight:900}
+.fw-delivery-pill.active{background:#e7f6ec;color:#0f7a4b}
+.fw-delivery-pill.warning,.fw-conflict{background:#fff0e4;color:#a34e13}
+.fw-delivery-store-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.fw-delivery-store-card{min-width:0;padding:12px;border:1px solid var(--line);border-radius:11px;background:#fbfcfb}
+.fw-delivery-store-title{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.fw-delivery-store-title strong{font-size:11px;overflow-wrap:anywhere}
+.fw-delivery-store-card p{margin:7px 0;color:var(--muted);font-size:10px;line-height:1.45;overflow-wrap:anywhere}
+.fw-delivery-store-actions{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}
+.fw-delivery-store-actions button{flex:1 1 100px;min-height:36px}
+.fw-delivery-count{display:inline-flex;white-space:nowrap;border-radius:20px;padding:5px 8px;background:#f3f6f4;color:#596a60;font-size:9px;font-weight:900}
+.fw-delivery-inventory-list,.fw-delivery-slot-table,.fw-delivery-request-list,.fw-delivery-flag-list{display:grid;gap:8px;min-width:0}
+.fw-delivery-inventory-row{display:grid!important;grid-template-columns:minmax(0,2fr) minmax(64px,.8fr) minmax(40px,.55fr) minmax(50px,.7fr);align-items:center;gap:9px;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.fw-delivery-inventory-row>span:first-child strong,.fw-delivery-inventory-row>span:first-child small{display:block}
+.fw-delivery-inventory-row>span:not(:first-child),.fw-delivery-inventory-row>strong{font-size:10px;color:var(--ink);text-align:center}
+.fw-delivery-inventory-row input{padding:7px!important;min-height:36px!important;text-align:center}
+.fw-delivery-inventory-header{background:#f7faf8;color:var(--muted);font-size:9px;font-weight:900}
+.fw-delivery-inventory-header span{text-align:left!important}
+.fw-delivery-slot-row{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) minmax(54px,.55fr) minmax(140px,1.7fr);align-items:center;gap:9px;padding:9px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:10px;min-width:0}
+.fw-delivery-slot-row>span:first-child strong,.fw-delivery-slot-row>span:first-child small{display:block}
+.fw-delivery-slot-row>span{overflow-wrap:anywhere}
+.fw-delivery-slot-row small{margin-top:3px;color:var(--muted)}
+.fw-delivery-slot-header{background:#f7faf8;color:var(--muted);font-size:9px;font-weight:900}
+.fw-slot-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-width:0}
+.fw-slot-actions input{width:64px!important;min-height:34px!important;padding:6px!important}
+.fw-slot-actions button{min-height:34px;padding:6px 8px;font-size:9px}
+.fw-delivery-request{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:11px;background:#fbfcfb;min-width:0}
+.fw-delivery-request .section-head{align-items:flex-start;margin:0}
+.fw-delivery-request .section-head strong,.fw-delivery-request .section-head small{display:block;overflow-wrap:anywhere}
+.fw-delivery-request .section-head strong{font-size:11px}
+.fw-delivery-request .section-head small{margin-top:4px;color:var(--muted);font-size:9px}
+.fw-delivery-request p{margin:0;font-size:10px;line-height:1.5;overflow-wrap:anywhere}
+.fw-delivery-request .fw-slot-actions button{flex:1 1 110px}
+.fw-weekdays{display:flex;gap:9px;flex-wrap:wrap;padding:8px 0}
+.fw-weekdays label{display:flex;align-items:center;gap:4px;font-size:10px}
+.fw-weekdays input{accent-color:var(--g)}
+.fw-owner-order-schedule{margin:16px 0;background:#f8fbf9}
+.fw-delivery-current{padding:10px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--muted)}
+.fw-delivery-current strong{color:var(--ink)}
+.fw-owner-order-schedule form{display:grid;gap:11px}
+.fw-schedule-save-status{display:block;color:var(--muted);font-size:10px;line-height:1.5}
+.fw-history-event{padding:9px;border-bottom:1px solid var(--line)}
+.fw-history-event strong,.fw-history-event small{display:block}
+.fw-history-event strong{font-size:10px;overflow-wrap:anywhere}
+.fw-history-event small{margin-top:3px;color:var(--muted);font-size:9px}
+.fw-history-event p,.fw-history-reservation{margin:5px 0;color:var(--muted);font-size:10px;line-height:1.45;overflow-wrap:anywhere}
+@media(max-width:900px){.fw-delivery-admin-grid-panels{grid-template-columns:1fr}.fw-delivery-store-list{grid-template-columns:1fr}}
+@media(max-width:650px){
+  .fw-delivery-admin-head{align-items:flex-start}
+  .fw-delivery-admin-head h2{font-size:19px}
+  .fw-delivery-admin-grid{grid-template-columns:1fr}
+  .fw-delivery-inventory-row{grid-template-columns:minmax(0,1.5fr) 68px 48px 55px;gap:5px;padding:8px}
+  .fw-delivery-inventory-row input{font-size:10px!important}
+  .fw-delivery-slot-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}
+  .fw-delivery-slot-header{display:none}
+  .fw-slot-actions{grid-column:1/-1}
+  .fw-slot-actions input{flex:0 0 60px}
+  .fw-delivery-request .section-head{flex-wrap:wrap}
+}

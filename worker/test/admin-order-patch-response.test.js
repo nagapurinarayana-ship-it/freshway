@@ -10,6 +10,7 @@ function fixture() {
     id: 'FW-TEST-POST-COMMIT',
     customer_id: 'customer-test',
     delivery_status: 'New',
+    delivered_at: null,
     payment_status: 'Not Collected',
     delivery_plan: 'Tomorrow',
     is_test_order: 0
@@ -21,7 +22,7 @@ function fixture() {
         values: [],
         bind(...values) { this.values = values; return this; },
         async first() {
-          if (sql.startsWith('SELECT delivery_status,payment_status,delivery_plan,customer_id,is_test_order FROM orders')) {
+          if (sql.startsWith('SELECT delivery_status,payment_status,delivery_plan,customer_id,is_test_order,delivered_at')) {
             return { ...row };
           }
           if (sql.startsWith('SELECT customer_id,delivery_status,payment_status,delivery_plan FROM orders')) {
@@ -34,6 +35,7 @@ function fixture() {
           if (sql.startsWith('UPDATE orders SET')) {
             const setClause = sql.slice('UPDATE orders SET '.length, sql.indexOf(' WHERE '));
             let index = 0;
+            if (setClause.includes('delivered_at=CURRENT_TIMESTAMP')) row.delivered_at = '2026-10-26 12:00:00';
             for (const field of ['delivery_status', 'payment_status', 'delivery_plan', 'is_test_order']) {
               if (setClause.includes(field + '=?')) row[field] = statement.values[index++];
             }
@@ -44,6 +46,7 @@ function fixture() {
       };
       return statement;
     }
+    ,async batch(statements) { const results=[]; for (const statement of statements) results.push(await statement.run()); return results; }
   };
   return { DB, row };
 }
@@ -82,6 +85,7 @@ test('successful status PATCH returns 200 after the request body is consumed by 
   assert.equal(response.status, 200);
   assert.equal((await response.json()).status, 'Delivered');
   assert.equal(row.delivery_status, 'Delivered');
+  assert.ok(row.delivered_at, 'delivery completion timestamp must be recorded');
 });
 
 test('successful test-order classification PATCH returns 200 after the request body is consumed by the handler', async () => {

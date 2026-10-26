@@ -26,6 +26,16 @@ export async function fulfillAccountDeletion(env, requestId, adminNote) {
     env.DB.prepare('DELETE FROM notification_events WHERE (customer_id=? OR order_id IN (SELECT id FROM orders WHERE customer_id=?)) AND ' + activeRequest).bind(customerId, customerId, ...guard()),
     env.DB.prepare("UPDATE order_address_snapshots SET customer_id=NULL,address_id=NULL,recipient_name='Deleted customer',delivery_phone='',house_flat='Removed',building=NULL,floor=NULL,street=NULL,area='Removed',locality=NULL,city='Removed',district=NULL,state=NULL,pincode='000000',landmark=NULL,delivery_note=NULL,latitude=NULL,longitude=NULL,accuracy_meters=NULL,location_source=NULL,place_name=NULL,place_id=NULL,location_updated_at=NULL WHERE order_id IN (SELECT id FROM orders WHERE customer_id=?) AND " + activeRequest).bind(customerId, ...guard()),
     env.DB.prepare("UPDATE addresses SET house='Removed',area='Removed',city='Removed',pincode='000000',landmark=NULL,note=NULL,label='Removed',recipient_name=NULL,delivery_phone=NULL,building=NULL,floor=NULL,street=NULL,locality=NULL,district=NULL,state=NULL,latitude=NULL,longitude=NULL,accuracy_meters=NULL,location_source=NULL,place_id=NULL,location_updated_at=NULL,is_default=0,deleted_at=COALESCE(deleted_at,CURRENT_TIMESTAMP) WHERE customer_id=? AND " + activeRequest).bind(customerId, ...guard()),
+    env.DB.prepare(
+      "UPDATE order_action_requests SET customer_id=NULL,reason='',resolution_note='',updated_at=CURRENT_TIMESTAMP " +
+      "WHERE customer_id=? AND order_id IN (SELECT id FROM orders WHERE customer_id=?) AND " + activeRequest
+    ).bind(customerId, customerId, ...guard()),
+    env.DB.prepare(
+      "UPDATE order_audit_events SET actor_id=CASE WHEN actor_type='customer' AND actor_id=? THEN '' ELSE actor_id END,reason='', " +
+      "before_json=CASE WHEN json_valid(before_json) THEN json_remove(before_json,'$.customer_id','$.customerId','$.customer_name','$.customer_phone','$.customer.phone','$.customer.name','$.address','$.order.customer_id','$.order.customerId','$.order.customer_name','$.order.customer_phone','$.order.customer.phone','$.order.customer.name','$.order.address') ELSE NULL END, " +
+      "after_json=CASE WHEN json_valid(after_json) THEN json_remove(after_json,'$.customer_id','$.customerId','$.customer_name','$.customer_phone','$.customer.phone','$.customer.name','$.address','$.order.customer_id','$.order.customerId','$.order.customer_name','$.order.customer_phone','$.order.customer.phone','$.order.customer.name','$.order.address') ELSE NULL END " +
+      "WHERE order_id IN (SELECT id FROM orders WHERE customer_id=?) AND " + activeRequest
+    ).bind(customerId, customerId, ...guard()),
     env.DB.prepare("UPDATE orders SET customer_name='Deleted customer',customer_phone='',updated_at=CURRENT_TIMESTAMP WHERE customer_id=? AND " + activeRequest).bind(customerId, ...guard()),
     env.DB.prepare("UPDATE customers SET name=NULL,phone=NULL,passcode_salt=NULL,passcode_hash=NULL,auth_version=COALESCE(auth_version,0)+1,whatsapp_opt_in=0,deleted_at=COALESCE(deleted_at,CURRENT_TIMESTAMP),updated_at=CURRENT_TIMESTAMP WHERE id=? AND " + activeRequest).bind(customerId, ...guard())
   ];

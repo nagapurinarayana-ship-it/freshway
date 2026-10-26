@@ -4,6 +4,7 @@ import { buildOrderPlacedAlerts, dispatchOrderAlert } from './order-alerts.js';
 import { buildOrderChangeAlerts } from './admin-notifications.js';
 import { handleReverseGeocode } from './geocode-api.js';
 import { validatePushEndpoint } from './push-endpoint.js';
+import { prepareCheckoutDelivery, checkoutDeliveryStatements } from './delivery-scheduling.js';
 
 const json = (data, status = 200, origin = '*') => new Response(JSON.stringify(data), {
   status,
@@ -92,6 +93,7 @@ async function createOrder(env, payload, ctx) {
   const existing = await existingOrderByClientId(env, customerId, clientOrderId);
   if (existing) return existing;
   const { items, total } = await validateOrderItems(env, rawItems);
+  const deliverySelection = await prepareCheckoutDelivery(env, payload, items);
   const phone = cleanPhone(customer.phone), customerName = String(customer.name).trim().slice(0, 100);
   const existingCustomer = await env.DB.prepare('SELECT phone FROM customers WHERE id=? LIMIT 1').bind(customerId).first();
   const registeredPhone = cleanPhone(existingCustomer?.phone);
@@ -106,28 +108,31 @@ async function createOrder(env, payload, ctx) {
   const addressId = addressResult?.meta?.last_row_id; if (!addressId) throw new Error('Could not save delivery address.');
   const id = orderId(), createdAt = now();
   const stockUpdates=items.filter(item=>item.stockReservedQty>0).map(item=>env.DB.prepare('UPDATE products SET stock_quantity=stock_quantity-? WHERE id=? AND stock_managed=1').bind(item.stockReservedQty,item.id));
-  const statements=[...stockUpdates,env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at) VALUES (?,?,?,?,?,?, 'Not Collected','New','Tomorrow',?,?,?)`).bind(id,customerId,addressId,customerName,phone,total,clientOrderId||null,createdAt,createdAt),...items.map(item=>env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total,stock_reserved_qty,hsn_code,gst_rate_bps,gst_rate_confirmed) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).bind(id,item.id,item.name,item.unit,item.qty,item.price,item.lineTotal,item.stockReservedQty,item.hsn_code||'',Number(item.gst_rate_bps||0),Number(item.gst_rate_confirmed||0)))];
+  const deliveryPlan=deliverySelection?.deliveryPlan||'Tomorrow';
+  const statements=[...stockUpdates,env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at,scheduled_delivery_date,scheduled_slot_id,assigned_store_id,scheduled_start_minute,scheduled_end_minute,schedule_status) VALUES (?,?,?,?,?,?, 'Not Collected','New',?,?,?,?,?,?,?,?,?,?)`).bind(id,customerId,addressId,customerName,phone,total,deliveryPlan,clientOrderId||null,createdAt,createdAt,deliverySelection?.date||null,null,null,null,null,deliverySelection?'requested':'unscheduled'),...items.map(item=>env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total,stock_reserved_qty,hsn_code,gst_rate_bps,gst_rate_confirmed) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).bind(id,item.id,item.name,item.unit,item.qty,item.price,item.lineTotal,item.stockReservedQty,item.hsn_code||'',Number(item.gst_rate_bps||0),Number(item.gst_rate_confirmed||0))),...checkoutDeliveryStatements(env,id,deliverySelection,items)];
   try { await env.DB.batch(statements); } catch (error) {
     await env.DB.prepare('DELETE FROM addresses WHERE id=?').bind(addressId).run();
     if (clientOrderId && /unique|constraint/i.test(error?.message || '')) {
       const duplicate = await existingOrderByClientId(env, customerId, clientOrderId);
       if (duplicate) return duplicate;
     }
+    if (/DELIVERY_SLOT_FULL|DELIVERY_SLOT_CLOSED/i.test(error?.message || '')) throw new Error('That delivery window just filled. Choose another available time window.');
+    if (/DELIVERY_STORE_STOCK_LOW/i.test(error?.message || '')) throw new Error('The selected store can no longer fulfil the full basket. Refresh delivery availability and try again.');
     if (/stock_quantity/i.test(error?.message || '')) throw new Error('Stock changed while you were checking out. Please refresh your cart and try again.');
     throw error;
   }
   const placedAlerts = buildOrderPlacedAlerts({ id, customerId, customerName, total, items });
   const alertWork = scheduleOrderAlerts(ctx, env, placedAlerts);
   if (alertWork) await alertWork;
-  return { id, customerId, total, payment: 'Not Collected', status: 'New', deliveryPlan: 'Tomorrow', createdAt, updatedAt: createdAt, address: { ...address, pincode: String(address.pincode) }, items };
+  return { id, customerId, total, payment: 'Not Collected', status: 'New', deliveryPlan, scheduledDelivery: deliverySelection ? { date: deliverySelection.date } : null, createdAt, updatedAt: createdAt, address: { ...address, pincode: String(address.pincode) }, items };
 }
 
 async function customerOrders(env, customerId) {
   if (!customerId) throw new Error('Customer id is required.');
-  const { results: rows } = await env.DB.prepare(`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.payment_collected_at,a.house,a.area,a.city,a.pincode,a.landmark,a.note,oi.product_id,oi.name,oi.unit,oi.qty,oi.price,oi.line_total FROM orders o JOIN addresses a ON a.id=o.address_id JOIN order_items oi ON oi.order_id=o.id WHERE o.customer_id=? AND o.is_test_order=0 ORDER BY o.created_at DESC, oi.id ASC`).bind(customerId).all();
+  const { results: rows } = await env.DB.prepare(`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.delivered_at,o.payment_collected_at,o.scheduled_delivery_date,a.house,a.area,a.city,a.pincode,a.landmark,a.note,oi.product_id,oi.name,oi.unit,oi.qty,oi.price,oi.line_total FROM orders o JOIN addresses a ON a.id=o.address_id JOIN order_items oi ON oi.order_id=o.id WHERE o.customer_id=? AND o.is_test_order=0 ORDER BY o.created_at DESC, oi.id ASC`).bind(customerId).all();
   return groupOrders(rows || []);
 }
-function groupOrders(rows) { const map = new Map(); for (const r of rows) { if (!map.has(r.id)) map.set(r.id,{id:r.id,customer:{name:r.customer_name,phone:r.customer_phone},address:{house:r.house,area:r.area,city:r.city,pincode:r.pincode,landmark:r.landmark,note:r.note},items:[],total:r.total,payment:r.payment_status,status:r.delivery_status,deliveryPlan:r.delivery_plan,createdAt:r.created_at,updatedAt:r.updated_at,paymentCollectedAt:r.payment_collected_at}); map.get(r.id).items.push({id:r.product_id,name:r.name,unit:r.unit,qty:r.qty,price:r.price,lineTotal:r.line_total}); } return [...map.values()]; }
+function groupOrders(rows) { const map = new Map(); for (const r of rows) { if (!map.has(r.id)) map.set(r.id,{id:r.id,customer:{name:r.customer_name,phone:r.customer_phone},address:{house:r.house,area:r.area,city:r.city,pincode:r.pincode,landmark:r.landmark,note:r.note},items:[],total:r.total,payment:r.payment_status,status:r.delivery_status,deliveryPlan:r.delivery_plan,createdAt:r.created_at,updatedAt:r.updated_at,deliveredAt:r.delivered_at,paymentCollectedAt:r.payment_collected_at,scheduledDelivery:r.scheduled_delivery_date?{date:r.scheduled_delivery_date}:null}); map.get(r.id).items.push({id:r.product_id,name:r.name,unit:r.unit,qty:r.qty,price:r.price,lineTotal:r.line_total}); } return [...map.values()]; }
 
 const ORDER_STATUSES=['New','Confirmed','Processing','Ready','Out for Delivery','Delivered','Cancelled'];
 const ORDER_PAYMENTS=['Not Collected','Collected','Refunded','Cancelled'];
@@ -187,18 +192,18 @@ async function adminOrders(env,url){
   const totalRow=await env.DB.prepare(`SELECT COUNT(*) total FROM orders o JOIN addresses a ON a.id=o.address_id${clause}`).bind(...binds).first();
   const total=Number(totalRow?.total||0);
   const offset=(page-1)*limit;
-  const {results:orderRows}=await env.DB.prepare(`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.is_test_order,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.payment_collected_at,a.house,a.area,a.city,a.pincode,a.landmark,a.note FROM orders o JOIN addresses a ON a.id=o.address_id${clause} ORDER BY ${sortSql} LIMIT ? OFFSET ?`).bind(...binds,limit,offset).all();
+  const {results:orderRows}=await env.DB.prepare(`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.is_test_order,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.delivered_at,o.payment_collected_at,a.house,a.area,a.city,a.pincode,a.landmark,a.note FROM orders o JOIN addresses a ON a.id=o.address_id${clause} ORDER BY ${sortSql} LIMIT ? OFFSET ?`).bind(...binds,limit,offset).all();
   const rows=orderRows||[];
   if(!rows.length)return {orders:[],pagination:{page,limit,total,pages:Math.ceil(total/limit)}};
   const ids=rows.map(x=>x.id),placeholders=ids.map(()=>'?').join(',');
   const {results:itemRows}=await env.DB.prepare(`SELECT order_id,product_id,name,unit,qty,price,line_total FROM order_items WHERE order_id IN (${placeholders}) ORDER BY order_id,id ASC`).bind(...ids).all();
   const itemMap=new Map(ids.map(id=>[id,[]]));
   for(const item of itemRows||[])itemMap.get(item.order_id)?.push({id:item.product_id,name:item.name,unit:item.unit,qty:item.qty,price:item.price,lineTotal:item.line_total});
-  const orders=rows.map(r=>({id:r.id,isTestOrder:Number(r.is_test_order)===1,customer:{name:r.customer_name,phone:r.customer_phone},address:{house:r.house,area:r.area,city:r.city,pincode:r.pincode,landmark:r.landmark,note:r.note},items:itemMap.get(r.id)||[],total:r.total,payment:r.payment_status,status:r.delivery_status,deliveryPlan:r.delivery_plan,createdAt:r.created_at,updatedAt:r.updated_at,paymentCollectedAt:r.payment_collected_at}));
+  const orders=rows.map(r=>({id:r.id,isTestOrder:Number(r.is_test_order)===1,customer:{name:r.customer_name,phone:r.customer_phone},address:{house:r.house,area:r.area,city:r.city,pincode:r.pincode,landmark:r.landmark,note:r.note},items:itemMap.get(r.id)||[],total:r.total,payment:r.payment_status,status:r.delivery_status,deliveryPlan:r.delivery_plan,createdAt:r.created_at,updatedAt:r.updated_at,deliveredAt:r.delivered_at,paymentCollectedAt:r.payment_collected_at}));
   return {orders,pagination:{page,limit,total,pages:Math.ceil(total/limit)}};
 }
 async function updateOrder(env,id,payload){
-  const {results}=await env.DB.prepare('SELECT delivery_status,payment_status,delivery_plan,customer_id,is_test_order FROM orders WHERE id=?').bind(id).all();
+  const {results}=await env.DB.prepare('SELECT delivery_status,payment_status,delivery_plan,customer_id,is_test_order,delivered_at FROM orders WHERE id=?').bind(id).all();
   const current=results?.[0];
   if(!current)throw new Error('Order not found.');
   const {status,payment,deliveryPlan}=validateOrderPatch(current,payload);
@@ -207,6 +212,7 @@ async function updateOrder(env,id,payload){
   const testClassificationChanged=hasTestFlag&&nextTestFlag!==Number(current.is_test_order||0);
   const sets=[],params=[];
   if(status){sets.push('delivery_status=?');params.push(status)}
+  if(status==='Delivered'&&current.delivery_status!=='Delivered'&&!current.delivered_at)sets.push('delivered_at=CURRENT_TIMESTAMP');
   if(payment){sets.push('payment_status=?');params.push(payment);if(payment==='Collected')sets.push('payment_collected_at=CURRENT_TIMESTAMP')}
   if(deliveryPlan){sets.push('delivery_plan=?');params.push(deliveryPlan)}
   if(testClassificationChanged){sets.push('is_test_order=?');params.push(nextTestFlag)}
@@ -234,30 +240,71 @@ async function updateOrder(env,id,payload){
 }
 
 async function addProduct(env,payload){
-  const id=String(payload.id||`p-${Date.now()}-${Math.random().toString(36).slice(2,6)}`).trim().slice(0,100),name=String(payload.name||'').trim().slice(0,100),unit=String(payload.unit||'').trim().slice(0,30),price=Number(payload.price),emoji=String(payload.emoji||'🛒').slice(0,8),stockManaged=payload.stockManaged===true,stockQuantity=Number(payload.stockQuantity??0),lowStockThreshold=Number(payload.lowStockThreshold??5);
+  const id=String(payload.id||`p-${Date.now()}-${Math.random().toString(36).slice(2,6)}`).trim().slice(0,100),
+    name=String(payload.name||'').trim().slice(0,100),unit=String(payload.unit||'').trim().slice(0,30),
+    price=Number(payload.price),emoji=String(payload.emoji||'🛒').slice(0,8),
+    stockManaged=payload.stockManaged===true,requestedStock=Number(payload.stockQuantity??0),
+    lowStockThreshold=Number(payload.lowStockThreshold??5);
   if(!name||!unit||!Number.isFinite(price)||price<0)throw new Error('Product name, unit and valid price are required.');
-  if(!Number.isInteger(stockQuantity)||stockQuantity<0||!Number.isInteger(lowStockThreshold)||lowStockThreshold<0)throw new Error('Enter valid stock values.');
-  await env.DB.prepare(`INSERT INTO products (id,name,unit,price,emoji,active,stock_managed,stock_quantity,low_stock_threshold) VALUES (?,?,?,?,?,?,?,?,?)`).bind(id,name,unit,Math.round(price),emoji,1,stockManaged?1:0,stockQuantity,lowStockThreshold).run();
-  return{id,name,unit,price:Math.round(price),emoji,active:1,stock_managed:stockManaged?1:0,stock_quantity:stockQuantity,low_stock_threshold:lowStockThreshold}
+  if(!Number.isInteger(requestedStock)||requestedStock<0||!Number.isInteger(lowStockThreshold)||lowStockThreshold<0)throw new Error('Enter valid stock values.');
+  const activeStores=stockManaged?Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores WHERE is_active=1').first())?.count||0):0;
+  const allStores=stockManaged?Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores').first())?.count||0):0;
+  const stockQuantity=stockManaged&&activeStores>1?0:requestedStock;
+  const statements=[env.DB.prepare(`INSERT INTO products (id,name,unit,price,emoji,active,stock_managed,stock_quantity,low_stock_threshold) VALUES (?,?,?,?,?,?,?,?,?)`)
+    .bind(id,name,unit,Math.round(price),emoji,1,stockManaged?1:0,stockQuantity,lowStockThreshold)];
+  if(stockManaged&&allStores>0)statements.push(env.DB.prepare(
+    'INSERT OR IGNORE INTO delivery_store_inventory (store_id,product_id,stock_quantity) '+
+    'SELECT s.id,?,CASE WHEN ?=1 AND s.is_active=1 THEN ? ELSE 0 END FROM delivery_stores s'
+  ).bind(id,activeStores,requestedStock));
+  await env.DB.batch(statements);
+  return{id,name,unit,price:Math.round(price),emoji,active:1,stock_managed:stockManaged?1:0,
+    stock_quantity:stockQuantity,low_stock_threshold:lowStockThreshold,
+    stockAllocationRequired:Boolean(stockManaged&&activeStores>1&&requestedStock>0)};
 }
 
 async function updateProduct(env,id,payload){
-  const current=await env.DB.prepare('SELECT stock_managed FROM products WHERE id=?').bind(id).first();
+  const current=await env.DB.prepare('SELECT stock_managed,stock_quantity FROM products WHERE id=?').bind(id).first();
   if(!current)throw new Error('Product not found.');
+  const currentManaged=Number(current.stock_managed)===1;
+  const nextManaged=payload.stockManaged===undefined?currentManaged:payload.stockManaged===true;
+  if(currentManaged&&!nextManaged)throw new Error('Stock tracking cannot be disabled after it is enabled.');
+  const activeStores=nextManaged?Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores WHERE is_active=1').first())?.count||0):0;
+  const allStores=nextManaged?Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores').first())?.count||0):0;
+  const changingToManaged=!currentManaged&&nextManaged;
+  const storeManagedQuantity=currentManaged&&nextManaged&&activeStores>0;
   const sets=[],params=[];
+  let nextStockQuantity=Number(current.stock_quantity||0);
   if(payload.name!==undefined){const v=String(payload.name).trim().slice(0,100);if(!v)throw new Error('Product name cannot be empty.');sets.push('name=?');params.push(v)}
   if(payload.unit!==undefined){const v=String(payload.unit).trim().slice(0,30);if(!v)throw new Error('Product unit cannot be empty.');sets.push('unit=?');params.push(v)}
   if(payload.price!==undefined){const v=Number(payload.price);if(!Number.isFinite(v)||v<0)throw new Error('Invalid price.');sets.push('price=?');params.push(Math.round(v))}
   if(payload.emoji!==undefined){sets.push('emoji=?');params.push(String(payload.emoji).slice(0,8))}
   if(payload.active!==undefined){sets.push('active=?');params.push(payload.active?1:0)}
-  if(payload.stockManaged!==undefined){const next=payload.stockManaged?1:0;if(Number(current.stock_managed)===1&&next===0)throw new Error('Stock tracking cannot be disabled after it is enabled.');sets.push('stock_managed=?');params.push(next)}
-  if(payload.stockQuantity!==undefined){const v=Number(payload.stockQuantity);if(!Number.isInteger(v)||v<0)throw new Error('Invalid stock quantity.');sets.push('stock_quantity=?');params.push(v)}
+  if(payload.stockManaged!==undefined){sets.push('stock_managed=?');params.push(nextManaged?1:0)}
+  if(payload.stockQuantity!==undefined){
+    const v=Number(payload.stockQuantity);
+    if(!Number.isInteger(v)||v<0)throw new Error('Invalid stock quantity.');
+    if(!storeManagedQuantity){nextStockQuantity=changingToManaged&&activeStores>1?0:v;sets.push('stock_quantity=?');params.push(nextStockQuantity);}
+  }
+  if(changingToManaged&&activeStores>1&&nextStockQuantity!==0){
+    nextStockQuantity=0;sets.push('stock_quantity=?');params.push(0);
+  }
   if(payload.lowStockThreshold!==undefined){const v=Number(payload.lowStockThreshold);if(!Number.isInteger(v)||v<0)throw new Error('Invalid low-stock threshold.');sets.push('low_stock_threshold=?');params.push(v)}
-  if(!sets.length)throw new Error('No product change supplied.');
+  if(!sets.length){
+    if(storeManagedQuantity&&payload.stockQuantity!==undefined)throw new Error('Managed stock quantities must be changed in Delivery Scheduling for the selected store.');
+    throw new Error('No product change supplied.');
+  }
   sets.push('updated_at=CURRENT_TIMESTAMP');params.push(id);
-  const result=await env.DB.prepare(`UPDATE products SET ${sets.join(',')} WHERE id=?`).bind(...params).run();
-  if(!result.meta?.changes)throw new Error('Product not found.');
-  return{ok:true}
+  const statements=[env.DB.prepare(`UPDATE products SET ${sets.join(',')} WHERE id=?`).bind(...params)];
+  if(changingToManaged&&allStores>0)statements.push(env.DB.prepare(
+    'INSERT OR IGNORE INTO delivery_store_inventory (store_id,product_id,stock_quantity) '+
+    'SELECT s.id,?,CASE WHEN ?=1 AND s.is_active=1 THEN ? ELSE 0 END FROM delivery_stores s'
+  ).bind(id,activeStores,Number(payload.stockQuantity??current.stock_quantity??0)));
+  else if(currentManaged&&nextManaged&&allStores>0)statements.push(env.DB.prepare(
+    'INSERT OR IGNORE INTO delivery_store_inventory (store_id,product_id,stock_quantity) SELECT s.id,?,0 FROM delivery_stores s'
+  ).bind(id));
+  const results=await env.DB.batch(statements);
+  if(!results?.[0]?.meta?.changes)throw new Error('Product not found.');
+  return{ok:true,stockQuantity:nextStockQuantity,stockAllocationRequired:Boolean(changingToManaged&&activeStores>1&&Number(payload.stockQuantity??current.stock_quantity??0)>0)};
 }
 
 async function saveSubscription(env,payload){
@@ -302,7 +349,7 @@ async function broadcastPush(env,payload){
 async function broadcastWhatsApp(env,payload){if(!env.WHATSAPP_ACCESS_TOKEN||!env.WHATSAPP_PHONE_NUMBER_ID||!env.WHATSAPP_GRAPH_VERSION)throw new Error('WhatsApp API secrets are not configured.');if(!payload.templateName)throw new Error('WhatsApp requires an approved template name for broadcast messaging.');const{results}=await env.DB.prepare('SELECT phone FROM customers WHERE phone IS NOT NULL AND whatsapp_opt_in=1').all();const url=`https://graph.facebook.com/${env.WHATSAPP_GRAPH_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`;let success=0,failure=0;await Promise.all((results||[]).map(async row=>{try{const response=await fetch(url,{method:'POST',headers:{'Authorization':`Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,'Content-Type':'application/json'},body:JSON.stringify({messaging_product:'whatsapp',to:String(row.phone).replace(/\D/g,''),type:'template',template:{name:payload.templateName,language:{code:payload.languageCode||'en_US'},...(payload.parameters?.length?{components:[{type:'body',parameters:payload.parameters.map(text=>({type:'text',text:String(text)}))}]}:{})}})});if(response.ok)success++;else failure++}catch(_){failure++}}));await env.DB.prepare('INSERT INTO notification_log (channel,title,body,recipient_count,success_count,failure_count) VALUES (?,?,?,?,?,?)').bind('whatsapp',payload.templateName,payload.body||'',results?.length||0,success,failure).run();return{channel:'whatsapp',recipients:results?.length||0,success,failure}}
 async function notificationHistory(env){const{results}=await env.DB.prepare('SELECT id,channel,title,body,recipient_count,success_count,failure_count,created_at FROM notification_log ORDER BY created_at DESC,id DESC LIMIT 50').all();return results||[]}
 
-export { normalizePaymentFilter, validateOrderPatch, validateOrderItems, updateOrder };
+export { normalizePaymentFilter, validateOrderPatch, validateOrderItems, updateOrder, addProduct, updateProduct, createOrder };
 
 export default{async fetch(request,env,ctx){const cors=origin(env);if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{'access-control-allow-origin':cors,'access-control-allow-methods':'GET,POST,PATCH,OPTIONS','access-control-allow-headers':'Content-Type,Authorization,X-Freshway-Admin-Token'}});const url=new URL(request.url);try{
 if(url.pathname==='/api/health'&&request.method==='GET')return json({ok:true,service:'freshway-api'},200,cors);if(url.pathname==='/api/geocode/reverse'&&request.method==='GET')return handleReverseGeocode(request,{origin:cors,fetcher:fetch,cache:typeof caches!=='undefined'?caches.default:null,waitUntil:promise=>ctx?.waitUntil?.(promise)});if(url.pathname==='/api/store-profile'&&request.method==='GET')return json({storeProfile:await getStoreProfile(env)},200,cors);
