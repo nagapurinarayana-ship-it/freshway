@@ -242,26 +242,44 @@ async function addProduct(env,payload){
   const id=String(payload.id||`p-${Date.now()}-${Math.random().toString(36).slice(2,6)}`).trim().slice(0,100),name=String(payload.name||'').trim().slice(0,100),unit=String(payload.unit||'').trim().slice(0,30),price=Number(payload.price),emoji=String(payload.emoji||'🛒').slice(0,8),stockManaged=payload.stockManaged===true,stockQuantity=Number(payload.stockQuantity??0),lowStockThreshold=Number(payload.lowStockThreshold??5);
   if(!name||!unit||!Number.isFinite(price)||price<0)throw new Error('Product name, unit and valid price are required.');
   if(!Number.isInteger(stockQuantity)||stockQuantity<0||!Number.isInteger(lowStockThreshold)||lowStockThreshold<0)throw new Error('Enter valid stock values.');
-  await env.DB.prepare(`INSERT INTO products (id,name,unit,price,emoji,active,stock_managed,stock_quantity,low_stock_threshold) VALUES (?,?,?,?,?,?,?,?,?)`).bind(id,name,unit,Math.round(price),emoji,1,stockManaged?1:0,stockQuantity,lowStockThreshold).run();
+  const statements=[env.DB.prepare(`INSERT INTO products (id,name,unit,price,emoji,active,stock_managed,stock_quantity,low_stock_threshold) VALUES (?,?,?,?,?,?,?,?,?)`).bind(id,name,unit,Math.round(price),emoji,1,stockManaged?1:0,stockQuantity,lowStockThreshold)];
+  if(stockManaged){
+    // Keep the entered quantity at the only active store when allocation is unambiguous.
+    // With multiple stores, initialise local quantities to zero and require explicit allocation.
+    statements.push(env.DB.prepare(`INSERT OR IGNORE INTO delivery_store_inventory (store_id,product_id,stock_quantity)
+      SELECT s.id,?,CASE WHEN s.is_active=1 AND (SELECT COUNT(*) FROM delivery_stores WHERE is_active=1)=1 THEN ? ELSE 0 END
+      FROM delivery_stores s`).bind(id,stockQuantity));
+  }
+  await env.DB.batch(statements);
   return{id,name,unit,price:Math.round(price),emoji,active:1,stock_managed:stockManaged?1:0,stock_quantity:stockQuantity,low_stock_threshold:lowStockThreshold}
 }
 
 async function updateProduct(env,id,payload){
-  const current=await env.DB.prepare('SELECT stock_managed FROM products WHERE id=?').bind(id).first();
+  const current=await env.DB.prepare('SELECT stock_managed,stock_quantity FROM products WHERE id=?').bind(id).first();
   if(!current)throw new Error('Product not found.');
   const sets=[],params=[];
+  let nextStockQuantity=Number(current.stock_quantity||0);
   if(payload.name!==undefined){const v=String(payload.name).trim().slice(0,100);if(!v)throw new Error('Product name cannot be empty.');sets.push('name=?');params.push(v)}
   if(payload.unit!==undefined){const v=String(payload.unit).trim().slice(0,30);if(!v)throw new Error('Product unit cannot be empty.');sets.push('unit=?');params.push(v)}
   if(payload.price!==undefined){const v=Number(payload.price);if(!Number.isFinite(v)||v<0)throw new Error('Invalid price.');sets.push('price=?');params.push(Math.round(v))}
   if(payload.emoji!==undefined){sets.push('emoji=?');params.push(String(payload.emoji).slice(0,8))}
   if(payload.active!==undefined){sets.push('active=?');params.push(payload.active?1:0)}
-  if(payload.stockManaged!==undefined){const next=payload.stockManaged?1:0;if(Number(current.stock_managed)===1&&next===0)throw new Error('Stock tracking cannot be disabled after it is enabled.');sets.push('stock_managed=?');params.push(next)}
-  if(payload.stockQuantity!==undefined){const v=Number(payload.stockQuantity);if(!Number.isInteger(v)||v<0)throw new Error('Invalid stock quantity.');sets.push('stock_quantity=?');params.push(v)}
+  if(payload.stockManaged!==undefined){const next=payload.stockManaged?1:0;if(Number(current.stock_managed)===1&&next===0)throw new Error('Stock tracking cannot be disabled after it has been enabled.');sets.push('stock_managed=?');params.push(next)}
+  if(payload.stockQuantity!==undefined){const v=Number(payload.stockQuantity);if(!Number.isInteger(v)||v<0)throw new Error('Invalid stock quantity.');nextStockQuantity=v;sets.push('stock_quantity=?');params.push(v)}
   if(payload.lowStockThreshold!==undefined){const v=Number(payload.lowStockThreshold);if(!Number.isInteger(v)||v<0)throw new Error('Invalid low-stock threshold.');sets.push('low_stock_threshold=?');params.push(v)}
   if(!sets.length)throw new Error('No product change supplied.');
   sets.push('updated_at=CURRENT_TIMESTAMP');params.push(id);
-  const result=await env.DB.prepare(`UPDATE products SET ${sets.join(',')} WHERE id=?`).bind(...params).run();
-  if(!result.meta?.changes)throw new Error('Product not found.');
+  const statements=[env.DB.prepare(`UPDATE products SET ${sets.join(',')} WHERE id=?`).bind(...params)];
+  if(Number(current.stock_managed)===0&&payload.stockManaged===true){
+    // A transition to store-managed stock must create per-store rows too.
+    // Only seed stock into one active store when the destination is unambiguous.
+    statements.push(env.DB.prepare(`INSERT OR IGNORE INTO delivery_store_inventory (store_id,product_id,stock_quantity)
+      SELECT s.id,?,CASE WHEN s.is_active=1 AND (SELECT COUNT(*) FROM delivery_stores WHERE is_active=1)=1 THEN ? ELSE 0 END
+      FROM delivery_stores s`).bind(id,nextStockQuantity));
+  }
+  const results=await env.DB.batch(statements);
+  const result=results?.[0];
+  if(!result?.meta?.changes)throw new Error('Product not found.');
   return{ok:true}
 }
 
