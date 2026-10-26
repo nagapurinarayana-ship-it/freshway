@@ -44,7 +44,7 @@ const required = {
   addresses: ['id', 'customer_id', 'house', 'area', 'city', 'pincode', 'landmark', 'note', 'label', 'recipient_name', 'delivery_phone', 'building', 'floor', 'street', 'locality', 'district', 'state', 'latitude', 'longitude', 'accuracy_meters', 'location_source', 'place_id', 'location_updated_at', 'is_default', 'deleted_at'],
   products: ['id', 'name', 'unit', 'price', 'active', 'category_id', 'image_data', 'stock_managed', 'stock_quantity', 'low_stock_threshold'],
   categories: ['id', 'name', 'slug', 'active', 'display_order'],
-  orders: ['id', 'customer_id', 'address_id', 'customer_name', 'customer_phone', 'total', 'payment_status', 'delivery_status', 'delivery_plan', 'client_order_id', 'payment_collected_at', 'is_test_order', 'updated_at', 'scheduled_delivery_date', 'scheduled_slot_id', 'assigned_store_id', 'scheduled_start_minute', 'scheduled_end_minute', 'schedule_status'],
+  orders: ['id', 'customer_id', 'address_id', 'customer_name', 'customer_phone', 'total', 'payment_status', 'delivery_status', 'delivery_plan', 'client_order_id', 'payment_collected_at', 'is_test_order', 'updated_at', 'delivered_at', 'scheduled_delivery_date', 'scheduled_slot_id', 'assigned_store_id', 'scheduled_start_minute', 'scheduled_end_minute', 'schedule_status'],
   delivery_scheduling_settings: ['id', 'enabled', 'booking_horizon_days', 'same_day_cutoff_minutes', 'timezone', 'updated_at'],
   delivery_stores: ['id', 'name', 'address', 'latitude', 'longitude', 'service_radius_km', 'is_active', 'created_at', 'updated_at'],
   delivery_store_inventory: ['store_id', 'product_id', 'stock_quantity', 'updated_at'],
@@ -104,7 +104,7 @@ for (const name of expectedIndexes) if (!indexNames.includes(name)) problems.pus
 const migrationRows = rowsFor('SELECT id,name FROM d1_migrations ORDER BY id', row => 'name' in row && 'id' in row);
 report.migrations = migrationRows.map(row => ({ id: row.id, name: row.name }));
 report.migrationCount = migrationRows.length;
-const deliveryMigrationNames = ['0037_order_delivery_scheduling.sql', '0038_anonymize_delivery_requests.sql'];
+const deliveryMigrationNames = ['0037_order_delivery_scheduling.sql', '0038_anonymize_delivery_requests.sql', '0040_order_delivered_at.sql'];
 report.deliveryMigrations = Object.fromEntries(deliveryMigrationNames.map(name => [name, migrationRows.some(row => String(row.name) === name)]));
 for (const name of deliveryMigrationNames) if (!report.deliveryMigrations[name]) problems.push('delivery migration not recorded as applied: ' + name);
 
