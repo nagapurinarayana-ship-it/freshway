@@ -56,11 +56,14 @@ jobs:
           node --input-type=module - worker/wrangler.preview.generated.jsonc <<'NODE'
           import fs from 'node:fs';
           const config = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const production = JSON.parse(fs.readFileSync('worker/wrangler.jsonc', 'utf8'));
           const database = config.d1_databases?.find(item => item.binding === 'DB');
+          const productionDatabase = production.d1_databases?.find(item => item.binding === 'DB');
           if (config.name !== 'freshway-api-preview' ||
               config.vars?.FRESHWAY_ENVIRONMENT !== 'development' ||
               database?.database_name !== 'freshway-preview' ||
-              database?.database_id === '4b645f26-12ad-4805-bf22-12186122ad3a' ||
+              !productionDatabase?.database_id ||
+              database?.database_id?.toLowerCase() === productionDatabase.database_id.toLowerCase() ||
               config.triggers || config.routes) {
             throw new Error('Preview configuration is not isolated from production.');
           }
