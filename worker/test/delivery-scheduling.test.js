@@ -141,8 +141,8 @@ test('store reassignment uses valid reservation SQL and stock-managed products r
     'Owner inventory view and stock updates must repair missing inventory rows safely');
   assert.ok(worker.includes('if(stockManaged&&allStores>0)statements.push('),
     'creating a stock-managed product must initialise store inventory when stores exist');
-  assert.ok(worker.includes('if(Number(current.stock_managed)===0&&payload.stockManaged===true)'),
-    'enabling stock management on an existing product must initialise store inventory');
+  assert.ok(worker.includes('const changingToManaged=!wasManaged&&stockManaged;') && worker.includes('if(changingToManaged&&allStores>0)statements.push('),
+    'enabling stock management on an existing product must initialise store inventory only when stores exist');
   assert.ok(worker.includes('INSERT OR IGNORE INTO delivery_store_inventory'),
     'product create/update must not duplicate inventory rows');
 });
