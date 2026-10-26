@@ -106,7 +106,7 @@ test('Owner delivery UI prevents duplicate delegated handlers and requires reaso
   assert.ok(js.includes('Manual date and time must be saved as an Owner override'));
   assert.ok(js.includes('/admin/delivery/orders/'));
   assert.ok(js.includes('/admin/delivery/flags/'));
-  assert.ok(js.includes('data-fw-request-decision=\\"complete\\"'));
+  assert.ok(js.includes('Mark resolved'));
 });
 
 test('Owner delivery routes are mounted in the authenticated admin API and keep an audit trail', () => {
@@ -116,7 +116,7 @@ test('Owner delivery routes are mounted in the authenticated admin API and keep 
   assert.ok(adminData.includes('handleAdminDeliveryRequest'));
   assert.ok(adminData.includes("u.pathname === '/api/admin/delivery'"));
   assert.ok(adminAuth.includes('handleAdminData'));
-  assert.ok(delivery.includes('delivery/orders/'));
+  assert.ok(delivery.includes('scheduleMatch = path.match'));
   assert.ok(delivery.includes('order_audit_events'));
   assert.ok(delivery.includes('order_operational_flags'));
 });
