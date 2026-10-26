@@ -162,6 +162,8 @@ jobs:
           printf '%s' "$PREVIEW_CUSTOMER_SESSION_SECRET" | npx wrangler secret put CUSTOMER_SESSION_SECRET --config ../../source/worker/wrangler.preview.generated.jsonc
           printf '%s' "$PREVIEW_ADMIN_SESSION_SECRET" | npx wrangler secret put ADMIN_SESSION_SECRET --config ../../source/worker/wrangler.preview.generated.jsonc
       - name: Smoke-test the deployed preview Worker
+        env:
+          FRESHWAY_PREVIEW_WORKER_URL: ${{ vars.FRESHWAY_PREVIEW_WORKER_URL }}
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --max-time 30 "$FRESHWAY_PREVIEW_WORKER_URL/api/admin/status" > "$RUNNER_TEMP/freshway-preview-status.json"
