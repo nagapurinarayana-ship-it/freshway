@@ -6,6 +6,7 @@ import test from 'node:test';
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 const migration37 = read('../migrations/0037_order_delivery_scheduling.sql');
 const migration38 = read('../migrations/0038_anonymize_delivery_requests.sql');
+const productionSchemaAudit = read('../scripts/audit-production-schema.mjs');
 
 function legacyDatabase() {
   const db = new DatabaseSync(':memory:');
@@ -87,4 +88,24 @@ test('0038 rejects an invalid customer id after the request relationship becomes
   } finally {
     db.close();
   }
+});
+
+
+test('production schema audit requires the delivery scheduling schema, migrations, indexes and integrity triggers', () => {
+  for (const table of [
+    'delivery_scheduling_settings','delivery_stores','delivery_store_inventory','delivery_slots',
+    'delivery_slot_reservations','delivery_store_inventory_reservations','order_action_requests',
+    'order_audit_events','order_operational_flags'
+  ]) assert.match(productionSchemaAudit, new RegExp(table + ': \\['), 'production audit must verify ' + table);
+  for (const column of [
+    'scheduled_delivery_date','scheduled_slot_id','assigned_store_id','scheduled_start_minute',
+    'scheduled_end_minute','schedule_status'
+  ]) assert.ok(productionSchemaAudit.includes("'" + column + "'"), 'production audit must verify orders.' + column);
+  for (const migration of [
+    '0037_order_delivery_scheduling.sql','0038_anonymize_delivery_requests.sql'
+  ]) assert.ok(productionSchemaAudit.includes(migration), 'production audit must require ' + migration);
+  for (const trigger of [
+    'delivery_slot_capacity_before_insert','delivery_slot_capacity_before_update',
+    'delivery_store_stock_before_insert','delivery_store_stock_before_update'
+  ]) assert.ok(productionSchemaAudit.includes(trigger), 'production audit must require ' + trigger);
 });
