@@ -25,7 +25,7 @@
   };
   const scheduleText=o=>{
     if(String(o.status||'').toLowerCase()==='delivered'){
-      const deliveredDate=indiaDate(o.deliveredAt||o.updatedAt||o.createdAt);
+      const deliveredDate=indiaDate(o.deliveredAt);
       return deliveredDate?'Delivered on '+deliveredDate:'Delivered';
     }
     return o.scheduledDelivery?.date?'Delivery date: '+String(o.scheduledDelivery.date):'';
