@@ -48,8 +48,8 @@ test('delivery slot endpoint fails closed without leaking database schema errors
         return {
           bind() { return this; },
           async first() { throw new Error('D1_ERROR: no such table: delivery_scheduling_settings: SQLITE_ERROR'); },
-          async all() { return { results: []; } },
-          async run() { return { meta: { changes: 0 }; } }
+          async all() { return { results: [] }; },
+          async run() { return { meta: { changes: 0 } }; }
         };
       }
     }
