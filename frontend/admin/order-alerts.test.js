@@ -35,7 +35,7 @@ assert.match(source, /\$\('#ownerAlertHistoryMore'\)\?\.addEventListener\('click
 assert.match(source, /Disable alerts on this device/);
 assert.match(worker, /addEventListener\('push'/);
 assert.match(worker, /addEventListener\('notificationclick'/);
-assert.match(worker, /const CACHE = 'fw-owner-v41'/, 'Owner notification test must expect the current Owner PWA cache version');
+assert.match(worker, /const CACHE = 'fw-owner-v42'/, 'Owner notification test must expect the current Owner PWA cache version');
 assert.match(route, /\/api\/admin\/push\/public-key/);
 assert.match(route, /\/api\/admin\/push\/subscribe/);
 assert.match(route, /\/api\/admin\/order-alerts/);
