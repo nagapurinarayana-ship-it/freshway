@@ -385,7 +385,8 @@ test('refresh and browser back/forward restore the correct view without showing 
   await page.addInitScript(() => {
     const state = history.state;
     const valid = new Set(['home', 'cart', 'checkout', 'orders', 'messages', 'profile', 'about', 'contact', 'confirmation']);
-    const saved = state?.__freshwayCustomer && valid.has(state.view) ? state.view : '';
+    const hash = location.hash.slice(1);
+    const saved = state?.__freshwayCustomer && valid.has(state.view) ? state.view : (valid.has(hash) && hash !== 'confirmation' ? hash : '');
     if (!saved || saved === 'home') return;
     window.__freshwayLegacyHomeFlash = false;
     const inspect = () => {
@@ -421,4 +422,11 @@ test('refresh and browser back/forward restore the correct view without showing 
   await page.goForward();
   await expect(page.locator('#ordersView')).toHaveClass(/active-view/);
   await expect(page.locator('#homeView')).not.toHaveClass(/active-view/);
+
+  // A new direct URL with a view hash must also choose the requested screen
+  // before the default Home markup can be painted.
+  await page.goto('/?nav-refresh-test=1#profile');
+  await expect(page.locator('#profileView')).toHaveClass(/active-view/);
+  await expect(page.locator('#homeView')).not.toHaveClass(/active-view/);
+  expect(await page.evaluate(() => window.__freshwayLegacyHomeFlash || false)).toBe(false);
 });
