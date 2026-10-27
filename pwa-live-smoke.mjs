@@ -5,7 +5,7 @@ const VIEWPORT_STYLES_PATH = '/styles.css?v=20261027-orders-screen-cleanup-v1';
 const CUSTOMER_APP_PATH = '/app.js?v=20261027-cancel-refresh-v1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261027-guest-home-address-v1';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v84';
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v85';
 const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261024-native-install-v1';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
