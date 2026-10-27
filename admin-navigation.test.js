@@ -2,11 +2,15 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const source=fs.readFileSync('admin.js','utf8');
 const html=fs.readFileSync('admin.html','utf8');
+const css=fs.readFileSync('admin.css','utf8');
 assert.match(source,/__freshwayOwner/);
 assert.match(source,/history\.pushState/);
 assert.match(source,/history\.back|popstate/);
 assert.match(source,/historyMode:'none'/);
 assert.match(source,/historyMode==='push'/);
+assert.match(source,/classList\.toggle\('owner-authenticated',yes\)/,'navigation must become available only after Owner authentication succeeds');
+assert.match(css,/\.app:not\(\.owner-authenticated\)>\.side/,'desktop navigation must remain hidden while signed out');
+assert.match(css,/\.app:not\(\.owner-authenticated\)>\.mobile-nav/,'mobile navigation must remain hidden while signed out');
 
 // Initial bootstrap must run after every trailing script has registered its module.
 // Without this guard, a direct refresh on #settings runs before Store Profile exists.
