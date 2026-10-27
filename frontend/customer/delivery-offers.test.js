@@ -148,6 +148,21 @@ const items=[{product:{id:'p1'},qty:1,lineTotal:100}];
     assert.equal(h.module.getDisplayedTotal(),130);
   }
 
+  {
+    const request=async(path,options={})=>{
+      if(path==='/api/checkout/quote')return {pricing:pricingFor(JSON.parse(options.body||'{}').couponCode||'')};
+      if(path==='/api/coupons/available')return {coupons:[]};
+      throw new Error('Unexpected mocked request: '+path);
+    };
+    const h=createHarness(request,'');
+    await h.module.renderCart({items,total:100});
+    assert.equal(h.module.getDisplayedTotal(),130,'cart quote is the initial displayed total');
+    const updated=pricingFor('SAVE10');
+    h.module.renderCheckoutQuote(updated,value=>'₹'+value);
+    assert.equal(h.module.getDisplayedTotal(),120,'checkout must remember the price displayed after a changed-total prompt so the same prompt is not repeated');
+    assert.match(h.elements['#fwCheckoutPricing'].innerHTML,/120/);
+  }
+
   console.log('customer delivery-offers quote consistency and cache-version assertions passed');
 })().catch(error=>{
   console.error(error);
