@@ -75,12 +75,6 @@ function createHarness(request, savedCode='') {
   };
 }
 const items=[{product:{id:'p1'},qty:1,lineTotal:100}];
-const quoteRequest=async(path,options={})=>{
-  if(path==='/api/checkout/quote')return {pricing:pricingFor(JSON.parse(options.body||'{}').couponCode||'')};
-  if(path==='/api/coupons/available')return {coupons:[]};
-  throw new Error('Unexpected mocked request: '+path);
-};
-
 (async()=>{
   {
     const request=async(path,options={})=>{
@@ -154,7 +148,6 @@ const quoteRequest=async(path,options={})=>{
     assert.equal(h.module.getDisplayedTotal(),130);
   }
 
-  await Promise.resolve(quoteRequest); // keep the shared default quote helper type-checked by the test runtime
   console.log('customer delivery-offers quote consistency and cache-version assertions passed');
 })().catch(error=>{
   console.error(error);
