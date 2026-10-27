@@ -31,7 +31,7 @@ export async function cleanupExpiredCustomerMessages(env) {
   let notifications = 0;
   try {
     const result = await env.DB.prepare(
-      "DELETE FROM notification_events WHERE event_type='customer_message_reply' AND created_at < datetime('now','-90 days')"
+      "DELETE FROM notification_events WHERE event_type IN ('customer_message_reply','customer_message_new') AND created_at < datetime('now','-90 days')"
     ).run();
     notifications = Number(result?.meta?.changes || 0);
   } catch (_) {
@@ -64,7 +64,7 @@ async function ensureRoom(env, customerId) {
     const ids = (rows.results || []).map(row => row.id).filter(Boolean);
     if (ids.length) await env.DB.batch(ids.flatMap(id => [
       env.DB.prepare('DELETE FROM customer_messages WHERE id=?').bind(id),
-      env.DB.prepare("DELETE FROM notification_events WHERE event_type='customer_message_reply' AND event_key LIKE ?").bind('customer-message:' + id + ':reply:%')
+      env.DB.prepare("DELETE FROM notification_events WHERE event_type IN ('customer_message_reply','customer_message_new') AND event_key LIKE ?").bind('customer-message:' + id + ':%')
     ]));
     const after = await env.DB.prepare('SELECT COUNT(*) AS total FROM customer_messages').first();
     if (Number(after?.total || 0) >= GLOBAL_MAX) problem('FreshWay support is busy. Please try again later.', 503);
