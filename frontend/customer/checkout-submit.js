@@ -43,6 +43,16 @@
         const id=customerId();
         if(!id)throw new Error('Please log in before placing your order.');
         const orderPayload=customerCheckout.payload(data,address,cartItems().map(x=>({id:x.product.id,qty:x.qty})),id,clientOrderId,$('#whatsappOptIn')?.checked||false);
+        const deliveryOffers=window.FreshWayCustomerDeliveryOffers;
+        const couponCode=deliveryOffers?.getAppliedCode?.()||'';
+        const oldTotal=deliveryOffers?.getDisplayedTotal?.();
+        const quote=await api('/api/checkout/quote',{method:'POST',body:JSON.stringify({items:cartItems().map(x=>({id:x.product.id,qty:x.qty})),couponCode})});
+        const pricing=quote?.pricing;
+        if(!pricing||!Number.isSafeInteger(Number(pricing.finalTotal)))throw new Error('Could not verify the order total. Return to your cart and try again.');
+        deliveryOffers?.renderCheckoutQuote?.(pricing,money);
+        if(oldTotal!=null&&Number(oldTotal)!==Number(pricing.finalTotal)&&!window.confirm('Your order total changed from '+money(oldTotal)+' to '+money(pricing.finalTotal)+'. Continue with the updated total?'))throw new Error('Review the updated total before placing the order.');
+        orderPayload.couponCode=couponCode;
+        orderPayload.expectedTotal=Number(pricing.finalTotal);
         const deliveryBooking=window.FreshWayCustomerDeliveryBookingInstance;
         if(deliveryBooking?.checkoutEnabled?.()){
           const preferredDeliveryDate=deliveryBooking.selectedCheckoutDate?.();
@@ -51,7 +61,7 @@
         }
         const result=await api('/api/orders',{method:'POST',body:JSON.stringify(orderPayload)});
         const registeredPhone=customerAuth.registeredPhone?.()||'';
-        const order={id:result.id,customer:{name:customerAuth.registeredName?.()||name,phone:registeredPhone},address:{...address,recipientName:address.recipientName||name,deliveryPhone:phone},items:(result.items||[]).map(i=>({name:i.name,unit:i.unit,qty:i.qty,price:i.price,lineTotal:i.lineTotal})),total:result.total,payment:result.payment,status:result.status,deliveryPlan:result.deliveryPlan,scheduledDelivery:result.scheduledDelivery||null,scheduleStatus:result.scheduledDelivery?.status||'unscheduled',createdAt:result.createdAt,updatedAt:result.updatedAt};
+        const order={id:result.id,customer:{name:customerAuth.registeredName?.()||name,phone:registeredPhone},address:{...address,recipientName:address.recipientName||name,deliveryPhone:phone},items:(result.items||[]).map(i=>({name:i.name,unit:i.unit,qty:i.qty,price:i.price,lineTotal:i.lineTotal})),total:result.total,pricingBreakdownKnown:result.pricingBreakdownKnown===true,itemsSubtotal:result.itemsSubtotal??null,deliveryFee:result.deliveryFee??null,couponCode:result.couponCode||null,couponDiscount:result.couponDiscount??null,payment:result.payment,status:result.status,deliveryPlan:result.deliveryPlan,scheduledDelivery:result.scheduledDelivery||null,scheduleStatus:result.scheduledDelivery?.status||'unscheduled',createdAt:result.createdAt,updatedAt:result.updatedAt};
         state.orders=[order,...state.orders.filter(x=>x.id!==order.id)];
         state.cart={};
         state.profile.address=customerAddress.format(address);

@@ -16,7 +16,7 @@ assert.match(css,/\.app:not\(\.owner-authenticated\)>\.mobile-nav/,'mobile navig
 // Without this guard, a direct refresh on #settings runs before Store Profile exists.
 assert.match(source,/function startOwnerApp\(\)/);
 assert.match(source,/document\.readyState==='loading'\)document\.addEventListener\('DOMContentLoaded',startOwnerApp,\{once:true\}\)/);
-assert.ok(html.indexOf('admin.js?v=20261027-owner-simple-v1') < html.indexOf('frontend/admin/store-profile.js'),
+assert.ok(html.indexOf('admin.js?v=20261027-delivery-offers-v2') < html.indexOf('frontend/admin/store-profile.js'),
   'the regression test should cover the real script-loading order');
 assert.match(html,/id="accountDeletionSummary"/);
 assert.match(html,/class="owner-nav-more"/,'desktop navigation should group occasional tools under More');

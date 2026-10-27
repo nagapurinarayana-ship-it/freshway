@@ -33,7 +33,7 @@ const deps={
   },
   customerAuth:{ensureAuthenticated:async(phone)=>calls.push(['auth',phone])},
   customerId:()=> 'customer-1',
-  api:async(path,options)=>{calls.push(['api',path,JSON.parse(options.body)]);return {id:'order-1',items:[{name:'Apple',unit:'kg',qty:1,price:120,lineTotal:120}],total:120,payment:'Cash',status:'New',deliveryPlan:'Standard',createdAt:'now',updatedAt:'now'}},
+  api:async(path,options)=>{calls.push(['api',path,JSON.parse(options.body)]);if(path==='/api/checkout/quote')return {pricing:{itemsSubtotal:120,freeDeliveryEnabled:true,freeDeliveryThreshold:800,qualifiesForFreeDelivery:false,amountToFreeDelivery:680,standardDeliveryFee:30,deliveryFee:30,couponDiscount:0,finalTotal:150,coupon:null}};return {id:'order-1',items:[{name:'Apple',unit:'kg',qty:1,price:120,lineTotal:120}],total:150,itemsSubtotal:120,deliveryFee:30,couponDiscount:0,payment:'Cash',status:'New',deliveryPlan:'Standard',createdAt:'now',updatedAt:'now'}},
   customerNotifications:{registerCustomer:async(...args)=>calls.push(['notify',...args])},
   toast:message=>calls.push(['toast',message]),
   renderProducts:()=>calls.push('products'),

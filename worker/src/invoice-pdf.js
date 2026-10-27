@@ -102,6 +102,14 @@ async function createReceiptPdf(invoice){
     drawRupee(page,x,y,size*0.98,color);
     drawText(page,money(paise),x+symbolWidth+gap,y,size,font,color);
   };
+  const drawDiscountRight=(page,paise,right,y,size=9,font=regular,color=INK)=>{
+    const amount=money(Math.abs(Number(paise||0))),sign='-';
+    const signWidth=font.widthOfTextAtSize(sign,size),textWidth=font.widthOfTextAtSize(amount,size);
+    const symbolWidth=size*0.98,gap=2.5,x=right-signWidth-symbolWidth-gap-textWidth;
+    drawText(page,sign,x,y,size,font,color);
+    drawRupee(page,x+signWidth,y,size*0.98,color);
+    drawText(page,amount,x+signWidth+symbolWidth+gap,y,size,font,color);
+  };
   let page,y;
   const separator=()=>{
     drawText(page,'------------------------------------------------------------',MARGIN,y,8,regular,MUTED);
@@ -153,8 +161,21 @@ async function createReceiptPdf(invoice){
     y-=19;
   }
   if(y<250)newPage(true);
-  drawText(page,'Subtotal',MARGIN,y,9,regular,INK);
-  drawAmountRight(page,invoice.totals.grossPaise??totalPaise,PAGE_W-MARGIN,y,9,regular,INK);y-=16;
+  if(invoice.totals.pricingBreakdownKnown===true){
+    drawText(page,'Items subtotal',MARGIN,y,9,regular,INK);
+    drawAmountRight(page,invoice.totals.itemsSubtotalPaise??invoice.totals.grossPaise??totalPaise,PAGE_W-MARGIN,y,9,regular,INK);y-=16;
+    if(Number(invoice.totals.couponDiscountPaise||0)>0){
+      drawText(page,'Coupon '+String(invoice.totals.couponCode||'').slice(0,32),MARGIN,y,9,regular,INK);
+      drawDiscountRight(page,invoice.totals.couponDiscountPaise,PAGE_W-MARGIN,y,9,regular,INK);y-=16;
+    }
+    drawText(page,'Delivery fee',MARGIN,y,9,regular,INK);
+    if(Number(invoice.totals.deliveryFeePaise||0)>0)drawAmountRight(page,invoice.totals.deliveryFeePaise,PAGE_W-MARGIN,y,9,regular,INK);
+    else drawText(page,'Free',PAGE_W-MARGIN-23,y,9,regular,INK);
+    y-=16;
+  }else{
+    drawText(page,'Order total',MARGIN,y,9,regular,INK);
+    drawAmountRight(page,totalPaise,PAGE_W-MARGIN,y,9,regular,INK);y-=16;
+  }
   separator();
   drawText(page,'TOTAL',MARGIN,y,10,bold,INK);
   drawAmountRight(page,totalPaise,PAGE_W-MARGIN,y,10,bold,INK);y-=17;
@@ -255,7 +276,7 @@ async function createFormalInvoicePdf(invoice){
   if(y<205){newPage();header();y-=5}
   line(page,MARGIN,y,PAGE_W-MARGIN,y,LINE,1);y-=20;
   const totals=invoice.totals;
-  const totalRows=gst?[['Taxable value',formalMoney(totals.taxablePaise)],...(totals.cgstPaise?[['CGST',formalMoney(totals.cgstPaise)]]:[]),...(totals.sgstPaise?[['SGST',formalMoney(totals.sgstPaise)]]:[]),...(totals.igstPaise?[['IGST',formalMoney(totals.igstPaise)]]:[])]:[['Items total',formalMoney(totals.grossPaise)]];
+  const totalRows=gst?[['Taxable value',formalMoney(totals.taxablePaise)],...(totals.cgstPaise?[['CGST',formalMoney(totals.cgstPaise)]]:[]),...(totals.sgstPaise?[['SGST',formalMoney(totals.sgstPaise)]]:[]),...(totals.igstPaise?[['IGST',formalMoney(totals.igstPaise)]]:[])]:totals.pricingBreakdownKnown===true?[['Items subtotal',formalMoney(totals.itemsSubtotalPaise??totals.grossPaise)],...(Number(totals.couponDiscountPaise||0)>0?[['Coupon '+String(totals.couponCode||'').slice(0,24),'-'+formalMoney(totals.couponDiscountPaise)]]:[]),...(Number(totals.deliveryFeePaise||0)>0?[['Delivery fee',formalMoney(totals.deliveryFeePaise)]]:[])]:[['Order total',formalMoney(totals.totalPaise??totals.grossPaise)]];
   const x=PAGE_W-MARGIN-245;
   for(const row of totalRows){drawText(page,row[0],x,y,9,regular,MUTED);drawRight(page,row[1],PAGE_W-MARGIN,y,9,bold,INK);y-=17}
   rect(page,x-8,y-29,245,32,GREEN);

@@ -22,6 +22,12 @@ test('fresh database schema includes the test-order classification column', () =
   );
 });
 
+test('fresh order schema marks legacy pricing breakdowns unknown by default', () => {
+  assert.ok(ordersTable, 'schema.sql must define the orders table');
+  assert.match(ordersTable,/pricing_breakdown_known INTEGER NOT NULL DEFAULT 0 CHECK\(pricing_breakdown_known IN \(0,1\)\)/);
+  assert.match(schema,/coupon_redemption_guard_before_insert[\s\S]*pricing_breakdown_known=1[\s\S]*coupon_discount=NEW\.discount_amount/);
+});
+
 test('fresh database schema includes the test-order query index', () => {
   assert.match(
     schema,

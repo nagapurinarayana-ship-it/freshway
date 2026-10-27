@@ -152,6 +152,35 @@ test.beforeEach(async ({ page }) => {
       });
     }
 
+    if (url.pathname === '/api/delivery-offers' && method === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        settings: { freeDeliveryEnabled: true, freeDeliveryThreshold: 800, standardDeliveryFee: 30 }
+      }) });
+    }
+
+    if (url.pathname === '/api/coupons/available' && method === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ coupons: [] }) });
+    }
+
+    if (url.pathname === '/api/checkout/quote' && method === 'POST') {
+      const payload = JSON.parse(request.postData() || '{}');
+      const qty = Number(payload.items?.[0]?.qty || 1);
+      const itemsSubtotal = 120 * qty;
+      const discount = 0;
+      const deliveryFee = itemsSubtotal >= 800 ? 0 : 30;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ pricing: {
+          itemsSubtotal, freeDeliveryEnabled: true, freeDeliveryThreshold: 800,
+          qualifiesForFreeDelivery: itemsSubtotal >= 800, amountToFreeDelivery: Math.max(0, 800 - itemsSubtotal),
+          standardDeliveryFee: 30, deliveryFee, couponDiscount: discount, finalTotal: itemsSubtotal - discount + deliveryFee,
+          coupon: null,
+          items: [{ id: 'p1', name: 'Basmati Rice', unit: 'kg', qty, price: 120, lineTotal: 120 * qty }]
+        } })
+      });
+    }
+
     if (url.pathname === '/api/orders' && method === 'POST') {
       const payload = JSON.parse(request.postData() || '{}');
       return route.fulfill({
@@ -160,7 +189,12 @@ test.beforeEach(async ({ page }) => {
         body: JSON.stringify({
           id: 'FW-E2E-0001',
           customerId: payload.customerId,
-          total: 120,
+          total: Number(payload.expectedTotal ?? 150),
+          pricingBreakdownKnown: true,
+          itemsSubtotal: 120,
+          deliveryFee: 30,
+          couponCode: null,
+          couponDiscount: 0,
           payment: 'Not Collected',
           status: 'New',
           deliveryPlan: 'Tomorrow',
@@ -235,6 +269,7 @@ test('customer can browse, add a product, checkout, and receive confirmation', a
 
   await page.locator('#viewCartBtn').click();
   await expect(page.locator('#checkoutBtn')).toBeVisible();
+  await expect(page.locator('#fwDeliveryPricing')).toContainText('₹150');
   await page.locator('#checkoutBtn').click();
 
   // New customers manage their first address from the dedicated address
@@ -263,6 +298,11 @@ test('customer can browse, add a product, checkout, and receive confirmation', a
   await expect(page.locator('#confirmationView')).toContainText('FW-E2E-0001');
   await expect(page.locator('#confirmationView')).toContainText('Payment: Cash');
   await expect(page.locator('#confirmationView')).toContainText('Delivery plan: Tomorrow');
+  await expect(page.locator('#confirmationView')).toContainText('Items subtotal');
+  await expect(page.locator('#confirmationView')).toContainText('₹120');
+  await expect(page.locator('#confirmationView')).toContainText('Delivery fee');
+  await expect(page.locator('#confirmationView')).toContainText('₹30');
+  await expect(page.locator('#confirmationView')).toContainText('₹150');
   await expect(page.locator('#cartCount')).toHaveText('0 items');
 });
 

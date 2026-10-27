@@ -4,6 +4,7 @@ import { getInvoiceRecord } from './invoice-service.js';
 import { createInvoicePdf } from './invoice-pdf.js';
 import { handleCustomerDeliveryRequest } from './delivery-scheduling.js';
 import { handleCustomerMessages } from './customer-messages.js';
+import { handleCustomerDeliveryOffersRequest } from './delivery-offers.js';
 
 const COOKIE = 'freshway-customer-session';
 const MAX_AGE = 60 * 60 * 24 * 30;
@@ -169,7 +170,7 @@ async function completePasscodeReset(request, env) {
 }
 async function updateCustomer(request, env) { const sessionId = await sessionCustomerId(request, env); if (!sessionId) return response({ error: 'Customer authentication required.' }, 401, env); let payload = {}; try { payload = await request.json(); } catch (_) {} if (String(payload.id || '').trim() !== sessionId) return response({ error: 'Customer identity does not match the signed-in account.' }, 409, env); await env.DB.prepare('UPDATE customers SET whatsapp_opt_in=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(payload.whatsappOptIn ? 1 : 0, sessionId).run(); return response({ ok: true, customerId: sessionId }, 200, env); }
 export async function customerOrdersFromSnapshots(request, env, customerId) {
-  const { results } = await env.DB.prepare(`SELECT o.id,o.customer_name,o.customer_phone,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.delivered_at,o.payment_collected_at,o.scheduled_delivery_date,o.scheduled_slot_id,o.assigned_store_id,o.scheduled_start_minute,o.scheduled_end_minute,o.schedule_status,ds.name assigned_store_name,
+  const { results } = await env.DB.prepare(`SELECT o.id,o.customer_name,o.customer_phone,o.total,o.items_subtotal,o.delivery_fee,o.coupon_code,o.coupon_discount,o.pricing_breakdown_known,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.delivered_at,o.payment_collected_at,o.scheduled_delivery_date,o.scheduled_slot_id,o.assigned_store_id,o.scheduled_start_minute,o.scheduled_end_minute,o.schedule_status,ds.name assigned_store_name,
     c.name registered_name,c.phone registered_phone,
     COALESCE(s.recipient_name,a.recipient_name,o.customer_name) recipient_name,
     COALESCE(s.delivery_phone,a.delivery_phone) delivery_phone,
@@ -202,7 +203,7 @@ export async function customerOrdersFromSnapshots(request, env, customerId) {
         accuracyMeters: row.accuracy_meters, locationSource: row.location_source, placeId: row.place_id,
         locationUpdatedAt: row.location_updated_at
       },
-      items: [], total: row.total, payment: row.payment_status, status: row.delivery_status,
+      items: [], total: row.total, pricingBreakdownKnown:Number(row.pricing_breakdown_known)===1, itemsSubtotal:Number(row.pricing_breakdown_known)===1?row.items_subtotal:null, deliveryFee:Number(row.pricing_breakdown_known)===1?row.delivery_fee:null, couponCode:Number(row.pricing_breakdown_known)===1?(row.coupon_code||null):null, couponDiscount:Number(row.pricing_breakdown_known)===1?row.coupon_discount:null, payment: row.payment_status, status: row.delivery_status,
       deliveryPlan: row.delivery_plan, scheduledDelivery: row.scheduled_delivery_date ? { date: row.scheduled_delivery_date, slotId: row.scheduled_slot_id, storeId: row.assigned_store_id, storeName: row.assigned_store_name || '', startMinute: row.scheduled_start_minute, endMinute: row.scheduled_end_minute, startTime: row.scheduled_start_minute == null ? '' : String(Math.floor(Number(row.scheduled_start_minute)/60)).padStart(2,'0')+':'+String(Number(row.scheduled_start_minute)%60).padStart(2,'0'), endTime: row.scheduled_end_minute == null ? '' : String(Math.floor(Number(row.scheduled_end_minute)/60)).padStart(2,'0')+':'+String(Number(row.scheduled_end_minute)%60).padStart(2,'0'), status: row.schedule_status || 'unscheduled' } : null, scheduleStatus: row.schedule_status || 'unscheduled', createdAt: row.created_at, updatedAt: row.updated_at, deliveredAt: row.delivered_at,
       paymentCollectedAt: row.payment_collected_at,
       invoice: row.invoice_number?{number:row.invoice_number,documentType:row.invoice_document_type,issuedAt:row.invoice_issue_date}:null
@@ -313,6 +314,20 @@ export default { async fetch(request, env, ctx) { const url = new URL(request.ur
       if (['POST', 'PATCH'].includes(request.method) && (!requestOrigin || !isAllowedOrigin(env, requestOrigin))) return response({ error: 'Request origin could not be verified.' }, 403, env);
       const result = await handleCustomerMessages(request, env, messageCustomerId);
       return response(result.data, result.status, env);
+    }
+    if ((url.pathname === '/api/delivery-offers' && request.method === 'GET') ||
+        (url.pathname === '/api/coupons/available' && request.method === 'GET') ||
+        (url.pathname === '/api/checkout/quote' && request.method === 'POST')) {
+      const offerSessionId = await sessionCustomerId(request, env);
+      const offerCustomerId = offerSessionId && await customerExists(env, offerSessionId) ? offerSessionId : null;
+      const offerResponse = await handleCustomerDeliveryOffersRequest(request, env, offerCustomerId);
+      if (offerResponse) {
+        const headers = new Headers(offerResponse.headers);
+        headers.set('access-control-allow-origin', corsOrigin(env, request.headers.get('Origin') || ''));
+        headers.set('access-control-allow-credentials', 'true');
+        headers.set('vary', 'Origin');
+        return new Response(offerResponse.body, { status: offerResponse.status, statusText: offerResponse.statusText, headers });
+      }
     }
     const deliveryActionMatch = url.pathname.match(/^\/api\/orders\/[^/]+\/(?:cancel|reschedule|request)$/);
     if (deliveryActionMatch && request.method === 'POST') {
