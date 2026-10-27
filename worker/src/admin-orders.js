@@ -43,7 +43,7 @@ export async function orders(env, u) {
     LEFT JOIN delivery_stores ds ON ds.id=o.assigned_store_id
     WHERE ${where.join(' AND ')}`;
   const total=Number((await env.DB.prepare(`SELECT COUNT(*) count ${base}`).bind(...p).first())?.count||0);
-  const rows=(await env.DB.prepare(`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.is_test_order,o.total,o.items_subtotal,o.delivery_fee,o.coupon_code,o.coupon_discount,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.delivered_at,o.payment_collected_at,o.scheduled_delivery_date,o.scheduled_slot_id,o.assigned_store_id,o.scheduled_start_minute,o.scheduled_end_minute,o.schedule_status,ds.name assigned_store_name,
+  const rows=(await env.DB.prepare(`SELECT o.id,o.customer_id,o.customer_name,o.customer_phone,o.is_test_order,o.total,o.items_subtotal,o.delivery_fee,o.coupon_code,o.coupon_discount,o.pricing_breakdown_known,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.delivered_at,o.payment_collected_at,o.scheduled_delivery_date,o.scheduled_slot_id,o.assigned_store_id,o.scheduled_start_minute,o.scheduled_end_minute,o.schedule_status,ds.name assigned_store_name,
     COALESCE(c.name,o.customer_name) registered_name,COALESCE(c.phone,o.customer_phone) registered_phone,
     COALESCE(s.house_flat,a.house) house,COALESCE(s.area,a.area) area,COALESCE(s.city,a.city) city,
     COALESCE(s.pincode,a.pincode) pincode,COALESCE(s.landmark,a.landmark) landmark,
@@ -71,7 +71,7 @@ export async function orders(env, u) {
       latitude:row.latitude,longitude:row.longitude,accuracyMeters:row.accuracy_meters,locationSource:row.location_source,
       placeId:row.place_id,locationUpdatedAt:row.location_updated_at
     },
-    items:[],isTestOrder:Number(row.is_test_order)===1,total:row.total,itemsSubtotal:row.items_subtotal??row.total,deliveryFee:row.delivery_fee??0,couponCode:row.coupon_code||null,couponDiscount:row.coupon_discount??0,payment:row.payment_status,
+    items:[],isTestOrder:Number(row.is_test_order)===1,total:row.total,pricingBreakdownKnown:Number(row.pricing_breakdown_known)===1,itemsSubtotal:Number(row.pricing_breakdown_known)===1?row.items_subtotal:null,deliveryFee:Number(row.pricing_breakdown_known)===1?row.delivery_fee:null,couponCode:Number(row.pricing_breakdown_known)===1?(row.coupon_code||null):null,couponDiscount:Number(row.pricing_breakdown_known)===1?row.coupon_discount:null,payment:row.payment_status,
     status:normalizeStatus(row.delivery_status),deliveryPlan:row.delivery_plan,createdAt:row.created_at,
     updatedAt:row.updated_at,deliveredAt:row.delivered_at,paymentCollectedAt:row.payment_collected_at,
      scheduledDelivery:row.scheduled_delivery_date?{date:row.scheduled_delivery_date,slotId:row.scheduled_slot_id,storeId:row.assigned_store_id,storeName:row.assigned_store_name||'',startMinute:row.scheduled_start_minute,endMinute:row.scheduled_end_minute,startTime:row.scheduled_start_minute==null?'':String(Math.floor(Number(row.scheduled_start_minute)/60)).padStart(2,'0')+':'+String(Number(row.scheduled_start_minute)%60).padStart(2,'0'),endTime:row.scheduled_end_minute==null?'':String(Math.floor(Number(row.scheduled_end_minute)/60)).padStart(2,'0')+':'+String(Number(row.scheduled_end_minute)%60).padStart(2,'0'),status:row.schedule_status||'unscheduled'}:null,scheduleStatus:row.schedule_status||'unscheduled',
