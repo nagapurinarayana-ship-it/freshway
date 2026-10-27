@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v46';
+const CACHE = 'fw-owner-v47';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -8,7 +8,7 @@ const SHELL = [
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/owner-pwa-install.css?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261027-store-management-v1',
-  '/admin/admin.js?v=20261027-store-management-v1',
+  '/admin/admin.js?v=20261027-customer-messages-v1',
   '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2',
   '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
@@ -16,6 +16,7 @@ const SHELL = [
   '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2',
   '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2',
   '/admin/frontend/admin/store-management.js?v=20261027-store-manager-v1',
+  '/admin/frontend/admin/customer-messages.js?v=20261027-customer-messages-v1',
   '/admin/frontend/catalogue-media.js?v=20261008-ui-media-v1',
   '/admin/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1',
   '/admin/frontend/admin/owner-lifecycle-autosave.js?v=20260909-owner-lifecycle-v1',
@@ -34,13 +35,14 @@ const REQUIRED_SHELL = [
   '/admin/manifest.webmanifest',
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261027-store-management-v1',
-  '/admin/admin.js?v=20261027-store-management-v1',
+  '/admin/admin.js?v=20261027-customer-messages-v1',
   '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
   '/admin/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1',
   '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2',
   '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2',
   '/admin/frontend/admin/store-management.js?v=20261027-store-manager-v1',
+  '/admin/frontend/admin/customer-messages.js?v=20261027-customer-messages-v1',
   '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2',
   '/admin/owner-lifecycle.js?v=20261027-owner-delivery-date-v1'
 ];

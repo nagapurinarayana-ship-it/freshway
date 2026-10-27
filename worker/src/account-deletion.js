@@ -23,11 +23,12 @@ export async function fulfillAccountDeletion(env, requestId, adminNote) {
 
   const statements = [
     env.DB.prepare('DELETE FROM push_subscriptions WHERE customer_id=? AND ' + activeRequest).bind(customerId, ...guard()),
-    env.DB.prepare('DELETE FROM notification_events WHERE (customer_id=? OR order_id IN (SELECT id FROM orders WHERE customer_id=?)) AND ' + activeRequest).bind(customerId, customerId, ...guard()),
+    env.DB.prepare('DELETE FROM customer_messages WHERE customer_id=? AND ' + activeRequest).bind(customerId, ...guard()),
+    env.DB.prepare("DELETE FROM notification_events WHERE (customer_id=? OR order_id IN (SELECT id FROM orders WHERE customer_id=?) OR EXISTS (SELECT 1 FROM customer_messages m WHERE m.customer_id=? AND notification_events.event_key LIKE ('customer-message:' || m.id || ':%'))) AND " + activeRequest).bind(customerId, customerId, customerId, ...guard()),
     env.DB.prepare("UPDATE order_address_snapshots SET customer_id=NULL,address_id=NULL,recipient_name='Deleted customer',delivery_phone='',house_flat='Removed',building=NULL,floor=NULL,street=NULL,area='Removed',locality=NULL,city='Removed',district=NULL,state=NULL,pincode='000000',landmark=NULL,delivery_note=NULL,latitude=NULL,longitude=NULL,accuracy_meters=NULL,location_source=NULL,place_name=NULL,place_id=NULL,location_updated_at=NULL WHERE order_id IN (SELECT id FROM orders WHERE customer_id=?) AND " + activeRequest).bind(customerId, ...guard()),
     env.DB.prepare("UPDATE addresses SET house='Removed',area='Removed',city='Removed',pincode='000000',landmark=NULL,note=NULL,label='Removed',recipient_name=NULL,delivery_phone=NULL,building=NULL,floor=NULL,street=NULL,locality=NULL,district=NULL,state=NULL,latitude=NULL,longitude=NULL,accuracy_meters=NULL,location_source=NULL,place_id=NULL,location_updated_at=NULL,is_default=0,deleted_at=COALESCE(deleted_at,CURRENT_TIMESTAMP) WHERE customer_id=? AND " + activeRequest).bind(customerId, ...guard()),
     env.DB.prepare(
-      "UPDATE order_action_requests SET customer_id=NULL,reason='',resolution_note='',updated_at=CURRENT_TIMESTAMP " +
+      "UPDATE order_action_requests SET customer_id=NULL,reason='',resolution_note='',admin_reply=NULL,replied_at=NULL,reply_seen_at=NULL,updated_at=CURRENT_TIMESTAMP " +
       "WHERE customer_id=? AND order_id IN (SELECT id FROM orders WHERE customer_id=?) AND " + activeRequest
     ).bind(customerId, customerId, ...guard()),
     env.DB.prepare(

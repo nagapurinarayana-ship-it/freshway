@@ -51,7 +51,8 @@ const required = {
   delivery_slots: ['id', 'store_id', 'delivery_date', 'start_minute', 'end_minute', 'capacity', 'is_active', 'created_at', 'updated_at'],
   delivery_slot_reservations: ['id', 'order_id', 'slot_id', 'status', 'owner_override', 'override_reason', 'created_at', 'updated_at'],
   delivery_store_inventory_reservations: ['id', 'order_id', 'store_id', 'product_id', 'qty', 'status', 'owner_override', 'override_reason', 'created_at', 'updated_at'],
-  order_action_requests: ['id', 'order_id', 'customer_id', 'request_type', 'requested_slot_id', 'reason', 'status', 'resolution_note', 'resolved_by', 'created_at', 'updated_at'],
+  order_action_requests: ['id', 'order_id', 'customer_id', 'request_type', 'requested_slot_id', 'reason', 'status', 'resolution_note', 'resolved_by', 'created_at', 'updated_at', 'admin_reply', 'replied_at', 'reply_seen_at'],
+  customer_messages: ['id', 'customer_id', 'customer_name', 'customer_phone_last4', 'subject', 'message', 'status', 'admin_reply', 'created_at', 'updated_at', 'replied_at', 'reply_seen_at', 'expires_at'],
   order_audit_events: ['id', 'order_id', 'actor_type', 'actor_id', 'action', 'reason', 'before_json', 'after_json', 'created_at'],
   order_operational_flags: ['id', 'order_id', 'flag_type', 'status', 'details_json', 'created_at', 'updated_at'],
   order_items: ['id', 'order_id', 'product_id', 'name', 'unit', 'qty', 'price', 'line_total', 'stock_reserved_qty'],
@@ -96,7 +97,11 @@ const expectedIndexes = [
   'idx_order_action_queue',
   'idx_order_audit_timeline',
   'idx_order_operational_one_open_flag',
-  'idx_order_operational_queue'
+  'idx_order_operational_queue',
+  'idx_customer_messages_customer_created',
+  'idx_customer_messages_status_created',
+  'idx_customer_messages_expires',
+  'idx_order_action_requests_customer_issue'
 ];
 report.requiredIndexes = Object.fromEntries(expectedIndexes.map(name => [name, indexNames.includes(name)]));
 for (const name of expectedIndexes) if (!indexNames.includes(name)) problems.push('missing index: ' + name);
@@ -105,6 +110,9 @@ const migrationRows = rowsFor('SELECT id,name FROM d1_migrations ORDER BY id', r
 report.migrations = migrationRows.map(row => ({ id: row.id, name: row.name }));
 report.migrationCount = migrationRows.length;
 const deliveryMigrationNames = ['0037_order_delivery_scheduling.sql', '0038_anonymize_delivery_requests.sql', '0039_customer_preferred_delivery_date.sql', '0040_order_delivered_at.sql'];
+const requiredFeatureMigrations = ['0042_customer_messages.sql'];
+report.featureMigrations = Object.fromEntries(requiredFeatureMigrations.map(name => [name, migrationRows.some(row => String(row.name) === name)]));
+for (const name of requiredFeatureMigrations) if (!report.featureMigrations[name]) problems.push('required feature migration not recorded as applied: ' + name);
 report.deliveryMigrations = Object.fromEntries(deliveryMigrationNames.map(name => [name, migrationRows.some(row => String(row.name) === name)]));
 for (const name of deliveryMigrationNames) if (!report.deliveryMigrations[name]) problems.push('delivery migration not recorded as applied: ' + name);
 
