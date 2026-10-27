@@ -12,7 +12,7 @@ assert.ok(index.includes('frontend/customer/delivery-offers.js?v=20261027-fixed-
   'HTML must load the updated delivery-offers module');
 assert.ok(worker.includes('/frontend/customer/delivery-offers.js?v=20261027-fixed-coupons-v2'),
   'service worker must cache the updated delivery-offers module');
-assert.match(worker,/const CACHE = 'freshway-v90'/,
+assert.match(worker,/const CACHE = 'freshway-v91'/,
   'the service-worker cache version must match the current customer shell');
 assert.match(source,/function isCouponEligibilityError\(error\)/,
   'only a server-confirmed coupon eligibility error may clear an applied coupon');
