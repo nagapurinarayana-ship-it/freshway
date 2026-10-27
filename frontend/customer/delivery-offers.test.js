@@ -8,11 +8,11 @@ const worker=fs.readFileSync('sw.js','utf8');
 
 assert.match(source,/Number\(pricing\.standardDeliveryFee\) > 0 && pricing\.freeDeliveryEnabled && !pricing\.qualifiesForFreeDelivery/,
   'do not show threshold progress when delivery is already free at every order amount');
-assert.ok(index.includes('frontend/customer/delivery-offers.js?v=20261027-fixed-coupons-v3'),
+assert.ok(index.includes('frontend/customer/delivery-offers.js?v=20261027-coupon-feedback-v4'),
   'HTML must load the updated delivery-offers module');
-assert.ok(worker.includes('/frontend/customer/delivery-offers.js?v=20261027-fixed-coupons-v3'),
+assert.ok(worker.includes('/frontend/customer/delivery-offers.js?v=20261027-coupon-feedback-v4'),
   'service worker must cache the updated delivery-offers module');
-assert.match(worker,/const CACHE = 'freshway-v91'/,
+assert.match(worker,/const CACHE = 'freshway-v92'/,
   'the service-worker cache version must match the current customer shell');
 assert.match(source,/function isCouponEligibilityError\(error\)/,
   'only a server-confirmed coupon eligibility error may clear an applied coupon');
@@ -161,6 +161,22 @@ const items=[{product:{id:'p1'},qty:1,lineTotal:100}];
     h.module.renderCheckoutQuote(updated,value=>'₹'+value);
     assert.equal(h.module.getDisplayedTotal(),120,'checkout must remember the price displayed after a changed-total prompt so the same prompt is not repeated');
     assert.match(h.elements['#fwCheckoutPricing'].innerHTML,/120/);
+  }
+
+  {
+    const request=async(path,options={})=>{
+      if(path==='/api/checkout/quote')return {pricing:pricingFor(JSON.parse(options.body||'{}').couponCode||'')};
+      if(path==='/api/coupons/available')return {coupons:[]};
+      throw new Error('Unexpected mocked request: '+path);
+    };
+    const h=createHarness(request,'FUN');
+    await h.module.renderCart({items,total:100});
+    h.elements['#fwCouponCode'].value='';
+    await h.click('[data-fw-apply-coupon]');
+    assert.equal(h.module.getAppliedCode(),'FUN','an empty replacement must preserve the applied coupon');
+    assert.equal(h.elements['#fwCouponCode'].value,'FUN','the input must be restored to the currently applied coupon');
+    assert.match(h.elements['#fwCouponStatus'].textContent,/Coupon FUN is already applied.*Enter a different code to replace it/i,
+      'empty replacement should explain how to replace or remove the existing coupon');
   }
 
   console.log('customer delivery-offers quote consistency and cache-version assertions passed');
