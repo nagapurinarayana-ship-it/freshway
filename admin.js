@@ -210,8 +210,16 @@ async function bootstrap(force=false){if(!session()&&!force)return;const target=
 window.addEventListener('popstate',event=>{
   if(ownerOverlayElement()){closeOwnerOverlayNow();return}
   const s=event.state;
-  if(s?.__freshwayOwner){navigateAdminScreen(s.screen||'overview',{historyMode:'none'});return}
-  navigateAdminScreen('overview',{historyMode:'none'})
+  const current=document.querySelector('.screen.active')?.id||location.hash.slice(1)||'overview';
+  const requested=s?.__freshwayOwner?(s.screen||'overview'):'overview';
+  navigateAdminScreen(requested,{historyMode:'none'});
+  const activeAfter=document.querySelector('.screen.active')?.id||'overview';
+  // Browser back changes the URL before the confirmation guard runs. If the
+  // owner cancels navigation, restore the current screen and matching history URL.
+  if(activeAfter===current&&requested!==current){
+    const state={__freshwayOwner:true,screen:current};
+    history.pushState(state,'','#'+current);
+  }
 });
 function initOwnerHistory(){const screen=location.hash.slice(1)||'overview';if(!history.state?.__freshwayOwner){const state={__freshwayOwner:true,screen};history.replaceState(state,'',location.href);history.pushState(state,'',location.href)}}
 bind();
