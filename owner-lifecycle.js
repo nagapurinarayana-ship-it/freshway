@@ -33,7 +33,7 @@
     const orderDate=String(o.scheduledDelivery?.date||'');
     const terminalOrder=statusKey==='delivered'||statusKey==='cancelled';
     const deliveryDateControl=terminalOrder
-      ? \`<div class="fw-life-date-controls"><label>Delivery date</label><p>\${esc2(orderDate||(statusKey==='delivered'&&o.deliveredAt?istDay(o.deliveredAt):'Not set'))}</p></div>\`
+      ? \`<div class="fw-life-date-controls"><label>Delivery date</label><p>\${esc2((statusKey==='delivered'&&o.deliveredAt?istDay(o.deliveredAt):orderDate||'Not set'))}</p></div>\`
       : \`<div class="fw-life-date-controls"><label for="fwLifeDeliveryDate">Delivery date</label><div class="fw-life-date-fields"><input id="fwLifeDeliveryDate" type="date" value="\${esc2(orderDate)}" min="\${esc2(istDay(new Date()))}" aria-label="Delivery date"><button type="button" class="ghost" data-life-save-date>Save date</button></div><small>The customer will see this date on My Orders.</small></div>\`;
     const queueIds=typeof orders!=='undefined'&&Array.isArray(orders)?orders.map(x=>x.id):[];
     const pos=queueIds.indexOf(o.id),prev=pos>0?queueIds[pos-1]:'',nextId=pos>=0&&pos<queueIds.length-1?queueIds[pos+1]:'';
