@@ -186,13 +186,16 @@
   }
   function renderCheckoutQuote(pricing, moneyFn = lastMoney) {
     // A checkout-authoritative quote supersedes any slower cart/apply request.
+    // submitOrder captures the previous total before calling this, so its first
+    // comparison still detects changes; future attempts compare against the price
+    // now visible at checkout instead of repeating the same confirmation prompt.
     renderVersion++;
     lastMoney = typeof moneyFn === 'function' ? moneyFn : lastMoney;
+    lastQuote = pricing;
     updateCartLinePrices(pricing.items);
     renderBreakdown(pricing, document.querySelector('#fwCheckoutPricing'), lastMoney);
     const checkout = document.querySelector('#checkoutTotal');
     if (checkout) checkout.textContent = lastMoney(pricing.finalTotal);
-    // Keep lastQuote as the cart quote so checkout can detect a changed server total.
   }
   function getDisplayedTotal() {
     return lastQuote && Number.isSafeInteger(Number(lastQuote.finalTotal)) ? Number(lastQuote.finalTotal) : null;
