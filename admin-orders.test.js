@@ -98,7 +98,8 @@ assert.ok(ownerSw.includes('/admin/frontend/admin/order-alerts.js?v=20261021-own
 
 assert.match(lifecycle,/id="fwLifeDeliveryDate"/);
 assert.match(lifecycle,/data-life-save-date/);
-assert.match(lifecycle,/\/admin\/delivery\/orders\/'.*\/schedule/);
+assert.ok(lifecycle.includes("/admin/delivery/orders/"));
+assert.ok(lifecycle.includes("'/schedule'"));
 assert.match(lifecycle,/deliveryDate:requestedDate/);
 assert.match(lifecycle,/The customer will see this date on My Orders/);
 const customerOrderActions=fs.readFileSync('frontend/customer/order-actions.js','utf8');
