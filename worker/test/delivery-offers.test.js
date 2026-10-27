@@ -305,6 +305,52 @@ test('Owner delivery-offers routes are wired through the authenticated session g
     assert.equal(created.coupon.code,'FIXED50');
     assert.equal(created.coupon.discountAmount,50);
     assert.equal(db.prepare('SELECT COUNT(*) AS count FROM coupons').get().count,1);
+
+    const settingsSave=await adminAuth.fetch(
+      new Request('https://freshway.example/api/admin/delivery-offers',{
+        method:'PATCH',
+        headers:{Cookie:cookie,'content-type':'application/json'},
+        body:JSON.stringify({freeDeliveryEnabled:true,freeDeliveryThreshold:1000,standardDeliveryFee:45})
+      }),
+      env,{}
+    );
+    assert.equal(settingsSave.status,200,'Owner gateway must route delivery settings saves');
+    const savedSettings=await settingsSave.json();
+    assert.equal(savedSettings.settings.freeDeliveryThreshold,1000);
+    assert.equal(savedSettings.settings.standardDeliveryFee,45);
+
+    const couponList=await adminAuth.fetch(
+      new Request('https://freshway.example/api/admin/coupons',{headers:{Cookie:cookie}}),
+      env,{}
+    );
+    assert.equal(couponList.status,200,'Owner gateway must route coupon list reads');
+    assert.equal((await couponList.json()).coupons[0].code,'FIXED50');
+
+    db.prepare(`INSERT INTO orders(id,customer_id,total,delivery_status,customer_name,customer_phone,items_subtotal,delivery_fee,coupon_id,coupon_code,coupon_discount,pricing_breakdown_known)
+      VALUES ('owner-route-order','customer-1',80,'New','Owner Route Test','9999999999',100,30,?,'FIXED50',50,1)`).bind(created.coupon.id).run();
+    db.prepare(`INSERT INTO coupon_redemptions(id,coupon_id,customer_id,order_id,code_snapshot,discount_amount)
+      VALUES ('owner-route-redemption',?,'customer-1','owner-route-order','FIXED50',50)`).bind(created.coupon.id).run();
+
+    const history=await adminAuth.fetch(
+      new Request('https://freshway.example/api/admin/coupons/'+created.coupon.id+'/redemptions',{headers:{Cookie:cookie}}),
+      env,{}
+    );
+    assert.equal(history.status,200,'Owner gateway must route coupon redemption history reads');
+    const redemptionData=await history.json();
+    assert.equal(redemptionData.redemptions.length,1);
+    assert.equal(redemptionData.redemptions[0].orderId,'owner-route-order');
+    assert.equal(redemptionData.redemptions[0].discountAmount,50);
+
+    const pause=await adminAuth.fetch(
+      new Request('https://freshway.example/api/admin/coupons/'+created.coupon.id,{
+        method:'PATCH',
+        headers:{Cookie:cookie,'content-type':'application/json'},
+        body:JSON.stringify({active:false})
+      }),
+      env,{}
+    );
+    assert.equal(pause.status,200,'Owner gateway must route coupon update and pause requests');
+    assert.equal((await pause.json()).coupon.active,false);
   } finally {
     db.close();
   }
