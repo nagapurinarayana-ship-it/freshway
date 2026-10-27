@@ -27,7 +27,7 @@
       if(reply.length<2){note('Write a reply with at least 2 characters.');textarea?.focus();return;}
       if(reply.length>2000){note('Reply must be 2,000 characters or fewer.');return;}
       replyButton.disabled=true;
-      try{const replyPath=replyButton.dataset.messageSource==='order_request'?'/admin/customer-messages/order-requests/'+encodeURIComponent(replyButton.dataset.messageReply)+'/reply':'/admin/customer-messages/'+encodeURIComponent(replyButton.dataset.messageReply)+'/reply';const result=await api(replyPath,{method:'PATCH',body:JSON.stringify({reply})});note(result.unchanged?'This reply is already saved.':'Reply saved. '+(result.notification?.sent?'Push notification sent.':'The reply is available in the customer Messages screen; push may be unavailable on this device.'));await load();}
+      try{const replyPath=replyButton.dataset.messageSource==='order_request'?'/admin/customer-messages/order-requests/'+encodeURIComponent(replyButton.dataset.messageReply)+'/reply':'/admin/customer-messages/'+encodeURIComponent(replyButton.dataset.messageReply)+'/reply';const result=await api(replyPath,{method:'PATCH',body:JSON.stringify({reply})});if(filter==='pending')filter='replied';await load();note(result.unchanged?'This reply is already saved.':'Reply saved. '+(result.notification?.sent?'Push notification sent.':'The reply is available in the customer Messages screen; push may be unavailable on this device.'));}
       catch(error){note(error.message||'Could not save the reply.');replyButton.disabled=false;}
       return;
     }
