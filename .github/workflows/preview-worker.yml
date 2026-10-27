@@ -422,8 +422,7 @@ jobs:
           process.stdout.write(String(first.id));
           NODE
 
-          # A new order cannot reuse a first-order-only coupon. Confirm the API rejects
-          # it as a client conflict and does not create a second order.
+          # A new client-order ID must not bypass the per-customer redemption limit.
           second_payload="$(node --input-type=module - "$RUNNER_TEMP/freshway-checkout-payload.json" <<'NODE'
           import fs from 'node:fs';
           const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
