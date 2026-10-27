@@ -13,12 +13,16 @@ assert.match(source,/if\(activeAfter===current&&requested!==current\)\{[\s\S]*hi
 assert.match(source,/classList\.toggle\('owner-authenticated',yes\)/,'navigation must become available only after Owner authentication succeeds');
 assert.match(css,/\.app:not\(\.owner-authenticated\)>\.side/,'desktop navigation must remain hidden while signed out');
 assert.match(css,/\.app:not\(\.owner-authenticated\)>\.mobile-nav/,'mobile navigation must remain hidden while signed out');
+assert.match(css,/\.app:not\(\.owner-navigation-ready\) #appView\{visibility:hidden!important\}/,
+  'the default HTML screen must not flash before route restoration completes');
 
 // Initial bootstrap must run after every trailing script has registered its module.
 // Without this guard, a direct refresh on #settings runs before Store Profile exists.
 assert.match(source,/function startOwnerApp\(\)/);
 assert.match(source,/document\.readyState==='loading'\)document\.addEventListener\('DOMContentLoaded',startOwnerApp,\{once:true\}\)/);
-assert.ok(html.indexOf('admin.js?v=20261027-owner-offers-draft-guard-v2') < html.indexOf('frontend/admin/store-profile.js'),
+assert.match(source,/setAdminScreenVisual\(location\.hash\.slice\(1\)\|\|'overview'\);[\s\S]*?classList\.add\('owner-navigation-ready'\);[\s\S]*?bootstrap\(\)/,
+  'the requested hash route must be selected before revealing the Owner app');
+assert.ok(html.indexOf('admin.js?v=20261027-navigation-boot-guard-v1') < html.indexOf('frontend/admin/store-profile.js'),
   'the regression test should cover the real script-loading order');
 assert.match(html,/id="accountDeletionSummary"/);
 assert.match(html,/class="owner-nav-more"/,'desktop navigation should group occasional tools under More');
@@ -30,6 +34,6 @@ const primaryNav=html.match(/<nav aria-label="Owner navigation">([\s\S]*?)<detai
 assert.doesNotMatch(primaryNav,/data-screen="settings"/,'Settings should not crowd the primary desktop navigation');
 assert.match(html,/mobile-more-label">Reports & settings/,'less-used options should be grouped under a clear heading');
 assert.match(source,/else if\(target==='offers'\)\{await window\.FreshWayOwnerDeliveryOffers\?\.load\(\);\}/,'direct refresh on #offers must load delivery settings and coupons');
-assert.ok(html.indexOf('frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5') < html.indexOf('admin.js?v=20261027-owner-offers-draft-guard-v2'), 'Delivery & Offers must load before Owner bootstrap so a direct #offers route can call its loader');
+assert.ok(html.indexOf('frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5') < html.indexOf('admin.js?v=20261027-navigation-boot-guard-v1'), 'Delivery & Offers must load before Owner bootstrap so a direct #offers route can call its loader');
 assert.match(html,/data-more-screen="offers">🎟 Delivery & offers/,'mobile More menu must expose Delivery & Offers');
 console.log('owner navigation history and safe initial settings bootstrap OK');
