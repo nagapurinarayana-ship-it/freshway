@@ -32,6 +32,7 @@
        [...document.querySelectorAll('.nav-item')].forEach(b=>b.classList.toggle('active',b.dataset.nav===name));
        if(history==='push')window.history.pushState({[HISTORY_FLAG]:true,view:name},'',window.location.href);
        else if(history==='replace')window.history.replaceState({[HISTORY_FLAG]:true,view:name},'',window.location.href);
+       window.FreshWayCustomerViewState?.saveView(name);
        onView(name);
        afterView(name);
        window.scrollTo({top:0,behavior:'smooth'});
@@ -44,8 +45,9 @@
      window.addEventListener('popstate',event=>{
        if(visibleModal()){restoreAfterModalBack();return}
        const state=event.state;
-       if(state?.[HISTORY_FLAG])setView(state.view||'home',{history:'none'});
-       else setView('home',{history:'none'});
+       const nextView=state?.[HISTORY_FLAG]?state.view||'home':'home';
+       window.FreshWayCustomerViewState?.saveView(nextView);
+       setView(nextView,{history:'none'});
      });
      return Object.freeze({setView,goBack});
    };
