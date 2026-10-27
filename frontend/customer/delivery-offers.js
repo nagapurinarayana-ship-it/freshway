@@ -63,7 +63,11 @@
     const detail = error?.message || 'Could not apply this coupon.';
     if (appliedCode) {
       if (input) input.value = appliedCode;
-      message(detail + ' Your existing coupon ' + appliedCode + ' is still applied.', true);
+      if (/^Enter a coupon code\.?$/i.test(detail.trim())) {
+        message('Coupon ' + appliedCode + ' is already applied. Enter a different code to replace it, or remove the current coupon first.', true);
+      } else {
+        message(detail + ' Your existing coupon ' + appliedCode + ' is still applied.', true);
+      }
       return;
     }
     message(detail, true);
