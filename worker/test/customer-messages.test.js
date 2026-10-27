@@ -75,7 +75,7 @@ function fakeEnv(options = {}) {
         },
         async all() {
           calls.push({ sql: this.sql, args: this.args, method: 'all' });
-          if (/FROM customer_messages/i.test(this.sql) && /SELECT id,subject,message,status/i.test(this.sql)) return { results: generalRows };
+          if (/FROM customer_messages/i.test(this.sql) && /'message' AS source/i.test(this.sql)) return { results: generalRows };
           if (/FROM order_action_requests r/i.test(this.sql)) return { results: orderRows };
           if (/SELECT status,COUNT\(\*\) AS total FROM customer_messages/i.test(this.sql)) return { results: [{ status: 'pending', total: 1 }, { status: 'replied', total: 2 }] };
           if (/SELECT CASE WHEN admin_reply/i.test(this.sql)) return { results: [{ status: 'pending', total: 1 }, { status: 'replied', total: 1 }] };
