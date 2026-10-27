@@ -570,7 +570,7 @@ BEGIN
   SELECT CASE WHEN NOT EXISTS (
     SELECT 1 FROM coupons c WHERE c.id=NEW.coupon_id AND c.active=1
       AND c.code=NEW.code_snapshot COLLATE NOCASE
-      AND c.discount_amount=NEW.discount_amount
+      AND NEW.discount_amount=MIN(c.discount_amount, COALESCE((SELECT items_subtotal FROM orders WHERE id=NEW.order_id),0))
       AND c.first_order_only=NEW.first_order_only
       AND c.starts_on <= strftime('%Y-%m-%d','now','+5 hours','+30 minutes')
       AND (c.ends_on IS NULL OR c.ends_on >= strftime('%Y-%m-%d','now','+5 hours','+30 minutes'))

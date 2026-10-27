@@ -86,10 +86,14 @@ test('redemption trigger prevents global limit bypass and validates fixed discou
     db.exec(migration);
     db.prepare("INSERT INTO coupons(id,code,title,discount_amount,starts_on,max_redemptions) VALUES ('coupon-1','SAVE50','Fixed discount',50,'2026-01-01',1)").run();
     db.prepare("INSERT INTO coupon_redemptions(id,coupon_id,customer_id,order_id,code_snapshot,discount_amount) VALUES ('redemption-1','coupon-1','customer-1','order-old-1','SAVE50',50)").run();
-    db.prepare("INSERT INTO orders(id,customer_id,total) VALUES ('order-new-2','customer-2',100)").run();
+    db.prepare("INSERT INTO orders(id,customer_id,total,items_subtotal) VALUES ('order-new-2','customer-2',100,100)").run();
     assert.throws(() => db.prepare("INSERT INTO coupon_redemptions(id,coupon_id,customer_id,order_id,code_snapshot,discount_amount) VALUES ('redemption-2','coupon-1','customer-2','order-new-2','SAVE50',50)").run(), /COUPON_MAX_REDEMPTIONS_REACHED/);
     db.prepare("INSERT INTO coupons(id,code,title,discount_amount,starts_on) VALUES ('coupon-2','WELCOME50','Welcome discount',50,'2026-01-01')").run();
     assert.throws(() => db.prepare("INSERT INTO coupon_redemptions(id,coupon_id,customer_id,order_id,code_snapshot,discount_amount) VALUES ('redemption-3','coupon-2','customer-2','order-new-2','WELCOME50',40)").run(), /COUPON_CHANGED/);
+    db.prepare("INSERT INTO orders(id,customer_id,total,items_subtotal) VALUES ('small-order','customer-3',40,40)").run();
+    db.prepare("INSERT INTO coupon_redemptions(id,coupon_id,customer_id,order_id,code_snapshot,discount_amount) VALUES ('small-redemption','coupon-2','customer-3','small-order','WELCOME50',40)").run();
+    db.prepare("INSERT INTO orders(id,customer_id,total,items_subtotal) VALUES ('wrong-discount-order','customer-1',40,40)").run();
+    assert.throws(() => db.prepare("INSERT INTO coupon_redemptions(id,coupon_id,customer_id,order_id,code_snapshot,discount_amount) VALUES ('wrong-discount-redemption','coupon-2','customer-1','wrong-discount-order','WELCOME50',50)").run(), /COUPON_CHANGED/);
   } finally { db.close(); }
 });
 
@@ -98,11 +102,11 @@ test('first-order coupon cannot be reclaimed after cancellation or a later order
   try {
     db.exec(migration);
     db.prepare("INSERT INTO coupons(id,code,title,discount_amount,first_order_only,starts_on) VALUES ('first-coupon','FIRST50','First order offer',50,1,'2026-01-01')").run();
-    db.prepare("INSERT INTO orders(id,customer_id,total) VALUES ('first-order','customer-3',100)").run();
+    db.prepare("INSERT INTO orders(id,customer_id,total,items_subtotal) VALUES ('first-order','customer-3',100,100)").run();
     db.prepare("INSERT INTO coupon_redemptions(id,coupon_id,customer_id,order_id,code_snapshot,discount_amount,first_order_only) VALUES ('first-redemption','first-coupon','customer-3','first-order','FIRST50',50,1)").run();
     db.prepare("INSERT INTO first_order_coupon_claims(customer_id,order_id,coupon_id) VALUES ('customer-3','first-order','first-coupon')").run();
     db.prepare("UPDATE orders SET delivery_status='Cancelled' WHERE id='first-order'").run();
-    db.prepare("INSERT INTO orders(id,customer_id,total) VALUES ('second-order','customer-3',100)").run();
+    db.prepare("INSERT INTO orders(id,customer_id,total,items_subtotal) VALUES ('second-order','customer-3',100,100)").run();
     assert.throws(() => db.prepare("INSERT INTO coupon_redemptions(id,coupon_id,customer_id,order_id,code_snapshot,discount_amount,first_order_only) VALUES ('second-redemption','first-coupon','customer-3','second-order','FIRST50',50,1)").run(), /COUPON_FIRST_ORDER_ONLY|COUPON_FIRST_ORDER_USED/);
   } finally { db.close(); }
 });
