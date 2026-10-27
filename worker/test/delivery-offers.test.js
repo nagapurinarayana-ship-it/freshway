@@ -208,6 +208,9 @@ test('Owner coupon UI exposes and requests redemption history', () => {
   assert.match(ownerUi,/function settingsPreviewText\(source\)/,'delivery preview must reflect whether the threshold is enabled');
   assert.match(ownerUi,/Free-delivery threshold is off/,'the preview must not promise free delivery when the toggle is off');
   assert.match(ownerUi,/id="fwOffersPreviewText"/,'the saved preview must be updateable without replacing the form');
+  assert.ok(ownerUi.includes("thresholdValue==null||thresholdValue.trim()===''?NaN:Number(thresholdValue)"),'a blank free-delivery threshold must not be silently converted to zero');
+  assert.ok(ownerUi.includes("feeValue==null||feeValue.trim()===''?NaN:Number(feeValue)"),'a blank delivery fee must not be silently converted to zero');
+  assert.ok(ownerUi.includes("Discard unsaved Delivery & Offers changes before changing this coupon?"),'activating or pausing a coupon must guard unsaved form edits');
   assert.match(ownerUi,/const hasUnsavedChanges=\(\)=>unsavedSettings\|\|unsavedCoupon/,'settings and coupon drafts must track unsaved changes separately');
   assert.match(ownerUi,/const preserveSettingsDraft=unsavedSettings&&settingsDraft/,'saving a coupon must preserve an unsaved delivery-settings draft');
   assert.match(ownerUi,/function beforeNavigate\(\)[\s\S]*unsavedSettings=false;unsavedCoupon=false;settingsDraft=null;/,'confirming discard must clear the dirty state');
