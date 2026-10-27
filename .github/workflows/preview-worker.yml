@@ -331,6 +331,7 @@ jobs:
           suffix="$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           product_id="preview-quote-product-$suffix"
           coupon_code="PREVIEW$(printf '%08d' "$((GITHUB_RUN_ID % 100000000))")$(printf '%02d' "$GITHUB_RUN_ATTEMPT")"
+          first_order_code="FIRSTONLY$(printf '%08d' "$((GITHUB_RUN_ID % 100000000))")$(printf '%02d' "$GITHUB_RUN_ATTEMPT")"
           customer_phone="8$(printf '%09d' "$(((GITHUB_RUN_ID * 100 + GITHUB_RUN_ATTEMPT) % 1000000000))")"
           owner_cookie="$RUNNER_TEMP/freshway-owner-cookie.txt"
           customer_cookie="$RUNNER_TEMP/freshway-customer-cookie.txt"
@@ -357,7 +358,7 @@ jobs:
             "$base_url/api/admin/login" > "$RUNNER_TEMP/freshway-owner-login.json"
           curl --fail --silent --show-error --max-time 30 \
             --cookie "$owner_cookie" -H "Content-Type: application/json" \
-            -d "{\"code\":\"$coupon_code\",\"title\":\"Preview fixed coupon\",\"discountAmount\":25,\"startsOn\":\"$today\",\"endsOn\":null,\"maxRedemptions\":1,\"perCustomerLimit\":1,\"firstOrderOnly\":true,\"active\":true}" \
+            -d "{\"code\":\"$coupon_code\",\"title\":\"Preview fixed coupon\",\"discountAmount\":25,\"startsOn\":\"$today\",\"endsOn\":null,\"maxRedemptions\":10,\"perCustomerLimit\":1,\"firstOrderOnly\":true,\"active\":true}" \
             "$base_url/api/admin/coupons" > "$RUNNER_TEMP/freshway-owner-create-coupon.json"
           curl --fail --silent --show-error --max-time 30 \
             --cookie "$owner_cookie" "$base_url/api/admin/coupons" > "$RUNNER_TEMP/freshway-owner-coupons.json"
