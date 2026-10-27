@@ -153,8 +153,21 @@ async function createReceiptPdf(invoice){
     y-=19;
   }
   if(y<250)newPage(true);
-  drawText(page,'Subtotal',MARGIN,y,9,regular,INK);
-  drawAmountRight(page,invoice.totals.grossPaise??totalPaise,PAGE_W-MARGIN,y,9,regular,INK);y-=16;
+  if(invoice.totals.pricingBreakdownKnown===true){
+    drawText(page,'Items subtotal',MARGIN,y,9,regular,INK);
+    drawAmountRight(page,invoice.totals.itemsSubtotalPaise??invoice.totals.grossPaise??totalPaise,PAGE_W-MARGIN,y,9,regular,INK);y-=16;
+    if(Number(invoice.totals.couponDiscountPaise||0)>0){
+      drawText(page,'Coupon '+String(invoice.totals.couponCode||'').slice(0,32),MARGIN,y,9,regular,INK);
+      drawAmountRight(page,-Math.abs(Number(invoice.totals.couponDiscountPaise||0)),PAGE_W-MARGIN,y,9,regular,INK);y-=16;
+    }
+    drawText(page,'Delivery fee',MARGIN,y,9,regular,INK);
+    if(Number(invoice.totals.deliveryFeePaise||0)>0)drawAmountRight(page,invoice.totals.deliveryFeePaise,PAGE_W-MARGIN,y,9,regular,INK);
+    else drawText(page,'Free',PAGE_W-MARGIN-23,y,9,regular,INK);
+    y-=16;
+  }else{
+    drawText(page,'Order total',MARGIN,y,9,regular,INK);
+    drawAmountRight(page,totalPaise,PAGE_W-MARGIN,y,9,regular,INK);y-=16;
+  }
   separator();
   drawText(page,'TOTAL',MARGIN,y,10,bold,INK);
   drawAmountRight(page,totalPaise,PAGE_W-MARGIN,y,10,bold,INK);y-=17;
