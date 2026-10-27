@@ -52,7 +52,8 @@
               save();
               renderOrders([]);
               renderProfile();
-              return await load({...options,sessionRetried:true});
+              await load({...options,sessionRetried:true});
+              return {id:sessionId,data:{orders:state.orders}};
             }
             // Session is valid; retry the same request once in case the initial
             // request raced the app's startup/session validation.
