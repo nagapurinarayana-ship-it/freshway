@@ -84,6 +84,26 @@ test('customer cancellation atomically releases stock and slot reservations and 
   } finally { db.close(); }
 });
 
+test('customer can directly cancel a New order even when its same-day slot is inside the cancellation cutoff', async () => {
+  const db=new SQLiteD1();
+  try {
+    const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+    db.seedOrder('order-cancel-cutoff',{date:today,status:'confirmed'});
+    // Put this order well inside any same-day cutoff; New/Confirmed orders still
+    // cancel directly so the customer does not see an active order after tapping Cancel.
+    db.db.prepare('UPDATE orders SET scheduled_start_minute=0,scheduled_end_minute=30 WHERE id=?').run('order-cancel-cutoff');
+    const response=await handleCustomerDeliveryRequest(new Request(
+      'https://api.example.test/api/orders/order-cancel-cutoff/cancel',
+      {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({reason:'Customer cancelled before fulfilment'})}
+    ),{DB:db},'customer-1');
+    assert.equal(response.status,200);
+    const result=await response.json();
+    assert.equal(result.status,'Cancelled');
+    assert.equal(db.db.prepare("SELECT delivery_status FROM orders WHERE id='order-cancel-cutoff'").get().delivery_status,'Cancelled');
+    assert.equal(db.db.prepare("SELECT COUNT(*) count FROM order_action_requests WHERE order_id='order-cancel-cutoff' AND request_type='cancellation'").get().count,0);
+  } finally { db.close(); }
+});
+
 test('customer reschedule saves the date, releases the old slot, and preserves store stock reservations', async () => {
   const db=new SQLiteD1();
   try {
