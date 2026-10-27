@@ -498,6 +498,12 @@ export async function handleAdminDeliveryRequest(request, env) {
     await env.DB.prepare('UPDATE delivery_scheduling_settings SET enabled=?,booking_horizon_days=?,same_day_cutoff_minutes=?,timezone=\'Asia/Kolkata\',updated_at=CURRENT_TIMESTAMP WHERE id=1').bind(enabled, horizon, cutoff).run();
     return response({ ok: true, settings: await readSettings(env) });
   }
+  if (path === '/api/admin/delivery/stores' && request.method === 'GET') {
+    const stores = (await env.DB.prepare(
+      'SELECT id,name,address,latitude,longitude,service_radius_km,is_active,created_at,updated_at FROM delivery_stores ORDER BY created_at,id'
+    ).all()).results || [];
+    return response({ stores });
+  }
   if (path === '/api/admin/delivery/stores' && request.method === 'POST') {
     let body = {}; try { body = await request.json(); } catch (_) {}
     const name = clean(body.name).slice(0, 120), address = clean(body.address).slice(0, 300);
@@ -537,6 +543,13 @@ export async function handleAdminDeliveryRequest(request, env) {
     return response({ ok: true, store: { ...current, name, address, latitude, longitude, service_radius_km: radius, is_active: active } });
   }
   const inventoryMatch = path.match(new RegExp('^/api/admin/delivery/stores/([^/]+)/inventory$'));
+  if (inventoryMatch && request.method === 'GET') {
+    const storeId = decodeURIComponent(inventoryMatch[1]);
+    const store = await env.DB.prepare('SELECT * FROM delivery_stores WHERE id=?').bind(storeId).first();
+    if (!store) throw new Error('Delivery store not found.');
+    await ensureStoreInventoryRows(env);
+    return response({ store, inventory: await inventoryAvailabilityForStore(env, storeId) });
+  }
   if (inventoryMatch && request.method === 'PATCH') {
     let body = {}; try { body = await request.json(); } catch (_) {}
     const storeId = decodeURIComponent(inventoryMatch[1]);
