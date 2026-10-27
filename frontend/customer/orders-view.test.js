@@ -31,8 +31,17 @@ assert.match(el.innerHTML,/Delivered/);
 assert.doesNotMatch(el.innerHTML,/Delivered on 2026-09-08/, 'never substitute order creation date for the actual delivery date');
 api.render(document,[{...base,id:'FW-3',status:'Cancelled',deliveryPlan:'Today'}],helpers);
 assert.match(el.innerHTML,/class="status cancelled">Cancelled/);
+assert.doesNotMatch(el.innerHTML,/Delivery date:/,'cancelled orders must not look scheduled for delivery');
 assert.doesNotMatch(el.innerHTML,/Today/);
 api.render(document,[{...base,id:'FW-4',status:'delivered',deliveryPlan:'Later'}],helpers);
 assert.match(el.innerHTML,/class="status delivered">delivered/);
 assert.doesNotMatch(el.innerHTML,/Later/);
+
+api.render(document,[{...base,id:'FW-DELIVERED-PAID',status:'Delivered',payment:'Collected',deliveryPlan:'Later',scheduledDelivery:{date:'2026-10-31'},deliveredAt:'2026-10-27 08:00:00'}],helpers);
+assert.match(el.innerHTML,/Delivered on 2026-10-27/);
+assert.match(el.innerHTML,/class="status delivered">Collected/);
+assert.doesNotMatch(el.innerHTML,/Delivery date: 2026-10-31/);
+assert.doesNotMatch(el.innerHTML,/data-customer-order-cancel=/);
+assert.doesNotMatch(el.innerHTML,/data-customer-order-reschedule=/);
+
 console.log('customer orders-view terminal status tests OK');

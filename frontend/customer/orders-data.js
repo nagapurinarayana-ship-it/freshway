@@ -3,7 +3,7 @@
 (function(){
   const create=({api,customerId,readState,save,renderOrders,renderProfile,toast,document,intervalMs=30000})=>{
     let timer=null;
-    const load=async()=>{
+    const load=async(options={})=>{
       const state=readState();
       const id=customerId();
       if(!id){
@@ -25,8 +25,11 @@
           renderProfile();
         }
       }catch(_){
+        // Keep the last known orders if the server is temporarily unreachable.
+        // A mutation action reports its own result; don't cover it with a generic
+        // offline toast during the follow-up refresh.
         renderOrders(state.orders);
-        if(state.orders.length)toast('Showing saved orders from this device.')
+        if(state.orders.length&&!options.silentError)toast('Showing saved orders from this device.')
       }
     };
     const start=()=>{

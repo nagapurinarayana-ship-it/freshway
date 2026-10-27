@@ -137,6 +137,9 @@ test('customer checkout and My Orders use a simple preferred delivery date and a
   assert.ok(orders.includes('data-customer-order-reschedule'));
   assert.ok(auth.includes('sessionCustomerId(request, env)'));
   assert.ok(auth.includes('handleCustomerDeliveryRequest(request, env, deliveryCustomerId)'));
+  assert.ok(auth.includes('o.delivered_at'),'authenticated My Orders must load the actual delivery timestamp');
+  assert.ok(auth.includes('deliveredAt: row.delivered_at'),'authenticated My Orders must return the delivered timestamp to the customer UI');
+  assert.ok(read('../src/delivery-scheduling.js').includes('canCustomerCancelImmediately'),'New/Confirmed orders must cancel directly even near same-day cutoff');
 });
 
 test('Owner delivery UI edits dates directly on orders without a separate request queue', () => {
