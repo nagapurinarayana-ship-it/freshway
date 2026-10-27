@@ -64,5 +64,26 @@ assert.equal(listeners[0][0],'submit');
   assert.ok(calls.includes('products'));
   assert.ok(calls.includes('profile'));
   assert.ok(calls.includes('cartbar'));
+
+  // If the customer declines a changed-total prompt, the updated total is now
+  // the displayed baseline. Retrying should not repeat the same prompt.
+  let displayedTotal=120;
+  let confirmationCount=0;
+  sandbox.window.FreshWayCustomerDeliveryOffers={
+    getAppliedCode:()=> 'SAVE10',
+    getDisplayedTotal:()=>displayedTotal,
+    renderCheckoutQuote:pricing=>{displayedTotal=Number(pricing.finalTotal);}
+  };
+  sandbox.window.confirm=()=>{confirmationCount++;return false;};
+  state.cart={apple:1};
+  state.orders=[];
+  state.profile={};
+  await service.submitOrder({preventDefault(){},target:elements['#checkoutForm']});
+  assert.equal(state.orders.length,0,'declining the total-change prompt must not place the order');
+  assert.equal(displayedTotal,150,'the revised total must remain visible for review');
+  assert.equal(confirmationCount,1,'the first changed total should require one confirmation');
+  await service.submitOrder({preventDefault(){},target:elements['#checkoutForm']});
+  assert.equal(state.orders.length,1,'retrying after reviewing the revised total should place the order');
+  assert.equal(confirmationCount,1,'the same total-change prompt must not repeat once that total is displayed');
   console.log('customer checkout submission tests passed');
 })().catch(err=>{console.error(err);process.exitCode=1});
