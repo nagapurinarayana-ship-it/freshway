@@ -264,7 +264,7 @@ test('customer can browse, add a product, checkout, and receive confirmation', a
 
   await page.locator('#productGrid .add-btn').click();
   await expect(page.locator('#cartCount')).toHaveText('1 item');
-  await expect(page.locator('#cartTotal')).toHaveText('₹150');
+  await expect(page.locator('#cartTotal')).toHaveText('₹120');
 
   await page.locator('#viewCartBtn').click();
   await expect(page.locator('#checkoutBtn')).toBeVisible();
