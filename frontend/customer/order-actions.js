@@ -14,10 +14,26 @@
         try {
           const api = request(); if (!api) throw new Error('Order actions are temporarily unavailable.');
           const result = await api('/api/orders/' + encodeURIComponent(orderId) + '/cancel', { method:'POST', body:JSON.stringify({ reason:'Requested by customer' }) });
-          if (result.request?.status === 'pending') feedback('Your cancellation request was sent. The order remains active until FreshWay confirms it.');
-          else feedback(result.message || 'Your order has been cancelled.');
-          document.dispatchEvent(new CustomEvent('freshway:order-actions-changed', { detail:{ orderId, action:'cancel' } }));
-        } catch (error) { feedback(error?.message || 'Could not cancel this order. Refresh and try again.'); }
+          if (result.request?.status === 'pending') {
+            feedback('Cancellation request sent. The order stays active until FreshWay reviews it.');
+          } else if (String(result.status || '').toLowerCase() === 'cancelled' || result.alreadyCancelled) {
+            // Update local history only after the API confirms cancellation. If the
+            // next GET fails, the old "New" state must not replace this result.
+            const localState = window.state;
+            if (localState && Array.isArray(localState.orders)) {
+              localState.orders = localState.orders.map(order => String(order.id) === String(orderId)
+                ? { ...order, status:'Cancelled' } : order);
+              try { window.FreshWayCustomerStorage?.save?.(localState); } catch (_) {}
+            }
+            feedback(result.alreadyCancelled ? 'This order is already cancelled.' : 'Order cancelled.');
+          } else {
+            throw new Error('FreshWay did not confirm cancellation. Refresh My Orders and try again.');
+          }
+          document.dispatchEvent(new CustomEvent('freshway:order-actions-changed', { detail:{ orderId, action:'cancel', silentError:true } }));
+        } catch (error) {
+          feedback(error?.message || 'Could not cancel this order. Refresh and try again.');
+          document.dispatchEvent(new CustomEvent('freshway:order-actions-changed', { detail:{ orderId, action:'refresh', silentError:true } }));
+        }
         finally { if (cancel.isConnected) cancel.disabled = false; }
         return;
       }
