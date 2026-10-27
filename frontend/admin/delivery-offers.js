@@ -119,6 +119,7 @@
       const keepSettingsDraft=preserveSettingsDraft&&unsavedSettings&&settingsDraft;
       if(!keepSettingsDraft){settingsDraft=null;unsavedSettings=false;}
       unsavedCoupon=false;
+      loading=false;
       render();
       status(unsavedSettings?'Coupons refreshed. Delivery settings still have unsaved changes.':'Settings and coupons loaded.');
     } catch(error) {
