@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v50';
+const CACHE = 'fw-owner-v51';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -8,7 +8,7 @@ const SHELL = [
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/owner-pwa-install.css?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261027-delivery-offers-v2',
-  '/admin/admin.js?v=20261027-delivery-offers-v2',
+  '/admin/admin.js?v=20261027-owner-offers-route-v1',
   '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2',
   '/admin/frontend/admin/delivery-offers.js?v=20261027-fixed-coupons-v2',
   '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
@@ -36,7 +36,7 @@ const REQUIRED_SHELL = [
   '/admin/manifest.webmanifest',
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261027-delivery-offers-v2',
-  '/admin/admin.js?v=20261027-delivery-offers-v2',
+  '/admin/admin.js?v=20261027-owner-offers-route-v1',
   '/admin/frontend/admin/delivery-offers.js?v=20261027-fixed-coupons-v2',
   '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
