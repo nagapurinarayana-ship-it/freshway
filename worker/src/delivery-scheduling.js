@@ -204,13 +204,11 @@ async function getOrderForAction(env, orderId, customerId = '') {
     (customerId ? ' AND customer_id=?' : '') + ' LIMIT 1';
   return customerId ? env.DB.prepare(query).bind(orderId, customerId).first() : env.DB.prepare(query).bind(orderId).first();
 }
-function beforeCutoff(order, settings) {
-  if (!['New', 'Confirmed'].includes(String(order.delivery_status || ''))) return false;
-  if (!order.scheduled_delivery_date || order.scheduled_start_minute === null || order.scheduled_start_minute === undefined) return true;
-  const now = istNowParts();
-  if (order.scheduled_delivery_date < now.date) return false;
-  if (order.scheduled_delivery_date > now.date) return true;
-  return Number(order.scheduled_start_minute) >= now.minute + Number(settings.same_day_cutoff_minutes || 0);
+function canCustomerCancelImmediately(order) {
+  // Keep cancellation simple and predictable before fulfilment starts: a New or
+  // Confirmed order can be cancelled directly, even when its delivery slot is
+  // close to the same-day cutoff. Once fulfilment has started, route to Owner review.
+  return ['New', 'Confirmed'].includes(String(order?.delivery_status || '').trim());
 }
 async function queueRequest(env, order, customerId, requestType, body = {}) {
   const existing = await env.DB.prepare("SELECT id,status,request_type,requested_slot_id,requested_delivery_date,reason FROM order_action_requests WHERE order_id=? AND request_type=? AND status='pending' ORDER BY created_at DESC LIMIT 1").bind(order.id, requestType).first();
@@ -371,11 +369,10 @@ async function customerAction(request, env, customerId, orderId, action) {
   try { body = await request.json(); } catch (_) {}
   const order = await getOrderForAction(env, orderId, customerId);
   if (!order || Number(order.is_test_order || 0)) return response({ error: 'Order was not found in your account.' }, 404);
-  const settings = await readSettings(env);
   if (action === 'cancel') {
     if (order.delivery_status === 'Cancelled') return response({ ok: true, status: 'Cancelled', alreadyCancelled: true });
     if (order.delivery_status === 'Delivered') return response({ error: 'Delivered orders cannot be cancelled here. Submit an issue or return request instead.' }, 409);
-    if (!beforeCutoff(order, settings)) {
+    if (!canCustomerCancelImmediately(order)) {
       const queued = await queueRequest(env, order, customerId, 'cancellation', body);
       return response({ ok: true, request: queued, status: order.delivery_status }, 202);
     }
