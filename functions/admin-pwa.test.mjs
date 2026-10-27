@@ -9,6 +9,19 @@ assert.doesNotMatch(customerHtml, /href=["']\/admin(?:\.html|\/?)['"]/i, 'custom
 assert.doesNotMatch(customerHtml, /class=["'][^"']*\badmin-link\b/i, 'customer profile must not render an Owner dashboard shortcut');
 const invoiceSettingsSource = readRepoFile('frontend/admin/invoice-settings.js').toString('utf8');
 const invoiceServiceSource = readRepoFile('worker/src/invoice-service.js').toString('utf8');
+const storeManagementSource = readRepoFile('frontend/admin/store-management.js').toString('utf8');
+const deliverySchedulingSource = readRepoFile('worker/src/delivery-scheduling.js').toString('utf8');
+const ownerProxySource = readRepoFile('functions/admin/[[path]].js').toString('utf8');
+assert.ok(sourceHtml.includes('data-screen="stores"') && sourceHtml.includes('id="stores"'), 'Owner app must expose a dedicated Stores screen');
+assert.ok(sourceHtml.includes('data-screen="requests"') && sourceHtml.includes('id="requests"'), 'Owner app must expose customer requests in Owner navigation');
+assert.ok(sourceHtml.includes('store-management.js?v=20261027-store-manager-v1'), 'Owner app must load the versioned store and request management module');
+assert.ok(ownerProxySource.includes("['frontend/admin/store-management.js', '/frontend/admin/store-management.js']"), 'Owner proxy must allow the store management asset');
+assert.ok(storeManagementSource.includes("api('/admin/delivery/stores'"), 'Store manager must load stores from the authenticated API');
+assert.ok(storeManagementSource.includes("api('/admin/delivery/requests'"), 'Customer request screen must load persisted order-related requests');
+assert.ok(storeManagementSource.includes('general messages sent there are not saved to an inbox yet'), 'Owner UI must not imply general Contact FreshWay messages are persisted');
+assert.ok(deliverySchedulingSource.includes("path === '/api/admin/delivery/stores' && request.method === 'GET'"), 'Delivery API must expose stores to Owner UI');
+assert.ok(deliverySchedulingSource.includes('if (inventoryMatch && request.method === \'GET\')'), 'Delivery API must expose per-store stock to Owner UI');
+
 assert.ok(sourceHtml.includes('account-deletions.js?v=20261024-anonymized-history-v1'), 'Owner app must reference the updated account-deletion click handler');
 const deletionSource = readRepoFile('frontend/admin/account-deletions.js').toString('utf8');
 assert.ok(deletionSource.includes('individual request record, and keeps only an aggregate completion count and the latest completion date'), 'Deletion confirmation must explain that the per-request record is removed');
