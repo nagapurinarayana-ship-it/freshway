@@ -53,5 +53,14 @@ test('authenticated My Orders query uses the real snapshot schema and returns cu
     assert.equal(payload.orders[0].address.recipientName,'Order-time Name','preserve order-time customer name');
     assert.equal(payload.orders[0].items[0].name,'Sesame oil');
     assert.equal(payload.orders[0].items[0].lineTotal,520);
+    assert.equal(payload.orders[0].pricingBreakdownKnown,false);
+    assert.equal(payload.orders[0].itemsSubtotal,null,'legacy orders should not invent an items subtotal');
+    assert.equal(payload.orders[0].deliveryFee,null,'legacy orders should not invent a delivery fee');
+    db.db.prepare("UPDATE orders SET items_subtotal=520,delivery_fee=0,coupon_discount=0,pricing_breakdown_known=1 WHERE id='FW-ORDERS-1'").run();
+    const currentResponse=await customerOrdersFromSnapshots(new Request('https://api.example.test/api/orders'),{DB:db},'customer-1');
+    const currentPayload=await currentResponse.json();
+    assert.equal(currentPayload.orders[0].pricingBreakdownKnown,true);
+    assert.equal(currentPayload.orders[0].itemsSubtotal,520);
+    assert.equal(currentPayload.orders[0].deliveryFee,0);
   } finally { db.close(); }
 });
