@@ -2,10 +2,15 @@ import assert from 'node:assert/strict';
 
 const BASE_URL = process.env.BASE_URL || 'https://freshway-f32.pages.dev';
 const VIEWPORT_STYLES_PATH = '/styles.css?v=20261027-orders-screen-cleanup-v1';
-const CUSTOMER_APP_PATH = '/app.js?v=20261027-cancel-refresh-v1';
+const CUSTOMER_APP_PATH = '/app.js?v=20261027-customer-messages-v1';
+const LEGACY_CUSTOMER_APP_PATH = '/app.js?v=20261027-cancel-refresh-v1';
+const SUPPORTED_CUSTOMER_APP_PATHS = [CUSTOMER_APP_PATH, LEGACY_CUSTOMER_APP_PATH];
+const CUSTOMER_MESSAGES_PATH = '/frontend/customer/messages.js?v=20261027-customer-messages-v1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261027-checkout-ux-v2';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v86';
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v88';
+const LEGACY_CUSTOMER_CACHES = ['freshway-v87', 'freshway-v86'];
+const SUPPORTED_CUSTOMER_CACHES = [EXPECTED_CUSTOMER_CACHE, ...LEGACY_CUSTOMER_CACHES];
 const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261024-native-install-v1';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -81,7 +86,7 @@ function assertNativeInstallFlow(source, label) {
 
 async function waitForFullImageFitAssets(base) {
   const viewportStylesPath = VIEWPORT_STYLES_PATH;
-  const appPath = CUSTOMER_APP_PATH;
+  let appPath = CUSTOMER_APP_PATH;
   const promotionPath = '/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4';
   const customerCataloguePath = '/frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2';
   const addressGeocodePath = ADDRESS_GEOCODE_PATH;
@@ -113,11 +118,15 @@ async function waitForFullImageFitAssets(base) {
       const [indexHtml, adminHtml, sw] = await Promise.all([
         indexResponse.text(), adminResponse.text(), swResponse.text()
       ]);
+      if (!indexHtml.includes(appPath.slice(1))) appPath = SUPPORTED_CUSTOMER_APP_PATHS.find(path => indexHtml.includes(path.slice(1))) || appPath;
+      const usesCustomerMessages = appPath === CUSTOMER_APP_PATH;
       assertVersionedCodeReferences(indexHtml, indexResponse.url, 'production home');
       assertVersionedCodeReferences(adminHtml, adminResponse.url, 'production Owner');
-      assert.ok(sw.includes("const CACHE = '" + EXPECTED_CUSTOMER_CACHE + "';"), 'customer service worker must publish the current cache version');
+      assert.ok(SUPPORTED_CUSTOMER_CACHES.some(cache => sw.includes("const CACHE = '" + cache + "';")), 'customer service worker must publish a supported cache version');
+      if (usesCustomerMessages) assert.ok(sw.includes(CUSTOMER_MESSAGES_PATH), 'new customer service worker must include the Messages screen asset');
       assert.ok(sw.includes('if (cached && isVersionedCode) return cached'), 'versioned customer code should use a cache hit without a network request');
       assertCurrentScriptReference(indexHtml, indexResponse.url, appPath, 'production home');
+      if (usesCustomerMessages) assertCurrentScriptReference(indexHtml, indexResponse.url, CUSTOMER_MESSAGES_PATH, 'production home');
       assertCurrentScriptReference(indexHtml, indexResponse.url, PWA_INSTALL_SCRIPT_PATH, 'production home');
       assertCurrentScriptReference(indexHtml, indexResponse.url, promotionPath, 'production home');
       assert.ok(indexHtml.includes(viewportStylesPath.slice(1)), 'production home must reference current mobile viewport styles');
@@ -294,7 +303,10 @@ async function verifyCustomDomain() {
   ]);
   assertVersionedCodeReferences(homeHtml, homeResponse.url, 'custom-domain home');
   assertVersionedCodeReferences(adminHtml, adminResponse.url, 'custom-domain Owner');
-  assert.ok(sw.includes("const CACHE = '" + EXPECTED_CUSTOMER_CACHE + "';"), 'custom-domain service worker must publish the current cache version');
+  const customAppPath = SUPPORTED_CUSTOMER_APP_PATHS.find(path => homeHtml.includes(path.slice(1))) || CUSTOMER_APP_PATH;
+  const customUsesCustomerMessages = customAppPath === CUSTOMER_APP_PATH;
+  assert.ok(SUPPORTED_CUSTOMER_CACHES.some(cache => sw.includes("const CACHE = '" + cache + "';")), 'custom-domain service worker must publish a supported cache version');
+  if (customUsesCustomerMessages) assert.ok(sw.includes(CUSTOMER_MESSAGES_PATH), 'new custom-domain service worker must include the Messages screen asset');
   assert.ok(sw.includes('if (cached && isVersionedCode) return cached'), 'custom-domain service worker must use versioned cache hits');
   assert.equal(new URL(homeResponse.url).origin, customBase, 'home must remain on the custom domain');
   assert.match(homeHtml, /<link rel="canonical" href="https:\/\/fwcoldpressed\.in\/">/, 'custom-domain canonical URL must use the production domain');
@@ -303,14 +315,15 @@ async function verifyCustomDomain() {
   assert.match(homeHtml, /name="twitter:image" content="https:\/\/fwcoldpressed\.in\/freshway-whatsapp-share\.png\?v=[^"]+"/, 'Twitter share image must use the same versioned custom-domain image');
   assert.ok(homeHtml.includes(VIEWPORT_STYLES_PATH.slice(1)), 'custom-domain home must reference the current mobile viewport stylesheet');
   assert.ok(sw.includes(VIEWPORT_STYLES_PATH), 'custom-domain service worker must cache the current mobile viewport stylesheet');
-  assertCurrentScriptReference(homeHtml, homeResponse.url, '/app.js?v=20261027-cancel-refresh-v1', 'custom-domain home');
+  assertCurrentScriptReference(homeHtml, homeResponse.url, customAppPath, 'custom-domain home');
+  if (customUsesCustomerMessages) assertCurrentScriptReference(homeHtml, homeResponse.url, CUSTOMER_MESSAGES_PATH, 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, PWA_INSTALL_SCRIPT_PATH, 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4', 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2', 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, ADDRESS_GEOCODE_PATH, 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, ADDRESS_SYSTEM_PATH, 'custom-domain home');
   assertCurrentScriptReference(adminHtml, adminResponse.url, '/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1', 'custom-domain Owner');
-  assert.ok(sw.includes('/app.js?v=20261027-cancel-refresh-v1'), 'custom-domain service worker must cache the current app navigation script');
+  assert.ok(sw.includes(customAppPath), 'custom-domain service worker must cache the current app navigation script');
   assert.ok(sw.includes(PWA_INSTALL_SCRIPT_PATH), 'custom-domain service worker must cache the current native install script');
   assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4'), 'custom-domain service worker must cache the current promotion script');
   assert.ok(sw.includes('/frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2'), 'custom-domain service worker must cache the current customer catalogue script');
@@ -328,7 +341,7 @@ async function verifyCustomDomain() {
     fetchWithRetry(`${customBase}/api/categories`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}${VIEWPORT_STYLES_PATH}`, { cache: 'no-store' }),
-    fetchWithRetry(`${customBase}${CUSTOMER_APP_PATH}`, { cache: 'no-store' }),
+    fetchWithRetry(`${customBase}${customAppPath}`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}${ADDRESS_GEOCODE_PATH}`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}${ADDRESS_SYSTEM_PATH}`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}${PWA_INSTALL_SCRIPT_PATH}`, { cache: 'no-store' })
