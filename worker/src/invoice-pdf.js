@@ -255,7 +255,7 @@ async function createFormalInvoicePdf(invoice){
   if(y<205){newPage();header();y-=5}
   line(page,MARGIN,y,PAGE_W-MARGIN,y,LINE,1);y-=20;
   const totals=invoice.totals;
-  const totalRows=gst?[['Taxable value',formalMoney(totals.taxablePaise)],...(totals.cgstPaise?[['CGST',formalMoney(totals.cgstPaise)]]:[]),...(totals.sgstPaise?[['SGST',formalMoney(totals.sgstPaise)]]:[]),...(totals.igstPaise?[['IGST',formalMoney(totals.igstPaise)]]:[])]:[['Items total',formalMoney(totals.grossPaise)]];
+  const totalRows=gst?[['Taxable value',formalMoney(totals.taxablePaise)],...(totals.cgstPaise?[['CGST',formalMoney(totals.cgstPaise)]]:[]),...(totals.sgstPaise?[['SGST',formalMoney(totals.sgstPaise)]]:[]),...(totals.igstPaise?[['IGST',formalMoney(totals.igstPaise)]]:[])]:[['Items subtotal',formalMoney(totals.itemsSubtotalPaise??totals.grossPaise)],...(Number(totals.couponDiscountPaise||0)>0?[['Coupon '+String(totals.couponCode||'').slice(0,24),'−'+formalMoney(totals.couponDiscountPaise)]]:[]),...(Number(totals.deliveryFeePaise||0)>0?[['Delivery fee',formalMoney(totals.deliveryFeePaise)]]:[])];
   const x=PAGE_W-MARGIN-245;
   for(const row of totalRows){drawText(page,row[0],x,y,9,regular,MUTED);drawRight(page,row[1],PAGE_W-MARGIN,y,9,bold,INK);y-=17}
   rect(page,x-8,y-29,245,32,GREEN);

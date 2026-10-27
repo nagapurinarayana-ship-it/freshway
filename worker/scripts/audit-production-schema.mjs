@@ -44,7 +44,11 @@ const required = {
   addresses: ['id', 'customer_id', 'house', 'area', 'city', 'pincode', 'landmark', 'note', 'label', 'recipient_name', 'delivery_phone', 'building', 'floor', 'street', 'locality', 'district', 'state', 'latitude', 'longitude', 'accuracy_meters', 'location_source', 'place_id', 'location_updated_at', 'is_default', 'deleted_at'],
   products: ['id', 'name', 'unit', 'price', 'active', 'category_id', 'image_data', 'stock_managed', 'stock_quantity', 'low_stock_threshold'],
   categories: ['id', 'name', 'slug', 'active', 'display_order'],
-  orders: ['id', 'customer_id', 'address_id', 'customer_name', 'customer_phone', 'total', 'payment_status', 'delivery_status', 'delivery_plan', 'client_order_id', 'payment_collected_at', 'is_test_order', 'updated_at', 'delivered_at', 'scheduled_delivery_date', 'scheduled_slot_id', 'assigned_store_id', 'scheduled_start_minute', 'scheduled_end_minute', 'schedule_status'],
+  orders: ['id', 'customer_id', 'address_id', 'customer_name', 'customer_phone', 'total', 'items_subtotal', 'delivery_fee', 'coupon_id', 'coupon_code', 'coupon_discount', 'payment_status', 'delivery_status', 'delivery_plan', 'client_order_id', 'payment_collected_at', 'is_test_order', 'updated_at', 'delivered_at', 'scheduled_delivery_date', 'scheduled_slot_id', 'assigned_store_id', 'scheduled_start_minute', 'scheduled_end_minute', 'schedule_status'],
+  delivery_offer_settings: ['id', 'free_delivery_enabled', 'free_delivery_threshold', 'standard_delivery_fee', 'updated_at'],
+  coupons: ['id', 'code', 'title', 'discount_amount', 'first_order_only', 'starts_on', 'ends_on', 'max_redemptions', 'per_customer_limit', 'active', 'created_at', 'updated_at'],
+  coupon_redemptions: ['id', 'coupon_id', 'customer_id', 'order_id', 'code_snapshot', 'discount_amount', 'first_order_only', 'status', 'created_at', 'updated_at'],
+  first_order_coupon_claims: ['customer_id', 'order_id', 'coupon_id', 'created_at'],
   delivery_scheduling_settings: ['id', 'enabled', 'booking_horizon_days', 'same_day_cutoff_minutes', 'timezone', 'updated_at'],
   delivery_stores: ['id', 'name', 'address', 'latitude', 'longitude', 'service_radius_km', 'is_active', 'created_at', 'updated_at'],
   delivery_store_inventory: ['store_id', 'product_id', 'stock_quantity', 'updated_at'],
@@ -101,7 +105,11 @@ const expectedIndexes = [
   'idx_customer_messages_customer_created',
   'idx_customer_messages_status_created',
   'idx_customer_messages_expires',
-  'idx_order_action_requests_customer_issue'
+  'idx_order_action_requests_customer_issue',
+  'idx_coupons_active_dates',
+  'idx_coupons_created',
+  'idx_coupon_redemptions_coupon_status',
+  'idx_coupon_redemptions_customer_coupon'
 ];
 report.requiredIndexes = Object.fromEntries(expectedIndexes.map(name => [name, indexNames.includes(name)]));
 for (const name of expectedIndexes) if (!indexNames.includes(name)) problems.push('missing index: ' + name);
@@ -110,7 +118,7 @@ const migrationRows = rowsFor('SELECT id,name FROM d1_migrations ORDER BY id', r
 report.migrations = migrationRows.map(row => ({ id: row.id, name: row.name }));
 report.migrationCount = migrationRows.length;
 const deliveryMigrationNames = ['0037_order_delivery_scheduling.sql', '0038_anonymize_delivery_requests.sql', '0039_customer_preferred_delivery_date.sql', '0040_order_delivered_at.sql'];
-const requiredFeatureMigrations = ['0042_customer_messages.sql'];
+const requiredFeatureMigrations = ['0042_customer_messages.sql', '0043_delivery_offers_fixed_coupons.sql'];
 report.featureMigrations = Object.fromEntries(requiredFeatureMigrations.map(name => [name, migrationRows.some(row => String(row.name) === name)]));
 for (const name of requiredFeatureMigrations) if (!report.featureMigrations[name]) problems.push('required feature migration not recorded as applied: ' + name);
 report.deliveryMigrations = Object.fromEntries(deliveryMigrationNames.map(name => [name, migrationRows.some(row => String(row.name) === name)]));
@@ -120,7 +128,8 @@ const requiredDeliveryTriggers = [
   'delivery_slot_capacity_before_insert',
   'delivery_slot_capacity_before_update',
   'delivery_store_stock_before_insert',
-  'delivery_store_stock_before_update'
+  'delivery_store_stock_before_update',
+  'coupon_redemption_guard_before_insert'
 ];
 const triggerRows = rowsFor("SELECT name FROM sqlite_master WHERE type='trigger'", row => 'name' in row);
 const triggerNames = triggerRows.map(row => String(row.name));

@@ -306,3 +306,5 @@ button,input,textarea,select{touch-action:manipulation}
 
 /* Keep navigation unavailable until the Owner session is authenticated. */
 .app:not(.owner-authenticated)>.side,.app:not(.owner-authenticated)>.mobile-nav{display:none}
+
+.fw-offers-panel{margin:12px 0;padding:16px}.fw-offers-toggle{display:flex;gap:10px;padding:12px;background:#f7faf8;border-radius:12px;margin:10px 0}.fw-offers-toggle span{display:grid;gap:4px}.fw-offers-toggle small,.fw-offers-panel small{font-size:11px;color:var(--muted)}.fw-offers-coupon-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.fw-offers-coupon{border:1px solid var(--line);border-radius:12px;padding:12px;min-width:0}.fw-offers-coupon-main,.fw-offers-coupon-actions{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}.fw-offers-coupon-meta{display:grid;gap:4px;font-size:11px;color:var(--muted);margin:10px 0}.fw-offers-status-message{font-size:12px;color:var(--muted)}.fw-offers-status-message[data-error=true]{color:#a22}@media(max-width:800px){.fw-offers-coupon-list{grid-template-columns:1fr}}

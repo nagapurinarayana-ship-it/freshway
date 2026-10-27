@@ -5,6 +5,7 @@ import { buildOrderChangeAlerts } from './admin-notifications.js';
 import { handleReverseGeocode } from './geocode-api.js';
 import { validatePushEndpoint } from './push-endpoint.js';
 import { prepareCheckoutDelivery, checkoutDeliveryStatements } from './delivery-scheduling.js';
+import { calculateOrderPricing, orderRedemptionStatements } from './delivery-offers.js';
 
 const json = (data, status = 200, origin = '*') => new Response(JSON.stringify(data), {
   status,
@@ -92,7 +93,10 @@ async function createOrder(env, payload, ctx) {
   if (!/^\d{6}$/.test(String(address.pincode))) throw new Error('Enter a valid 6-digit PIN code.');
   const existing = await existingOrderByClientId(env, customerId, clientOrderId);
   if (existing) return existing;
-  const { items, total } = await validateOrderItems(env, rawItems);
+  const { items } = await validateOrderItems(env, rawItems);
+  const pricing = await calculateOrderPricing(env, { items, customerId, couponCode: payload.couponCode || '', forOrder: true });
+  const total = pricing.finalTotal;
+  if (payload.expectedTotal !== undefined && (!Number.isSafeInteger(Number(payload.expectedTotal)) || Number(payload.expectedTotal) !== total)) throw new Error('ORDER_CONFLICT: The order total changed while checking out. Review your cart and try again.');
   const deliverySelection = await prepareCheckoutDelivery(env, payload, items);
   const phone = cleanPhone(customer.phone), customerName = String(customer.name).trim().slice(0, 100);
   const existingCustomer = await env.DB.prepare('SELECT phone FROM customers WHERE id=? LIMIT 1').bind(customerId).first();
@@ -109,7 +113,8 @@ async function createOrder(env, payload, ctx) {
   const id = orderId(), createdAt = now();
   const stockUpdates=items.filter(item=>item.stockReservedQty>0).map(item=>env.DB.prepare('UPDATE products SET stock_quantity=stock_quantity-? WHERE id=? AND stock_managed=1').bind(item.stockReservedQty,item.id));
   const deliveryPlan=deliverySelection?.deliveryPlan||'Tomorrow';
-  const statements=[...stockUpdates,env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at,scheduled_delivery_date,scheduled_slot_id,assigned_store_id,scheduled_start_minute,scheduled_end_minute,schedule_status) VALUES (?,?,?,?,?,?, 'Not Collected','New',?,?,?,?,?,?,?,?,?,?)`).bind(id,customerId,addressId,customerName,phone,total,deliveryPlan,clientOrderId||null,createdAt,createdAt,deliverySelection?.date||null,null,null,null,null,deliverySelection?'requested':'unscheduled'),...items.map(item=>env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total,stock_reserved_qty,hsn_code,gst_rate_bps,gst_rate_confirmed) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).bind(id,item.id,item.name,item.unit,item.qty,item.price,item.lineTotal,item.stockReservedQty,item.hsn_code||'',Number(item.gst_rate_bps||0),Number(item.gst_rate_confirmed||0))),...checkoutDeliveryStatements(env,id,deliverySelection,items)];
+  const redemptionStatements=await orderRedemptionStatements(env,id,customerId,pricing);
+  const statements=[...stockUpdates,env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,items_subtotal,delivery_fee,coupon_id,coupon_code,coupon_discount,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at,scheduled_delivery_date,scheduled_slot_id,assigned_store_id,scheduled_start_minute,scheduled_end_minute,schedule_status) VALUES (?,?,?,?,?,?,?,?,?,?,?, 'Not Collected','New',?,?,?,?,?,?,?,?,?,?)`).bind(id,customerId,addressId,customerName,phone,total,pricing.itemsSubtotal,pricing.deliveryFee,pricing.couponId,pricing.couponCode,pricing.couponDiscount,deliveryPlan,clientOrderId||null,createdAt,createdAt,deliverySelection?.date||null,null,null,null,null,deliverySelection?'requested':'unscheduled'),...redemptionStatements,...items.map(item=>env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total,stock_reserved_qty,hsn_code,gst_rate_bps,gst_rate_confirmed) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).bind(id,item.id,item.name,item.unit,item.qty,item.price,item.lineTotal,item.stockReservedQty,item.hsn_code||'',Number(item.gst_rate_bps||0),Number(item.gst_rate_confirmed||0))),...checkoutDeliveryStatements(env,id,deliverySelection,items)];
   try { await env.DB.batch(statements); } catch (error) {
     await env.DB.prepare('DELETE FROM addresses WHERE id=?').bind(addressId).run();
     if (clientOrderId && /unique|constraint/i.test(error?.message || '')) {
@@ -124,7 +129,7 @@ async function createOrder(env, payload, ctx) {
   const placedAlerts = buildOrderPlacedAlerts({ id, customerId, customerName, total, items });
   const alertWork = scheduleOrderAlerts(ctx, env, placedAlerts);
   if (alertWork) await alertWork;
-  return { id, customerId, total, payment: 'Not Collected', status: 'New', deliveryPlan, scheduledDelivery: deliverySelection ? { date: deliverySelection.date } : null, createdAt, updatedAt: createdAt, address: { ...address, pincode: String(address.pincode) }, items };
+  return { id, customerId, total, itemsSubtotal:pricing.itemsSubtotal, deliveryFee:pricing.deliveryFee, couponCode:pricing.couponCode, couponDiscount:pricing.couponDiscount, payment: 'Not Collected', status: 'New', deliveryPlan, scheduledDelivery: deliverySelection ? { date: deliverySelection.date } : null, createdAt, updatedAt: createdAt, address: { ...address, pincode: String(address.pincode) }, items };
 }
 
 async function customerOrders(env, customerId) {
