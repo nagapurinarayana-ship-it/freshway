@@ -32,7 +32,7 @@
       const messages=Array.isArray(data.messages)?data.messages:[];
       render(messages);
       const unread=messages.some(m=>m.status==='replied'&&!m.reply_seen_at);
-      if(unread){await fn('/api/customer/messages/read',{method:'PATCH',body:JSON.stringify({})});}
+      if(unread){await fn('/api/customer/messages/read',{method:'PATCH',body:JSON.stringify({})});messages.forEach(message=>{if(message.status==='replied'&&!message.reply_seen_at)message.reply_seen_at=new Date().toISOString();});render(messages);}
       await refreshBadge();
     }catch(error){
       if(Number(error?.status)===401||error?.code==='AUTHENTICATION_REQUIRED'){
