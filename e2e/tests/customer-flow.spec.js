@@ -406,7 +406,7 @@ test('refresh and browser back/forward restore the correct view without showing 
   await page.goto('/');
   await page.locator('#profileBtn').click();
   await expect(page.locator('#profileView')).toHaveClass(/active-view/);
-  await page.locator('[data-nav="orders"]').click();
+  await page.locator('#profileView [data-nav="orders"]').click();
   await expect(page.locator('#ordersView')).toHaveClass(/active-view/);
 
   await page.reload();
