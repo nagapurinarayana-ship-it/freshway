@@ -30,15 +30,19 @@
     const el=$('#fwOffersStatus'); if (el) { el.textContent=text||''; el.dataset.error=isError?'true':'false'; }
   }
   function currentSettingsForm() {
+    const thresholdValue=$('#fwFreeDeliveryThreshold')?.value;
+    const feeValue=$('#fwStandardDeliveryFee')?.value;
     return {
       freeDeliveryEnabled: Boolean($('#fwFreeDeliveryEnabled')?.checked),
-      freeDeliveryThreshold: Number($('#fwFreeDeliveryThreshold')?.value),
-      standardDeliveryFee: Number($('#fwStandardDeliveryFee')?.value)
+      freeDeliveryThreshold: thresholdValue==null||thresholdValue.trim()===''?NaN:Number(thresholdValue),
+      standardDeliveryFee: feeValue==null||feeValue.trim()===''?NaN:Number(feeValue)
     };
   }
   function settingsPreviewText(source) {
-    const fee=Math.max(0,Math.trunc(Number(source?.standardDeliveryFee)||0));
-    const threshold=Math.max(0,Math.trunc(Number(source?.freeDeliveryThreshold)||0));
+    const fee=Number(source?.standardDeliveryFee);
+    const threshold=Number(source?.freeDeliveryThreshold);
+    if(!Number.isSafeInteger(fee)||fee<0||fee>100000||!Number.isSafeInteger(threshold)||threshold<0||threshold>1000000)
+      return 'Enter valid whole-rupee amounts to preview delivery charges.';
     if(fee===0)return 'Delivery is free on every order.';
     if(source?.freeDeliveryEnabled===false)return 'Free-delivery threshold is off. All orders use the standard '+money(fee)+' delivery fee.';
     return money(threshold)+' or more in items: free delivery. Below it: '+money(fee)+' delivery.';
@@ -124,8 +128,8 @@
   async function saveSettings() {
     if(saving)return;
     const next=currentSettingsForm();
-    if(!Number.isSafeInteger(next.freeDeliveryThreshold)||next.freeDeliveryThreshold<0||next.freeDeliveryThreshold>1000000){status('Enter a valid free-delivery threshold.',true);return;}
-    if(!Number.isSafeInteger(next.standardDeliveryFee)||next.standardDeliveryFee<0||next.standardDeliveryFee>100000){status('Enter a valid delivery fee.',true);return;}
+    if(!Number.isSafeInteger(next.freeDeliveryThreshold)||next.freeDeliveryThreshold<0||next.freeDeliveryThreshold>1000000){status('Enter a whole-rupee free-delivery threshold between ₹0 and ₹1,000,000.',true);return;}
+    if(!Number.isSafeInteger(next.standardDeliveryFee)||next.standardDeliveryFee<0||next.standardDeliveryFee>100000){status('Enter a whole-rupee delivery fee between ₹0 and ₹100,000.',true);return;}
     saving=true;
     const button=$('[data-fw-save-settings]');if(button)button.disabled=true;
     try{
@@ -203,6 +207,11 @@
     const toggle=event.target.closest('[data-fw-toggle-coupon]');if(toggle){
       const coupon=coupons.find(c=>c.id===toggle.dataset.fwToggleCoupon);if(!coupon)return;
       const nextActive=toggle.dataset.active!=='1';
+      if(hasUnsavedChanges()){
+        if(!confirm('Discard unsaved Delivery & Offers changes before changing this coupon?'))return;
+        if(unsavedCoupon)editingId=null;
+        unsavedSettings=false;unsavedCoupon=false;settingsDraft=null;
+      }
       if(!nextActive&&!confirm('Pause this coupon? New customers will no longer be able to use it.'))return;
       toggle.disabled=true;
       try{await api('/admin/coupons/'+encodeURIComponent(coupon.id),{method:'PATCH',body:JSON.stringify({active:nextActive})});await load();status(nextActive?'Coupon activated.':'Coupon paused.');}
