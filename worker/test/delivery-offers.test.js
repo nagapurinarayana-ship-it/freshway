@@ -204,8 +204,13 @@ test('Owner redemption history endpoint returns recorded customer and order deta
 test('Owner coupon UI exposes and requests redemption history', () => {
   const ownerUi=readFileSync(new URL('../../frontend/admin/delivery-offers.js',import.meta.url),'utf8');
   assert.match(ownerUi,/data-fw-coupon-history/);
-  assert.match(ownerUi,/data-fw-coupon-history/);
   assert.match(ownerUi,/redemptions/);
+  assert.match(ownerUi,/function settingsPreviewText\(source\)/,'delivery preview must reflect whether the threshold is enabled');
+  assert.match(ownerUi,/Free-delivery threshold is off/,'the preview must not promise free delivery when the toggle is off');
+  assert.match(ownerUi,/id="fwOffersPreviewText"/,'the saved preview must be updateable without replacing the form');
+  assert.match(ownerUi,/const hasUnsavedChanges=\(\)=>unsavedSettings\|\|unsavedCoupon/,'settings and coupon drafts must track unsaved changes separately');
+  assert.match(ownerUi,/const preserveSettingsDraft=unsavedSettings&&settingsDraft/,'saving a coupon must preserve an unsaved delivery-settings draft');
+  assert.match(ownerUi,/function beforeNavigate\(\)[\s\S]*unsavedSettings=false;unsavedCoupon=false;settingsDraft=null;/,'confirming discard must clear the dirty state');
 });
 
 test('customer quote endpoint uses D1 catalogue prices and integrates coupon plus delivery rules', async () => {
