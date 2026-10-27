@@ -3,9 +3,21 @@
  (function(){
    const HISTORY_FLAG='__freshwayCustomer';
    const currentView=()=>document.querySelector('.view.active-view')?.id.replace(/View$/,'')||'home';
+   const validViews=new Set(['home','cart','checkout','orders','messages','profile','about','contact','confirmation']);
+   const preferredInitialView=()=>{
+     const state=window.history.state;
+     if(state?.[HISTORY_FLAG]&&validViews.has(state.view))return state.view;
+     const hash=String(window.location.hash||'').replace(/^#/,'');
+     if(validViews.has(hash)&&hash!=='confirmation')return hash;
+     try{
+       const saved=sessionStorage.getItem('freshway-current-view-v1');
+       if(validViews.has(saved))return saved;
+     }catch(_){}
+     return currentView();
+   };
    const ensureHistory=()=>{
      if(window.history.state?.[HISTORY_FLAG])return;
-     const state={[HISTORY_FLAG]:true,view:currentView()};
+     const state={[HISTORY_FLAG]:true,view:preferredInitialView()};
      window.history.replaceState(state,'',window.location.href);
      window.history.pushState(state,'',window.location.href);
    };
