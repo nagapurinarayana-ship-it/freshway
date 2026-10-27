@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS orders (
   coupon_id TEXT REFERENCES coupons(id) ON DELETE RESTRICT,
   coupon_code TEXT,
   coupon_discount INTEGER NOT NULL DEFAULT 0 CHECK(coupon_discount >= 0),
+  pricing_breakdown_known INTEGER NOT NULL DEFAULT 0 CHECK(pricing_breakdown_known IN (0,1)),
   payment_status TEXT NOT NULL DEFAULT 'Not Collected' CHECK(payment_status IN ('Not Collected','Collected','Refunded','Cancelled')),
   delivery_status TEXT NOT NULL DEFAULT 'New' CHECK(delivery_status IN ('New','Confirmed','Processing','Ready','Out for Delivery','Delivered','Cancelled')),
   delivery_plan TEXT NOT NULL DEFAULT 'Tomorrow' CHECK(delivery_plan IN ('Today','Tomorrow','Later','Unscheduled')),
@@ -571,6 +572,13 @@ BEGIN
     SELECT 1 FROM coupons c WHERE c.id=NEW.coupon_id AND c.active=1
       AND c.code=NEW.code_snapshot COLLATE NOCASE
       AND NEW.discount_amount=MIN(c.discount_amount, COALESCE((SELECT items_subtotal FROM orders WHERE id=NEW.order_id),0))
+      AND EXISTS (
+        SELECT 1 FROM orders o WHERE o.id=NEW.order_id
+          AND o.pricing_breakdown_known=1 AND o.coupon_id=NEW.coupon_id
+          AND o.coupon_code=NEW.code_snapshot COLLATE NOCASE
+          AND o.coupon_discount=NEW.discount_amount
+          AND o.total=o.items_subtotal-o.coupon_discount+o.delivery_fee
+      )
       AND c.first_order_only=NEW.first_order_only
       AND c.starts_on <= strftime('%Y-%m-%d','now','+5 hours','+30 minutes')
       AND (c.ends_on IS NULL OR c.ends_on >= strftime('%Y-%m-%d','now','+5 hours','+30 minutes'))
