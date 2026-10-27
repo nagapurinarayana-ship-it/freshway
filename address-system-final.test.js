@@ -71,7 +71,7 @@ assert.ok(index.includes('address-book.css?v=20261020-address-ui-hardening-v2'),
 assert.ok(sw.includes('/frontend/customer/address-book.css?v=20261020-address-ui-hardening-v2'), 'service worker must cache the current address CSS');
 assert.ok(index.includes('notifications.js?v=notif1'), 'HTML must load the notification permission-state module');
 assert.ok(sw.includes('/notifications.js?v=notif1'), 'service worker must cache the notification permission-state module');
-assert.match(sw, /const CACHE = 'freshway-v84'/);
+assert.match(sw, /const CACHE = 'freshway-v85'/);
 assert.match(css, /#toast\s*\{[^}]*white-space:\s*normal/s);
 assert.match(css, /\.fw-address-incomplete\s*\{/);
 console.log('checkout address completion, geocoding preservation, error feedback, accessibility and asset cache tests passed');
