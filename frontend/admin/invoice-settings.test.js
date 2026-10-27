@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const html = fs.readFileSync('admin.html', 'utf8');
 const adminSource = fs.readFileSync('admin.js', 'utf8');
 const source = fs.readFileSync('frontend/admin/invoice-settings.js', 'utf8');
-assert.match(html, /admin\.js\?v=20261027-owner-offers-draft-guard-v2/);
+assert.match(html, /admin\.js\?v=20261027-navigation-boot-guard-v1/);
 assert.match(html, /frontend\/admin\/invoice-settings\.js\?v=20261023-available-fields-invoice-v2/);
 assert.match(adminSource, /FreshWayOwnerInvoiceSettings\)loads\.push\(window\.FreshWayOwnerInvoiceSettings\.load\(\{api\}\)\)/);
 assert.match(adminSource, /await Promise\.all\(loads\)/);
