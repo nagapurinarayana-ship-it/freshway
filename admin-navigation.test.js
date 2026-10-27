@@ -20,8 +20,12 @@ assert.match(css,/\.app:not\(\.owner-navigation-ready\) #appView\{visibility:hid
 // Without this guard, a direct refresh on #settings runs before Store Profile exists.
 assert.match(source,/function startOwnerApp\(\)/);
 assert.match(source,/document\.readyState==='loading'\)document\.addEventListener\('DOMContentLoaded',startOwnerApp,\{once:true\}\)/);
-assert.match(source,/setAdminScreenVisual\(location\.hash\.slice\(1\)\|\|'overview'\);[\s\S]*?classList\.add\('owner-navigation-ready'\);[\s\S]*?bootstrap\(\)/,
+assert.match(source,/async function bootstrap\(force=false\)\{if\(!session\(\)&&!force\)return;const target=setAdminScreenVisual\(location\.hash\.slice\(1\)\|\|'overview'\);\$\('\.app'\)\?\.classList\.add\('owner-navigation-ready'\);try\{/,
   'the requested hash route must be selected before revealing the Owner app');
+assert.match(source,/classList\.remove\('owner-navigation-ready'\);auth\(true\);window\.dispatchEvent\(new Event\('freshway:admin-authenticated'\)\);await bootstrap\(\)/,
+  'Owner sign-in must hide the app again until the selected route is restored');
+assert.match(source,/if\(session\(\)\)\{\s*auth\(true\);\s*bootstrap\(\);\s*\}else\{/,
+  'refresh startup must enter through route-aware bootstrap');
 assert.ok(html.indexOf('admin.js?v=20261027-navigation-boot-guard-v1') < html.indexOf('frontend/admin/store-profile.js'),
   'the regression test should cover the real script-loading order');
 assert.match(html,/id="accountDeletionSummary"/);
