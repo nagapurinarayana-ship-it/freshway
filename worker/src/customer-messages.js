@@ -111,7 +111,6 @@ export async function createCustomerMessage(env, customerId, payloadValue) {
 }
 
 export async function listCustomerMessages(env, customerId) {
-  await cleanupExpiredCustomerMessages(env);
   const [general, orderRequests] = await Promise.all([
     env.DB.prepare(`SELECT id,subject,message,status,admin_reply,created_at,updated_at,replied_at,reply_seen_at,
       'message' AS source,NULL AS order_id
@@ -132,16 +131,16 @@ export async function listCustomerMessages(env, customerId) {
 
 export async function unreadCustomerMessageCount(env, customerId) {
   const [general, requests] = await Promise.all([
-    env.DB.prepare("SELECT COUNT(*) AS total FROM customer_messages WHERE customer_id=? AND status='replied' AND reply_seen_at IS NULL").bind(customerId).first(),
-    env.DB.prepare("SELECT COUNT(*) AS total FROM order_action_requests WHERE customer_id=? AND request_type='issue' AND admin_reply IS NOT NULL AND reply_seen_at IS NULL AND created_at >= datetime('now','-90 days')").bind(customerId).first()
+    env.DB.prepare("SELECT COUNT(*) AS total FROM customer_messages WHERE customer_id=? AND status='replied' AND reply_seen_at IS NULL AND expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now')").bind(customerId).first(),
+    env.DB.prepare("SELECT COUNT(*) AS total FROM order_action_requests WHERE customer_id=? AND request_type='issue' AND admin_reply IS NOT NULL AND reply_seen_at IS NULL AND replied_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now','-90 days')").bind(customerId).first()
   ]);
   return Number(general?.total || 0) + Number(requests?.total || 0);
 }
 
 export async function markCustomerMessagesRead(env, customerId) {
   const results = await env.DB.batch([
-    env.DB.prepare("UPDATE customer_messages SET reply_seen_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE customer_id=? AND status='replied' AND reply_seen_at IS NULL").bind(customerId),
-    env.DB.prepare("UPDATE order_action_requests SET reply_seen_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE customer_id=? AND request_type='issue' AND admin_reply IS NOT NULL AND reply_seen_at IS NULL AND created_at >= datetime('now','-90 days')").bind(customerId)
+    env.DB.prepare("UPDATE customer_messages SET reply_seen_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE customer_id=? AND status='replied' AND reply_seen_at IS NULL AND expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now')").bind(customerId),
+    env.DB.prepare("UPDATE order_action_requests SET reply_seen_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE customer_id=? AND request_type='issue' AND admin_reply IS NOT NULL AND reply_seen_at IS NULL AND replied_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now','-90 days')").bind(customerId)
   ]);
   return { ok: true, markedRead: (results || []).reduce((sum,result)=>sum+Number(result?.meta?.changes||0),0) };
 }
