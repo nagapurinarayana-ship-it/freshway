@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v52';
+const CACHE = 'fw-owner-v53';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -10,7 +10,7 @@ const SHELL = [
   '/admin/admin.css?v=20261027-delivery-offers-v2',
   '/admin/admin.js?v=20261027-owner-offers-draft-guard-v2',
   '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2',
-  '/admin/frontend/admin/delivery-offers.js?v=20261027-fixed-coupons-v3',
+  '/admin/frontend/admin/delivery-offers.js?v=20261027-fixed-coupons-v4',
   '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
   '/admin/frontend/phone-display.js?v=20261009-phone-display-v1',
@@ -37,7 +37,7 @@ const REQUIRED_SHELL = [
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261027-delivery-offers-v2',
   '/admin/admin.js?v=20261027-owner-offers-draft-guard-v2',
-  '/admin/frontend/admin/delivery-offers.js?v=20261027-fixed-coupons-v3',
+  '/admin/frontend/admin/delivery-offers.js?v=20261027-fixed-coupons-v4',
   '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
   '/admin/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1',
