@@ -164,7 +164,6 @@
       } catch (error) {
         if (version !== renderVersion) return;
         if (!appliedCode || !isCouponEligibilityError(error)) throw error;
-        const rejectedCode = appliedCode;
         setCode('');
         message((error.message || 'This coupon is no longer available.') + ' The coupon was removed and your total is being recalculated.', true);
         pricing = await fetchQuote(lastItems, '');
