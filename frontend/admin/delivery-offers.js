@@ -62,7 +62,7 @@
       '<label class="fw-offers-toggle"><input id="fwFreeDeliveryEnabled" type="checkbox" '+(source.freeDeliveryEnabled?'checked':'')+'><span><strong>Enable free delivery at a threshold</strong><small>When disabled, the standard fee applies to all orders unless it is ₹0.</small></span></label>' +
       '<div class="settings-form-grid"><label class="settings-field"><span>Free-delivery threshold (₹)</span><input id="fwFreeDeliveryThreshold" type="number" min="0" max="1000000" step="1" required value="'+source.freeDeliveryThreshold+'"><small>Default: ₹800. The items subtotal is evaluated before coupon discounts.</small></label>' +
       '<label class="settings-field"><span>Standard delivery fee (₹)</span><input id="fwStandardDeliveryFee" type="number" min="0" max="100000" step="1" required value="'+source.standardDeliveryFee+'"><small>Default: ₹30. Set to ₹0 to make delivery free on every order.</small></label></div>' +
-      '<div class="fw-offers-preview"><strong>Example</strong><span>₹'+esc(settingsPreviewText(source))</span></div>' +
+      '<div class="fw-offers-preview"><strong>Example</strong><span id="fwOffersPreviewText">'+esc(settingsPreviewText(source))+'</span></div>' +
       '<div class="settings-actions"><button type="button" class="primary" data-fw-save-settings>Save delivery settings</button></div></section>';
   }
   function couponForm() {
