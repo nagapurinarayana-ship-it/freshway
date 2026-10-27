@@ -283,6 +283,28 @@ export async function handleAdminDeliveryOffersRequest(request, env) {
     if (path === '/api/admin/coupons' && method === 'GET') {
       return json({ coupons: (await adminCoupons(env)).map(safeCoupon) });
     }
+    const redemptionHistoryMatch = path.match(/^\/api\/admin\/coupons\/([A-Za-z0-9-]+)\/redemptions$/);
+    if (redemptionHistoryMatch && method === 'GET') {
+      const couponId = redemptionHistoryMatch[1];
+      const coupon = await env.DB.prepare('SELECT id FROM coupons WHERE id=? LIMIT 1').bind(couponId).first();
+      if (!coupon) throw new Error('Coupon not found.');
+      const rows = (await env.DB.prepare(`SELECT r.id,r.code_snapshot,r.discount_amount,r.status,r.created_at,
+          o.id order_id,o.delivery_status order_status,o.total order_total,o.created_at order_created_at,
+          COALESCE(c.name,o.customer_name) customer_name,COALESCE(c.phone,o.customer_phone) customer_phone
+        FROM coupon_redemptions r
+        JOIN orders o ON o.id=r.order_id
+        LEFT JOIN customers c ON c.id=r.customer_id
+        WHERE r.coupon_id=?
+        ORDER BY r.created_at DESC,r.id DESC
+        LIMIT 100`).bind(couponId).all()).results || [];
+      return json({ redemptions: rows.map(row => ({
+        id: row.id, code: row.code_snapshot, discountAmount: Number(row.discount_amount || 0),
+        status: row.status, createdAt: row.created_at || row.order_created_at || null,
+        orderId: row.order_id, orderStatus: row.order_status || 'Unknown',
+        orderTotal: Number(row.order_total || 0), customerName: row.customer_name || 'Customer',
+        customerPhone: row.customer_phone || ''
+      })), limit: 100 });
+    }
     if (path === '/api/admin/coupons' && method === 'POST') {
       const input = parseCoupon(await request.json().catch(() => ({})));
       const id = 'coupon-' + crypto.randomUUID();
