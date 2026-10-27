@@ -4,7 +4,7 @@ const BASE_URL = (process.env.OWNER_PWA_BASE_URL || '').replace(/\/$/, '');
 if (!BASE_URL) throw new Error('OWNER_PWA_BASE_URL is required for Owner PWA deployment smoke');
 
 const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261027-delivery-offers-v2';
-const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-delivery-offers-v2';
+const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-owner-offers-route-v1';
 const LEGACY_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-owner-simple-v1';
 const OLDER_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-customer-messages-v1';
 const SUPPORTED_OWNER_ADMIN_SCRIPTS = [EXPECTED_OWNER_ADMIN_SCRIPT, LEGACY_OWNER_ADMIN_SCRIPT, OLDER_OWNER_ADMIN_SCRIPT];
