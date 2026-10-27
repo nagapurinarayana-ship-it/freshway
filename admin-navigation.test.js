@@ -8,6 +8,8 @@ assert.match(source,/history\.pushState/);
 assert.match(source,/history\.back|popstate/);
 assert.match(source,/historyMode:'none'/);
 assert.match(source,/historyMode==='push'/);
+assert.match(source,/const current=document\.querySelector\('\.screen\.active'\)/,'back navigation must remember the currently visible Owner screen before asking to discard changes');
+assert.match(source,/if\(activeAfter===current&&requested!==current\)\{[\s\S]*history\.pushState\(state,'','#'\+current\)/,'cancelling a back navigation must restore the current screen URL');
 assert.match(source,/classList\.toggle\('owner-authenticated',yes\)/,'navigation must become available only after Owner authentication succeeds');
 assert.match(css,/\.app:not\(\.owner-authenticated\)>\.side/,'desktop navigation must remain hidden while signed out');
 assert.match(css,/\.app:not\(\.owner-authenticated\)>\.mobile-nav/,'mobile navigation must remain hidden while signed out');
