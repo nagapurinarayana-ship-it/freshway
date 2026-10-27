@@ -72,8 +72,6 @@ async function ensureRoom(env, customerId) {
 }
 
 export async function createCustomerMessage(env, customerId, payloadValue) {
-  // Prune expired message rows on write; the hourly scheduled job also cleans notification history.
-  await env.DB.prepare("DELETE FROM customer_messages WHERE expires_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now')").run();
   const payload = asObject(payloadValue);
   const subjectRaw = String(payload.subject ?? '').trim();
   const messageRaw = String(payload.message ?? '').trim();
@@ -83,6 +81,8 @@ export async function createCustomerMessage(env, customerId, payloadValue) {
   if (messageRaw.length > MESSAGE_MAX) problem('Message must be 2,000 characters or fewer.');
   const subject = clean(subjectRaw, SUBJECT_MAX);
   const message = clean(messageRaw, MESSAGE_MAX);
+  // Prune expired message rows on a valid write; the hourly scheduled job also cleans notification history.
+  await env.DB.prepare("DELETE FROM customer_messages WHERE expires_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now')").run();
   const customer = await env.DB.prepare('SELECT id,name,phone FROM customers WHERE id=? LIMIT 1').bind(customerId).first();
   if (!customer) problem('Customer authentication required.', 401);
   const recent = await env.DB.prepare(
