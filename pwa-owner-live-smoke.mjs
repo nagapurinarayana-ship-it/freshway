@@ -5,7 +5,7 @@ if (!BASE_URL) throw new Error('OWNER_PWA_BASE_URL is required for Owner PWA dep
 
 const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261027-delivery-offers-v2';
 const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-owner-offers-route-v1';
-const LEGACY_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-owner-simple-v1';
+const LEGACY_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-delivery-offers-v2';
 const OLDER_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-customer-messages-v1';
 const SUPPORTED_OWNER_ADMIN_SCRIPTS = [EXPECTED_OWNER_ADMIN_SCRIPT, LEGACY_OWNER_ADMIN_SCRIPT, OLDER_OWNER_ADMIN_SCRIPT];
 const EXPECTED_OWNER_CUSTOMER_MESSAGES_SCRIPT = '/admin/frontend/admin/customer-messages.js?v=20261027-customer-messages-v1';
@@ -17,8 +17,8 @@ const EXPECTED_OWNER_DELIVERY_SCRIPT = '/admin/frontend/admin/delivery-managemen
 const EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT = '/admin/frontend/admin/store-management.js?v=20261027-store-manager-v1';
 const EXPECTED_OWNER_DELIVERY_OFFERS_SCRIPT = '/admin/frontend/admin/delivery-offers.js?v=20261027-fixed-coupons-v2';
 const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261027-owner-delivery-date-v1';
-const EXPECTED_OWNER_CACHE = 'fw-owner-v50';
-const LEGACY_OWNER_CACHE = 'fw-owner-v48';
+const EXPECTED_OWNER_CACHE = 'fw-owner-v51';
+const LEGACY_OWNER_CACHE = 'fw-owner-v50';
 const SUPPORTED_OWNER_CACHES = [EXPECTED_OWNER_CACHE, LEGACY_OWNER_CACHE];
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
