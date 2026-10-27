@@ -1,5 +1,5 @@
 -- Delivery pricing and fixed-amount coupon support.
--- Existing order totals are preserved; historical fee/discount details remain unknown and are recorded as zero.
+-- Existing totals are preserved. Legacy pricing breakdowns remain explicitly unknown.
 CREATE TABLE IF NOT EXISTS delivery_offer_settings (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   free_delivery_enabled INTEGER NOT NULL DEFAULT 1 CHECK (free_delivery_enabled IN (0,1)),
@@ -55,7 +55,7 @@ ALTER TABLE orders ADD COLUMN delivery_fee INTEGER NOT NULL DEFAULT 0 CHECK(deli
 ALTER TABLE orders ADD COLUMN coupon_id TEXT REFERENCES coupons(id) ON DELETE RESTRICT;
 ALTER TABLE orders ADD COLUMN coupon_code TEXT;
 ALTER TABLE orders ADD COLUMN coupon_discount INTEGER NOT NULL DEFAULT 0 CHECK(coupon_discount >= 0);
-UPDATE orders SET items_subtotal=total WHERE items_subtotal=0;
+ALTER TABLE orders ADD COLUMN pricing_breakdown_known INTEGER NOT NULL DEFAULT 0 CHECK(pricing_breakdown_known IN (0,1));
 
 CREATE TRIGGER IF NOT EXISTS coupon_redemption_guard_before_insert
 BEFORE INSERT ON coupon_redemptions
@@ -65,6 +65,13 @@ BEGIN
     SELECT 1 FROM coupons c WHERE c.id=NEW.coupon_id AND c.active=1
       AND c.code=NEW.code_snapshot COLLATE NOCASE
       AND NEW.discount_amount=MIN(c.discount_amount, COALESCE((SELECT items_subtotal FROM orders WHERE id=NEW.order_id),0))
+      AND EXISTS (
+        SELECT 1 FROM orders o WHERE o.id=NEW.order_id
+          AND o.pricing_breakdown_known=1 AND o.coupon_id=NEW.coupon_id
+          AND o.coupon_code=NEW.code_snapshot COLLATE NOCASE
+          AND o.coupon_discount=NEW.discount_amount
+          AND o.total=o.items_subtotal-o.coupon_discount+o.delivery_fee
+      )
       AND c.first_order_only=NEW.first_order_only
       AND c.starts_on <= strftime('%Y-%m-%d','now','+5 hours','+30 minutes')
       AND (c.ends_on IS NULL OR c.ends_on >= strftime('%Y-%m-%d','now','+5 hours','+30 minutes'))
