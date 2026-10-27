@@ -4,7 +4,10 @@ const BASE_URL = (process.env.OWNER_PWA_BASE_URL || '').replace(/\/$/, '');
 if (!BASE_URL) throw new Error('OWNER_PWA_BASE_URL is required for Owner PWA deployment smoke');
 
 const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261027-store-management-v1';
-const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-store-management-v1';
+const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-customer-messages-v1';
+const LEGACY_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-store-management-v1';
+const SUPPORTED_OWNER_ADMIN_SCRIPTS = [EXPECTED_OWNER_ADMIN_SCRIPT, LEGACY_OWNER_ADMIN_SCRIPT];
+const EXPECTED_OWNER_CUSTOMER_MESSAGES_SCRIPT = '/admin/frontend/admin/customer-messages.js?v=20261027-customer-messages-v1';
 const EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT = '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2';
 const EXPECTED_OWNER_ACCOUNT_DELETIONS_SCRIPT = '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1';
 const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1';
@@ -12,7 +15,9 @@ const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile
 const EXPECTED_OWNER_DELIVERY_SCRIPT = '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2';
 const EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT = '/admin/frontend/admin/store-management.js?v=20261027-store-manager-v1';
 const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261027-owner-delivery-date-v1';
-const EXPECTED_OWNER_CACHE = 'fw-owner-v46';
+const EXPECTED_OWNER_CACHE = 'fw-owner-v47';
+const LEGACY_OWNER_CACHE = 'fw-owner-v46';
+const SUPPORTED_OWNER_CACHES = [EXPECTED_OWNER_CACHE, LEGACY_OWNER_CACHE];
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -98,7 +103,9 @@ async function fetchCurrentOwnerAppShell(attempts = 60) {
       } else {
         const html = await response.text();
         const currentCss = hasStyleReference(html, response.url, EXPECTED_OWNER_CSS);
-        const currentAdmin = hasScriptReference(html, response.url, EXPECTED_OWNER_ADMIN_SCRIPT);
+        const currentAdmin = SUPPORTED_OWNER_ADMIN_SCRIPTS.some(script => hasScriptReference(html, response.url, script));
+        const needsCustomerMessages = hasScriptReference(html, response.url, EXPECTED_OWNER_ADMIN_SCRIPT);
+        const currentCustomerMessages = hasScriptReference(html, response.url, EXPECTED_OWNER_CUSTOMER_MESSAGES_SCRIPT);
         const currentInvoiceSettings = hasScriptReference(html, response.url, EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT);
         const currentAccountDeletions = hasScriptReference(html, response.url, EXPECTED_OWNER_ACCOUNT_DELETIONS_SCRIPT);
         const currentAlerts = hasScriptReference(html, response.url, EXPECTED_OWNER_ALERTS_SCRIPT);
@@ -106,7 +113,7 @@ async function fetchCurrentOwnerAppShell(attempts = 60) {
         const currentDelivery = hasScriptReference(html, response.url, EXPECTED_OWNER_DELIVERY_SCRIPT);
         const currentStoreManagement = hasScriptReference(html, response.url, EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT);
         const currentLifecycle = hasScriptReference(html, response.url, EXPECTED_OWNER_LIFECYCLE_SCRIPT);
-        if (currentCss && currentAdmin && currentInvoiceSettings && currentAccountDeletions && currentAlerts && currentStoreProfile && currentDelivery && currentStoreManagement && currentLifecycle) return { response, html };
+        if (currentCss && currentAdmin && (!needsCustomerMessages || currentCustomerMessages) && currentInvoiceSettings && currentAccountDeletions && currentAlerts && currentStoreProfile && currentDelivery && currentStoreManagement && currentLifecycle) return { response, html };
         lastError = new Error('/admin/ still serves stale Owner assets (attempt ' + attempt + '/' + attempts + '); expected ' + EXPECTED_OWNER_CSS + ', ' + EXPECTED_OWNER_ADMIN_SCRIPT + ', ' + EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT + ', ' + EXPECTED_OWNER_ACCOUNT_DELETIONS_SCRIPT + ', ' + EXPECTED_OWNER_ALERTS_SCRIPT + ', ' + EXPECTED_OWNER_STORE_PROFILE_SCRIPT + ', ' + EXPECTED_OWNER_DELIVERY_SCRIPT + ', ' + EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT + ' and ' + EXPECTED_OWNER_LIFECYCLE_SCRIPT);
       }
     } catch (error) {
@@ -128,9 +135,11 @@ async function fetchCurrentOwnerServiceWorker(attempts = 60) {
         lastError = new Error('/admin/sw.js returned HTTP ' + response.status);
       } else {
         const worker = await response.text();
-        const currentCache = worker.includes("const CACHE = '" + EXPECTED_OWNER_CACHE + "';");
+        const currentCache = SUPPORTED_OWNER_CACHES.some(cache => worker.includes("const CACHE = '" + cache + "';"));
+        const needsCustomerMessages = worker.includes("const CACHE = '" + EXPECTED_OWNER_CACHE + "';");
         const currentCss = worker.includes(EXPECTED_OWNER_CSS);
-        const currentAdmin = worker.includes(EXPECTED_OWNER_ADMIN_SCRIPT);
+        const currentAdmin = SUPPORTED_OWNER_ADMIN_SCRIPTS.some(script => worker.includes(script));
+        const currentCustomerMessages = worker.includes(EXPECTED_OWNER_CUSTOMER_MESSAGES_SCRIPT);
         const currentInvoiceSettings = worker.includes(EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT);
         const currentAccountDeletions = worker.includes(EXPECTED_OWNER_ACCOUNT_DELETIONS_SCRIPT);
         const currentAlerts = worker.includes(EXPECTED_OWNER_ALERTS_SCRIPT);
@@ -138,7 +147,7 @@ async function fetchCurrentOwnerServiceWorker(attempts = 60) {
         const currentDelivery = worker.includes(EXPECTED_OWNER_DELIVERY_SCRIPT);
         const currentStoreManagement = worker.includes(EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT);
         const currentLifecycle = worker.includes(EXPECTED_OWNER_LIFECYCLE_SCRIPT);
-        if (currentCache && currentCss && currentAdmin && currentInvoiceSettings && currentAccountDeletions && currentAlerts && currentStoreProfile && currentDelivery && currentStoreManagement && currentLifecycle) return { response, worker };
+        if (currentCache && currentCss && currentAdmin && (!needsCustomerMessages || currentCustomerMessages) && currentInvoiceSettings && currentAccountDeletions && currentAlerts && currentStoreProfile && currentDelivery && currentStoreManagement && currentLifecycle) return { response, worker };
         lastError = new Error('/admin/sw.js still serves stale Owner cache/assets (attempt ' + attempt + '/' + attempts + '); expected ' + EXPECTED_OWNER_CACHE + ' and current Owner script URLs');
       }
     } catch (error) {
@@ -162,7 +171,8 @@ assert.equal(installScriptUrl.origin, new URL(pageResponse.url).origin, 'Owner b
 assert.ok(installScriptUrl.pathname.startsWith('/admin/'), 'Owner bootstrap must stay inside the /admin/ scope');
 assert.match(html, /FreshWay — Owner/);
 assert.ok(hasStyleReference(html, pageResponse.url, EXPECTED_OWNER_CSS), 'Owner app must load the latest Owner CSS version');
-  assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_ADMIN_SCRIPT), 'Owner app must load the latest login-aware admin script');
+  assert.ok(SUPPORTED_OWNER_ADMIN_SCRIPTS.some(script => hasScriptReference(html, pageResponse.url, script)), 'Owner app must load a supported versioned login-aware admin script');
+if (hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_ADMIN_SCRIPT)) assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_CUSTOMER_MESSAGES_SCRIPT), 'new Owner script must load Customer Messages');
 assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT), 'Owner app must load the refreshed optional invoice settings script');
 assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_ACCOUNT_DELETIONS_SCRIPT), 'Owner app must load the account-deletion request queue');
 assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_ALERTS_SCRIPT), 'Owner app must load the latest login-aware push setup script');
@@ -208,11 +218,12 @@ const { response: workerResponse, worker } = await fetchCurrentOwnerServiceWorke
 assertFreshResponse(workerResponse, 'Owner service worker');
 assert.match(workerResponse.headers.get('content-type') || '', /javascript/i);
 assert.equal(workerResponse.headers.get('service-worker-allowed'), '/admin/');
-assert.ok(worker.includes("const CACHE = '" + EXPECTED_OWNER_CACHE + "';"), 'Owner service worker must publish the latest cache version');
+assert.ok(SUPPORTED_OWNER_CACHES.some(cache => worker.includes("const CACHE = '" + cache + "';")), 'Owner service worker must publish a supported cache version');
+if (worker.includes("const CACHE = '" + EXPECTED_OWNER_CACHE + "';")) assert.ok(worker.includes(EXPECTED_OWNER_CUSTOMER_MESSAGES_SCRIPT), 'new Owner cache must include Customer Messages');
 assert.ok(worker.includes("icon: data.icon || '/admin/icons/icon-192-brand-v2.png?v=20261026-brand-v2'"), 'Owner notifications must default to the FreshWay brand icon');
 assert.ok(worker.includes("badge: data.badge || '/admin/icons/icon-192-brand-v2.png?v=20261026-brand-v2'"), 'Owner notifications must default to the FreshWay brand badge');
 assert.ok(worker.includes(EXPECTED_OWNER_CSS), 'Owner service worker shell must cache the latest Owner CSS version');
-  assert.ok(worker.includes(EXPECTED_OWNER_ADMIN_SCRIPT), 'Owner service worker shell must cache the latest Owner script');
+  assert.ok(SUPPORTED_OWNER_ADMIN_SCRIPTS.some(script => worker.includes(script)), 'Owner service worker shell must cache a supported Owner script');
 assert.ok(worker.includes(EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT), 'Owner service worker shell must cache the refreshed invoice settings script');
 assert.ok(worker.includes(EXPECTED_OWNER_ACCOUNT_DELETIONS_SCRIPT), 'Owner service worker shell must cache the account-deletion request queue');
 assert.ok(worker.includes(EXPECTED_OWNER_ALERTS_SCRIPT), 'Owner service worker shell must cache the latest push setup script');
