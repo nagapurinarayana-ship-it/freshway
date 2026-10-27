@@ -53,6 +53,14 @@ test('uses receipt labels and conditionally prints the saved tax number',()=>{
   assert.match(invoicePdfSource,/Payment Type: Cash/);
 });
 
+test('commercial receipts show only verified pricing breakdowns and keep historical details unknown',()=>{
+  assert.match(invoicePdfSource,/if\(invoice\.totals\.pricingBreakdownKnown===true\)/);
+  assert.match(invoicePdfSource,/drawText\(page,'Items subtotal'/);
+  assert.match(invoicePdfSource,/drawDiscountRight\(page,invoice\.totals\.couponDiscountPaise/);
+  assert.match(invoicePdfSource,/drawText\(page,'Delivery fee'/);
+  assert.match(invoicePdfSource,/drawText\(page,'Order total'/);
+});
+
 test('creates a valid one-page commercial invoice PDF',async()=>{
   const bytes=await createInvoicePdf(fixture());
   assert.ok(bytes instanceof Uint8Array);
