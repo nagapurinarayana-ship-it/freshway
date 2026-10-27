@@ -15,8 +15,8 @@ const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile
 const EXPECTED_OWNER_DELIVERY_SCRIPT = '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2';
 const EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT = '/admin/frontend/admin/store-management.js?v=20261027-store-manager-v1';
 const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261027-owner-delivery-date-v1';
-const EXPECTED_OWNER_CACHE = 'fw-owner-v47';
-const LEGACY_OWNER_CACHE = 'fw-owner-v46';
+const EXPECTED_OWNER_CACHE = 'fw-owner-v48';
+const LEGACY_OWNER_CACHE = 'fw-owner-v47';
 const SUPPORTED_OWNER_CACHES = [EXPECTED_OWNER_CACHE, LEGACY_OWNER_CACHE];
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
