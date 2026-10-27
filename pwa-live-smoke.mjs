@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 
 const BASE_URL = process.env.BASE_URL || 'https://freshway-f32.pages.dev';
-const VIEWPORT_STYLES_PATH = '/styles.css?v=20261026-checkout-nav-clear-v1';
-const CUSTOMER_APP_PATH = '/app.js?v=20261026-checkout-delivery-refresh-v1';
+const VIEWPORT_STYLES_PATH = '/styles.css?v=20261027-orders-screen-cleanup-v1';
+const CUSTOMER_APP_PATH = '/app.js?v=20261027-cancel-refresh-v1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
-const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261021-guest-address-map-search-v3';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v82';
+const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261027-guest-home-address-v1';
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v84';
 const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261024-native-install-v1';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -303,14 +303,14 @@ async function verifyCustomDomain() {
   assert.match(homeHtml, /name="twitter:image" content="https:\/\/fwcoldpressed\.in\/freshway-whatsapp-share\.png\?v=[^"]+"/, 'Twitter share image must use the same versioned custom-domain image');
   assert.ok(homeHtml.includes(VIEWPORT_STYLES_PATH.slice(1)), 'custom-domain home must reference the current mobile viewport stylesheet');
   assert.ok(sw.includes(VIEWPORT_STYLES_PATH), 'custom-domain service worker must cache the current mobile viewport stylesheet');
-  assertCurrentScriptReference(homeHtml, homeResponse.url, '/app.js?v=20261026-checkout-delivery-refresh-v1', 'custom-domain home');
+  assertCurrentScriptReference(homeHtml, homeResponse.url, '/app.js?v=20261027-cancel-refresh-v1', 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, PWA_INSTALL_SCRIPT_PATH, 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4', 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2', 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, ADDRESS_GEOCODE_PATH, 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, ADDRESS_SYSTEM_PATH, 'custom-domain home');
   assertCurrentScriptReference(adminHtml, adminResponse.url, '/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1', 'custom-domain Owner');
-  assert.ok(sw.includes('/app.js?v=20261026-checkout-delivery-refresh-v1'), 'custom-domain service worker must cache the current app navigation script');
+  assert.ok(sw.includes('/app.js?v=20261027-cancel-refresh-v1'), 'custom-domain service worker must cache the current app navigation script');
   assert.ok(sw.includes(PWA_INSTALL_SCRIPT_PATH), 'custom-domain service worker must cache the current native install script');
   assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4'), 'custom-domain service worker must cache the current promotion script');
   assert.ok(sw.includes('/frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2'), 'custom-domain service worker must cache the current customer catalogue script');
