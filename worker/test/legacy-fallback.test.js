@@ -119,7 +119,7 @@ test('service worker keeps documents fresh and refreshes versioned code before c
   assert.ok(serviceWorkerSource.includes("const isVersionedCode = ['script','style'].includes(destination) && url.searchParams.has('v')"));
   assert.ok(serviceWorkerSource.includes("if (isVersionedCode)") && serviceWorkerSource.includes("return cached||Response.error()"), "customer versioned assets should use network-first with an offline cache fallback");
   assert.ok(serviceWorkerSource.includes("if (cached) {"));
-  assert.ok(serviceWorkerSource.includes("const cached = await cache.match(event.request)"));
+  assert.ok(serviceWorkerSource.includes("const cached=await cache.match(event.request)"));
   assert.ok(serviceWorkerSource.includes("return (await cache.match(event.request)) || Response.error()"));
   assert.match(serviceWorkerSource, /const CACHE = 'freshway-v[0-9]+'/);
   assert.doesNotMatch(serviceWorkerSource, /freshway-v63/, 'the old customer service-worker cache version must not be expected');
