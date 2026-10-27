@@ -83,7 +83,7 @@
       '<label class="fw-offers-toggle"><input name="firstOrderOnly" type="checkbox" '+(item?.firstOrderOnly?'checked':'')+'><span><strong>First order only</strong><small>Verified against server-side order history.</small></span></label>' +
       '<label class="fw-offers-toggle"><input name="active" type="checkbox" '+((item ? item.active : true) ? 'checked' : '')+'><span><strong>Coupon active</strong><small>Customers can use it while valid and within its limits.</small></span></label>' +
       '</div><p class="fw-offers-inline-status" data-fw-coupon-form-status role="status" aria-live="polite"></p>' +
-      '<div class="settings-actions"><button class="primary" type="submit" '+''+'>'+(item?'Save coupon':'Create coupon')+'</button>' +
+      '<div class="settings-actions"><button class="primary" type="button" data-fw-submit-coupon>'+(item?'Save coupon':'Create coupon')+'</button>' +
       (item?'<button class="ghost" type="button" data-fw-cancel-edit>Cancel edit</button>':'')+'</div></form></section>';
   }
   function couponList() {
@@ -108,7 +108,11 @@
     const settingsIds=['#fwFreeDeliveryEnabled','#fwFreeDeliveryThreshold','#fwStandardDeliveryFee'];
     settingsIds.forEach(selector=>$(selector)?.addEventListener('input',markSettingsEdited));
     $('#fwCouponForm')?.addEventListener('input',markCouponEdited);
-    $('#fwCouponForm')?.addEventListener('submit',saveCoupon);
+    const couponForm=$('#fwCouponForm');
+    couponForm?.addEventListener('submit',saveCoupon);
+    // Use explicit button wiring; requestSubmit preserves browser validation and the shared submit path.
+    couponForm?.querySelector('[data-fw-submit-coupon]')?.addEventListener('click',()=>couponForm.requestSubmit());
+    $('[data-fw-save-settings]')?.addEventListener('click',saveSettings);
   }
   async function load({preserveSettingsDraft=false}={}) {
     if (loading) return;
@@ -190,7 +194,6 @@
   }
   root.addEventListener('click',async event=>{
     if(event.target.closest('[data-fw-refresh]')){if(hasUnsavedChanges()&&!confirm('Discard unsaved Delivery & Offers changes?'))return;unsavedSettings=false;unsavedCoupon=false;settingsDraft=null;editingId=null;await load();return;}
-    if(event.target.closest('[data-fw-save-settings]')){await saveSettings();return;}
     if(event.target.closest('[data-fw-cancel-edit]')){editingId=null;unsavedCoupon=false;render();status(unsavedSettings?'Coupon edit cancelled. Delivery settings are still unsaved.':'Coupon edit cancelled.');return;}
     const edit=event.target.closest('[data-fw-edit-coupon]');if(edit){if(unsavedCoupon&&!confirm('Discard unsaved coupon changes?'))return;unsavedCoupon=false;editingId=edit.dataset.fwEditCoupon;render();return;}
     const historyButton=event.target.closest('[data-fw-coupon-history]');

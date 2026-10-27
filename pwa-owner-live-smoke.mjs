@@ -17,7 +17,7 @@ const EXPECTED_OWNER_DELIVERY_SCRIPT = '/admin/frontend/admin/delivery-managemen
 const EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT = '/admin/frontend/admin/store-management.js?v=20261027-store-manager-v1';
 const EXPECTED_OWNER_DELIVERY_OFFERS_SCRIPT = '/admin/frontend/admin/delivery-offers.js?v=20261027-fixed-coupons-v4';
 const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261027-owner-delivery-date-v1';
-const EXPECTED_OWNER_CACHE = 'fw-owner-v53';
+const EXPECTED_OWNER_CACHE = 'fw-owner-v54';
 const LEGACY_OWNER_CACHE = 'fw-owner-v51';
 const SUPPORTED_OWNER_CACHES = [EXPECTED_OWNER_CACHE, LEGACY_OWNER_CACHE];
 

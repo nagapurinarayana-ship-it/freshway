@@ -12,9 +12,12 @@ const orderWriterSource = readFileSync(new URL('../src/index.js', import.meta.ur
 const ownerOffersSource = readFileSync(new URL('../../frontend/admin/delivery-offers.js', import.meta.url), 'utf8');
 
 test('Owner coupon form submits with the form as currentTarget', () => {
-  assert.match(ownerOffersSource, /#fwCouponForm'\)\?\.addEventListener\('submit',saveCoupon\)/);
+  assert.match(ownerOffersSource, /couponForm\?\.addEventListener\('submit',saveCoupon\)/);
   assert.match(ownerOffersSource, /function saveCoupon\(event\) \{\s*event\.preventDefault\(\);const form=event\.currentTarget;/);
   assert.doesNotMatch(ownerOffersSource, /root\.addEventListener\('submit',event/);
+  assert.match(ownerOffersSource, /data-fw-submit-coupon/,'coupon button should explicitly request form submission');
+  assert.match(ownerOffersSource, /querySelector\('\[data-fw-submit-coupon\]'\)\?\.addEventListener\('click',\(\)=>couponForm\.requestSubmit\(\)\)/);
+  assert.match(ownerOffersSource, /\$\('\[data-fw-save-settings\]'\)\?\.addEventListener\('click',saveSettings\)/,'delivery settings save should have a direct click handler');
 });
 
 test('no order minimum: amounts below the threshold remain orderable and pay standard delivery', () => {
