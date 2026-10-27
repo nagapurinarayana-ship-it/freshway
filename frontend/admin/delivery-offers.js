@@ -83,7 +83,7 @@
       '<label class="fw-offers-toggle"><input name="firstOrderOnly" type="checkbox" '+(item?.firstOrderOnly?'checked':'')+'><span><strong>First order only</strong><small>Verified against server-side order history.</small></span></label>' +
       '<label class="fw-offers-toggle"><input name="active" type="checkbox" '+((item ? item.active : true) ? 'checked' : '')+'><span><strong>Coupon active</strong><small>Customers can use it while valid and within its limits.</small></span></label>' +
       '</div><p class="fw-offers-inline-status" data-fw-coupon-form-status role="status" aria-live="polite"></p>' +
-      '<div class="settings-actions"><button class="primary" type="submit" '+''+'>'+(item?'Save coupon':'Create coupon')+'</button>' +
+      '<div class="settings-actions"><button class="primary" type="button" data-fw-submit-coupon>'+(item?'Save coupon':'Create coupon')+'</button>' +
       (item?'<button class="ghost" type="button" data-fw-cancel-edit>Cancel edit</button>':'')+'</div></form></section>';
   }
   function couponList() {
@@ -108,6 +108,13 @@
     const settingsIds=['#fwFreeDeliveryEnabled','#fwFreeDeliveryThreshold','#fwStandardDeliveryFee'];
     settingsIds.forEach(selector=>$(selector)?.addEventListener('input',markSettingsEdited));
     $('#fwCouponForm')?.addEventListener('input',markCouponEdited);
+    const couponForm=$('#fwCouponForm');
+    couponForm?.addEventListener('submit',saveCoupon);
+    $('[data-fw-submit-coupon]')?.addEventListener('click',()=>{
+      if(!couponForm)return;
+      if(typeof couponForm.requestSubmit==='function')couponForm.requestSubmit();
+      else couponForm.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+    });
   }
   async function load({preserveSettingsDraft=false}={}) {
     if (loading) return;
@@ -219,7 +226,7 @@
       catch(error){status(error.message||'Could not update coupon.',true);toggle.disabled=false;}
     }
   });
-  root.addEventListener('submit',event=>{if(event.target?.id==='fwCouponForm')void saveCoupon(event);});
+  // The current form is rebound after each render; bind submission directly in bindForm().
   window.addEventListener('beforeunload',event=>{if(!hasUnsavedChanges())return;event.preventDefault();event.returnValue='';});
   function beforeNavigate(){
     if(!hasUnsavedChanges())return true;
