@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
-import { calculatePriceBreakdown } from '../src/delivery-offers.js';
+import { calculatePriceBreakdown, handleAdminDeliveryOffersRequest } from '../src/delivery-offers.js';
 import { groupOrders } from '../src/index.js';
 
 const defaults = { freeDeliveryEnabled: true, freeDeliveryThreshold: 800, standardDeliveryFee: 30 };
@@ -47,12 +47,15 @@ function legacyDatabase() {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys=ON;');
   db.exec(`
-    CREATE TABLE customers (id TEXT PRIMARY KEY, name TEXT);
+    CREATE TABLE customers (id TEXT PRIMARY KEY, name TEXT, phone TEXT);
     CREATE TABLE orders (
       id TEXT PRIMARY KEY,
       customer_id TEXT NOT NULL REFERENCES customers(id),
       total INTEGER NOT NULL CHECK(total>=0),
       delivery_status TEXT NOT NULL DEFAULT 'New',
+      customer_name TEXT,
+      customer_phone TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       is_test_order INTEGER NOT NULL DEFAULT 0 CHECK(is_test_order IN (0,1))
     );
     INSERT INTO customers(id,name) VALUES ('customer-1','Customer One'),('customer-2','Customer Two'),('customer-3','Customer Three');
@@ -131,4 +134,71 @@ test('idempotent order recovery includes the original pricing snapshot', () => {
     total:order.total, itemsSubtotal:order.itemsSubtotal, deliveryFee:order.deliveryFee,
     couponCode:order.couponCode, couponDiscount:order.couponDiscount, pricingBreakdownKnown:order.pricingBreakdownKnown
   }, { total:280, itemsSubtotal:300, deliveryFee:30, couponCode:'SAVE50', couponDiscount:50, pricingBreakdownKnown:true });
+});
+
+function d1Adapter(db) {
+  return {
+    prepare(sql) {
+      let params = [];
+      const statement = {
+        bind(...values) { params = values; return statement; },
+        async first() { return db.prepare(sql).get(...params) || null; },
+        async all() { return { results: db.prepare(sql).all(...params) }; },
+        async run() {
+          const result = db.prepare(sql).run(...params);
+          return { meta: { changes: Number(result.changes || 0), last_row_id: result.lastInsertRowid } };
+        }
+      };
+      return statement;
+    },
+    async batch(statements) {
+      db.exec('BEGIN');
+      try {
+        const results = [];
+        for (const statement of statements) results.push(await statement.run());
+        db.exec('COMMIT');
+        return results;
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      }
+    }
+  };
+}
+
+test('Owner redemption history endpoint returns recorded customer and order details', async () => {
+  const db=legacyDatabase();
+  try {
+    db.exec(migration);
+    db.prepare("INSERT INTO coupons(id,code,title,discount_amount,starts_on) VALUES ('history-coupon','HISTORY50','History offer',50,'2026-01-01')").run();
+    db.prepare("UPDATE customers SET phone='9999999999' WHERE id='customer-1'").run();
+    db.prepare("INSERT INTO orders(id,customer_id,total,items_subtotal,delivery_fee,coupon_id,coupon_code,coupon_discount,pricing_breakdown_known,customer_name,customer_phone) VALUES ('history-order','customer-1',50,100,0,'history-coupon','HISTORY50',50,1,'Customer One','9999999999')").run();
+    db.prepare("INSERT INTO coupon_redemptions(id,coupon_id,customer_id,order_id,code_snapshot,discount_amount) VALUES ('history-redemption','history-coupon','customer-1','history-order','HISTORY50',50)").run();
+
+    const response=await handleAdminDeliveryOffersRequest(
+      new Request('https://freshway.example/api/admin/coupons/history-coupon/redemptions'),
+      { DB: d1Adapter(db) }
+    );
+    assert.equal(response.status,200);
+    const payload=await response.json();
+    assert.equal(payload.limit,100);
+    assert.equal(payload.redemptions.length,1);
+    assert.deepEqual({
+      orderId:payload.redemptions[0].orderId,
+      customerName:payload.redemptions[0].customerName,
+      customerPhone:payload.redemptions[0].customerPhone,
+      discountAmount:payload.redemptions[0].discountAmount,
+      orderTotal:payload.redemptions[0].orderTotal,
+      status:payload.redemptions[0].status
+    },{
+      orderId:'history-order',customerName:'Customer One',customerPhone:'9999999999',
+      discountAmount:50,orderTotal:50,status:'redeemed'
+    });
+  } finally { db.close(); }
+});
+
+test('Owner coupon UI exposes and requests redemption history', () => {
+  const ownerUi=readFileSync(new URL('../../frontend/admin/delivery-offers.js',import.meta.url),'utf8');
+  assert.match(ownerUi,/data-fw-coupon-history/);
+  assert.match(ownerUi,/\/admin\/coupons\/\'+encodeURIComponent\(couponId\)\+\'\/redemptions/);
 });
