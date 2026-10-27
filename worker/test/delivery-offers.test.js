@@ -240,6 +240,6 @@ test('customer quote endpoint uses D1 catalogue prices and integrates coupon plu
 });
 
 test('new order insert saves the pricing-provenance flag atomically with its pricing snapshot', () => {
-  assert.match(orderWriterSource,/INSERT INTO orders \\(id,customer_id,address_id,customer_name,customer_phone,total,items_subtotal,delivery_fee,coupon_id,coupon_code,coupon_discount,pricing_breakdown_known,payment_status/);
+  assert.ok(orderWriterSource.includes('INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,items_subtotal,delivery_fee,coupon_id,coupon_code,coupon_discount,pricing_breakdown_known,payment_status'), 'order insert must persist pricingBreakdownKnown alongside the pricing snapshot');
   assert.match(orderWriterSource,/pricing\.couponDiscount,1,deliveryPlan/);
 });
