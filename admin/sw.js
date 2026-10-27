@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v54';
+const CACHE = 'fw-owner-v55';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -7,8 +7,8 @@ const SHELL = [
   '/admin/icons/icon-512-maskable-v2.png?v=20261026-brand-v2',
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/owner-pwa-install.css?v=20261019-install-prompt-v2',
-  '/admin/admin.css?v=20261027-delivery-offers-v2',
-  '/admin/admin.js?v=20261027-owner-offers-draft-guard-v2',
+  '/admin/admin.css?v=20261027-navigation-boot-guard-v1',
+  '/admin/admin.js?v=20261027-navigation-boot-guard-v1',
   '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2',
   '/admin/frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5',
   '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
@@ -35,8 +35,8 @@ const REQUIRED_SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
-  '/admin/admin.css?v=20261027-delivery-offers-v2',
-  '/admin/admin.js?v=20261027-owner-offers-draft-guard-v2',
+  '/admin/admin.css?v=20261027-navigation-boot-guard-v1',
+  '/admin/admin.js?v=20261027-navigation-boot-guard-v1',
   '/admin/frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5',
   '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
