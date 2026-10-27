@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { calculatePriceBreakdown, handleAdminDeliveryOffersRequest, handleCustomerDeliveryOffersRequest } from '../src/delivery-offers.js';
 import { groupOrders } from '../src/index.js';
+import adminAuth from '../src/admin-auth.js';
 
 const defaults = { freeDeliveryEnabled: true, freeDeliveryThreshold: 800, standardDeliveryFee: 30 };
 const migration = readFileSync(new URL('../migrations/0043_delivery_offers_fixed_coupons.sql', import.meta.url), 'utf8');
@@ -248,4 +249,64 @@ test('browser E2E order fixture includes the saved pricing-provenance contract',
 test('new order insert saves the pricing-provenance flag atomically with its pricing snapshot', () => {
   assert.ok(orderWriterSource.includes('INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,items_subtotal,delivery_fee,coupon_id,coupon_code,coupon_discount,pricing_breakdown_known,payment_status'), 'order insert must persist pricingBreakdownKnown alongside the pricing snapshot');
   assert.match(orderWriterSource,/pricing\.couponDiscount,1,deliveryPlan/);
+});
+
+
+test('Owner delivery-offers routes are wired through the authenticated session gateway', async () => {
+  const db=legacyDatabase();
+  try {
+    db.exec(migration);
+    const secret='unit-test-owner-session-secret';
+    const env={
+      DB:d1Adapter(db),
+      ADMIN_SESSION_SECRET:secret,
+      ADMIN_TOKEN:'unused-test-token',
+      APP_ORIGIN:'https://freshway.example',
+      APP_ORIGINS:'https://freshway.example'
+    };
+    const issued=String(Math.floor(Date.now()/1000));
+    const key=await globalThis.crypto.subtle.importKey(
+      'raw',new TextEncoder().encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']
+    );
+    const signature=new Uint8Array(await globalThis.crypto.subtle.sign('HMAC',key,new TextEncoder().encode(issued)));
+    const sigHex=[...signature].map(value=>value.toString(16).padStart(2,'0')).join('');
+    const cookie='__Host-freshway-admin-session='+issued+'.'+sigHex;
+
+    const unauthorized=await adminAuth.fetch(
+      new Request('https://freshway.example/api/admin/delivery-offers'),
+      env,{}
+    );
+    assert.equal(unauthorized.status,401,'delivery pricing settings must remain Owner-session protected');
+
+    const read=await adminAuth.fetch(
+      new Request('https://freshway.example/api/admin/delivery-offers',{headers:{Cookie:cookie}}),
+      env,{}
+    );
+    assert.equal(read.status,200,'the Owner gateway must dispatch delivery offers to the D1 handler');
+    assert.equal(read.headers.get('access-control-allow-origin'),'https://freshway.example');
+    const settings=await read.json();
+    assert.equal(settings.settings.standardDeliveryFee,30);
+    assert.equal(settings.settings.freeDeliveryThreshold,800);
+    assert.deepEqual(settings.coupons,[]);
+
+    const create=await adminAuth.fetch(
+      new Request('https://freshway.example/api/admin/coupons',{
+        method:'POST',
+        headers:{Cookie:cookie,'content-type':'application/json'},
+        body:JSON.stringify({
+          code:'FIXED50',title:'Fixed rupee offer',discountAmount:50,
+          startsOn:'2026-01-01',endsOn:null,maxRedemptions:null,
+          perCustomerLimit:null,firstOrderOnly:false,active:true
+        })
+      }),
+      env,{}
+    );
+    assert.equal(create.status,201,'the Owner gateway must route coupon creation through the admin handler');
+    const created=await create.json();
+    assert.equal(created.coupon.code,'FIXED50');
+    assert.equal(created.coupon.discountAmount,50);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM coupons').get().count,1);
+  } finally {
+    db.close();
+  }
 });
