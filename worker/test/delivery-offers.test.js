@@ -9,6 +9,13 @@ import adminAuth from '../src/admin-auth.js';
 const defaults = { freeDeliveryEnabled: true, freeDeliveryThreshold: 800, standardDeliveryFee: 30 };
 const migration = readFileSync(new URL('../migrations/0043_delivery_offers_fixed_coupons.sql', import.meta.url), 'utf8');
 const orderWriterSource = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
+const ownerOffersSource = readFileSync(new URL('../../frontend/admin/delivery-offers.js', import.meta.url), 'utf8');
+
+test('Owner coupon form submits with the form as currentTarget', () => {
+  assert.match(ownerOffersSource, /#fwCouponForm'\)\?\.addEventListener\('submit',saveCoupon\)/);
+  assert.match(ownerOffersSource, /function saveCoupon\(event\) \{\s*event\.preventDefault\(\);const form=event\.currentTarget;/);
+  assert.doesNotMatch(ownerOffersSource, /root\.addEventListener\('submit',event/);
+});
 
 test('no order minimum: amounts below the threshold remain orderable and pay standard delivery', () => {
   assert.deepEqual(calculatePriceBreakdown(defaults, 100), {
