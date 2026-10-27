@@ -15,7 +15,7 @@ const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20
 const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2';
 const EXPECTED_OWNER_DELIVERY_SCRIPT = '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2';
 const EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT = '/admin/frontend/admin/store-management.js?v=20261027-store-manager-v1';
-const EXPECTED_OWNER_DELIVERY_OFFERS_SCRIPT = '/admin/frontend/admin/delivery-offers.js?v=20261027-fixed-coupons-v4';
+const EXPECTED_OWNER_DELIVERY_OFFERS_SCRIPT = '/admin/frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5';
 const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261027-owner-delivery-date-v1';
 const EXPECTED_OWNER_CACHE = 'fw-owner-v54';
 const LEGACY_OWNER_CACHE = 'fw-owner-v51';
