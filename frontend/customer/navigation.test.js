@@ -6,6 +6,8 @@ assert.match(source,/history\.pushState/);
 assert.match(source,/history\.back/);
 assert.match(source,/popstate/);
 assert.match(source,/history:'none'/);
+assert.match(source,/const preferredInitialView=\(\)=>/,'initial history setup must preserve valid hash or saved routes before seeding Home');
+assert.match(source,/sessionStorage\.getItem\('freshway-current-view-v1'\)/,'first load after an older app version must not overwrite a saved customer screen with Home');
 assert.match(source,/FreshWayCustomerViewState\?\.saveView\(name\)/,'navigation must persist every programmatic view change, not only clicks');
 assert.match(source,/const nextView=state\?\.\[HISTORY_FLAG\]\?state\.view\|\|'home':'home'/,'Back/Forward must render the view stored on that exact browser-history entry');
 const app=fs.readFileSync('app.js','utf8');
