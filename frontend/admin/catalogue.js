@@ -111,17 +111,15 @@
   }
   install();
 
-  // When Owner is opened directly on #catalogue (including a full browser reload),
-  // admin.js may already have rendered its legacy catalogue before this module loads.
-  // Re-hydrate the dedicated catalogue module so direct reload and in-app navigation
-  // always use the same current /api/admin/catalogue data source.
+  // Keep direct refresh on #catalogue on the same modern Catalogue shell used by navigation.
+  // The legacy list is intentionally not rendered by admin.js; this module owns the screen
+  // and loads categories, products, and promotions from the current API.
   function ownerAuthHint(){
     try{return sessionStorage.getItem('freshway-admin-auth')==='1'||localStorage.getItem('freshway-admin-auth')==='1'}catch(_){return false}
   }
 
   if (location.hash === '#catalogue' && ownerAuthHint()) {
-    // Direct reload on #catalogue: replace the legacy screen immediately, then
-    // fetch the same current catalogue endpoint used by in-app navigation.
+    // Direct reload: prepare the modern shell before loading the current Catalogue data.
     shell();
     load();
   }
