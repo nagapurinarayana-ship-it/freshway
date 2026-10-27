@@ -96,6 +96,16 @@ export async function createCustomerMessage(env, customerId, payloadValue) {
     (id,customer_id,customer_name,customer_phone_last4,subject,message,status,created_at,updated_at,expires_at)
     VALUES (?,?,?,?,?,?,'pending',strftime('%Y-%m-%dT%H:%M:%fZ','now'),strftime('%Y-%m-%dT%H:%M:%fZ','now'),strftime('%Y-%m-%dT%H:%M:%fZ','now','+90 days'))`)
     .bind(id, customerId, name, phone.slice(-4), subject, message).run();
+  // Notify the Owner as a best-effort side effect. A push failure must not make a
+  // saved customer message look unsent or invite duplicate submissions.
+  try {
+    await dispatchOrderAlert(env, {
+      audience: 'owner', customerId: null, orderId: null,
+      eventType: 'customer_message_new', eventKey: `customer-message:${id}:received:owner`,
+      title: 'OWNER · New customer message',
+      body: `${name} · ${subject}`, url: '/admin/#messages'
+    });
+  } catch (error) { console.error('FreshWay new customer message alert failed:', error?.message || error); }
   return { ok: true, id, message: 'Message sent to FreshWay. You can view the reply in Profile → Messages.' };
 }
 
@@ -138,7 +148,7 @@ export async function markCustomerMessagesRead(env, customerId) {
 export async function listAdminCustomerMessages(env, statusValue = 'pending') {
   const status = ['pending','replied','all'].includes(statusValue) ? statusValue : 'pending';
   const [general, orderRequests, generalCounts, orderCounts] = await Promise.all([
-    env.DB.prepare(`SELECT id,customer_id,customer_name,customer_phone_last4,subject,message,status,admin_reply,created_at,updated_at,replied_at,
+    env.DB.prepare(`SELECT id,customer_name,customer_phone_last4,subject,message,status,admin_reply,created_at,updated_at,replied_at,
       'message' AS source,NULL AS order_id
       FROM customer_messages ORDER BY created_at DESC LIMIT 200`).all(),
     env.DB.prepare(`SELECT r.id,r.customer_id,c.name AS customer_name,substr(c.phone,-4) AS customer_phone_last4,
