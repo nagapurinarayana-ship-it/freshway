@@ -24,7 +24,9 @@
     return values.year+'-'+values.month+'-'+values.day;
   };
   const scheduleText=o=>{
-    if(String(o.status||'').toLowerCase()==='delivered'){
+    const orderStatus=String(o.status||'').trim().toLowerCase();
+    if(orderStatus==='cancelled'||orderStatus==='canceled')return '';
+    if(orderStatus==='delivered'){
       const deliveredDate=indiaDate(o.deliveredAt);
       return deliveredDate?'Delivered on '+deliveredDate:'Delivered';
     }
