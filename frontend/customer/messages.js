@@ -63,12 +63,21 @@
     if(!window.setView)return;
     window.setView('messages',{history:'replace'});
     if(!messageId)return;
-    load().then(()=>{
-      const card=[...document.querySelectorAll('[data-customer-message-id]')].find(item=>item.dataset.customerMessageId===messageId);
+    const container=root();if(!container)return;
+    const finish=card=>{
+      observer.disconnect();
       card?.scrollIntoView({behavior:'smooth',block:'center'});
       const cleanUrl=new URL(location.href);cleanUrl.searchParams.delete('openMessage');cleanUrl.hash='messages';
       history.replaceState({__freshwayCustomer:true,view:'messages'},'',cleanUrl.pathname+cleanUrl.search+cleanUrl.hash);
-    }).catch(()=>{});
+    };
+    const findCard=()=>[...container.querySelectorAll('[data-customer-message-id]')].find(item=>item.dataset.customerMessageId===messageId);
+    const observer=new MutationObserver(()=>{
+      const card=findCard();
+      if(card){finish(card);return;}
+      if(!container.textContent.includes('Loading your messages'))finish(null);
+    });
+    observer.observe(container,{childList:true,subtree:true});
+    const existing=findCard();if(existing)finish(existing);
   }
   window.FreshWayCustomerMessages=Object.freeze({load,refreshBadge,refreshBadgeCount:refreshBadge});
 
