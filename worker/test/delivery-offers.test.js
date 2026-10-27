@@ -203,6 +203,7 @@ test('Owner redemption history endpoint returns recorded customer and order deta
 
 test('Owner coupon UI exposes and requests redemption history', () => {
   const ownerUi=readFileSync(new URL('../../frontend/admin/delivery-offers.js',import.meta.url),'utf8');
+  assert.match(ownerUi,/unsavedCoupon=false;\s*loading=false;\s*render\(\);/,'successful load must clear the loading flag before rendering so Refresh is enabled again');
   assert.match(ownerUi,/data-fw-coupon-history/);
   assert.match(ownerUi,/redemptions/);
   assert.match(ownerUi,/function settingsPreviewText\(source\)/,'delivery preview must reflect whether the threshold is enabled');
