@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 const BASE_URL = (process.env.OWNER_PWA_BASE_URL || '').replace(/\/$/, '');
 if (!BASE_URL) throw new Error('OWNER_PWA_BASE_URL is required for Owner PWA deployment smoke');
 
-const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261027-store-management-v1';
-const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-customer-messages-v1';
-const LEGACY_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-store-management-v1';
+const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261027-owner-simple-v1';
+const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-owner-simple-v1';
+const LEGACY_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-customer-messages-v1';
 const SUPPORTED_OWNER_ADMIN_SCRIPTS = [EXPECTED_OWNER_ADMIN_SCRIPT, LEGACY_OWNER_ADMIN_SCRIPT];
 const EXPECTED_OWNER_CUSTOMER_MESSAGES_SCRIPT = '/admin/frontend/admin/customer-messages.js?v=20261027-customer-messages-v1';
 const EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT = '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2';
@@ -15,8 +15,8 @@ const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile
 const EXPECTED_OWNER_DELIVERY_SCRIPT = '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2';
 const EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT = '/admin/frontend/admin/store-management.js?v=20261027-store-manager-v1';
 const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261027-owner-delivery-date-v1';
-const EXPECTED_OWNER_CACHE = 'fw-owner-v47';
-const LEGACY_OWNER_CACHE = 'fw-owner-v46';
+const EXPECTED_OWNER_CACHE = 'fw-owner-v48';
+const LEGACY_OWNER_CACHE = 'fw-owner-v47';
 const SUPPORTED_OWNER_CACHES = [EXPECTED_OWNER_CACHE, LEGACY_OWNER_CACHE];
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
