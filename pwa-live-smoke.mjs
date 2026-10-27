@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 const BASE_URL = process.env.BASE_URL || 'https://freshway-f32.pages.dev';
-const VIEWPORT_STYLES_PATH = '/styles.css?v=20261027-orders-screen-cleanup-v1';
+const VIEWPORT_STYLES_PATH = '/styles.css?v=20261027-delivery-offers-v1';
 const CUSTOMER_APP_PATH = '/app.js?v=msg1';
 const INTERMEDIATE_CUSTOMER_APP_PATH = '/app.js?v=20261027-customer-messages-v1';
 const LEGACY_CUSTOMER_APP_PATH = '/app.js?v=20261027-cancel-refresh-v1';
@@ -12,8 +12,8 @@ const CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?v=msg1';
 const INTERMEDIATE_CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?v=20261027-customer-messages-v1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261027-checkout-ux-v2';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v88';
-const LEGACY_CUSTOMER_CACHES = ['freshway-v87', 'freshway-v86'];
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v92';
+const LEGACY_CUSTOMER_CACHES = ['freshway-v91', 'freshway-v90'];
 const SUPPORTED_CUSTOMER_CACHES = [EXPECTED_CUSTOMER_CACHE, ...LEGACY_CUSTOMER_CACHES];
 const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261024-native-install-v1';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
