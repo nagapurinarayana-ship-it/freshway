@@ -17,6 +17,9 @@ test('Owner coupon form submits with the form as currentTarget', () => {
   assert.doesNotMatch(ownerOffersSource, /root\.addEventListener\('submit',event/);
   assert.match(ownerOffersSource, /data-fw-submit-coupon/,'coupon button should explicitly request form submission');
   assert.match(ownerOffersSource, /querySelector\('\[data-fw-submit-coupon\]'\)\?\.addEventListener\('click',\(\)=>couponForm\.requestSubmit\(\)\)/);
+  assert.match(ownerOffersSource, /const button=form\.querySelector\('\[data-fw-submit-coupon\]'\);/,'coupon save should disable the actual visible button and show its saving state');
+  assert.match(ownerOffersSource, /const currentButton=\$\('\#fwCouponForm \[data-fw-submit-coupon\]'\);/,'coupon save should restore the actual visible button after the request');
+  assert.doesNotMatch(ownerOffersSource, /unsavedCoupon=false;\s*saving=false;\s*await load\(/,'save guard must remain active while the updated coupon list loads');
   assert.match(ownerOffersSource, /\$\('\[data-fw-save-settings\]'\)\?\.addEventListener\('click',saveSettings\)/,'delivery settings save should have a direct click handler');
 });
 

@@ -171,7 +171,7 @@
     const inline=form.querySelector('[data-fw-coupon-form-status]');
     if(payload.endsOn&&payload.endsOn<payload.startsOn){if(inline)inline.textContent='Expiry date must be on or after the start date.';return;}
     saving=true;
-    const button=form.querySelector('button[type="submit"]');
+    const button=form.querySelector('[data-fw-submit-coupon]');
     if(button){button.disabled=true;button.textContent='Saving…';}
     if(inline){inline.textContent='Saving coupon…';inline.dataset.error='false';}
     try {
@@ -180,7 +180,6 @@
       const preserveSettingsDraft=unsavedSettings&&settingsDraft?{...settingsDraft}:null;
       editingId=null;
       unsavedCoupon=false;
-      saving=false;
       await load({preserveSettingsDraft:Boolean(preserveSettingsDraft)});
       if(preserveSettingsDraft){settingsDraft=preserveSettingsDraft;unsavedSettings=true;render();status('Coupon saved. Delivery settings still have unsaved changes; save them separately.');}
       else status('Coupon saved successfully.');
@@ -188,7 +187,7 @@
       if(inline){inline.textContent=error.message||'Could not save coupon.';inline.dataset.error='true';}
     } finally {
       saving=false;
-      const currentButton=$('#fwCouponForm button[type="submit"]');
+      const currentButton=$('#fwCouponForm [data-fw-submit-coupon]');
       if(currentButton){currentButton.disabled=false;currentButton.textContent=editingId?'Save coupon':'Create coupon';}
     }
   }
