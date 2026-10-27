@@ -181,6 +181,7 @@ export async function customerOrdersFromSnapshots(request, env, customerId) {
     oi.product_id,oi.name,oi.unit,oi.qty,oi.price,oi.line_total
     FROM orders o
     LEFT JOIN customers c ON c.id=o.customer_id
+    LEFT JOIN delivery_stores ds ON ds.id=o.assigned_store_id
     LEFT JOIN order_address_snapshots s ON s.order_id=o.id
     LEFT JOIN addresses a ON a.id=o.address_id
     LEFT JOIN order_items oi ON oi.order_id=o.id
