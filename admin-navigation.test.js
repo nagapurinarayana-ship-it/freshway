@@ -18,5 +18,7 @@ assert.match(html,/id="accountDeletionSummary"/);
 assert.match(html,/class="owner-nav-more"/,'desktop navigation should group occasional tools under More');
 assert.match(html,/data-screen="delivery">⌁<span>Delivery<\/span>/,'Delivery should be a primary mobile destination');
 assert.match(html,/class="mobile-more-group"/,'mobile More menu should group secondary tools');
-assert.doesNotMatch(html,/<nav aria-label="Owner navigation">[\s\S]*?<button data-screen="settings"/,'Settings should not crowd the primary desktop navigation');
+const primaryNav=html.match(/<nav aria-label="Owner navigation">([\s\S]*?)<details class="owner-nav-more">/)?.[1]||'';
+assert.doesNotMatch(primaryNav,/data-screen="settings"/,'Settings should not crowd the primary desktop navigation');
+assert.match(html,/mobile-more-label">Reports &amp; settings/,'less-used options should be grouped under a clear heading');
 console.log('owner navigation history and safe initial settings bootstrap OK');
