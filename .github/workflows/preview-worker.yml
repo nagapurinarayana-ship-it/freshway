@@ -244,10 +244,14 @@ jobs:
             # Preserve a pre-feature order and stock quantity across the actual remote
             # migration. The fixture is synthetic and removed after the assertions.
             suffix="\${GITHUB_RUN_ID}-\${GITHUB_RUN_ATTEMPT}"
-            customer_id="preview-migration-customer-\$suffix"
-            product_id="preview-migration-product-\$suffix"
-            order_id="preview-migration-order-\$suffix"
-            customer_phone="preview-migration-phone-\$suffix"
+            customer_id="preview-migration-customer-$suffix"
+            product_id="preview-migration-product-$suffix"
+            order_id="preview-migration-order-$suffix"
+            customer_phone="preview-migration-phone-$suffix"
+            cleanup_migration_fixture() {
+              npx wrangler d1 execute freshway-preview --remote --command "DELETE FROM orders WHERE id='$order_id'; DELETE FROM addresses WHERE customer_id='$customer_id'; DELETE FROM customers WHERE id='$customer_id'; DELETE FROM products WHERE id='$product_id'" --config "$config" >/dev/null 2>&1 || true
+            }
+            trap cleanup_migration_fixture EXIT
             npx wrangler d1 execute freshway-preview --remote --command "INSERT INTO customers (id,name,phone) VALUES ('$customer_id','Preview migration test','$customer_phone'); INSERT INTO addresses (customer_id,house,area,city,pincode) VALUES ('$customer_id','Test house','Test area','Test city','500001'); INSERT INTO products (id,name,unit,price,stock_managed,stock_quantity) VALUES ('$product_id','Preview migration test','unit',100,1,7); INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,is_test_order) VALUES ('$order_id','$customer_id',(SELECT id FROM addresses WHERE customer_id='$customer_id'),'Preview migration test','$customer_phone',100,1)" --config "$config"
 
             npx wrangler d1 execute freshway-preview --remote --file ../../source/worker/migrations/0043_delivery_offers_fixed_coupons.sql --config "$config"
@@ -312,17 +316,58 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy --config ../../source/worker/wrangler.preview.generated.jsonc
-      - name: Smoke-test the deployed preview Worker
+      - name: Smoke-test preview Worker, Delivery & Offers APIs, and D1 integration
+        working-directory: tooling/worker
         env:
-          FRESHWAY_PREVIEW_WORKER_URL: ${{ vars.FRESHWAY_PREVIEW_WORKER_URL }}
+          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FRESHWAY_PREVIEW_WORKER_URL: \${{ vars.FRESHWAY_PREVIEW_WORKER_URL }}
+        shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 30 "$FRESHWAY_PREVIEW_WORKER_URL/api/admin/status" > "$RUNNER_TEMP/freshway-preview-status.json"
-          node --input-type=module - "$RUNNER_TEMP/freshway-preview-status.json" <<'NODE'
+          config="../../source/worker/wrangler.preview.generated.jsonc"
+          base_url="$FRESHWAY_PREVIEW_WORKER_URL"
+          product_id="preview-quote-product-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          cleanup_quote_product() {
+            npx wrangler d1 execute freshway-preview --remote --command "DELETE FROM products WHERE id='$product_id'" --config "$config" >/dev/null 2>&1 || true
+          }
+          trap cleanup_quote_product EXIT
+
+          npx wrangler d1 execute freshway-preview --remote --command "INSERT INTO products (id,name,unit,price,active,stock_managed,stock_quantity) VALUES ('$product_id','Preview quote fixture','unit',100,1,0,0)" --config "$config"
+
+          curl --fail --silent --show-error --max-time 30 "$base_url/api/admin/status" > "$RUNNER_TEMP/freshway-preview-status.json"
+          curl --fail --silent --show-error --max-time 30 "$base_url/api/delivery-offers" > "$RUNNER_TEMP/freshway-preview-offers.json"
+          curl --fail --silent --show-error --max-time 30 "$base_url/api/coupons/available" > "$RUNNER_TEMP/freshway-preview-coupons.json"
+          curl --fail --silent --show-error --max-time 30 \
+            -H "Content-Type: application/json" \
+            -d "{\"items\":[{\"id\":\"$product_id\",\"qty\":2}],\"couponCode\":\"\"}" \
+            "$base_url/api/checkout/quote" > "$RUNNER_TEMP/freshway-preview-quote.json"
+
+          node --input-type=module - "$RUNNER_TEMP/freshway-preview-status.json" "$RUNNER_TEMP/freshway-preview-offers.json" "$RUNNER_TEMP/freshway-preview-coupons.json" "$RUNNER_TEMP/freshway-preview-quote.json" <<'NODE'
           import fs from 'node:fs';
-          const status = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const read = path => JSON.parse(fs.readFileSync(path, 'utf8'));
+          const status = read(process.argv[2]);
+          const offers = read(process.argv[3]);
+          const coupons = read(process.argv[4]);
+          const quote = read(process.argv[5]);
           if (status.ok !== true || typeof status.version !== 'string' || !status.version) {
             throw new Error('Preview Worker status endpoint did not return the expected healthy response.');
           }
-          console.log('Preview Worker is responding:', status.version);
+          const settings = offers.settings;
+          if (!settings || typeof settings.freeDeliveryEnabled !== 'boolean' ||
+              !Number.isSafeInteger(Number(settings.freeDeliveryThreshold)) || Number(settings.freeDeliveryThreshold) < 0 ||
+              !Number.isSafeInteger(Number(settings.standardDeliveryFee)) || Number(settings.standardDeliveryFee) < 0) {
+            throw new Error('Delivery settings API did not read valid settings from preview D1.');
+          }
+          if (!Array.isArray(coupons.coupons)) {
+            throw new Error('Available-coupons API did not return the expected D1-backed list.');
+          }
+          const pricing = quote.pricing;
+          if (!pricing || Number(pricing.itemsSubtotal) !== 200 ||
+              !Number.isSafeInteger(Number(pricing.deliveryFee)) || Number(pricing.deliveryFee) < 0 ||
+              Number(pricing.couponDiscount) !== 0 ||
+              Number(pricing.finalTotal) !== Number(pricing.itemsSubtotal) - Number(pricing.couponDiscount) + Number(pricing.deliveryFee)) {
+            throw new Error('Checkout quote API did not calculate the expected server-authoritative fixed-price total.');
+          }
+          console.log('Preview Worker, D1 delivery settings, coupon listing, and server-side checkout quote all passed.');
           NODE
