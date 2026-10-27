@@ -12,7 +12,7 @@ assert.match(source,/historyMode==='push'/);
 // Without this guard, a direct refresh on #settings runs before Store Profile exists.
 assert.match(source,/function startOwnerApp\(\)/);
 assert.match(source,/document\.readyState==='loading'\)document\.addEventListener\('DOMContentLoaded',startOwnerApp,\{once:true\}\)/);
-assert.ok(html.indexOf('admin.js?v=20261024-settings-init-v1') < html.indexOf('frontend/admin/store-profile.js'),
+assert.ok(html.indexOf('admin.js?v=20261027-store-management-v1') < html.indexOf('frontend/admin/store-profile.js'),
   'the regression test should cover the real script-loading order');
 assert.match(html,/id="accountDeletionSummary"/);
 console.log('owner navigation history and safe initial settings bootstrap OK');

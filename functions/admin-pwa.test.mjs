@@ -9,6 +9,19 @@ assert.doesNotMatch(customerHtml, /href=["']\/admin(?:\.html|\/?)['"]/i, 'custom
 assert.doesNotMatch(customerHtml, /class=["'][^"']*\badmin-link\b/i, 'customer profile must not render an Owner dashboard shortcut');
 const invoiceSettingsSource = readRepoFile('frontend/admin/invoice-settings.js').toString('utf8');
 const invoiceServiceSource = readRepoFile('worker/src/invoice-service.js').toString('utf8');
+const storeManagementSource = readRepoFile('frontend/admin/store-management.js').toString('utf8');
+const deliverySchedulingSource = readRepoFile('worker/src/delivery-scheduling.js').toString('utf8');
+const ownerProxySource = readRepoFile('functions/admin/[[path]].js').toString('utf8');
+assert.ok(sourceHtml.includes('data-screen="stores"') && sourceHtml.includes('id="stores"'), 'Owner app must expose a dedicated Stores screen');
+assert.ok(sourceHtml.includes('data-screen="requests"') && sourceHtml.includes('id="requests"'), 'Owner app must expose customer requests in Owner navigation');
+assert.ok(sourceHtml.includes('store-management.js?v=20261027-store-manager-v1'), 'Owner app must load the versioned store and request management module');
+assert.ok(ownerProxySource.includes("['frontend/admin/store-management.js', '/frontend/admin/store-management.js']"), 'Owner proxy must allow the store management asset');
+assert.ok(storeManagementSource.includes("api('/admin/delivery/stores'"), 'Store manager must load stores from the authenticated API');
+assert.ok(storeManagementSource.includes("api('/admin/delivery/requests'"), 'Customer request screen must load persisted order-related requests');
+assert.ok(storeManagementSource.includes('general messages sent there are not saved to an inbox yet'), 'Owner UI must not imply general Contact FreshWay messages are persisted');
+assert.ok(deliverySchedulingSource.includes("path === '/api/admin/delivery/stores' && request.method === 'GET'"), 'Delivery API must expose stores to Owner UI');
+assert.ok(deliverySchedulingSource.includes('if (inventoryMatch && request.method === \'GET\')'), 'Delivery API must expose per-store stock to Owner UI');
+
 assert.ok(sourceHtml.includes('account-deletions.js?v=20261024-anonymized-history-v1'), 'Owner app must reference the updated account-deletion click handler');
 const deletionSource = readRepoFile('frontend/admin/account-deletions.js').toString('utf8');
 assert.ok(deletionSource.includes('individual request record, and keeps only an aggregate completion count and the latest completion date'), 'Deletion confirmation must explain that the per-request record is removed');
@@ -22,15 +35,16 @@ assert.ok(invoiceSettingsSource.includes('saved.enableWarning'), 'Owner UI must 
 assert.ok(invoiceSettingsSource.includes('You can leave unfinished billing and tax details blank and complete them later.'), 'Owner UI must reassure the owner that incomplete settings can be saved');
 assert.ok(invoiceServiceSource.includes('let enableWarning=') && invoiceServiceSource.includes('enableWarning?{enableWarning}:{}'), 'Worker must save partial settings and return a safe activation warning');
 const ownerLiveSmokeSource = readRepoFile('pwa-owner-live-smoke.mjs').toString('utf8');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261026-delivery-management-v1';"), 'production Owner smoke must demand the current Owner CSS version');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261024-settings-init-v1';"), 'production Owner smoke must demand the current admin.js version');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261027-store-management-v1';"), 'production Owner smoke must demand the current Owner CSS version');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-store-management-v1';"), 'production Owner smoke must demand the current admin.js version');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT = '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2';"), 'production Owner smoke must demand the current optional invoice settings script');
 
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1';"), 'production Owner smoke must demand the current push setup version');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2';"), 'production Owner smoke must demand the current business profile and shop pin editor');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_DELIVERY_SCRIPT = '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2';"), 'production Owner smoke must demand the delivery scheduling and exception management module');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT = '/admin/frontend/admin/store-management.js?v=20261027-store-manager-v1';"), 'production Owner smoke must demand Store Manager and Customer Requests');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261027-owner-delivery-date-v1';"), 'production Owner smoke must demand the cache-busted order lifecycle map handler');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v45';"), 'production Owner smoke must demand the current service-worker cache');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v46';"), 'production Owner smoke must demand the current service-worker cache');
 assert.ok(ownerLiveSmokeSource.includes('assert.match(deployedSource, /function readProfileResponse\\(data\\)/'), 'production Owner smoke must verify deployed Store Profile response guard code, not only a matching URL');
 assert.ok(ownerLiveSmokeSource.includes('incomplete Store Profile'), 'production Owner smoke must verify malformed profile payload protection is deployed');
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerAppShell/);
@@ -50,6 +64,7 @@ const requiredOwnerAssets = [
   'frontend/phone-display.js',
   'frontend/admin/store-profile.js',
   'frontend/admin/delivery-management.js',
+  'frontend/admin/store-management.js',
   'frontend/admin/invoice-settings.js',
   'frontend/admin/account-deletions.js',
   'frontend/catalogue-media.js',
