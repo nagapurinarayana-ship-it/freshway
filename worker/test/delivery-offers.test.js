@@ -256,11 +256,10 @@ test('Owner delivery-offers routes are wired through the authenticated session g
   const db=legacyDatabase();
   try {
     db.exec(migration);
-    const secret='unit-test-owner-session-secret';
+    const secret='unit-test-secret';
     const env={
       DB:d1Adapter(db),
       ADMIN_SESSION_SECRET:secret,
-      ADMIN_TOKEN:'unused-test-token',
       APP_ORIGIN:'https://freshway.example',
       APP_ORIGINS:'https://freshway.example'
     };
