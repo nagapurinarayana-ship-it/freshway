@@ -214,6 +214,7 @@
   function beforeNavigate(){
     if(!hasUnsavedChanges())return true;
     if(!confirm('Discard unsaved Delivery & Offers changes?'))return false;
+    if(unsavedCoupon)editingId=null;
     unsavedSettings=false;unsavedCoupon=false;settingsDraft=null;
     return true;
   }
