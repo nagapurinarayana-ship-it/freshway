@@ -5,6 +5,25 @@ const vm = require('node:vm');
 const handlers = {};
 const sentNotifications = [];
 const messages = [];
+const cacheEntries = new Map();
+let fetchCalls = 0;
+let nextFetchResponse = null;
+const cache = {
+  match: async request => cacheEntries.get(typeof request === 'string' ? request : request.url) || null,
+  put: async (request, response) => { cacheEntries.set(typeof request === 'string' ? request : request.url, response); },
+  delete: async request => cacheEntries.delete(typeof request === 'string' ? request : request.url)
+};
+const cacheStorage = { open: async () => cache, keys: async () => [], delete: async () => true };
+class MockRequest {
+  constructor(input, init = {}) {
+    const source = typeof input === 'string' ? { url: input, method: 'GET', destination: '', mode: 'cors' } : input;
+    Object.assign(this, source, init);
+    this.url = source.url;
+    this.method = init.method || source.method || 'GET';
+    this.destination = init.destination || source.destination || '';
+    this.mode = init.mode || source.mode || 'cors';
+  }
+}
 const pages = [
   { url: 'https://fwcoldpressed.in/orders', postMessage: value => messages.push({ page: 'customer', value }) },
   { url: 'https://fwcoldpressed.in/admin/', postMessage: value => messages.push({ page: 'owner', value }) },
@@ -19,11 +38,15 @@ const self = {
 };
 vm.runInNewContext(fs.readFileSync('sw.js', 'utf8'), {
   self,
-  caches: {},
+  caches: cacheStorage,
   URL,
-  Request,
+  Request: MockRequest,
   console,
-  fetch: async () => { throw new Error('fetch is not expected in this test'); }
+  fetch: async () => {
+    fetchCalls++;
+    if (nextFetchResponse) return nextFetchResponse;
+    throw new Error('fetch is not expected for this event');
+  }
 });
 
 async function dispatchPush(payload) {
@@ -67,7 +90,24 @@ async function dispatchPush(payload) {
   assert.match(index, /frontend\/customer\/messages\.js\?v=msg1/);
   assert.match(index, /frontend\/customer\/store-info\.js\?v=msg1/);
   assert.match(index, /frontend\/customer\/cart-bar\.js\?v=20261027-checkout-ux-v2/);
-  console.log('customer push-to-order-refresh tests passed');
+  const assetUrl = 'https://fwcoldpressed.in/frontend/customer/navigation.js?v=20261028-nav-restore-v2';
+  const oldResponse = { ok: true, body: 'legacy', clone() { return { ...this }; } };
+  const freshResponse = { ok: true, body: 'current', clone() { return { ...this }; } };
+  cacheEntries.set(assetUrl, oldResponse);
+  nextFetchResponse = freshResponse;
+  const fetchRequest = { url: assetUrl, method: 'GET', destination: 'script', mode: 'cors' };
+  let responsePromise;
+  handlers.fetch({
+    request: fetchRequest,
+    respondWith: promise => { responsePromise = promise; },
+    waitUntil: promise => { void promise; }
+  });
+  const returnedAsset = await responsePromise;
+  assert.equal(fetchCalls, 1, 'versioned JavaScript must attempt a fresh network response even when an older cached copy exists');
+  assert.equal(returnedAsset.body, 'current', 'the browser must receive the current JavaScript instead of a stale cache hit');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal((await cache.match(fetchRequest)).body, 'current', 'the cache should be updated to the current asset');
+  console.log('customer push refresh and network-first versioned asset tests passed');
 })().catch(error => {
   console.error(error);
   process.exitCode = 1;
