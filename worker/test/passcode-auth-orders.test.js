@@ -19,8 +19,8 @@ class SQLiteD1 {
         (id,customer_id,address_id,customer_name,customer_phone,total,payment_status,delivery_status,delivery_plan,scheduled_delivery_date)
         VALUES ('FW-ORDERS-1','customer-1',1,'Order-time Name','911234567890',520,'Not Collected','New','Today','2026-10-27');
       INSERT INTO order_address_snapshots
-        (order_id,address_id,delivery_phone,house_flat,area,city,pincode,place_id)
-        VALUES ('FW-ORDERS-1',1,'911234567890','11','East Brundavan Colony','Hyderabad','500092','place-1');
+        (order_id,address_id,recipient_name,delivery_phone,house_flat,area,city,pincode,place_id)
+        VALUES ('FW-ORDERS-1',1,'Order-time Name','911234567890','11','East Brundavan Colony','Hyderabad','500092','place-1');
       INSERT INTO order_items
         (order_id,product_id,name,unit,qty,price,line_total,stock_reserved_qty)
         VALUES ('FW-ORDERS-1','sesame-oil','Sesame oil','kg',1,520,520,0);

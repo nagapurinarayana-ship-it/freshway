@@ -170,7 +170,7 @@ async function updateCustomer(request, env) { const sessionId = await sessionCus
 export async function customerOrdersFromSnapshots(request, env, customerId) {
   const { results } = await env.DB.prepare(`SELECT o.id,o.customer_name,o.customer_phone,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.delivered_at,o.payment_collected_at,o.scheduled_delivery_date,o.scheduled_slot_id,o.assigned_store_id,o.scheduled_start_minute,o.scheduled_end_minute,o.schedule_status,ds.name assigned_store_name,
     c.name registered_name,c.phone registered_phone,
-    o.customer_name recipient_name,
+    COALESCE(s.recipient_name,a.recipient_name,o.customer_name) recipient_name,
     COALESCE(s.delivery_phone,a.delivery_phone) delivery_phone,
     COALESCE(s.house_flat,a.house) house,COALESCE(s.building,a.building) building,COALESCE(s.floor,a.floor) floor,
     COALESCE(s.street,a.street) street,COALESCE(s.area,a.area) area,COALESCE(s.locality,a.locality) locality,
