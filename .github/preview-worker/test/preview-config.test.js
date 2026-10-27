@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { buildPreviewConfig } from '../build-preview-config.mjs';
 
 const productionId = '4b645f26-12ad-4805-bf22-12186122ad3a';
@@ -61,4 +62,24 @@ test('preview config accepts HTTPS origins only and requires the primary origin 
   assert.throws(() => buildPreviewConfig(production, { ...valid, appOrigin: 'https://preview.example.com/path' }), /HTTPS origin/i);
   assert.throws(() => buildPreviewConfig(production, { ...valid, appOrigins: 'https://other.example.com' }), /must include/i);
   assert.throws(() => buildPreviewConfig(production, { ...valid, appOrigins: 'https://ok.example.com,not-an-origin' }), /HTTPS origin/i);
+});
+
+
+test('isolated preview workflow applies the current offers migration and exercises the D1-backed APIs', () => {
+  const workflow = readFileSync(new URL('../../workflows/preview-worker.yml', import.meta.url), 'utf8');
+  assert.match(workflow, /migrations\/0043_delivery_offers_fixed_coupons\.sql/);
+  for (const historicalMigration of [
+    '0037_order_delivery_scheduling.sql',
+    '0038_anonymize_delivery_requests.sql',
+    '0039_customer_preferred_delivery_date.sql',
+    '0040_order_delivered_at.sql'
+  ]) {
+    assert.doesNotMatch(workflow, new RegExp('migrations\\/' + historicalMigration),
+      'preview must not replay historical migrations on the current main schema');
+  }
+  assert.match(workflow, /only partially present/);
+  assert.match(workflow, /freshway_preview_metadata/);
+  assert.match(workflow, /api\/delivery-offers/);
+  assert.match(workflow, /api\/coupons\/available/);
+  assert.match(workflow, /api\/checkout\/quote/);
 });
