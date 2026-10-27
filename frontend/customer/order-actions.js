@@ -14,15 +14,28 @@
         try {
           const api = request(); if (!api) throw new Error('Order actions are temporarily unavailable.');
           const result = await api('/api/orders/' + encodeURIComponent(orderId) + '/cancel', { method:'POST', body:JSON.stringify({ reason:'Requested by customer' }) });
-          if (result.request?.status === 'pending') feedback('Your cancellation request was sent. The order remains active until FreshWay confirms it.');
-          else feedback(result.message || 'Your order has been cancelled.');
-          document.dispatchEvent(new CustomEvent('freshway:order-actions-changed', { detail:{ orderId, action:'cancel' } }));
+          if (result.request?.status === 'pending') {
+            feedback('Cancellation request sent. The order stays active until FreshWay reviews it.');
+          } else if (String(result.status || '').toLowerCase() === 'cancelled' || result.alreadyCancelled) {
+            // Reflect a confirmed server cancellation immediately. A later order-list
+            // refresh must not put the old "New" state back if the GET request fails.
+            const state = window.state;
+            if (state && Array.isArray(state.orders)) {
+              state.orders = state.orders.map(order => String(order.id) === String(orderId)
+                ? { ...order, status:'Cancelled' } : order);
+              try { window.FreshWayCustomerStorage?.save?.(state); } catch (_) {}
+            }
+            feedback(result.alreadyCancelled ? 'This order is already cancelled.' : 'Order cancelled.');
+          } else {
+            throw new Error('FreshWay did not confirm the cancellation. Refresh My Orders and try again.');
+          }
+          document.dispatchEvent(new CustomEvent('freshway:order-actions-changed', { detail:{ orderId, action:'cancel', silentError:true } }));
         } catch (error) {
           feedback(error?.message || 'Could not cancel this order. Refresh and try again.');
           // The server is authoritative. If Owner changed the order after this
           // screen loaded, refresh the card so status, payment and delivery date
           // immediately match the latest order state.
-          document.dispatchEvent(new CustomEvent('freshway:order-actions-changed', { detail:{ orderId, action:'refresh' } }));
+          document.dispatchEvent(new CustomEvent('freshway:order-actions-changed', { detail:{ orderId, action:'refresh', silentError:true } }));
         }
         finally { if (cancel.isConnected) cancel.disabled = false; }
         return;
