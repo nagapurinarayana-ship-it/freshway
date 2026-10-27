@@ -123,6 +123,10 @@ async function createOrder(env, payload, ctx) {
     }
     if (/DELIVERY_SLOT_FULL|DELIVERY_SLOT_CLOSED/i.test(error?.message || '')) throw new Error('That delivery window just filled. Choose another available time window.');
     if (/DELIVERY_STORE_STOCK_LOW/i.test(error?.message || '')) throw new Error('The selected store can no longer fulfil the full basket. Refresh delivery availability and try again.');
+    if (/COUPON_CHANGED/i.test(error?.message || '')) throw new Error('COUPON_CONFLICT: Coupon eligibility changed while checking out. Review the offer and try again.');
+    if (/COUPON_MAX_REDEMPTIONS_REACHED/i.test(error?.message || '')) throw new Error('COUPON_LIMIT: This coupon has reached its usage limit. Choose another offer.');
+    if (/COUPON_CUSTOMER_LIMIT_REACHED/i.test(error?.message || '')) throw new Error('COUPON_LIMIT: You have already used this coupon the maximum allowed number of times.');
+    if (/COUPON_FIRST_ORDER_ONLY|COUPON_FIRST_ORDER_USED/i.test(error?.message || '')) throw new Error('COUPON_LIMIT: This coupon is for first orders only.');
     if (/stock_quantity/i.test(error?.message || '')) throw new Error('Stock changed while you were checking out. Please refresh your cart and try again.');
     throw error;
   }
@@ -372,4 +376,4 @@ if(url.pathname.startsWith('/api/admin/products/')&&request.method==='PATCH'){if
 if(url.pathname==='/api/admin/notifications/history'&&request.method==='GET'){if(!auth(request,env))return json({notifications:await notificationHistory(env)},200,cors)}
 if(url.pathname==='/api/notifications/broadcast'&&request.method==='POST'){if(!auth(request,env))return json({error:'Unauthorized'},401,cors);const payload=await body(request),channels=Array.isArray(payload.channels)?payload.channels:[];if(!channels.length)return json({error:'Select at least one notification channel.'},400,cors);if(channels.some(channel=>!['app','whatsapp'].includes(channel)))return json({error:'Invalid notification channel.'},400,cors);const results=[];if(channels.includes('app'))results.push(await broadcastPush(env,payload));if(channels.includes('whatsapp'))results.push(await broadcastWhatsApp(env,payload));return json({results},200,cors)}
 return json({error:'Not found'},404,cors);
-}catch(error){const message=error?.message||'Unexpected server error.';const status=/^ORDER_CONFLICT:/.test(message)?409:/Unauthorized/i.test(message)?401:/required|invalid|empty|available|maximum|cannot|not found|no order|no product|only after/i.test(message)?400:500;return json({error:message.replace(/^ORDER_CONFLICT:\s*/, '')},status,cors)}}};
+}catch(error){const message=error?.message||'Unexpected server error.';const couponConflict=/^(?:COUPON_CONFLICT|COUPON_LIMIT):/.test(message)||/COUPON_(?:CHANGED|MAX_REDEMPTIONS_REACHED|CUSTOMER_LIMIT_REACHED|FIRST_ORDER_ONLY|FIRST_ORDER_USED)/i.test(message);const status=/^ORDER_CONFLICT:/.test(message)||couponConflict?409:/Unauthorized/i.test(message)?401:/required|invalid|empty|available|maximum|cannot|not found|no order|no product|only after|first.order|already used|usage limit|coupon code|coupon is|coupon has|coupon eligibility/i.test(message)?400:500;return json({error:message.replace(/^(?:ORDER_CONFLICT|COUPON_CONFLICT|COUPON_LIMIT):\s*/, '')},status,cors)}}};
