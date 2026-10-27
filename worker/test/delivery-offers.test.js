@@ -327,9 +327,9 @@ test('Owner delivery-offers routes are wired through the authenticated session g
     assert.equal((await couponList.json()).coupons[0].code,'FIXED50');
 
     db.prepare(`INSERT INTO orders(id,customer_id,total,delivery_status,customer_name,customer_phone,items_subtotal,delivery_fee,coupon_id,coupon_code,coupon_discount,pricing_breakdown_known)
-      VALUES ('owner-route-order','customer-1',80,'New','Owner Route Test','9999999999',100,30,?,'FIXED50',50,1)`).bind(created.coupon.id).run();
+      VALUES ('owner-route-order','customer-1',80,'New','Owner Route Test','9999999999',100,30,?,'FIXED50',50,1)`).run(created.coupon.id);
     db.prepare(`INSERT INTO coupon_redemptions(id,coupon_id,customer_id,order_id,code_snapshot,discount_amount)
-      VALUES ('owner-route-redemption',?,'customer-1','owner-route-order','FIXED50',50)`).bind(created.coupon.id).run();
+      VALUES ('owner-route-redemption',?,'customer-1','owner-route-order','FIXED50',50)`).run(created.coupon.id);
 
     const history=await adminAuth.fetch(
       new Request('https://freshway.example/api/admin/coupons/'+created.coupon.id+'/redemptions',{headers:{Cookie:cookie}}),
