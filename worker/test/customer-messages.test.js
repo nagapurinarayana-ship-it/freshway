@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   createCustomerMessage,
   listCustomerMessages,
@@ -64,6 +65,8 @@ function fakeEnv(options = {}) {
           calls.push({ sql: this.sql, args: this.args, method: 'run' });
           if (/INSERT INTO notification_events/i.test(this.sql)) return { meta: { changes: 1 } };
           if (/UPDATE notification_events/i.test(this.sql)) return { meta: { changes: 1 } };
+          if (/UPDATE customer_messages SET reply_seen_at/i.test(this.sql)) return { meta: { changes: 2 } };
+          if (/UPDATE order_action_requests SET reply_seen_at/i.test(this.sql)) return { meta: { changes: 1 } };
           return { meta: { changes: 0 } };
         },
         async first() {
@@ -141,7 +144,7 @@ test('unread reply count combines general-message and order-help replies and mar
   assert.equal(await unreadCustomerMessageCount(env, CUSTOMER_ID), 3);
   const result = await markCustomerMessagesRead(env, CUSTOMER_ID);
   assert.equal(result.ok, true);
-  assert.equal(result.markedRead, 0);
+  assert.equal(result.markedRead, 3);
   const readStatements = env.calls.filter(call => call.method === 'batch');
   assert.equal(readStatements.length, 1);
   const callsToRead = env.calls.filter(call => /UPDATE (customer_messages|order_action_requests) SET reply_seen_at/i.test(call.sql || ''));
@@ -205,4 +208,23 @@ test('customer message route rejects unsupported methods and creates a message t
   }), env, CUSTOMER_ID);
   assert.equal(posted.status, 201);
   assert.equal(posted.data.ok, true);
+});
+
+test('migration adds the inbox, reply tracking, retention indexes, and no order deletion', () => {
+  const migration = readFileSync(new URL('../migrations/0042_customer_messages.sql', import.meta.url), 'utf8');
+  for (const required of [
+    'CREATE TABLE IF NOT EXISTS customer_messages',
+    'customer_id TEXT NOT NULL',
+    'message TEXT NOT NULL',
+    'admin_reply TEXT',
+    'reply_seen_at TEXT',
+    "DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now','+90 days'))",
+    'ALTER TABLE order_action_requests ADD COLUMN admin_reply TEXT',
+    'ALTER TABLE order_action_requests ADD COLUMN replied_at TEXT',
+    'ALTER TABLE order_action_requests ADD COLUMN reply_seen_at TEXT',
+    'idx_customer_messages_customer_created',
+    'idx_customer_messages_status_created',
+    'idx_customer_messages_expires'
+  ]) assert.ok(migration.includes(required), 'migration must include: ' + required);
+  assert.doesNotMatch(migration, /DROP TABLE|DELETE FROM orders|DELETE FROM customers/i, 'messaging migration must not remove existing customer or order data');
 });
