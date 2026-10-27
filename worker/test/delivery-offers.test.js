@@ -205,6 +205,9 @@ test('Owner coupon UI exposes and requests redemption history', () => {
   const ownerUi=readFileSync(new URL('../../frontend/admin/delivery-offers.js',import.meta.url),'utf8');
   assert.match(ownerUi,/unsavedCoupon=false;\s*loading=false;\s*render\(\);/,'successful load must clear the loading flag before rendering so Refresh is enabled again');
   assert.match(ownerUi,/data-fw-coupon-history/);
+  assert.match(ownerUi,/data-fw-submit-coupon/,'Create Coupon must have an explicit click action rather than relying only on implicit form submission');
+  assert.match(ownerUi,/couponForm\?\.addEventListener\('submit',saveCoupon\)/,'the rendered coupon form must directly handle submission after each render');
+  assert.match(ownerUi,/couponForm\.requestSubmit\(\)/,'the Create Coupon action must trigger native validation and the form submit handler');
   assert.match(ownerUi,/redemptions/);
   assert.match(ownerUi,/function settingsPreviewText\(source\)/,'delivery preview must reflect whether the threshold is enabled');
   assert.match(ownerUi,/Free-delivery threshold is off/,'the preview must not promise free delivery when the toggle is off');
