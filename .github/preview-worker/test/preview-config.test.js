@@ -88,7 +88,7 @@ test('isolated preview workflow applies the current offers migration and exercis
 
 test('isolated preview workflow Bash blocks are syntactically valid', () => {
   const workflow = readFileSync(new URL('../../workflows/preview-worker.yml', import.meta.url), 'utf8');
-  const lines = workflow.split(/\\r?\\n/);
+  const lines = workflow.split(/\r?\n/);
   const stepNames = [
     'Initialize isolated preview D1 baseline and apply feature migration 0043',
     'Smoke-test authenticated Delivery & Offers APIs, checkout, redemption limits, and idempotency'
@@ -111,7 +111,7 @@ test('isolated preview workflow Bash blocks are syntactically valid', () => {
     }
     assert.ok(scriptLines.length > 0, 'run script should not be empty: ' + name);
 
-    const parsed = spawnSync('bash', ['-n'], { input: scriptLines.join('\\n'), encoding: 'utf8' });
+    const parsed = spawnSync('bash', ['-n'], { input: scriptLines.join('\n'), encoding: 'utf8' });
     assert.equal(parsed.status, 0, 'invalid Bash syntax in "' + name + '": ' + (parsed.stderr || parsed.stdout || 'unknown parse error'));
   }
 });
