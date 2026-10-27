@@ -340,7 +340,7 @@ jobs:
           delivery_date="$(TZ=Asia/Kolkata date -d "$today +1 day" +%F)"
 
           cleanup_preview_integration() {
-            npx wrangler d1 execute freshway-preview --remote --command "DELETE FROM first_order_coupon_claims WHERE customer_id IN (SELECT id FROM customers WHERE phone='91$customer_phone'); DELETE FROM coupon_redemptions WHERE customer_id IN (SELECT id FROM customers WHERE phone='91$customer_phone'); DELETE FROM orders WHERE customer_id IN (SELECT id FROM customers WHERE phone='91$customer_phone'); DELETE FROM addresses WHERE customer_id IN (SELECT id FROM customers WHERE phone='91$customer_phone'); DELETE FROM customers WHERE phone='91$customer_phone'; DELETE FROM coupons WHERE code='$coupon_code' COLLATE NOCASE; DELETE FROM products WHERE id='$product_id'; DELETE FROM auth_rate_limits WHERE key='auth:register:phone:91$customer_phone'" --config "$config" >/dev/null 2>&1 || true
+            npx wrangler d1 execute freshway-preview --remote --command "DELETE FROM first_order_coupon_claims WHERE customer_id IN (SELECT id FROM customers WHERE phone='91$customer_phone'); DELETE FROM coupon_redemptions WHERE customer_id IN (SELECT id FROM customers WHERE phone='91$customer_phone'); DELETE FROM orders WHERE customer_id IN (SELECT id FROM customers WHERE phone='91$customer_phone'); DELETE FROM addresses WHERE customer_id IN (SELECT id FROM customers WHERE phone='91$customer_phone'); DELETE FROM customers WHERE phone='91$customer_phone'; DELETE FROM coupons WHERE code COLLATE NOCASE IN ('$coupon_code','$first_order_code'); DELETE FROM products WHERE id='$product_id'; DELETE FROM auth_rate_limits WHERE key='auth:register:phone:91$customer_phone'" --config "$config" >/dev/null 2>&1 || true
           }
           trap cleanup_preview_integration EXIT
 
@@ -437,9 +437,36 @@ jobs:
             -d "$second_payload" "$base_url/api/orders")"
           if [ "$second_status" != "400" ]; then
             cat "$RUNNER_TEMP/freshway-preview-second-order.json"
-            echo "Expected first-order coupon reuse to return HTTP 400; got $second_status."
+            echo "Expected the second redemption to be rejected with HTTP 400; got $second_status."
             exit 1
           fi
+          node --input-type=module - "$RUNNER_TEMP/freshway-preview-second-order.json" <<'NODE'
+          import fs from 'node:fs';
+          const error = JSON.parse(fs.readFileSync(process.argv[2], 'utf8')).error || '';
+          if (!/already used this coupon/i.test(error)) {
+            throw new Error('Second checkout did not enforce the per-customer coupon limit: ' + error);
+          }
+          NODE
+
+          # This separate coupon has no redemption cap. It must be rejected specifically
+          # because the customer already has an order, proving the first-order rule.
+          first_order_quote="{\\"items\\":[{\\"id\\":\\"$product_id\\",\\"qty\\":2}],\\"couponCode\\":\\"$first_order_code\\"}"
+          first_order_status="$(curl --silent --show-error --max-time 30 \\
+            --cookie "$customer_cookie" -H "Content-Type: application/json" \\
+            -o "$RUNNER_TEMP/freshway-preview-first-order-quote.json" -w '%{http_code}' \\
+            -d "$first_order_quote" "$base_url/api/checkout/quote")"
+          if [ "$first_order_status" != "400" ]; then
+            cat "$RUNNER_TEMP/freshway-preview-first-order-quote.json"
+            echo "Expected first-order-only coupon rejection with HTTP 400; got $first_order_status."
+            exit 1
+          fi
+          node --input-type=module - "$RUNNER_TEMP/freshway-preview-first-order-quote.json" <<'NODE'
+          import fs from 'node:fs';
+          const error = JSON.parse(fs.readFileSync(process.argv[2], 'utf8')).error || '';
+          if (!/first orders only/i.test(error)) {
+            throw new Error('Checkout quote did not enforce first-order eligibility: ' + error);
+          }
+          NODE
 
           # Inspect the actual D1 rows, including the saved pricing snapshot and both
           # redemption/first-order claim uniqueness guards.
@@ -464,19 +491,24 @@ jobs:
           }
           NODE
 
-          node --input-type=module - "$RUNNER_TEMP/freshway-preview-status.json" "$RUNNER_TEMP/freshway-preview-offers.json" "$RUNNER_TEMP/freshway-preview-coupons.json" "$RUNNER_TEMP/freshway-owner-create-coupon.json" "$RUNNER_TEMP/freshway-owner-coupons.json" "$RUNNER_TEMP/freshway-customer-session.json" <<'NODE'
+          node --input-type=module - "$RUNNER_TEMP/freshway-preview-status.json" "$RUNNER_TEMP/freshway-preview-offers.json" "$RUNNER_TEMP/freshway-preview-coupons.json" "$RUNNER_TEMP/freshway-owner-create-coupon.json" "$RUNNER_TEMP/freshway-owner-create-first-order-coupon.json" "$RUNNER_TEMP/freshway-owner-coupons.json" "$RUNNER_TEMP/freshway-customer-session.json" "$coupon_code" "$first_order_code" <<'NODE'
           import fs from 'node:fs';
           const read = path => JSON.parse(fs.readFileSync(path, 'utf8'));
           const status = read(process.argv[2]);
           const offers = read(process.argv[3]);
           const available = read(process.argv[4]);
           const created = read(process.argv[5]);
-          const adminCoupons = read(process.argv[6]);
-          const session = read(process.argv[7]);
+          const firstOrderCreated = read(process.argv[6]);
+          const adminCoupons = read(process.argv[7]);
+          const session = read(process.argv[8]);
+          const mainCode = process.argv[9];
+          const firstOrderCode = process.argv[10];
+          const couponList = adminCoupons.coupons || [];
           if (status.ok !== true || !status.version) throw new Error('Preview Worker status endpoint is unhealthy.');
           if (!offers.settings || typeof offers.settings.freeDeliveryEnabled !== 'boolean') throw new Error('Delivery settings API did not read from D1.');
           if (!Array.isArray(available.coupons)) throw new Error('Available coupon API returned an invalid payload.');
-          if (created.coupon?.code !== adminCoupons.coupons?.find(item => item.code === created.coupon.code)?.code) throw new Error('Owner coupon creation was not visible in the subsequent list query.');
+          if (created.coupon?.code !== mainCode || firstOrderCreated.coupon?.code !== firstOrderCode) throw new Error('Owner coupon creation returned an unexpected code.');
+          if (!couponList.some(item => item.code === mainCode) || !couponList.some(item => item.code === firstOrderCode)) throw new Error('Owner coupon list did not reflect both saved coupons.');
           if (session.ok !== true || !session.customerId) throw new Error('Customer session could not be re-read after registration.');
-          console.log('Passed: Owner auth/coupon CRUD, customer auth, quote, checkout, idempotent retry, first-order limit, and D1 pricing/redemption audit.');
+          console.log('Passed: Owner login/coupon management, customer auth, quote, checkout, idempotent retry, per-customer and first-order safeguards, and D1 pricing/redemption audit.');
           NODE
