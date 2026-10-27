@@ -361,6 +361,10 @@ jobs:
             -d "{\"code\":\"$coupon_code\",\"title\":\"Preview fixed coupon\",\"discountAmount\":25,\"startsOn\":\"$today\",\"endsOn\":null,\"maxRedemptions\":10,\"perCustomerLimit\":1,\"firstOrderOnly\":true,\"active\":true}" \
             "$base_url/api/admin/coupons" > "$RUNNER_TEMP/freshway-owner-create-coupon.json"
           curl --fail --silent --show-error --max-time 30 \
+            --cookie "$owner_cookie" -H "Content-Type: application/json" \
+            -d "{\"code\":\"$first_order_code\",\"title\":\"Preview first-order coupon\",\"discountAmount\":10,\"startsOn\":\"$today\",\"endsOn\":null,\"maxRedemptions\":null,\"perCustomerLimit\":null,\"firstOrderOnly\":true,\"active\":true}" \
+            "$base_url/api/admin/coupons" > "$RUNNER_TEMP/freshway-owner-create-first-order-coupon.json"
+          curl --fail --silent --show-error --max-time 30 \
             --cookie "$owner_cookie" "$base_url/api/admin/coupons" > "$RUNNER_TEMP/freshway-owner-coupons.json"
 
           # Register a throwaway customer through the actual customer API. Registration
