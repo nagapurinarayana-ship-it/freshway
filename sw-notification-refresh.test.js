@@ -62,7 +62,9 @@ async function dispatchPush(payload) {
   const index = fs.readFileSync('index.html', 'utf8');
   assert.match(app, /freshway:order-updated/);
   assert.match(app, /customerOrderData\.load\(\)/);
-  assert.match(index, /app\.js\?v=20261027-cancel-refresh-v1/);
+  assert.match(index, /app\.js\?v=20261027-checkout-ux-v2/);
+  assert.match(index, /frontend\/customer\/orders-data\.js\?v=20261027-checkout-ux-v2/);
+  assert.match(index, /frontend\/customer\/cart-bar\.js\?v=20261027-checkout-ux-v2/);
   console.log('customer push-to-order-refresh tests passed');
 })().catch(error => {
   console.error(error);
