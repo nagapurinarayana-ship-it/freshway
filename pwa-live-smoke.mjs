@@ -12,8 +12,8 @@ const CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?v=msg1';
 const INTERMEDIATE_CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?v=20261027-customer-messages-v1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261027-checkout-ux-v2';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v92';
-const LEGACY_CUSTOMER_CACHES = ['freshway-v91', 'freshway-v90'];
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v93';
+const LEGACY_CUSTOMER_CACHES = ['freshway-v92', 'freshway-v91'];
 const SUPPORTED_CUSTOMER_CACHES = [EXPECTED_CUSTOMER_CACHE, ...LEGACY_CUSTOMER_CACHES];
 const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261024-native-install-v1';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -137,7 +137,7 @@ async function waitForFullImageFitAssets(base) {
         assert.ok(sw.includes(messagesPath), 'new customer service worker must include the Messages screen asset');
         assert.ok(sw.includes(storeInfoPath), 'new customer service worker must include the current Contact Us module');
       }
-      assert.ok(sw.includes('if (cached && isVersionedCode) return cached'), 'versioned customer code should use a cache hit without a network request');
+      assert.ok(sw.includes('if (isVersionedCode)') && sw.includes('return cached||Response.error()'), 'versioned customer code must refresh from network first and fall back to cache only offline');
       assertCurrentScriptReference(indexHtml, indexResponse.url, appPath, 'production home');
       if (usesCustomerMessages) {
         assertCurrentScriptReference(indexHtml, indexResponse.url, messagesPath, 'production home');
@@ -332,7 +332,7 @@ async function verifyCustomDomain() {
     assert.ok(sw.includes(customMessagesPath), 'new custom-domain service worker must include the Messages screen asset');
     assert.ok(sw.includes(customStoreInfoPath), 'new custom-domain service worker must include the current Contact Us module');
   }
-  assert.ok(sw.includes('if (cached && isVersionedCode) return cached'), 'custom-domain service worker must use versioned cache hits');
+  assert.ok(sw.includes('if (isVersionedCode)') && sw.includes('return cached||Response.error()'), 'custom-domain service worker must refresh versioned assets from network before cache fallback');
   assert.equal(new URL(homeResponse.url).origin, customBase, 'home must remain on the custom domain');
   assert.match(homeHtml, /<link rel="canonical" href="https:\/\/fwcoldpressed\.in\/">/, 'custom-domain canonical URL must use the production domain');
   assert.match(homeHtml, /property="og:url" content="https:\/\/fwcoldpressed\.in\//, 'Open Graph URL must use the production domain');
