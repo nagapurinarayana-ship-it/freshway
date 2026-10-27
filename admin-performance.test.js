@@ -35,13 +35,14 @@ assert.doesNotMatch(html,/admin\.js\?v=20261027-customer-messages-v1/,'Owner HTM
 assert.doesNotMatch(html,/\.exact-location/);
 
 assert.match(sw,/const CACHE = 'freshway-v\d+'/);
-assert.match(sw,/const cached = await cache\.match\(event\.request\)/);
+assert.match(sw,/const cached=await cache\.match\(event\.request\)/);
 assert.match(sw,/event\.waitUntil\(update\.catch\(\(\) => undefined\)\)/);
 assert.match(sw,/url\.pathname === '\/admin\.html' \|\| url\.pathname\.startsWith\('\/admin\/'\)/);
 assert.match(sw,/keys\.filter\(key => key\.startsWith\('freshway-'\) && key !== CACHE\)/);
 assert.doesNotMatch(sw,/\/admin\.css\?v=/);
 assert.doesNotMatch(sw,/\/admin\.js\?v=/);
-assert.match(sw,/if \(cached && isVersionedCode\) return cached/);
+assert.match(sw,/if \(isVersionedCode\)/,'versioned assets must prefer a network response over a cached legacy script');
+assert.match(sw,/return cached\|\|Response\.error\(\)/,'a cached asset should only be used when the network fails');
 assert.match(sw,/if \(cached\) \{/);
 assert.doesNotMatch(sw,/cached && !freshCode/);
 assert.match(sw,/cache: 'no-store'/);
