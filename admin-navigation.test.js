@@ -15,6 +15,7 @@ assert.match(source,/const s=e\.target\.closest\('\[data-screen\]'\);if\(s\)\{e\
   'Owner navigation clicks must use the modern screen handler');
 assert.match(source,/window\.navigateAdminScreen\(requested,\{historyMode:'none'\}\)/,
   'browser back/forward must use the same screen handler without adding history entries');
+assert.match(html,/frontend\/admin\/catalogue\.js\?v=20261027-modern-catalogue-navigation-v1/,'Owner app must load the current Catalogue navigation module');
 assert.match(catalogue,/window\.navigateAdminScreen=function\(id,options\)\{const result=baseNavigate\(id,options\);if\(id==='catalogue'\)/,
   'the modern Catalogue handler must preserve browser history options');
 assert.match(source,/const current=document\.querySelector\('\.screen\.active'\)/,'back navigation must remember the currently visible Owner screen before asking to discard changes');
