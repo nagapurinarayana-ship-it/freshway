@@ -147,18 +147,26 @@ export async function markCustomerMessagesRead(env, customerId) {
 
 export async function listAdminCustomerMessages(env, statusValue = 'pending') {
   const status = ['pending','replied','all'].includes(statusValue) ? statusValue : 'pending';
-  const [general, orderRequests, generalCounts, orderCounts] = await Promise.all([
-    env.DB.prepare(`SELECT id,customer_name,customer_phone_last4,subject,message,status,admin_reply,created_at,updated_at,replied_at,
+  const limit = status === 'all' ? 200 : 100;
+  const generalSql = `SELECT id,customer_name,customer_phone_last4,subject,message,status,admin_reply,created_at,updated_at,replied_at,
       'message' AS source,NULL AS order_id
-      FROM customer_messages ORDER BY created_at DESC LIMIT 200`).all(),
-    env.DB.prepare(`SELECT r.id,r.customer_id,c.name AS customer_name,substr(c.phone,-4) AS customer_phone_last4,
+      FROM customer_messages ${status === 'all' ? '' : 'WHERE status=?'}
+      ORDER BY created_at DESC LIMIT ${limit}`;
+  const orderStatusWhere = status === 'pending'
+    ? "AND (r.admin_reply IS NULL OR trim(r.admin_reply)='') AND r.status IN ('pending','approved')"
+    : status === 'replied'
+      ? "AND r.admin_reply IS NOT NULL AND trim(r.admin_reply)<>''"
+      : "AND (r.status IN ('pending','approved') OR r.admin_reply IS NOT NULL)";
+  const orderSql = `SELECT r.id, c.name AS customer_name, substr(c.phone,-4) AS customer_phone_last4,
       ('Order help · ' || r.order_id) AS subject,r.reason AS message,
       CASE WHEN r.admin_reply IS NULL OR trim(r.admin_reply)='' THEN 'pending' ELSE 'replied' END AS status,
       r.admin_reply,r.created_at,r.updated_at,r.replied_at,'order_request' AS source,r.order_id
       FROM order_action_requests r LEFT JOIN customers c ON c.id=r.customer_id
-      WHERE r.request_type='issue' AND r.created_at >= datetime('now','-90 days')
-        AND (r.status IN ('pending','approved') OR r.admin_reply IS NOT NULL)
-      ORDER BY r.created_at DESC LIMIT 200`).all(),
+      WHERE r.request_type='issue' AND r.created_at >= datetime('now','-90 days') ${orderStatusWhere}
+      ORDER BY r.created_at DESC LIMIT ${limit}`;
+  const [general, orderRequests, generalCounts, orderCounts] = await Promise.all([
+    (status === 'all' ? env.DB.prepare(generalSql) : env.DB.prepare(generalSql).bind(status)).all(),
+    env.DB.prepare(orderSql).all(),
     env.DB.prepare('SELECT status,COUNT(*) AS total FROM customer_messages GROUP BY status').all(),
     env.DB.prepare(`SELECT CASE WHEN admin_reply IS NULL OR trim(admin_reply)='' THEN 'pending' ELSE 'replied' END AS status,COUNT(*) AS total
       FROM order_action_requests WHERE request_type='issue' AND created_at >= datetime('now','-90 days')
@@ -169,8 +177,7 @@ export async function listAdminCustomerMessages(env, statusValue = 'pending') {
   for (const row of [...(generalCounts.results || []), ...(orderCounts.results || [])]) {
     if (Object.prototype.hasOwnProperty.call(summary, row.status)) summary[row.status] += Number(row.total || 0);
   }
-  const messages = allMessages.filter(row=>status==='all'||row.status===status)
-    .sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime()).slice(0,100);
+  const messages = allMessages.sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime()).slice(0,100);
   return { messages, summary, status };
 }
 
