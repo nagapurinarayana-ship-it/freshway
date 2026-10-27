@@ -64,6 +64,8 @@ test('customer cancellation atomically releases stock and slot reservations and 
   const db=new SQLiteD1();
   try {
     db.seedOrder('order-cancel');
+    db.db.prepare("INSERT INTO order_action_requests (id,order_id,customer_id,request_type,reason,status) VALUES (?,?,?,?,?,'pending')")
+      .run('old-cancel-request','order-cancel','customer-1','cancellation','Legacy queued request');
     const response=await handleCustomerDeliveryRequest(new Request(
       'https://api.example.test/api/orders/order-cancel/cancel',
       {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({reason:'Customer changed their mind'})}
@@ -80,6 +82,10 @@ test('customer cancellation atomically releases stock and slot reservations and 
     assert.equal(audit.actor_type,'customer');
     assert.equal(audit.actor_id,'customer-1');
     assert.equal(audit.reason,'Customer changed their mind');
+    const oldRequest=db.db.prepare("SELECT status,resolution_note,resolved_by FROM order_action_requests WHERE id='old-cancel-request'").get();
+    assert.equal(oldRequest.status,'rejected');
+    assert.equal(oldRequest.resolved_by,'customer');
+    assert.match(oldRequest.resolution_note,/cancelled directly by the customer/i);
     assert.deepEqual(db.db.prepare('PRAGMA foreign_key_check').all(),[]);
   } finally { db.close(); }
 });

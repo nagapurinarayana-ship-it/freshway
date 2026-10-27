@@ -79,7 +79,8 @@
             if(!pending.silentError)toast('Your sign-in has expired. Sign in again to view orders.');
           }else{
             renderOrders(state.orders);
-            if(state.orders.length&&!pending.silentError){
+            const ordersViewActive=!!document?.querySelector('#ordersView.active-view');
+            if(state.orders.length&&!pending.silentError&&(options.showError===true||ordersViewActive)){
               const authFailure=isAuthFailure(error);
               toast(authFailure
                 ? 'Your sign-in needs refreshing. Sign in again to load current orders.'
