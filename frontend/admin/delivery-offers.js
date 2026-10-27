@@ -108,6 +108,7 @@
     const settingsIds=['#fwFreeDeliveryEnabled','#fwFreeDeliveryThreshold','#fwStandardDeliveryFee'];
     settingsIds.forEach(selector=>$(selector)?.addEventListener('input',markSettingsEdited));
     $('#fwCouponForm')?.addEventListener('input',markCouponEdited);
+    $('#fwCouponForm')?.addEventListener('submit',saveCoupon);
   }
   async function load({preserveSettingsDraft=false}={}) {
     if (loading) return;
@@ -132,14 +133,16 @@
     if(!Number.isSafeInteger(next.freeDeliveryThreshold)||next.freeDeliveryThreshold<0||next.freeDeliveryThreshold>1000000){status('Enter a whole-rupee free-delivery threshold between ₹0 and ₹1,000,000.',true);return;}
     if(!Number.isSafeInteger(next.standardDeliveryFee)||next.standardDeliveryFee<0||next.standardDeliveryFee>100000){status('Enter a whole-rupee delivery fee between ₹0 and ₹100,000.',true);return;}
     saving=true;
-    const button=$('[data-fw-save-settings]');if(button)button.disabled=true;
+    const button=$('[data-fw-save-settings]');
+    if(button){button.disabled=true;button.textContent='Saving…';}
+    status('Saving delivery settings…');
     try{
       const result=await api('/admin/delivery-offers',{method:'PATCH',body:JSON.stringify(next)});
       settings=result.settings||next;settingsDraft=null;unsavedSettings=false;loadedSnapshot=JSON.stringify(settings);
       updateSettingsPreview();
       status(unsavedCoupon?'Delivery settings saved. Coupon changes are still unsaved.':'Delivery settings saved. New orders will use these settings.');
     }catch(error){status(error.message||'Could not save delivery settings.',true);}
-    finally{saving=false;const current=$('[data-fw-save-settings]');if(current)current.disabled=false;}
+    finally{saving=false;const current=$('[data-fw-save-settings]');if(current){current.disabled=false;current.textContent='Save delivery settings';}}
   }
   function formPayload(form) {
     const data=new FormData(form);
@@ -164,7 +167,9 @@
     const inline=form.querySelector('[data-fw-coupon-form-status]');
     if(payload.endsOn&&payload.endsOn<payload.startsOn){if(inline)inline.textContent='Expiry date must be on or after the start date.';return;}
     saving=true;
-    const button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;
+    const button=form.querySelector('button[type="submit"]');
+    if(button){button.disabled=true;button.textContent='Saving…';}
+    if(inline){inline.textContent='Saving coupon…';inline.dataset.error='false';}
     try {
       const path=editingId?'/admin/coupons/'+encodeURIComponent(editingId):'/admin/coupons';
       await api(path,{method:editingId?'PATCH':'POST',body:JSON.stringify(payload)});
@@ -177,7 +182,11 @@
       else status('Coupon saved successfully.');
     } catch(error) {
       if(inline){inline.textContent=error.message||'Could not save coupon.';inline.dataset.error='true';}
-    } finally {saving=false; const currentButton=$('#fwCouponForm button[type="submit"]');if(currentButton)currentButton.disabled=false;}
+    } finally {
+      saving=false;
+      const currentButton=$('#fwCouponForm button[type="submit"]');
+      if(currentButton){currentButton.disabled=false;currentButton.textContent=editingId?'Save coupon':'Create coupon';}
+    }
   }
   root.addEventListener('click',async event=>{
     if(event.target.closest('[data-fw-refresh]')){if(hasUnsavedChanges()&&!confirm('Discard unsaved Delivery & Offers changes?'))return;unsavedSettings=false;unsavedCoupon=false;settingsDraft=null;editingId=null;await load();return;}
@@ -219,7 +228,6 @@
       catch(error){status(error.message||'Could not update coupon.',true);toggle.disabled=false;}
     }
   });
-  root.addEventListener('submit',event=>{if(event.target?.id==='fwCouponForm')void saveCoupon(event);});
   window.addEventListener('beforeunload',event=>{if(!hasUnsavedChanges())return;event.preventDefault();event.returnValue='';});
   function beforeNavigate(){
     if(!hasUnsavedChanges())return true;
