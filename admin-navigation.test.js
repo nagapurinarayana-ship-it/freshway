@@ -16,3 +16,17 @@ assert.ok(html.indexOf('admin.js?v=20261027-customer-messages-v1') < html.indexO
   'the regression test should cover the real script-loading order');
 assert.match(html,/id="accountDeletionSummary"/);
 console.log('owner navigation history and safe initial settings bootstrap OK');
+
+// Keep the Owner UI calm by default; secondary tools and advanced order filters stay tucked away.
+assert.match(html, /class="owner-nav-more"/);
+assert.match(html, /data-screen="overview"[\\s\\S]*?data-screen="orders"[\\s\\S]*?data-screen="catalogue"[\\s\\S]*?data-screen="customers"/);
+assert.match(html, /<details class="panel business-panel">/);
+assert.match(html, /<details class="panel home-preview" open>/);
+assert.match(html, /<details class="panel home-preview">/);
+assert.match(html, /id="orderAdvancedFilters" class="order-advanced-filters"/);
+assert.match(html, /id="orderPayment"/);
+assert.match(html, /id="orderPlan"/);
+assert.match(html, /id="orderSort"/);
+assert.match(html, /id="mobileMoreBtn"/);
+assert.match(html, /<details open><summary>Operations<\\/summary>/);
+console.log('Owner UI defaults to core tasks, with secondary navigation and filters collapsed');
