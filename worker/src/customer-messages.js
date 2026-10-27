@@ -52,13 +52,13 @@ async function removeMessage(env, id) {
 }
 
 async function ensureRoom(env, customerId) {
-  const own = await env.DB.prepare('SELECT COUNT(*) AS total FROM customer_messages WHERE customer_id=?').bind(customerId).first();
+  const own = await env.DB.prepare("SELECT COUNT(*) AS total FROM customer_messages WHERE customer_id=? AND expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now')").bind(customerId).first();
   if (Number(own?.total || 0) >= CUSTOMER_MAX) {
-    const oldest = await env.DB.prepare("SELECT id FROM customer_messages WHERE customer_id=? AND status='replied' ORDER BY updated_at ASC LIMIT 1").bind(customerId).first();
+    const oldest = await env.DB.prepare("SELECT id FROM customer_messages WHERE customer_id=? AND status='replied' AND expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now') ORDER BY updated_at ASC LIMIT 1").bind(customerId).first();
     if (oldest?.id) await removeMessage(env, oldest.id);
     else problem('You have too many open messages. Please wait for FreshWay to reply before sending another.', 429);
   }
-  const all = await env.DB.prepare('SELECT COUNT(*) AS total FROM customer_messages').first();
+  const all = await env.DB.prepare("SELECT COUNT(*) AS total FROM customer_messages WHERE expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now')").first();
   if (Number(all?.total || 0) >= GLOBAL_MAX) {
     const rows = await env.DB.prepare("SELECT id FROM customer_messages WHERE status='replied' ORDER BY updated_at ASC LIMIT 100").all();
     const ids = (rows.results || []).map(row => row.id).filter(Boolean);
@@ -66,13 +66,14 @@ async function ensureRoom(env, customerId) {
       env.DB.prepare('DELETE FROM customer_messages WHERE id=?').bind(id),
       env.DB.prepare("DELETE FROM notification_events WHERE event_type IN ('customer_message_reply','customer_message_new') AND event_key LIKE ?").bind('customer-message:' + id + ':%')
     ]));
-    const after = await env.DB.prepare('SELECT COUNT(*) AS total FROM customer_messages').first();
+    const after = await env.DB.prepare("SELECT COUNT(*) AS total FROM customer_messages WHERE expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now')").first();
     if (Number(after?.total || 0) >= GLOBAL_MAX) problem('FreshWay support is busy. Please try again later.', 503);
   }
 }
 
 export async function createCustomerMessage(env, customerId, payloadValue) {
-  await cleanupExpiredCustomerMessages(env);
+  // Prune expired message rows on write; the hourly scheduled job also cleans notification history.
+  await env.DB.prepare("DELETE FROM customer_messages WHERE expires_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now')").run();
   const payload = asObject(payloadValue);
   const subjectRaw = String(payload.subject ?? '').trim();
   const messageRaw = String(payload.message ?? '').trim();
@@ -114,7 +115,7 @@ export async function listCustomerMessages(env, customerId) {
   const [general, orderRequests] = await Promise.all([
     env.DB.prepare(`SELECT id,subject,message,status,admin_reply,created_at,updated_at,replied_at,reply_seen_at,
       'message' AS source,NULL AS order_id
-      FROM customer_messages WHERE customer_id=? ORDER BY created_at DESC LIMIT 50`).bind(customerId).all(),
+      FROM customer_messages WHERE customer_id=? AND expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now') ORDER BY created_at DESC LIMIT 50`).bind(customerId).all(),
     env.DB.prepare(`SELECT r.id,('Order help · ' || r.order_id) AS subject,r.reason AS message,
       CASE WHEN r.admin_reply IS NULL OR trim(r.admin_reply)='' THEN 'pending' ELSE 'replied' END AS status,
       r.admin_reply,r.created_at,r.updated_at,r.replied_at,r.reply_seen_at,
@@ -150,7 +151,7 @@ export async function listAdminCustomerMessages(env, statusValue = 'pending') {
   const limit = status === 'all' ? 200 : 100;
   const generalSql = `SELECT id,customer_name,customer_phone_last4,subject,message,status,admin_reply,created_at,updated_at,replied_at,
       'message' AS source,NULL AS order_id
-      FROM customer_messages ${status === 'all' ? '' : 'WHERE status=?'}
+      FROM customer_messages WHERE expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now') ${status === 'all' ? '' : 'AND status=?'}
       ORDER BY created_at DESC LIMIT ${limit}`;
   const orderStatusWhere = status === 'pending'
     ? "AND (r.admin_reply IS NULL OR trim(r.admin_reply)='') AND r.status IN ('pending','approved')"
@@ -167,7 +168,7 @@ export async function listAdminCustomerMessages(env, statusValue = 'pending') {
   const [general, orderRequests, generalCounts, orderCounts] = await Promise.all([
     (status === 'all' ? env.DB.prepare(generalSql) : env.DB.prepare(generalSql).bind(status)).all(),
     env.DB.prepare(orderSql).all(),
-    env.DB.prepare('SELECT status,COUNT(*) AS total FROM customer_messages GROUP BY status').all(),
+    env.DB.prepare("SELECT status,COUNT(*) AS total FROM customer_messages WHERE expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now') GROUP BY status").all(),
     env.DB.prepare(`SELECT CASE WHEN admin_reply IS NULL OR trim(admin_reply)='' THEN 'pending' ELSE 'replied' END AS status,COUNT(*) AS total
       FROM order_action_requests WHERE request_type='issue' AND created_at >= datetime('now','-90 days')
       AND (status IN ('pending','approved') OR admin_reply IS NOT NULL) GROUP BY status`).all()
@@ -264,7 +265,6 @@ export async function handleAdminCustomerMessages(request, env) {
   const path = url.pathname;
   try {
     if (path === '/api/admin/customer-messages' && request.method === 'GET') {
-      await cleanupExpiredCustomerMessages(env);
       return { status: 200, data: await listAdminCustomerMessages(env, url.searchParams.get('status') || 'pending') };
     }
     const orderReplyMatch = path.match(/^\/api\/admin\/customer-messages\/order-requests\/([^/]+)\/reply$/i);
