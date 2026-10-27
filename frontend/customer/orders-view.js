@@ -10,28 +10,27 @@
   const deliveryClass=status=>terminalStatus(status).toLowerCase()||'ordered';
   const invoiceAction=(o,esc)=>{
     if(o.invoice?.number)return '<div class="invoice-actions"><button type="button" class="secondary-btn full invoice-download-btn" data-download-invoice="'+esc(o.id)+'"><span aria-hidden="true">↓</span> Download invoice (PDF)<small>Invoice '+esc(o.invoice.number)+'</small></button></div>';
-    const status=String(o.status||'').trim().toLowerCase();
-    if(status==='cancelled'||status==='canceled')return '<p class="muted invoice-pending">No invoice was issued for this cancelled order.</p>';
-    if(status==='delivered'||status==='out for delivery'||status==='dispatched')return '<p class="muted invoice-pending">No invoice is available for download yet. Contact FreshWay if you need help with a dispatched order.</p>';
-    return '<p class="muted invoice-pending">Your order is awaiting dispatch. The invoice PDF will be available here after dispatch.</p>';
+    return '';
   };
-  const indiaDate=value=>{
+  const friendlyDate=value=>{
     if(!value)return '';
-    const raw=String(value),date=new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw)?raw:raw.replace(' ','T')+'Z');
+    const raw=String(value).trim();
+    const dateOnly=/^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+    const date=dateOnly?new Date(Date.UTC(Number(dateOnly[1]),Number(dateOnly[2])-1,Number(dateOnly[3]))):new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw)?raw:raw.replace(' ','T')+'Z');
     if(Number.isNaN(date.getTime()))return raw.slice(0,10);
-    const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date),values={};
+    const parts=new Intl.DateTimeFormat('en-IN',{timeZone:dateOnly?'UTC':'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'}).formatToParts(date),values={};
     parts.forEach(part=>values[part.type]=part.value);
-    return values.year+'-'+values.month+'-'+values.day;
+    return values.day+' '+values.month+' '+values.year;
   };
   const scheduleText=o=>{
     const orderStatus=String(o.status||'').trim().toLowerCase();
     if(orderStatus==='cancelled'||orderStatus==='canceled')return '';
     if(orderStatus==='delivered'){
-      const deliveredDate=indiaDate(o.deliveredAt);
+      const deliveredDate=friendlyDate(o.deliveredAt);
       return deliveredDate?'Delivered on '+deliveredDate:'Delivered';
     }
     if(!o.scheduledDelivery?.date)return '';
-    const date=String(o.scheduledDelivery.date),start=String(o.scheduledDelivery.startTime||''),end=String(o.scheduledDelivery.endTime||'');
+    const date=friendlyDate(o.scheduledDelivery.date),start=String(o.scheduledDelivery.startTime||''),end=String(o.scheduledDelivery.endTime||'');
     return 'Delivery date: '+date+(start&&end?' · '+start+'–'+end:'');
   };
   const actions=(o,esc)=>{

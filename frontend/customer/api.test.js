@@ -48,7 +48,12 @@ function createApi(fetchImpl){
 
   {
     const api=createApi(async()=>({ok:false,status:500,json:async()=>({error:'Backend failed.'})}));
-    await assert.rejects(api.request('/api/test'),/Backend failed/);
+    await assert.rejects(api.request('/api/test'),error=>{
+      assert.match(error.message,/Backend failed/);
+      assert.equal(error.status,500);
+      assert.equal(error.code,'HTTP_ERROR');
+      return true;
+    });
   }
 
 

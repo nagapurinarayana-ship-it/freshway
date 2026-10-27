@@ -14,7 +14,9 @@
     if(totalEl)totalEl.textContent=money(value);
     if(badge){badge.textContent=n;if(typeof badge.setAttribute==='function')badge.setAttribute('aria-label',`${n} ${n===1?'item':'items'} in cart`);badge.classList.toggle('hidden',!n)}
     const ordersActive=!!document.querySelector('#ordersView.active-view');
-    if(bar){bar.classList.toggle('hidden',!n||ordersActive);document.documentElement.classList.toggle('fw-cart-bar-visible',n>0&&!ordersActive)}
+    const checkoutActive=!!document.querySelector('#checkoutView.active-view');
+    const showBar=n>0&&!ordersActive&&!checkoutActive;
+    if(bar){bar.classList.toggle('hidden',!showBar);document.documentElement.classList.toggle('fw-cart-bar-visible',showBar)}
     if(checkoutTotal)checkoutTotal.textContent=money(value);
   };
   window.FreshWayCustomerCartBar=Object.freeze({update});

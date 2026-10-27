@@ -412,18 +412,22 @@
       '<label>Delivery contact number<input id="fwAddrPhone" inputmode="tel" autocomplete="tel" maxlength="16" placeholder="10-digit mobile number"></label>' +
       '<div class="fw-address-form-grid">' +
       '<label>House / flat number<input id="fwAddrHouse" autocomplete="address-line1" maxlength="200" placeholder="Flat, house number"></label>' +
+      '<label>Area / colony<input id="fwAddrArea" maxlength="200" placeholder="Area / colony"></label>' +
+      '<label>City<input id="fwAddrCity" autocomplete="address-level2" maxlength="100" placeholder="City"></label>' +
+      '<label>PIN code<input id="fwAddrPincode" inputmode="numeric" autocomplete="postal-code" maxlength="6" pattern="[0-9]{6}" placeholder="6-digit PIN code"></label>' +
+      '</div>' +
+      '<details class="fw-address-additional"><summary>Additional details <span>Optional</span></summary>' +
+      '<div class="fw-address-form-grid">' +
       '<label>Building <span class="optional">Optional</span><input id="fwAddrBuilding" maxlength="160" placeholder="Apartment / building"></label>' +
       '<label>Floor <span class="optional">Optional</span><input id="fwAddrFloor" maxlength="40" placeholder="Floor"></label>' +
       '<label>Street / road <span class="optional">Optional</span><input id="fwAddrStreet" autocomplete="street-address" maxlength="200" placeholder="Street / road"></label>' +
-      '<label>Area / colony<input id="fwAddrArea" maxlength="200" placeholder="Area / colony"></label>' +
       '<label>Locality <span class="optional">Optional</span><input id="fwAddrLocality" maxlength="160" placeholder="Locality"></label>' +
-      '<label>City<input id="fwAddrCity" autocomplete="address-level2" maxlength="100" placeholder="City"></label>' +
-      '<label>PIN code<input id="fwAddrPincode" inputmode="numeric" autocomplete="postal-code" maxlength="6" pattern="[0-9]{6}" placeholder="6-digit PIN code"></label>' +
       '<label>District <span class="optional">Optional</span><input id="fwAddrDistrict" maxlength="100" placeholder="District"></label>' +
       '<label>State <span class="optional">Optional</span><input id="fwAddrState" autocomplete="address-level1" maxlength="100" placeholder="State"></label>' +
       '</div>' +
       '<label>Landmark <span class="optional">Optional</span><input id="fwAddrLandmark" maxlength="200" placeholder="Near a shop, school, temple"></label>' +
       '<label>Delivery note <span class="optional">Optional</span><textarea id="fwAddrNote" rows="2" maxlength="500" placeholder="Help the delivery person find you"></textarea></label>' +
+      '</details>' +
       '<div class="fw-location-tools"><button type="button" class="secondary-btn" id="fwAddressGps">📍 Use current location</button>' +
       '<div class="fw-address-search"><input id="fwAddrSearchInput" type="search" placeholder="Search area, street or landmark" aria-label="Search delivery location"><button type="button" class="secondary-btn" id="fwAddressSearch">Search</button></div></div>' +
       '<div id="fwAddressSearchResults" class="fw-address-search-results" aria-live="polite"></div>' +
@@ -902,8 +906,9 @@
   }
 
   function editCheckoutAddress() {
-    const selected = activeAddress || defaultAddress();
-    openCheckoutAddressManager(selected ? selected.id : null);
+    // Change means choose another saved address. Open the editor only when
+    // the customer explicitly chooses Add address or Edit.
+    openCheckoutAddressManager();
   }
 
   function bindEvents() {
