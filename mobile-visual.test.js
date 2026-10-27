@@ -8,6 +8,8 @@ const adminCss=fs.readFileSync('admin.css','utf8');
 const sw=fs.readFileSync('sw.js','utf8');
 const index=fs.readFileSync('index.html','utf8');
 assert.ok(index.includes('styles.css?v=20261027-delivery-offers-v1'),'HTML loads the current mobile viewport stylesheet');
+assert.ok(index.includes('frontend/customer/delivery-offers.css?v=20261027-fixed-coupons-v1'),'HTML loads delivery/coupon UI styles');
+assert.ok(sw.includes('/frontend/customer/delivery-offers.css?v=20261027-fixed-coupons-v1'),'service worker caches delivery/coupon UI styles');
 assert.ok(index.includes('frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2'),'HTML loads the selected-category fold-fit stylesheet');
 assert.ok(categoryFoldStyles.includes('height:100%!important;aspect-ratio:1/1'),'product artwork uses a square contained image box so the complete illustration is visible');
 assert.ok(sw.includes('/styles.css?v=20261027-delivery-offers-v1'),'service worker caches the current mobile viewport stylesheet');
