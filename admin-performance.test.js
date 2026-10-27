@@ -24,13 +24,14 @@ const auth=fs.readFileSync('worker/src/admin-auth.js','utf8');
 const response=fs.readFileSync('worker/src/admin-response.js','utf8');
 
 assert.match(admin,/if\(target==='overview'\)\{await Promise\.all\(\[loadSummary\(\),loadBusiness\(\),loadHome\(\)\]\);\}/);
+assert.match(admin,/classList\.add\('owner-navigation-ready'\)/,'Owner app reveals only after selecting the requested route');
 assert.doesNotMatch(admin,/const target=setAdminScreenVisual\(location\.hash\.slice\(1\)\|\|'overview'\);try\{await loadSummary\(\);await loadBusiness\(\);await loadHome\(\);/);
 assert.match(admin,/refreshOwnerAfterOrderMutation\(\)/);
 assert.doesNotMatch(admin,/localStorage\.setItem\(['"]freshway-admin-session['"]/);
 assert.doesNotMatch(admin,/sessionStorage\.setItem\(['"]freshway-admin-session['"]/);
 assert.match(admin,/AUTH_HINT='freshway-admin-auth'/);
-assert.match(html,/admin\.js\?v=20261027-owner-offers-draft-guard-v2/);
-assert.match(html,/admin\.css\?v=20261027-delivery-offers-v2/);
+assert.match(html,/admin\.js\?v=20261027-navigation-boot-guard-v1/);
+assert.match(html,/admin\.css\?v=20261027-navigation-boot-guard-v1/);
 assert.doesNotMatch(html,/admin\.js\?v=20261027-customer-messages-v1/,'Owner HTML must not retain the previous script version after simplification');
 assert.doesNotMatch(html,/\.exact-location/);
 
@@ -53,7 +54,7 @@ assert.doesNotMatch(auth,/response\(\{ok:true,version:ADMIN_AUTH_VERSION,session
 assert.match(auth,/SameSite=Lax/);
 assert.match(response,/SameSite=Lax/);
 
-assert.match(ownerSw,/const CACHE = 'fw-owner-v54'/);
+assert.match(ownerSw,/const CACHE = 'fw-owner-v55'/);
 assert.match(ownerSw,/if \(cached && isVersionedCode\) return cached/);
 assert.match(ownerSw,/if \(isDocument \|\| isManifest\)/);
 assert.match(ownerRouter,/OWNER_VERSIONED_ASSET_CACHE_CONTROL/);
