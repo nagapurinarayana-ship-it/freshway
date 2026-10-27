@@ -6,6 +6,7 @@ import { deleteProduct } from './admin-products.js';
 import { getStoreProfile, updateStoreProfile } from './store-profile.js';
 import { getInvoiceSettings, updateInvoiceSettings, backfillMissingInvoices } from './invoice-service.js';
 import { handleAdminDeliveryRequest } from './delivery-scheduling.js';
+import { handleAdminCustomerMessages } from './customer-messages.js';
 
 // Route table is intentionally kept small: authentication/routing lives in admin-auth.js;
 // domain behavior lives in one feature module per resource.
@@ -27,6 +28,7 @@ const routes = [
 export async function handleAdminData(request,env){
   const u=new URL(request.url);
   try{
+    if (u.pathname === '/api/admin/customer-messages' || u.pathname.startsWith('/api/admin/customer-messages/')) { const result = await handleAdminCustomerMessages(request,env); return json(result.data,result.status); }
     if (u.pathname === '/api/admin/delivery' || u.pathname.startsWith('/api/admin/delivery/')) { const delivery=await handleAdminDeliveryRequest(request,env); if(delivery)return delivery; }
     const route=routes.find(x=>x.match(u,request.method));
     return route?json(await route.run(request,env,u)):null;
