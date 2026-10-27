@@ -31,6 +31,7 @@ assert.match(el.innerHTML,/Delivered/);
 assert.doesNotMatch(el.innerHTML,/Delivered on 2026-09-08/, 'never substitute order creation date for the actual delivery date');
 api.render(document,[{...base,id:'FW-3',status:'Cancelled',deliveryPlan:'Today'}],helpers);
 assert.match(el.innerHTML,/class="status cancelled">Cancelled/);
+assert.doesNotMatch(el.innerHTML,/Delivery date:/,'cancelled orders must not look scheduled for delivery');
 assert.doesNotMatch(el.innerHTML,/Today/);
 api.render(document,[{...base,id:'FW-4',status:'delivered',deliveryPlan:'Later'}],helpers);
 assert.match(el.innerHTML,/class="status delivered">delivered/);
