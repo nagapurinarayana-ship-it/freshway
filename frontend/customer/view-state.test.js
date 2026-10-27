@@ -25,8 +25,9 @@ const restoreWindow={
 };
 const restoreDocument={documentElement:{classList:{remove:name=>removed.push(name)}}};
 assert.equal(api.restore({document:restoreDocument,window:restoreWindow}),true);
-assert.deepEqual(calls,[{name:'cart',options:{history:'replace'}}],
-  'the current browser-history entry must win over stale sessionStorage and URL hash values');
+assert.equal(calls.length,1,'exactly one initial view should be restored');
+assert.equal(calls[0].name,'cart','the current browser-history entry must win over stale sessionStorage and URL hash values');
+assert.equal(calls[0].options.history,'replace');
 assert.equal(stored.value,'cart');
 assert.deepEqual(removed,['fw-view-restore-pending']);
 assert.match(source,/window\.addEventListener\('popstate'/,'Back/Forward should keep the saved route aligned with browser history');
