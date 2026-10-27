@@ -246,7 +246,7 @@ function parseCoupon(payload, current = {}) {
   const discountAmount = integer(payload.discountAmount ?? current.discount_amount);
   if (!Number.isSafeInteger(discountAmount) || discountAmount < 1 || discountAmount > 1000000) throw new Error('Fixed discount must be between ₹1 and ₹10,00,000.');
   const startsOn = clean(payload.startsOn ?? current.starts_on ?? localDate(), 10);
-  const endsOn = clean(payload.endsOn ?? current.ends_on ?? '', 10) || null;
+  const endsOn = clean(payload.endsOn === undefined ? (current.ends_on ?? '') : payload.endsOn, 10) || null;
   if (!validDate(startsOn) || (endsOn && !validDate(endsOn))) throw new Error('Enter valid coupon start and expiry dates.');
   if (endsOn && endsOn < startsOn) throw new Error('Coupon expiry must be on or after its start date.');
   const optionalLimit = (value, currentValue) => {
