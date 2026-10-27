@@ -8,7 +8,7 @@
   const allPayments=['Not Collected','Collected','Refunded','Cancelled'];
   const state={id:'',order:null,queue:Promise.resolve()};
   const istDay=v=>{if(!v)return'';try{const raw=String(v).trim();const normalized=/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(raw)?raw.replace(' ','T')+'Z':raw;return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(normalized))}catch(_){return''}};
-  const addUxStyle=()=>{if(document.getElementById('fwOwnerUxStyle'))return;const s=document.createElement('style');s.id='fwOwnerUxStyle';s.textContent='.fw-life-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding-right:42px}.fw-life-head h2{margin:5px 0 3px}.fw-life-save{display:inline-flex;align-items:center;font-size:8px;font-weight:900;padding:4px 7px;border-radius:20px;background:#eaf7ef;color:#0f7a4b}.fw-life-save.saving{background:#fff5dc;color:#a46600}.fw-life-save.error{background:#fdeeee;color:#b83d3d}.fw-life-copy{border:1px solid var(--line);background:#fff;color:var(--g);border-radius:9px;padding:7px 9px;font-size:8px;font-weight:900;cursor:pointer}.fw-life-nav{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}.fw-life-nav button:disabled{opacity:.45;cursor:not-allowed}.fw-order-controls{box-shadow:0 2px 10px rgba(20,70,45,.04)}.fw-order-controls select{font-size:10px;font-weight:900}.fw-order-controls select:disabled{opacity:.65;cursor:wait}.fw-life-head+.fw-order-controls{margin-top:10px}';document.head.appendChild(s)};
+  const addUxStyle=()=>{if(document.getElementById('fwOwnerUxStyle'))return;const s=document.createElement('style');s.id='fwOwnerUxStyle';s.textContent='.fw-life-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding-right:42px}.fw-life-head h2{margin:5px 0 3px}.fw-life-save{display:inline-flex;align-items:center;font-size:8px;font-weight:900;padding:4px 7px;border-radius:20px;background:#eaf7ef;color:#0f7a4b}.fw-life-save.saving{background:#fff5dc;color:#a46600}.fw-life-save.error{background:#fdeeee;color:#b83d3d}.fw-life-copy{border:1px solid var(--line);background:#fff;color:var(--g);border-radius:9px;padding:7px 9px;font-size:8px;font-weight:900;cursor:pointer}.fw-life-nav{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}.fw-life-nav button:disabled{opacity:.45;cursor:not-allowed}.fw-order-controls{box-shadow:0 2px 10px rgba(20,70,45,.04)}.fw-order-controls select{font-size:10px;font-weight:900}.fw-order-controls select:disabled{opacity:.65;cursor:wait}.fw-life-head+.fw-order-controls{margin-top:10px}.fw-life-date-controls{margin:10px 0 14px;padding:10px 12px;background:#f7faf8;border:1px solid var(--line);border-radius:12px}.fw-life-date-controls label{display:block;font-size:10px;font-weight:800;color:var(--muted);margin-bottom:6px}.fw-life-date-fields{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center}.fw-life-date-controls input{min-width:0;width:100%;min-height:42px;border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:white;color:var(--ink)}.fw-life-date-controls button{min-height:42px}.fw-life-date-controls p{margin:4px 0 0;font-weight:800}';document.head.appendChild(s)};
   function isTestModeActive(){return document.getElementById('testOrdersTab')?.getAttribute('aria-selected')==='true'}
   async function getOrder(id,testOrders=isTestModeActive()){const q=new URLSearchParams({search:id,limit:'1',testOrders:testOrders?'1':'0'});const d=await api(`/admin/orders?${q}`);return d.orders?.[0]}
   function setSaveState(text,kind=''){const el=document.getElementById('fwLifeSave');if(!el)return;el.textContent=text;el.className=`fw-life-save ${kind}`}
@@ -28,10 +28,16 @@
       });
     const addressText=addressParts.join(', ');
     const mapQuery=hasCoords?`${o.address.latitude},${o.address.longitude}`:addressText;
-    const items=(o.items||[]).map(i=>`<div><span>${esc2(i.name)} ×${i.qty} ${esc2(i.unit)}</span><b>${money2(i.lineTotal)}</b></div>`).join('');
+    const items=(o.items||[]).map(i=>\`<div><span>\${esc2(i.name)} ×\${i.qty} \${esc2(i.unit)}</span><b>\${money2(i.lineTotal)}</b></div>\`).join('');
+    const statusKey=String(o.status||'').trim().toLowerCase();
+    const orderDate=String(o.scheduledDelivery?.date||'');
+    const terminalOrder=statusKey==='delivered'||statusKey==='cancelled';
+    const deliveryDateControl=terminalOrder
+      ? \`<div class="fw-life-date-controls"><label>Delivery date</label><p>\${esc2(orderDate||(statusKey==='delivered'&&o.deliveredAt?istDay(o.deliveredAt):'Not set'))}</p></div>\`
+      : \`<div class="fw-life-date-controls"><label for="fwLifeDeliveryDate">Delivery date</label><div class="fw-life-date-fields"><input id="fwLifeDeliveryDate" type="date" value="\${esc2(orderDate)}" min="\${esc2(istDay(new Date()))}" aria-label="Delivery date"><button type="button" class="ghost" data-life-save-date>Save date</button></div><small>The customer will see this date on My Orders.</small></div>\`;
     const queueIds=typeof orders!=='undefined'&&Array.isArray(orders)?orders.map(x=>x.id):[];
     const pos=queueIds.indexOf(o.id),prev=pos>0?queueIds[pos-1]:'',nextId=pos>=0&&pos<queueIds.length-1?queueIds[pos+1]:'';
-    $('#modalBody').innerHTML=`<div class="fw-life-head"><div><span class="eyebrow">ORDER LIFECYCLE</span><h2>${esc2(o.id)}</h2><span id="fwLifeSave" class="fw-life-save">Saved</span></div><button type="button" class="fw-life-copy" data-life-copy="${esc2(o.id)}">Copy ID</button></div><div class="detail-actions order-classification-actions"><button type="button" class="ghost" data-life-test-toggle="${esc2(o.id)}" data-is-test="${o.isTestOrder?'1':'0'}">${o.isTestOrder?'Move back to live orders':'Mark as Test Order'}</button></div><div class="fw-order-controls"><div><label>Status · auto-saves</label><select id="fwLifeStatus">${selectOptions(allStatuses,o.status,statusLabel)}</select></div><div><label>Payment · auto-saves</label><select id="fwLifePayment">${selectOptions(allPayments,o.payment)}</select></div></div><div class="detail-grid"><div><small>Delivery</small><b>${esc2(o.deliveryPlan||'Unscheduled')}</b></div><div><small>Total</small><b>${money2(o.total)}</b></div><div><small>Items</small><b>${(o.items||[]).length}</b></div><div><small>Customer</small><b>${esc2(o.customer?.name||'Customer')}</b></div></div><h3>Customer</h3><p class="order-delivery-copy"><b>${esc2(o.customer?.name||'')}</b><br>📞 Delivery mobile: ${esc2(displayPhone(o.address?.deliveryPhone||o.customer?.deliveryPhone||o.customer?.phone))}<br>📍 ${esc2(addressText)}</p><div class="order-map-row ${hasCoords?'has-pin':'no-pin'}"><span class="order-map-status">${hasCoords?'Map pin saved':(addressText?'Map pin unavailable':'Delivery location unavailable')}</span>${mapQuery?'<button id="modalDeliveryMap" class="order-map-link" type="button">Open map ↗</button>':''}</div><h3>Items</h3><div class="detail-items">${items||'<div class="empty">No items recorded.</div>'}</div><div class="detail-actions"><button class="ghost" data-life-refresh>Refresh order</button></div><div class="fw-life-nav"><button class="ghost" data-life-prev ${prev?'':'disabled'}>← Previous</button><button class="ghost" data-life-next ${nextId?'':'disabled'}>Next →</button></div>`;
+    $('#modalBody').innerHTML=`<div class="fw-life-head"><div><span class="eyebrow">ORDER LIFECYCLE</span><h2>${esc2(o.id)}</h2><span id="fwLifeSave" class="fw-life-save">Saved</span></div><button type="button" class="fw-life-copy" data-life-copy="${esc2(o.id)}">Copy ID</button></div><div class="detail-actions order-classification-actions"><button type="button" class="ghost" data-life-test-toggle="${esc2(o.id)}" data-is-test="${o.isTestOrder?'1':'0'}">${o.isTestOrder?'Move back to live orders':'Mark as Test Order'}</button></div><div class="fw-order-controls"><div><label>Status · auto-saves</label><select id="fwLifeStatus">${selectOptions(allStatuses,o.status,statusLabel)}</select></div><div><label>Payment · auto-saves</label><select id="fwLifePayment">${selectOptions(allPayments,o.payment)}</select></div></div>${deliveryDateControl}<div class="detail-grid"><div><small>Delivery</small><b>${esc2(o.deliveryPlan||'Unscheduled')}</b></div><div><small>Total</small><b>${money2(o.total)}</b></div><div><small>Items</small><b>${(o.items||[]).length}</b></div><div><small>Customer</small><b>${esc2(o.customer?.name||'Customer')}</b></div></div><h3>Customer</h3><p class="order-delivery-copy"><b>${esc2(o.customer?.name||'')}</b><br>📞 Delivery mobile: ${esc2(displayPhone(o.address?.deliveryPhone||o.customer?.deliveryPhone||o.customer?.phone))}<br>📍 ${esc2(addressText)}</p><div class="order-map-row ${hasCoords?'has-pin':'no-pin'}"><span class="order-map-status">${hasCoords?'Map pin saved':(addressText?'Map pin unavailable':'Delivery location unavailable')}</span>${mapQuery?'<button id="modalDeliveryMap" class="order-map-link" type="button">Open map ↗</button>':''}</div><h3>Items</h3><div class="detail-items">${items||'<div class="empty">No items recorded.</div>'}</div><div class="detail-actions"><button class="ghost" data-life-refresh>Refresh order</button></div><div class="fw-life-nav"><button class="ghost" data-life-prev ${prev?'':'disabled'}>← Previous</button><button class="ghost" data-life-next ${nextId?'':'disabled'}>Next →</button></div>`;
     if(typeof openOwnerOverlay==='function')openOwnerOverlay($('#modal'));else $('#modal').classList.remove('hidden');
     bindLifecycle(o,prev,nextId,hasCoords,mapQuery);
     if(wasOpen)requestAnimationFrame(()=>{const current=document.querySelector('#modal .modal-card');if(current)current.scrollTop=savedScroll});
@@ -108,6 +114,59 @@
     });
     status?.addEventListener('change',()=>queueSave(o.id,'status',status.value,status));
     payment?.addEventListener('change',()=>queueSave(o.id,'payment',payment.value,payment));
+    const dateInput=document.getElementById('fwLifeDeliveryDate');
+    const dateButton=document.querySelector('[data-life-save-date]');
+    dateButton?.addEventListener('click',async()=>{
+      const requestedDate=String(dateInput?.value||'').trim();
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)){
+        setSaveState('Choose a date','error');
+        toast('Choose a delivery date.');
+        return;
+      }
+      if(requestedDate===String(state.order?.scheduledDelivery?.date||'')){
+        setSaveState('Saved');
+        return;
+      }
+      dateButton.disabled=true;
+      setSaveState('Saving delivery date…','saving');
+      try{
+        const result=await api('/admin/delivery/orders/'+encodeURIComponent(o.id)+'/schedule',{
+          method:'PATCH',
+          body:JSON.stringify({deliveryDate:requestedDate})
+        });
+        if(String(result?.scheduledDelivery?.date||'')!==requestedDate)throw new Error('The server did not confirm the new delivery date.');
+        const current=state.order||o;
+        const today=istDay(new Date());
+        const tomorrow=(()=>{const d=new Date(today+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+1);return d.toISOString().slice(0,10)})();
+        const optimistic={...current,deliveryPlan:requestedDate===today?'Today':requestedDate===tomorrow?'Tomorrow':'Later',
+          scheduledDelivery:{...(current.scheduledDelivery||{}),date:requestedDate,slotId:null,startTime:'',endTime:'',startMinute:null,endMinute:null}};
+        if(state.id===o.id)renderLifecycle(optimistic);
+        setSaveState('Saved');
+        try{
+          const fresh=await getOrder(o.id);
+          if(!fresh||String(fresh.scheduledDelivery?.date||'')!==requestedDate)throw new Error('The saved date was not returned by the order list.');
+          if(state.id===o.id)renderLifecycle(fresh);
+        }catch(_){
+          // The PATCH response confirms the write; a secondary list refresh is best-effort.
+        }
+        try{if(typeof refreshOwnerAfterOrderMutation==='function')await refreshOwnerAfterOrderMutation()}catch(_){}
+        if(state.id===o.id)setSaveState('Saved');
+        toast('Delivery date updated to '+requestedDate+'.');
+      }catch(error){
+        let fresh=null;
+        try{fresh=await getOrder(o.id)}catch(_){}
+        if(fresh&&String(fresh.scheduledDelivery?.date||'')===requestedDate){
+          if(state.id===o.id)renderLifecycle(fresh);
+          setSaveState('Saved · verified','saved');
+          toast('Delivery date saved and verified.');
+        }else{
+          setSaveState('Save failed · verify','error');
+          toast('Could not save the delivery date. '+(error?.message||'Refresh the order and try again.'));
+        }
+      }finally{
+        if(dateButton.isConnected)dateButton.disabled=false;
+      }
+    });
     document.querySelector('[data-life-copy]')?.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(o.id);setSaveState('Order ID copied','')}catch(_){toast('Order ID: '+o.id)}});
     document.querySelector('[data-life-refresh]')?.addEventListener('click',async()=>{setSaveState('Refreshing…','saving');try{const fresh=await getOrder(o.id);if(fresh)renderLifecycle(fresh);else toast('Order no longer exists')}catch(e){setSaveState('Refresh failed','error');toast(e.message)}});
     document.querySelector('[data-life-prev]')?.addEventListener('click',()=>prev&&openLifecycle(prev));
