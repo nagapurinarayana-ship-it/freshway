@@ -379,3 +379,46 @@ test('customer shell exposes the direct-install PWA contract', async ({ page }) 
   await expect(page.locator('.skip-link')).toHaveAttribute('href', '#main-content');
   await expect(page.locator('#main-content')).toBeVisible();
 });
+
+
+test('refresh and browser back/forward restore the correct view without showing legacy Home', async ({ page }) => {
+  await page.addInitScript(() => {
+    const state = history.state;
+    const valid = new Set(['home', 'cart', 'checkout', 'orders', 'messages', 'profile', 'about', 'contact', 'confirmation']);
+    const saved = state?.__freshwayCustomer && valid.has(state.view) ? state.view : '';
+    if (!saved || saved === 'home') return;
+    window.__freshwayLegacyHomeFlash = false;
+    const inspect = () => {
+      const app = document.querySelector('#app');
+      const home = document.querySelector('#homeView');
+      if (app && home?.classList.contains('active-view') && getComputedStyle(app).visibility !== 'hidden') {
+        window.__freshwayLegacyHomeFlash = true;
+      }
+    };
+    new MutationObserver(inspect).observe(document.documentElement, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['class']
+    });
+  });
+
+  await page.goto('/');
+  await page.locator('#profileBtn').click();
+  await expect(page.locator('#profileView')).toHaveClass(/active-view/);
+  await page.locator('[data-nav="orders"]').click();
+  await expect(page.locator('#ordersView')).toHaveClass(/active-view/);
+
+  await page.reload();
+  await expect(page.locator('#ordersView')).toHaveClass(/active-view/);
+  await expect(page.locator('#homeView')).not.toHaveClass(/active-view/);
+  expect(await page.evaluate(() => window.__freshwayLegacyHomeFlash || false)).toBe(false);
+
+  await page.goBack();
+  await expect(page.locator('#profileView')).toHaveClass(/active-view/);
+  await expect(page.locator('#homeView')).not.toHaveClass(/active-view/);
+
+  await page.goForward();
+  await expect(page.locator('#ordersView')).toHaveClass(/active-view/);
+  await expect(page.locator('#homeView')).not.toHaveClass(/active-view/);
+});
