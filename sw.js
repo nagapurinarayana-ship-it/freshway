@@ -1,4 +1,4 @@
-const CACHE = 'freshway-v84';
+const CACHE = 'freshway-v85';
 const APP_SHELL = [
 '/',
 '/index.html',
@@ -9,8 +9,8 @@ const APP_SHELL = [
 '/frontend/customer/checkout-submit.js?v=20261026-date-only-v3',
 '/app.js?v=20261027-cancel-refresh-v1',
 '/frontend/customer/orders-view.js?v=20261027-order-status-display-v1',
-  '/frontend/customer/orders-data.js?v=20261027-cancel-feedback-v1',
-  '/frontend/customer/order-actions.js?v=20261027-cancel-immediate-v1',
+'/frontend/customer/orders-data.js?v=20261027-cancel-feedback-v1',
+'/frontend/customer/order-actions.js?v=20261027-cancel-immediate-v1',
   '/frontend/customer/invoice-download.js?v=20261022-customer-invoice-v1',
 '/frontend/phone-display.js?v=20261009-phone-display-v1',
 '/frontend/customer/product-view.js?v=20261019-catalogue-premium-v1',
@@ -22,7 +22,6 @@ const APP_SHELL = [
 '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3',
 '/address-system-final.js?v=20261027-guest-home-address-v1',
 '/frontend/customer/pwa-install.css?v=20261007-install-v2',
-'/frontend/customer/seo.js?v=20261007-seo-v1',
 '/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4',
 '/frontend/customer/store-info.js?v=20261021-shop-map-link-v1',
 '/frontend/customer/profile.js?v=20261009-customer-profile-v2',
@@ -31,7 +30,6 @@ const APP_SHELL = [
 '/icons/icon-512-maskable-v2.png?v=20261026-brand-v2',
 '/frontend/customer/pwa-install.js?v=20261024-native-install-v1',
 '/freshway-logo-master.webp?v=20261008-master-v1',
-'/freshway-logo-clean.svg?v=20261008-brand-v1'
 ];
 const REQUIRED_SHELL = [
 '/',
