@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 const BASE_URL = (process.env.OWNER_PWA_BASE_URL || '').replace(/\/$/, '');
 if (!BASE_URL) throw new Error('OWNER_PWA_BASE_URL is required for Owner PWA deployment smoke');
 
-const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261027-owner-simple-v1';
-const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-owner-simple-v1';
-const LEGACY_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-customer-messages-v1';
-const SUPPORTED_OWNER_ADMIN_SCRIPTS = [EXPECTED_OWNER_ADMIN_SCRIPT, LEGACY_OWNER_ADMIN_SCRIPT];
+const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261027-delivery-offers-v1';
+const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-delivery-offers-v1';
+const LEGACY_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-owner-simple-v1';
+const OLDER_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-customer-messages-v1';
+const SUPPORTED_OWNER_ADMIN_SCRIPTS = [EXPECTED_OWNER_ADMIN_SCRIPT, LEGACY_OWNER_ADMIN_SCRIPT, OLDER_OWNER_ADMIN_SCRIPT];
 const EXPECTED_OWNER_CUSTOMER_MESSAGES_SCRIPT = '/admin/frontend/admin/customer-messages.js?v=20261027-customer-messages-v1';
 const EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT = '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2';
 const EXPECTED_OWNER_ACCOUNT_DELETIONS_SCRIPT = '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1';
@@ -14,9 +15,10 @@ const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20
 const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2';
 const EXPECTED_OWNER_DELIVERY_SCRIPT = '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2';
 const EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT = '/admin/frontend/admin/store-management.js?v=20261027-store-manager-v1';
+const EXPECTED_OWNER_DELIVERY_OFFERS_SCRIPT = '/admin/frontend/admin/delivery-offers.js?v=20261027-fixed-coupons-v1';
 const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261027-owner-delivery-date-v1';
-const EXPECTED_OWNER_CACHE = 'fw-owner-v48';
-const LEGACY_OWNER_CACHE = 'fw-owner-v47';
+const EXPECTED_OWNER_CACHE = 'fw-owner-v49';
+const LEGACY_OWNER_CACHE = 'fw-owner-v48';
 const SUPPORTED_OWNER_CACHES = [EXPECTED_OWNER_CACHE, LEGACY_OWNER_CACHE];
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -113,8 +115,9 @@ async function fetchCurrentOwnerAppShell(attempts = 60) {
         const currentDelivery = hasScriptReference(html, response.url, EXPECTED_OWNER_DELIVERY_SCRIPT);
         const currentStoreManagement = hasScriptReference(html, response.url, EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT);
         const currentLifecycle = hasScriptReference(html, response.url, EXPECTED_OWNER_LIFECYCLE_SCRIPT);
-        if (currentCss && currentAdmin && (!needsCustomerMessages || currentCustomerMessages) && currentInvoiceSettings && currentAccountDeletions && currentAlerts && currentStoreProfile && currentDelivery && currentStoreManagement && currentLifecycle) return { response, html };
-        lastError = new Error('/admin/ still serves stale Owner assets (attempt ' + attempt + '/' + attempts + '); expected ' + EXPECTED_OWNER_CSS + ', ' + EXPECTED_OWNER_ADMIN_SCRIPT + ', ' + EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT + ', ' + EXPECTED_OWNER_ACCOUNT_DELETIONS_SCRIPT + ', ' + EXPECTED_OWNER_ALERTS_SCRIPT + ', ' + EXPECTED_OWNER_STORE_PROFILE_SCRIPT + ', ' + EXPECTED_OWNER_DELIVERY_SCRIPT + ', ' + EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT + ' and ' + EXPECTED_OWNER_LIFECYCLE_SCRIPT);
+        const currentDeliveryOffers = hasScriptReference(html, response.url, EXPECTED_OWNER_DELIVERY_OFFERS_SCRIPT);
+        if (currentCss && currentAdmin && (!needsCustomerMessages || currentCustomerMessages) && currentInvoiceSettings && currentAccountDeletions && currentAlerts && currentStoreProfile && currentDelivery && currentStoreManagement && currentLifecycle && currentDeliveryOffers) return { response, html };
+        lastError = new Error('/admin/ still serves stale Owner assets (attempt ' + attempt + '/' + attempts + '); expected ' + EXPECTED_OWNER_CSS + ', ' + EXPECTED_OWNER_ADMIN_SCRIPT + ', ' + EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT + ', ' + EXPECTED_OWNER_ACCOUNT_DELETIONS_SCRIPT + ', ' + EXPECTED_OWNER_ALERTS_SCRIPT + ', ' + EXPECTED_OWNER_STORE_PROFILE_SCRIPT + ', ' + EXPECTED_OWNER_DELIVERY_SCRIPT + ', ' + EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT + ', ' + EXPECTED_OWNER_LIFECYCLE_SCRIPT + ' and ' + EXPECTED_OWNER_DELIVERY_OFFERS_SCRIPT);
       }
     } catch (error) {
       lastError = error;
@@ -147,7 +150,8 @@ async function fetchCurrentOwnerServiceWorker(attempts = 60) {
         const currentDelivery = worker.includes(EXPECTED_OWNER_DELIVERY_SCRIPT);
         const currentStoreManagement = worker.includes(EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT);
         const currentLifecycle = worker.includes(EXPECTED_OWNER_LIFECYCLE_SCRIPT);
-        if (currentCache && currentCss && currentAdmin && (!needsCustomerMessages || currentCustomerMessages) && currentInvoiceSettings && currentAccountDeletions && currentAlerts && currentStoreProfile && currentDelivery && currentStoreManagement && currentLifecycle) return { response, worker };
+        const currentDeliveryOffers = worker.includes(EXPECTED_OWNER_DELIVERY_OFFERS_SCRIPT);
+        if (currentCache && currentCss && currentAdmin && (!needsCustomerMessages || currentCustomerMessages) && currentInvoiceSettings && currentAccountDeletions && currentAlerts && currentStoreProfile && currentDelivery && currentStoreManagement && currentLifecycle && currentDeliveryOffers) return { response, worker };
         lastError = new Error('/admin/sw.js still serves stale Owner cache/assets (attempt ' + attempt + '/' + attempts + '); expected ' + EXPECTED_OWNER_CACHE + ' and current Owner script URLs');
       }
     } catch (error) {
@@ -180,6 +184,7 @@ assert.match(html, /id="ownerOrderAlertTest"/, 'Owner app must expose the push d
 assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_STORE_PROFILE_SCRIPT), 'Owner app must load the latest business profile and shop pin editor');
   assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_DELIVERY_SCRIPT), 'Owner app must load delivery scheduling and exception management');
 assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT), 'Owner app must load Store Manager and Customer Requests');
+assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_DELIVERY_OFFERS_SCRIPT), 'Owner app must load Delivery & Offers');
 assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_LIFECYCLE_SCRIPT), 'Owner app must load the cache-busted order lifecycle map handler');
 
 for (const [, value] of html.matchAll(/\b(?:src|href)=["']([^"']+)["']/gi)) {
@@ -230,6 +235,7 @@ assert.ok(worker.includes(EXPECTED_OWNER_ALERTS_SCRIPT), 'Owner service worker s
 assert.ok(worker.includes(EXPECTED_OWNER_STORE_PROFILE_SCRIPT), 'Owner service worker shell must cache the latest shop location editor');
   assert.ok(worker.includes(EXPECTED_OWNER_DELIVERY_SCRIPT), 'Owner service worker shell must cache delivery scheduling and exception management');
 assert.ok(worker.includes(EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT), 'Owner service worker shell must cache Store Manager and Customer Requests');
+assert.ok(worker.includes(EXPECTED_OWNER_DELIVERY_OFFERS_SCRIPT), 'Owner service worker shell must cache Delivery & Offers');
 assert.ok(worker.includes(EXPECTED_OWNER_LIFECYCLE_SCRIPT), 'Owner service worker shell must cache the latest order lifecycle map handler');
 const installScriptResponse = await fetchOwnerRoute(installScriptUrl.pathname + installScriptUrl.search);
 assertCacheableOwnerAsset(installScriptResponse, 'Owner install/bootstrap script', installScriptUrl.pathname + installScriptUrl.search);
