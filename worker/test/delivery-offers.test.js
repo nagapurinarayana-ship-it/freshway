@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { calculatePriceBreakdown, handleAdminDeliveryOffersRequest, handleCustomerDeliveryOffersRequest } from '../src/delivery-offers.js';
 import { groupOrders } from '../src/index.js';
+import adminAuth from '../src/admin-auth.js';
 
 const defaults = { freeDeliveryEnabled: true, freeDeliveryThreshold: 800, standardDeliveryFee: 30 };
 const migration = readFileSync(new URL('../migrations/0043_delivery_offers_fixed_coupons.sql', import.meta.url), 'utf8');
@@ -202,9 +203,18 @@ test('Owner redemption history endpoint returns recorded customer and order deta
 
 test('Owner coupon UI exposes and requests redemption history', () => {
   const ownerUi=readFileSync(new URL('../../frontend/admin/delivery-offers.js',import.meta.url),'utf8');
-  assert.match(ownerUi,/data-fw-coupon-history/);
+  assert.match(ownerUi,/unsavedCoupon=false;\s*loading=false;\s*render\(\);/,'successful load must clear the loading flag before rendering so Refresh is enabled again');
   assert.match(ownerUi,/data-fw-coupon-history/);
   assert.match(ownerUi,/redemptions/);
+  assert.match(ownerUi,/function settingsPreviewText\(source\)/,'delivery preview must reflect whether the threshold is enabled');
+  assert.match(ownerUi,/Free-delivery threshold is off/,'the preview must not promise free delivery when the toggle is off');
+  assert.match(ownerUi,/id="fwOffersPreviewText"/,'the saved preview must be updateable without replacing the form');
+  assert.ok(ownerUi.includes("thresholdValue==null||thresholdValue.trim()===''?NaN:Number(thresholdValue)"),'a blank free-delivery threshold must not be silently converted to zero');
+  assert.ok(ownerUi.includes("feeValue==null||feeValue.trim()===''?NaN:Number(feeValue)"),'a blank delivery fee must not be silently converted to zero');
+  assert.ok(ownerUi.includes("Discard unsaved Delivery & Offers changes before changing this coupon?"),'activating or pausing a coupon must guard unsaved form edits');
+  assert.match(ownerUi,/const hasUnsavedChanges=\(\)=>unsavedSettings\|\|unsavedCoupon/,'settings and coupon drafts must track unsaved changes separately');
+  assert.match(ownerUi,/const preserveSettingsDraft=unsavedSettings&&settingsDraft/,'saving a coupon must preserve an unsaved delivery-settings draft');
+  assert.match(ownerUi,/function beforeNavigate\(\)[\s\S]*unsavedSettings=false;unsavedCoupon=false;settingsDraft=null;/,'confirming discard must clear the dirty state');
 });
 
 test('customer quote endpoint uses D1 catalogue prices and integrates coupon plus delivery rules', async () => {
@@ -248,4 +258,109 @@ test('browser E2E order fixture includes the saved pricing-provenance contract',
 test('new order insert saves the pricing-provenance flag atomically with its pricing snapshot', () => {
   assert.ok(orderWriterSource.includes('INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,items_subtotal,delivery_fee,coupon_id,coupon_code,coupon_discount,pricing_breakdown_known,payment_status'), 'order insert must persist pricingBreakdownKnown alongside the pricing snapshot');
   assert.match(orderWriterSource,/pricing\.couponDiscount,1,deliveryPlan/);
+});
+
+
+test('Owner delivery-offers routes are wired through the authenticated session gateway', async () => {
+  const db=legacyDatabase();
+  try {
+    db.exec(migration);
+    const secret='unit-test-secret';
+    const env={
+      DB:d1Adapter(db),
+      ADMIN_SESSION_SECRET:secret,
+      APP_ORIGIN:'https://freshway.example',
+      APP_ORIGINS:'https://freshway.example'
+    };
+    const issued=String(Math.floor(Date.now()/1000));
+    const key=await globalThis.crypto.subtle.importKey(
+      'raw',new TextEncoder().encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']
+    );
+    const signature=new Uint8Array(await globalThis.crypto.subtle.sign('HMAC',key,new TextEncoder().encode(issued)));
+    const sigHex=[...signature].map(value=>value.toString(16).padStart(2,'0')).join('');
+    const cookie='__Host-freshway-admin-session='+issued+'.'+sigHex;
+
+    const unauthorized=await adminAuth.fetch(
+      new Request('https://freshway.example/api/admin/delivery-offers'),
+      env,{}
+    );
+    assert.equal(unauthorized.status,401,'delivery pricing settings must remain Owner-session protected');
+
+    const read=await adminAuth.fetch(
+      new Request('https://freshway.example/api/admin/delivery-offers',{headers:{Cookie:cookie}}),
+      env,{}
+    );
+    assert.equal(read.status,200,'the Owner gateway must dispatch delivery offers to the D1 handler');
+    assert.equal(read.headers.get('access-control-allow-origin'),'https://freshway.example');
+    const settings=await read.json();
+    assert.equal(settings.settings.standardDeliveryFee,30);
+    assert.equal(settings.settings.freeDeliveryThreshold,800);
+    assert.deepEqual(settings.coupons,[]);
+
+    const create=await adminAuth.fetch(
+      new Request('https://freshway.example/api/admin/coupons',{
+        method:'POST',
+        headers:{Cookie:cookie,'content-type':'application/json'},
+        body:JSON.stringify({
+          code:'FIXED50',title:'Fixed rupee offer',discountAmount:50,
+          startsOn:'2026-01-01',endsOn:null,maxRedemptions:null,
+          perCustomerLimit:null,firstOrderOnly:false,active:true
+        })
+      }),
+      env,{}
+    );
+    assert.equal(create.status,201,'the Owner gateway must route coupon creation through the admin handler');
+    const created=await create.json();
+    assert.equal(created.coupon.code,'FIXED50');
+    assert.equal(created.coupon.discountAmount,50);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM coupons').get().count,1);
+
+    const settingsSave=await adminAuth.fetch(
+      new Request('https://freshway.example/api/admin/delivery-offers',{
+        method:'PATCH',
+        headers:{Cookie:cookie,'content-type':'application/json'},
+        body:JSON.stringify({freeDeliveryEnabled:true,freeDeliveryThreshold:1000,standardDeliveryFee:45})
+      }),
+      env,{}
+    );
+    assert.equal(settingsSave.status,200,'Owner gateway must route delivery settings saves');
+    const savedSettings=await settingsSave.json();
+    assert.equal(savedSettings.settings.freeDeliveryThreshold,1000);
+    assert.equal(savedSettings.settings.standardDeliveryFee,45);
+
+    const couponList=await adminAuth.fetch(
+      new Request('https://freshway.example/api/admin/coupons',{headers:{Cookie:cookie}}),
+      env,{}
+    );
+    assert.equal(couponList.status,200,'Owner gateway must route coupon list reads');
+    assert.equal((await couponList.json()).coupons[0].code,'FIXED50');
+
+    db.prepare(`INSERT INTO orders(id,customer_id,total,delivery_status,customer_name,customer_phone,items_subtotal,delivery_fee,coupon_id,coupon_code,coupon_discount,pricing_breakdown_known)
+      VALUES ('owner-route-order','customer-1',80,'New','Owner Route Test','9999999999',100,30,?,'FIXED50',50,1)`).run(created.coupon.id);
+    db.prepare(`INSERT INTO coupon_redemptions(id,coupon_id,customer_id,order_id,code_snapshot,discount_amount)
+      VALUES ('owner-route-redemption',?,'customer-1','owner-route-order','FIXED50',50)`).run(created.coupon.id);
+
+    const history=await adminAuth.fetch(
+      new Request('https://freshway.example/api/admin/coupons/'+created.coupon.id+'/redemptions',{headers:{Cookie:cookie}}),
+      env,{}
+    );
+    assert.equal(history.status,200,'Owner gateway must route coupon redemption history reads');
+    const redemptionData=await history.json();
+    assert.equal(redemptionData.redemptions.length,1);
+    assert.equal(redemptionData.redemptions[0].orderId,'owner-route-order');
+    assert.equal(redemptionData.redemptions[0].discountAmount,50);
+
+    const pause=await adminAuth.fetch(
+      new Request('https://freshway.example/api/admin/coupons/'+created.coupon.id,{
+        method:'PATCH',
+        headers:{Cookie:cookie,'content-type':'application/json'},
+        body:JSON.stringify({active:false})
+      }),
+      env,{}
+    );
+    assert.equal(pause.status,200,'Owner gateway must route coupon update and pause requests');
+    assert.equal((await pause.json()).coupon.active,false);
+  } finally {
+    db.close();
+  }
 });

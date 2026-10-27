@@ -54,6 +54,20 @@
     el.textContent = text || '';
     el.dataset.error = error ? 'true' : 'false';
   }
+  function isCouponEligibilityError(error) {
+    return Number(error?.status) === 400 &&
+      /coupon|first.order|sign in|maximum allowed|usage limit|already used|already been used/i.test(String(error?.message || ''));
+  }
+  function showApplyError(error) {
+    const input = document.querySelector('#fwCouponCode');
+    const detail = error?.message || 'Could not apply this coupon.';
+    if (appliedCode) {
+      if (input) input.value = appliedCode;
+      message(detail + ' Your existing coupon ' + appliedCode + ' is still applied.', true);
+      return;
+    }
+    message(detail, true);
+  }
   async function loadAvailableCoupons() {
     const root = document.querySelector('#fwAvailableCoupons');
     const request = api();
@@ -83,7 +97,11 @@
     if (button) { button.disabled = true; button.textContent = 'Checking…'; }
     try {
       const pricing = await fetchQuote(lastItems, candidate);
-      if (version !== renderVersion) return;
+      if (version !== renderVersion) {
+        const input = document.querySelector('#fwCouponCode');
+        if (input) input.value = appliedCode;
+        return;
+      }
       setCode(candidate);
       lastQuote = pricing;
       const pricingRoot = document.querySelector('#fwDeliveryPricing');
@@ -145,9 +163,9 @@
         pricing = await fetchQuote(lastItems, appliedCode);
       } catch (error) {
         if (version !== renderVersion) return;
-        if (!appliedCode) throw error;
+        if (!appliedCode || !isCouponEligibilityError(error)) throw error;
         setCode('');
-        message(error.message || 'This coupon is no longer available. It has been removed.', true);
+        message((error.message || 'This coupon is no longer available.') + ' The coupon was removed and your total is being recalculated.', true);
         pricing = await fetchQuote(lastItems, '');
       }
       if (version !== renderVersion) return;
@@ -167,17 +185,23 @@
     void loadAvailableCoupons();
   }
   function renderCheckoutQuote(pricing, moneyFn = lastMoney) {
+    // A checkout-authoritative quote supersedes any slower cart/apply request.
+    // submitOrder captures the previous total before calling this, so its first
+    // comparison still detects changes; future attempts compare against the price
+    // now visible at checkout instead of repeating the same confirmation prompt.
+    renderVersion++;
     lastMoney = typeof moneyFn === 'function' ? moneyFn : lastMoney;
+    lastQuote = pricing;
     updateCartLinePrices(pricing.items);
     renderBreakdown(pricing, document.querySelector('#fwCheckoutPricing'), lastMoney);
     const checkout = document.querySelector('#checkoutTotal');
     if (checkout) checkout.textContent = lastMoney(pricing.finalTotal);
-    // Keep lastQuote as the cart quote so checkout can detect a changed server total.
   }
   function getDisplayedTotal() {
     return lastQuote && Number.isSafeInteger(Number(lastQuote.finalTotal)) ? Number(lastQuote.finalTotal) : null;
   }
   function clearAppliedCode() {
+    renderVersion++;
     setCode('');
     lastQuote = null;
     const input = document.querySelector('#fwCouponCode');
@@ -189,29 +213,46 @@
     if (apply) {
       event.preventDefault();
       try { await applyCandidate(codeFromInput()); }
-      catch (error) { message(error.message || 'Could not apply this coupon.', true); }
+      catch (error) { showApplyError(error); }
       return;
     }
     const remove = event.target.closest('[data-fw-remove-coupon]');
     if (remove) {
+      const version = ++renderVersion;
       setCode('');
-      message('Coupon removed.');
+      lastQuote = null;
+      message('Updating total without the coupon…');
+      const pricingRoot = document.querySelector('#fwDeliveryPricing');
+      const checkoutRoot = document.querySelector('#fwCheckoutPricing');
+      const loadingMarkup = '<div class="summary-line"><span>Updating your total…</span></div>';
+      if (pricingRoot) pricingRoot.innerHTML = loadingMarkup;
+      if (checkoutRoot) checkoutRoot.innerHTML = loadingMarkup;
+      updateDisplayedTotals('Updating…');
       try {
-        lastQuote = await fetchQuote(lastItems, '');
-        renderBreakdown(lastQuote, document.querySelector('#fwDeliveryPricing'), lastMoney);
-        const checkout = document.querySelector('#fwCheckoutPricing');
-        if (checkout) renderBreakdown(lastQuote, checkout, lastMoney);
-        updateDisplayedTotals(lastQuote.finalTotal);
-      } catch (error) { message(error.message || 'Could not refresh pricing.', true); }
+        const pricing = await fetchQuote(lastItems, '');
+        if (version !== renderVersion) return;
+        lastQuote = pricing;
+        renderBreakdown(pricing, pricingRoot, lastMoney);
+        if (checkoutRoot) renderBreakdown(pricing, checkoutRoot, lastMoney);
+        updateDisplayedTotals(pricing.finalTotal);
+        message('Coupon removed.');
+      } catch (error) {
+        if (version !== renderVersion) return;
+        if (pricingRoot) pricingRoot.innerHTML = '<p class="fw-offer-error">Could not refresh delivery pricing. Please retry before checkout.</p>';
+        if (checkoutRoot) checkoutRoot.innerHTML = '<p class="fw-offer-error">Could not refresh delivery pricing. Please retry before checkout.</p>';
+        updateDisplayedTotals('Check total');
+        message(error.message || 'Could not refresh pricing.', true);
+      }
       return;
     }
     const card = event.target.closest('[data-fw-offer-code]');
     if (card && !card.disabled) {
+      if (busy) return;
       const code = card.dataset.fwOfferCode || '';
       const input = document.querySelector('#fwCouponCode');
       if (input) input.value = code;
       try { await applyCandidate(code); }
-      catch (error) { message(error.message || 'Could not apply this coupon.', true); }
+      catch (error) { showApplyError(error); }
     }
   });
   window.FreshWayCustomerDeliveryOffers = Object.freeze({
