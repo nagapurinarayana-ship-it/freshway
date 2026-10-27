@@ -23,7 +23,11 @@ for (const required of ['recipient name','delivery contact number','house\/flat 
 }
 assert.match(source, /id="fwCheckoutCompleteAddress">Complete address/);
 assert.match(source, /openCheckoutAddressManager\(selected && selected\.id\)/);
-assert.match(source, /function editCheckoutAddress\(\)[\s\S]*?openCheckoutAddressManager\(selected \? selected\.id : null\)/);
+assert.match(source, /function editCheckoutAddress\(\)[\s\S]*?openCheckoutAddressManager\(\)/);
+assert.match(source, /<details class="fw-address-additional"><summary>Additional details/);
+assert.match(source, /<label>House \/ flat number/);
+assert.match(source, /<label>Area \/ colony/);
+assert.match(source, /<label>PIN code/);
 assert.match(source, /if \(target\.closest\('#fwCheckoutChangeAddress'\)\)[\s\S]*?editCheckoutAddress\(\)/);
 assert.match(source, /buildEditor\(editAddressId\)/);
 assert.match(source, /modalOrigin === 'checkout' && returnedAddress/);

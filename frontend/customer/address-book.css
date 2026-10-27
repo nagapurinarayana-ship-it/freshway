@@ -230,3 +230,11 @@ label[hidden] { display: none !important; }
 .fw-address-modal-error .fw-address-subtitle { color: #9d3d2b; }
 #addressModal [tabindex="-1"]:focus { outline: none; }
 @media (max-width: 390px) { #toast { max-width: calc(100vw - 24px); bottom: calc(158px + env(safe-area-inset-bottom)); } }
+
+/* Keep the address form quick to scan on mobile; optional fields stay available on demand. */
+.fw-address-additional{border:1px solid var(--line);border-radius:13px;background:#fbfcfb;margin:2px 0 14px;overflow:hidden}
+.fw-address-additional>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;color:var(--green-dark);font-size:12px;font-weight:800;cursor:pointer;list-style-position:inside}
+.fw-address-additional>summary span{color:var(--muted);font-size:10px;font-weight:600}
+.fw-address-additional[open]{padding:12px 10px 0}
+.fw-address-additional[open]>summary{padding:0 2px 12px}
+.fw-address-additional .fw-address-form-grid{margin-top:0}

@@ -38,7 +38,23 @@ function setup({customerId='cust-1',orders=[{id:'o1'}],api=async()=>({orders:[{i
 
   const offline=setup({api:async()=>{throw new Error('offline')},orders:[{id:'saved'}]});
   await offline.service.load();
-  assert.deepEqual(offline.events,[['orders',[{id:'saved'}]],['toast','Showing saved orders from this device.']]);
+  assert.deepEqual(offline.events,[['orders',[{id:'saved'}]],['toast','Could not refresh orders. Showing saved details; try again shortly.']]);
+
+  const unauthorized=setup({api:async()=>{const error=new Error('Customer authentication required.');error.status=401;throw error},orders:[{id:'saved'}]});
+  await unauthorized.service.load();
+  assert.deepEqual(unauthorized.events,[['orders',[{id:'saved'}]],['toast','Your sign-in needs refreshing. Sign in again to load current orders.']]);
+
+  let resolveOrders;
+  let calls=0;
+  const concurrent=setup({orders:[{id:'saved'}],api:()=>{calls++;return new Promise(resolve=>{resolveOrders=resolve})}});
+  const first=concurrent.service.load();
+  const second=concurrent.service.load({silentError:true});
+  await Promise.resolve();
+  assert.equal(calls,1,'overlapping lifecycle and mutation refreshes must share one API request');
+  resolveOrders({orders:[{id:'fresh'}]});
+  await Promise.all([first,second]);
+  assert.deepEqual(concurrent.state.orders,[{id:'fresh'}]);
+  assert.equal(concurrent.events.filter(event=>Array.isArray(event)&&event[0]==='toast').length,0,'silent mutation refresh must not emit a duplicate stale-data toast');
 
   const guest=setup({customerId:null});
   await guest.service.load();
