@@ -691,7 +691,7 @@ export async function handleAdminDeliveryRequest(request, env) {
     return response({ requests: (await env.DB.prepare(
       'SELECT r.*,o.delivery_status,o.total,o.scheduled_delivery_date,o.scheduled_start_minute,o.scheduled_end_minute,o.customer_name,c.phone customer_phone ' +
       'FROM order_action_requests r JOIN orders o ON o.id=r.order_id LEFT JOIN customers c ON c.id=r.customer_id ' +
-      'WHERE r.status=\'pending\' ORDER BY r.created_at LIMIT 200'
+      'WHERE r.status=\'pending\' OR (r.request_type=\'issue\' AND r.status=\'approved\') ORDER BY CASE WHEN r.status=\'pending\' THEN 0 ELSE 1 END,r.created_at LIMIT 200'
     ).all()).results || [] });
   }
   const requestMatch = path.match(new RegExp('^/api/admin/delivery/requests/([^/]+)$'));
