@@ -71,6 +71,7 @@ const requiredOwnerAssets = [
   'frontend/admin/store-management.js',
   'frontend/admin/customer-messages.js',
   'frontend/admin/invoice-settings.js',
+  'frontend/admin/delivery-offers.js',
   'frontend/admin/account-deletions.js',
   'frontend/catalogue-media.js',
   'frontend/admin/catalogue.js',
