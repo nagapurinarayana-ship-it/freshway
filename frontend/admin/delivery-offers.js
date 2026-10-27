@@ -21,7 +21,10 @@
   let editingId=null;
   let loading=false;
   let saving=false;
-  let unsaved=false;
+  let unsavedSettings=false;
+  let unsavedCoupon=false;
+  let settingsDraft=null;
+  const hasUnsavedChanges=()=>unsavedSettings||unsavedCoupon;
   let loadedSnapshot='';
   function status(text, isError=false) {
     const el=$('#fwOffersStatus'); if (el) { el.textContent=text||''; el.dataset.error=isError?'true':'false'; }
@@ -33,13 +36,33 @@
       standardDeliveryFee: Number($('#fwStandardDeliveryFee')?.value)
     };
   }
-  function markEdited() { unsaved=true; status('Unsaved changes. Save to keep them.'); }
-  function settingsPanel() {
+  function settingsPreviewText(source) {
+    const fee=Math.max(0,Math.trunc(Number(source?.standardDeliveryFee)||0));
+    const threshold=Math.max(0,Math.trunc(Number(source?.freeDeliveryThreshold)||0));
+    if(fee===0)return 'Delivery is free on every order.';
+    if(source?.freeDeliveryEnabled===false)return 'Free-delivery threshold is off. All orders use the standard '+money(fee)+' delivery fee.';
+    return money(threshold)+' or more in items: free delivery. Below it: '+money(fee)+' delivery.';
+  }
+  function updateSettingsPreview() {
+    const preview=$('#fwOffersPreviewText');
+    if(preview)preview.textContent=settingsPreviewText(settingsDraft||currentSettingsForm());
+  }
+  function markSettingsEdited() {
+    settingsDraft=currentSettingsForm();
+    unsavedSettings=true;
+    updateSettingsPreview();
+    status('Unsaved delivery settings. Save to keep them.');
+  }
+  function markCouponEdited() {
+    unsavedCoupon=true;
+    status('Unsaved coupon changes. Save or cancel before leaving.');
+  }
+  function settingsPanel(source=(unsavedSettings&&settingsDraft?settingsDraft:settings)) {
     return '<section class="panel fw-offers-panel"><div class="section-head"><div><span class="eyebrow">DELIVERY CHARGES</span><h2>Delivery settings</h2><p>Orders have no minimum. This threshold unlocks free delivery only.</p></div></div>' +
-      '<label class="fw-offers-toggle"><input id="fwFreeDeliveryEnabled" type="checkbox" '+(settings.freeDeliveryEnabled?'checked':'')+'><span><strong>Enable free delivery at a threshold</strong><small>When disabled, the standard fee applies to all orders unless it is ₹0.</small></span></label>' +
-      '<div class="settings-form-grid"><label class="settings-field"><span>Free-delivery threshold (₹)</span><input id="fwFreeDeliveryThreshold" type="number" min="0" max="1000000" step="1" required value="'+settings.freeDeliveryThreshold+'"><small>Default: ₹800. The items subtotal is evaluated before coupon discounts.</small></label>' +
-      '<label class="settings-field"><span>Standard delivery fee (₹)</span><input id="fwStandardDeliveryFee" type="number" min="0" max="100000" step="1" required value="'+settings.standardDeliveryFee+'"><small>Default: ₹30. Set to ₹0 to make delivery free on every order.</small></label></div>' +
-      '<div class="fw-offers-preview"><strong>Example</strong><span>₹'+esc(settings.freeDeliveryThreshold)+' or more in items: free delivery. Below it: '+money(settings.standardDeliveryFee)+' delivery.</span></div>' +
+      '<label class="fw-offers-toggle"><input id="fwFreeDeliveryEnabled" type="checkbox" '+(source.freeDeliveryEnabled?'checked':'')+'><span><strong>Enable free delivery at a threshold</strong><small>When disabled, the standard fee applies to all orders unless it is ₹0.</small></span></label>' +
+      '<div class="settings-form-grid"><label class="settings-field"><span>Free-delivery threshold (₹)</span><input id="fwFreeDeliveryThreshold" type="number" min="0" max="1000000" step="1" required value="'+source.freeDeliveryThreshold+'"><small>Default: ₹800. The items subtotal is evaluated before coupon discounts.</small></label>' +
+      '<label class="settings-field"><span>Standard delivery fee (₹)</span><input id="fwStandardDeliveryFee" type="number" min="0" max="100000" step="1" required value="'+source.standardDeliveryFee+'"><small>Default: ₹30. Set to ₹0 to make delivery free on every order.</small></label></div>' +
+      '<div class="fw-offers-preview"><strong>Example</strong><span>₹'+esc(settingsPreviewText(source))</span></div>' +
       '<div class="settings-actions"><button type="button" class="primary" data-fw-save-settings>Save delivery settings</button></div></section>';
   }
   function couponForm() {
@@ -74,24 +97,26 @@
   function render() {
     root.innerHTML='<div class="page-head"><div><span class="eyebrow">PRICING & PROMOTIONS</span><h1>Delivery & Offers</h1><p>Simple delivery rules and fixed-amount customer coupons.</p></div><button class="ghost" type="button" data-fw-refresh '+(loading?'disabled':'')+'>Refresh</button></div>' +
       '<p id="fwOffersStatus" class="fw-offers-status-message" role="status" aria-live="polite"></p>' +
-      settingsPanel()+couponForm()+couponList();
+      settingsPanel(unsavedSettings&&settingsDraft?settingsDraft:settings)+couponForm()+couponList();
     bindForm();
   }
   function bindForm() {
     const settingsIds=['#fwFreeDeliveryEnabled','#fwFreeDeliveryThreshold','#fwStandardDeliveryFee'];
-    settingsIds.forEach(selector=>$(selector)?.addEventListener('input',markEdited));
-    $('#fwCouponForm')?.addEventListener('input',()=>{unsaved=true;status('Unsaved coupon changes. Save or cancel before leaving.');});
+    settingsIds.forEach(selector=>$(selector)?.addEventListener('input',markSettingsEdited));
+    $('#fwCouponForm')?.addEventListener('input',markCouponEdited);
   }
-  async function load() {
+  async function load({preserveSettingsDraft=false}={}) {
     if (loading) return;
     loading=true; status('Loading Delivery & Offers…');
     try {
       const data=await api('/admin/delivery-offers');
       settings=data.settings||settings; coupons=Array.isArray(data.coupons)?data.coupons:[];
       loadedSnapshot=JSON.stringify(settings);
-      unsaved=false;
+      const keepSettingsDraft=preserveSettingsDraft&&unsavedSettings&&settingsDraft;
+      if(!keepSettingsDraft){settingsDraft=null;unsavedSettings=false;}
+      unsavedCoupon=false;
       render();
-      status('Settings and coupons loaded.');
+      status(unsavedSettings?'Coupons refreshed. Delivery settings still have unsaved changes.':'Settings and coupons loaded.');
     } catch(error) {
       root.innerHTML='<div class="page-head"><div><span class="eyebrow">PRICING & PROMOTIONS</span><h1>Delivery & Offers</h1><p>Simple delivery rules and fixed-amount customer coupons.</p></div><button class="ghost" type="button" data-fw-refresh>Retry</button></div><p class="fw-offers-status-message" data-error="true" role="alert">'+esc(error.message||'Could not load Delivery & Offers.')+'</p>';
     } finally { loading=false; }
@@ -105,8 +130,9 @@
     const button=$('[data-fw-save-settings]');if(button)button.disabled=true;
     try{
       const result=await api('/admin/delivery-offers',{method:'PATCH',body:JSON.stringify(next)});
-      settings=result.settings||next;unsaved=false;loadedSnapshot=JSON.stringify(settings);
-      status('Delivery settings saved. New orders will use these settings.');
+      settings=result.settings||next;settingsDraft=null;unsavedSettings=false;loadedSnapshot=JSON.stringify(settings);
+      updateSettingsPreview();
+      status(unsavedCoupon?'Delivery settings saved. Coupon changes are still unsaved.':'Delivery settings saved. New orders will use these settings.');
     }catch(error){status(error.message||'Could not save delivery settings.',true);}
     finally{saving=false;const current=$('[data-fw-save-settings]');if(current)current.disabled=false;}
   }
@@ -137,19 +163,22 @@
     try {
       const path=editingId?'/admin/coupons/'+encodeURIComponent(editingId):'/admin/coupons';
       await api(path,{method:editingId?'PATCH':'POST',body:JSON.stringify(payload)});
+      const preserveSettingsDraft=unsavedSettings&&settingsDraft?{...settingsDraft}:null;
       editingId=null;
+      unsavedCoupon=false;
       saving=false;
-      await load();
-      status('Coupon saved successfully.');
+      await load({preserveSettingsDraft:Boolean(preserveSettingsDraft)});
+      if(preserveSettingsDraft){settingsDraft=preserveSettingsDraft;unsavedSettings=true;render();status('Coupon saved. Delivery settings still have unsaved changes; save them separately.');}
+      else status('Coupon saved successfully.');
     } catch(error) {
       if(inline){inline.textContent=error.message||'Could not save coupon.';inline.dataset.error='true';}
     } finally {saving=false; const currentButton=$('#fwCouponForm button[type="submit"]');if(currentButton)currentButton.disabled=false;}
   }
   root.addEventListener('click',async event=>{
-    if(event.target.closest('[data-fw-refresh]')){if(unsaved&&!confirm('Discard unsaved delivery settings?'))return;unsaved=false;await load();return;}
+    if(event.target.closest('[data-fw-refresh]')){if(hasUnsavedChanges()&&!confirm('Discard unsaved Delivery & Offers changes?'))return;unsavedSettings=false;unsavedCoupon=false;settingsDraft=null;editingId=null;await load();return;}
     if(event.target.closest('[data-fw-save-settings]')){await saveSettings();return;}
-    if(event.target.closest('[data-fw-cancel-edit]')){editingId=null;render();return;}
-    const edit=event.target.closest('[data-fw-edit-coupon]');if(edit){editingId=edit.dataset.fwEditCoupon;render();return;}
+    if(event.target.closest('[data-fw-cancel-edit]')){editingId=null;unsavedCoupon=false;render();status(unsavedSettings?'Coupon edit cancelled. Delivery settings are still unsaved.':'Coupon edit cancelled.');return;}
+    const edit=event.target.closest('[data-fw-edit-coupon]');if(edit){if(unsavedCoupon&&!confirm('Discard unsaved coupon changes?'))return;unsavedCoupon=false;editingId=edit.dataset.fwEditCoupon;render();return;}
     const historyButton=event.target.closest('[data-fw-coupon-history]');
     if(historyButton){
       const couponId=historyButton.dataset.fwCouponHistory;
@@ -181,7 +210,13 @@
     }
   });
   root.addEventListener('submit',event=>{if(event.target?.id==='fwCouponForm')void saveCoupon(event);});
-  window.addEventListener('beforeunload',event=>{if(!unsaved)return;event.preventDefault();event.returnValue='';});
-  window.FreshWayOwnerDeliveryOffers=Object.freeze({load,beforeNavigate:()=>!unsaved||confirm('Discard unsaved Delivery & Offers changes?')});
+  window.addEventListener('beforeunload',event=>{if(!hasUnsavedChanges())return;event.preventDefault();event.returnValue='';});
+  function beforeNavigate(){
+    if(!hasUnsavedChanges())return true;
+    if(!confirm('Discard unsaved Delivery & Offers changes?'))return false;
+    unsavedSettings=false;unsavedCoupon=false;settingsDraft=null;
+    return true;
+  }
+  window.FreshWayOwnerDeliveryOffers=Object.freeze({load,beforeNavigate});
   if (document.readyState !== 'loading') { /* module is loaded after the document markup */ }
 })();
