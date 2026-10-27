@@ -6,11 +6,12 @@ const REPLY_MAX = 2000;
 const CUSTOMER_MAX = 50;
 const GLOBAL_MAX = 10000;
 const DAILY_SUBMISSION_MAX = 5;
-const RETENTION_DAYS = 90;
 const clean = (value, max) => String(value ?? '').trim().slice(0, max);
 const timestamp = () => new Date().toISOString();
-const jsonSafe = value => value && typeof value === 'object' ? value : {};
+const asObject = value => value && typeof value === 'object' ? value : {};
 const uuid = () => crypto.randomUUID();
+const validMessageId = value => /^[a-f0-9-]{36}$/i.test(String(value || ''));
+const validOrderRequestId = value => /^request-[a-f0-9-]{36}$/i.test(String(value || ''));
 
 function problem(message, status = 400) {
   const error = new Error(message);
@@ -22,7 +23,11 @@ export async function cleanupExpiredCustomerMessages(env) {
   const messages = await env.DB.prepare(
     "DELETE FROM customer_messages WHERE expires_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now')"
   ).run();
-  // Reply notifications are retained only for the same 90-day support window.
+  // Order requests are operational records tied to order history, so retain the
+  // request row but purge the free-text reply after 90 days.
+  const orderReplies = await env.DB.prepare(
+    "UPDATE order_action_requests SET admin_reply=NULL,replied_at=NULL,reply_seen_at=NULL WHERE request_type='issue' AND admin_reply IS NOT NULL AND created_at < datetime('now','-90 days')"
+  ).run();
   let notifications = 0;
   try {
     const result = await env.DB.prepare(
@@ -30,10 +35,13 @@ export async function cleanupExpiredCustomerMessages(env) {
     ).run();
     notifications = Number(result?.meta?.changes || 0);
   } catch (_) {
-    // Customer messages are the source of truth; notification cleanup must not
-    // block sign-in, checkout, or the hourly scheduled task.
+    // Notifications are secondary to the durable message/reply record.
   }
-  return { messagesDeleted: Number(messages?.meta?.changes || 0), notificationsDeleted: notifications };
+  return {
+    messagesDeleted: Number(messages?.meta?.changes || 0),
+    oldOrderRepliesCleared: Number(orderReplies?.meta?.changes || 0),
+    notificationsDeleted: notifications
+  };
 }
 
 async function removeMessage(env, id) {
@@ -65,12 +73,15 @@ async function ensureRoom(env, customerId) {
 
 export async function createCustomerMessage(env, customerId, payloadValue) {
   await cleanupExpiredCustomerMessages(env);
-  const payload = jsonSafe(payloadValue);
-  const subject = clean(payload.subject, SUBJECT_MAX);
-  const message = clean(payload.message, MESSAGE_MAX);
-  if (subject.length < 3) problem('Add a short subject (at least 3 characters).');
-  if (message.length < 5) problem('Please write a message with at least 5 characters.');
-  if (String(payload.message ?? '').trim().length > MESSAGE_MAX) problem('Message must be 2,000 characters or fewer.');
+  const payload = asObject(payloadValue);
+  const subjectRaw = String(payload.subject ?? '').trim();
+  const messageRaw = String(payload.message ?? '').trim();
+  if (subjectRaw.length < 3) problem('Add a short subject (at least 3 characters).');
+  if (subjectRaw.length > SUBJECT_MAX) problem('Subject must be 120 characters or fewer.');
+  if (messageRaw.length < 5) problem('Please write a message with at least 5 characters.');
+  if (messageRaw.length > MESSAGE_MAX) problem('Message must be 2,000 characters or fewer.');
+  const subject = clean(subjectRaw, SUBJECT_MAX);
+  const message = clean(messageRaw, MESSAGE_MAX);
   const customer = await env.DB.prepare('SELECT id,name,phone FROM customers WHERE id=? LIMIT 1').bind(customerId).first();
   if (!customer) problem('Customer authentication required.', 401);
   const recent = await env.DB.prepare(
@@ -90,68 +101,117 @@ export async function createCustomerMessage(env, customerId, payloadValue) {
 
 export async function listCustomerMessages(env, customerId) {
   await cleanupExpiredCustomerMessages(env);
-  const result = await env.DB.prepare(`SELECT id,subject,message,status,admin_reply,created_at,updated_at,replied_at,reply_seen_at
-    FROM customer_messages WHERE customer_id=? ORDER BY created_at DESC LIMIT 50`).bind(customerId).all();
-  return result.results || [];
+  const [general, orderRequests] = await Promise.all([
+    env.DB.prepare(`SELECT id,subject,message,status,admin_reply,created_at,updated_at,replied_at,reply_seen_at,
+      'message' AS source,NULL AS order_id
+      FROM customer_messages WHERE customer_id=? ORDER BY created_at DESC LIMIT 50`).bind(customerId).all(),
+    env.DB.prepare(`SELECT r.id,('Order help · ' || r.order_id) AS subject,r.reason AS message,
+      CASE WHEN r.admin_reply IS NULL OR trim(r.admin_reply)='' THEN 'pending' ELSE 'replied' END AS status,
+      r.admin_reply,r.created_at,r.updated_at,r.replied_at,r.reply_seen_at,
+      'order_request' AS source,r.order_id
+      FROM order_action_requests r
+      WHERE r.customer_id=? AND r.request_type='issue'
+        AND r.created_at >= datetime('now','-90 days')
+        AND (r.status IN ('pending','approved') OR r.admin_reply IS NOT NULL)
+      ORDER BY r.created_at DESC LIMIT 50`).bind(customerId).all()
+  ]);
+  return [...(general.results || []), ...(orderRequests.results || [])]
+    .sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime()).slice(0,100);
 }
 
 export async function unreadCustomerMessageCount(env, customerId) {
-  const result = await env.DB.prepare("SELECT COUNT(*) AS total FROM customer_messages WHERE customer_id=? AND status='replied' AND reply_seen_at IS NULL").bind(customerId).first();
-  return Number(result?.total || 0);
+  const [general, requests] = await Promise.all([
+    env.DB.prepare("SELECT COUNT(*) AS total FROM customer_messages WHERE customer_id=? AND status='replied' AND reply_seen_at IS NULL").bind(customerId).first(),
+    env.DB.prepare("SELECT COUNT(*) AS total FROM order_action_requests WHERE customer_id=? AND request_type='issue' AND admin_reply IS NOT NULL AND reply_seen_at IS NULL AND created_at >= datetime('now','-90 days')").bind(customerId).first()
+  ]);
+  return Number(general?.total || 0) + Number(requests?.total || 0);
 }
 
 export async function markCustomerMessagesRead(env, customerId) {
-  const result = await env.DB.prepare("UPDATE customer_messages SET reply_seen_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE customer_id=? AND status='replied' AND reply_seen_at IS NULL").bind(customerId).run();
-  return { ok: true, markedRead: Number(result?.meta?.changes || 0) };
+  const results = await env.DB.batch([
+    env.DB.prepare("UPDATE customer_messages SET reply_seen_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE customer_id=? AND status='replied' AND reply_seen_at IS NULL").bind(customerId),
+    env.DB.prepare("UPDATE order_action_requests SET reply_seen_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE customer_id=? AND request_type='issue' AND admin_reply IS NOT NULL AND reply_seen_at IS NULL AND created_at >= datetime('now','-90 days')").bind(customerId)
+  ]);
+  return { ok: true, markedRead: (results || []).reduce((sum,result)=>sum+Number(result?.meta?.changes||0),0) };
 }
 
 export async function listAdminCustomerMessages(env, statusValue = 'pending') {
   const status = ['pending','replied','all'].includes(statusValue) ? statusValue : 'pending';
-  const where = status === 'all' ? '' : ' WHERE status=?';
-  const rows = await env.DB.prepare(`SELECT id,customer_id,customer_name,customer_phone_last4,subject,message,status,admin_reply,created_at,updated_at,replied_at
-    FROM customer_messages${where} ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END,created_at DESC LIMIT 100`)
-    .bind(...(status === 'all' ? [] : [status])).all();
-  const counts = await env.DB.prepare("SELECT status,COUNT(*) AS total FROM customer_messages GROUP BY status").all();
+  const [general, orderRequests, generalCounts, orderCounts] = await Promise.all([
+    env.DB.prepare(`SELECT id,customer_id,customer_name,customer_phone_last4,subject,message,status,admin_reply,created_at,updated_at,replied_at,
+      'message' AS source,NULL AS order_id
+      FROM customer_messages ORDER BY created_at DESC LIMIT 200`).all(),
+    env.DB.prepare(`SELECT r.id,r.customer_id,c.name AS customer_name,substr(c.phone,-4) AS customer_phone_last4,
+      ('Order help · ' || r.order_id) AS subject,r.reason AS message,
+      CASE WHEN r.admin_reply IS NULL OR trim(r.admin_reply)='' THEN 'pending' ELSE 'replied' END AS status,
+      r.admin_reply,r.created_at,r.updated_at,r.replied_at,'order_request' AS source,r.order_id
+      FROM order_action_requests r LEFT JOIN customers c ON c.id=r.customer_id
+      WHERE r.request_type='issue' AND r.created_at >= datetime('now','-90 days')
+        AND (r.status IN ('pending','approved') OR r.admin_reply IS NOT NULL)
+      ORDER BY r.created_at DESC LIMIT 200`).all(),
+    env.DB.prepare('SELECT status,COUNT(*) AS total FROM customer_messages GROUP BY status').all(),
+    env.DB.prepare(`SELECT CASE WHEN admin_reply IS NULL OR trim(admin_reply)='' THEN 'pending' ELSE 'replied' END AS status,COUNT(*) AS total
+      FROM order_action_requests WHERE request_type='issue' AND created_at >= datetime('now','-90 days')
+      AND (status IN ('pending','approved') OR admin_reply IS NOT NULL) GROUP BY status`).all()
+  ]);
+  const allMessages = [...(general.results || []), ...(orderRequests.results || [])];
   const summary = { pending: 0, replied: 0 };
-  for (const row of counts.results || []) if (Object.prototype.hasOwnProperty.call(summary, row.status)) summary[row.status] = Number(row.total || 0);
-  return { messages: rows.results || [], summary, status };
+  for (const row of [...(generalCounts.results || []), ...(orderCounts.results || [])]) {
+    if (Object.prototype.hasOwnProperty.call(summary, row.status)) summary[row.status] += Number(row.total || 0);
+  }
+  const messages = allMessages.filter(row=>status==='all'||row.status===status)
+    .sort((a,b)=>new Date(b.created_at).getTime()-new Date(a.created_at).getTime()).slice(0,100);
+  return { messages, summary, status };
+}
+
+async function sendReplyNotification(env, customerId, messageId, body, kind = 'message') {
+  try {
+    return await dispatchOrderAlert(env, {
+      audience: 'customer',
+      customerId,
+      orderId: null,
+      eventType: 'customer_message_reply',
+      eventKey: (kind==='order_request'?'order-request:':'customer-message:')+messageId+':reply:'+Date.now()+':'+uuid(),
+      title: 'FreshWay replied to your message',
+      body: body.length > 220 ? body.slice(0, 217) + '…' : body,
+      url: '/?openMessage=' + encodeURIComponent(messageId) + '#messages'
+    });
+  } catch (error) {
+    console.error('FreshWay message reply notification failed:', error?.message || error);
+    return { status: 'failed', sent: 0, failed: 1 };
+  }
 }
 
 export async function replyToCustomerMessage(env, id, payloadValue) {
-  if (!/^[a-f0-9-]{36}$/i.test(String(id || ''))) problem('Invalid customer message id.');
-  const payload = jsonSafe(payloadValue);
-  const reply = clean(payload.reply, REPLY_MAX);
-  if (reply.length < 2) problem('Reply must contain at least 2 characters.');
-  if (String(payload.reply ?? '').trim().length > REPLY_MAX) problem('Reply must be 2,000 characters or fewer.');
+  const isOrderRequest = validOrderRequestId(id);
+  if (!isOrderRequest && !validMessageId(id)) problem('Invalid customer message id.');
+  const payload = asObject(payloadValue);
+  const replyRaw = String(payload.reply ?? '').trim();
+  if (replyRaw.length < 2) problem('Reply must contain at least 2 characters.');
+  if (replyRaw.length > REPLY_MAX) problem('Reply must be 2,000 characters or fewer.');
+  const reply = clean(replyRaw, REPLY_MAX);
+  if (isOrderRequest) {
+    const existing = await env.DB.prepare("SELECT id,customer_id,admin_reply FROM order_action_requests WHERE id=? AND request_type='issue' LIMIT 1").bind(id).first();
+    if (!existing) problem('CUSTOMER_MESSAGE_NOT_FOUND', 404);
+    if (String(existing.admin_reply || '') === reply) return { ok: true, unchanged: true, notification: 'already_sent' };
+    await env.DB.prepare("UPDATE order_action_requests SET admin_reply=?,replied_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),reply_seen_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND request_type='issue'")
+      .bind(reply, id).run();
+    const notification = await sendReplyNotification(env, existing.customer_id, id, reply, 'order_request');
+    return { ok: true, notification };
+  }
   const existing = await env.DB.prepare('SELECT id,customer_id,status,admin_reply FROM customer_messages WHERE id=? LIMIT 1').bind(id).first();
   if (!existing) problem('CUSTOMER_MESSAGE_NOT_FOUND', 404);
   if (existing.status === 'replied' && String(existing.admin_reply || '') === reply) {
     return { ok: true, unchanged: true, notification: 'already_sent' };
   }
-  const savedAt = timestamp();
   await env.DB.prepare(`UPDATE customer_messages SET status='replied',admin_reply=?,replied_at=?,reply_seen_at=NULL,updated_at=?,expires_at=strftime('%Y-%m-%dT%H:%M:%fZ','now','+90 days') WHERE id=?`)
-    .bind(reply, savedAt, savedAt, id).run();
-  let notification = { status: 'not_attempted', sent: 0, failed: 0 };
-  try {
-    notification = await dispatchOrderAlert(env, {
-      audience: 'customer',
-      customerId: existing.customer_id,
-      orderId: null,
-      eventType: 'customer_message_reply',
-      eventKey: `customer-message:${id}:reply:${savedAt}:${uuid()}`,
-      title: 'FreshWay replied to your message',
-      body: reply.length > 220 ? reply.slice(0, 217) + '…' : reply,
-      url: '/?openMessage=' + encodeURIComponent(id) + '#messages'
-    });
-  } catch (error) {
-    console.error('FreshWay message reply notification failed:', error?.message || error);
-    notification = { status: 'failed', sent: 0, failed: 1 };
-  }
+    .bind(reply, timestamp(), timestamp(), id).run();
+  const notification = await sendReplyNotification(env, existing.customer_id, id, reply, 'message');
   return { ok: true, notification };
 }
 
 export async function deleteCustomerMessage(env, id) {
-  if (!/^[a-f0-9-]{36}$/i.test(String(id || ''))) problem('Invalid customer message id.');
+  if (!validMessageId(id)) problem('Invalid customer message id.');
   const existing = await env.DB.prepare('SELECT id FROM customer_messages WHERE id=? LIMIT 1').bind(id).first();
   if (!existing) problem('CUSTOMER_MESSAGE_NOT_FOUND', 404);
   await removeMessage(env, id);
@@ -159,11 +219,11 @@ export async function deleteCustomerMessage(env, id) {
 }
 
 export async function handleCustomerMessages(request, env, customerId) {
-  const url = new URL(request.url);
-  const path = url.pathname;
+  const path = new URL(request.url).pathname;
   try {
     if (path === '/api/customer/messages' && request.method === 'POST') {
-      return { status: 201, data: await createCustomerMessage(env, customerId, await request.json()) };
+      let payload={};try{payload=await request.json();}catch(_){problem('Send a valid message.');}
+      return { status: 201, data: await createCustomerMessage(env, customerId, payload) };
     }
     if (path === '/api/customer/messages' && request.method === 'GET') {
       return { status: 200, data: { messages: await listCustomerMessages(env, customerId) } };
@@ -190,11 +250,17 @@ export async function handleAdminCustomerMessages(request, env) {
       await cleanupExpiredCustomerMessages(env);
       return { status: 200, data: await listAdminCustomerMessages(env, url.searchParams.get('status') || 'pending') };
     }
-    const replyMatch = path.match(/^\/api\/admin\/customer-messages\/([a-f0-9-]+)\/reply$/i);
-    if (replyMatch && request.method === 'PATCH') {
-      return { status: 200, data: await replyToCustomerMessage(env, replyMatch[1], await request.json()) };
+    const orderReplyMatch = path.match(/^\/api\/admin\/customer-messages\/order-requests\/([^/]+)\/reply$/i);
+    if (orderReplyMatch && request.method === 'PATCH') {
+      let payload={};try{payload=await request.json();}catch(_){problem('Send a valid reply.');}
+      return { status: 200, data: await replyToCustomerMessage(env, decodeURIComponent(orderReplyMatch[1]), payload) };
     }
-    const deleteMatch = path.match(/^\/api\/admin\/customer-messages\/([a-f0-9-]+)$/i);
+    const replyMatch = path.match(/^\/api\/admin\/customer-messages\/([a-f0-9-]{36})\/reply$/i);
+    if (replyMatch && request.method === 'PATCH') {
+      let payload={};try{payload=await request.json();}catch(_){problem('Send a valid reply.');}
+      return { status: 200, data: await replyToCustomerMessage(env, replyMatch[1], payload) };
+    }
+    const deleteMatch = path.match(/^\/api\/admin\/customer-messages\/([a-f0-9-]{36})$/i);
     if (deleteMatch && request.method === 'DELETE') {
       return { status: 200, data: await deleteCustomerMessage(env, deleteMatch[1]) };
     }
