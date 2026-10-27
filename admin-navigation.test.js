@@ -17,8 +17,11 @@ assert.match(css,/\.app:not\(\.owner-authenticated\)>\.mobile-nav/,'mobile navig
 // Initial bootstrap must run after every trailing script has registered its module.
 // Without this guard, a direct refresh on #settings runs before Store Profile exists.
 assert.match(source,/function startOwnerApp\(\)/);
+const ownerBootstrap=source.slice(source.indexOf('function startOwnerApp()'));
+assert.ok(ownerBootstrap.indexOf("setAdminScreenVisual(location.hash.slice(1)||'overview')") < ownerBootstrap.indexOf('auth(true)'),
+  'Owner must select the restored screen before revealing the authenticated app to prevent an Overview flash');
 assert.match(source,/document\.readyState==='loading'\)document\.addEventListener\('DOMContentLoaded',startOwnerApp,\{once:true\}\)/);
-assert.ok(html.indexOf('admin.js?v=20261027-owner-offers-draft-guard-v2') < html.indexOf('frontend/admin/store-profile.js'),
+assert.ok(html.indexOf('admin.js?v=20261028-nav-refresh-v1') < html.indexOf('frontend/admin/store-profile.js'),
   'the regression test should cover the real script-loading order');
 assert.match(html,/id="accountDeletionSummary"/);
 assert.match(html,/class="owner-nav-more"/,'desktop navigation should group occasional tools under More');
@@ -30,6 +33,6 @@ const primaryNav=html.match(/<nav aria-label="Owner navigation">([\s\S]*?)<detai
 assert.doesNotMatch(primaryNav,/data-screen="settings"/,'Settings should not crowd the primary desktop navigation');
 assert.match(html,/mobile-more-label">Reports & settings/,'less-used options should be grouped under a clear heading');
 assert.match(source,/else if\(target==='offers'\)\{await window\.FreshWayOwnerDeliveryOffers\?\.load\(\);\}/,'direct refresh on #offers must load delivery settings and coupons');
-assert.ok(html.indexOf('frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5') < html.indexOf('admin.js?v=20261027-owner-offers-draft-guard-v2'), 'Delivery & Offers must load before Owner bootstrap so a direct #offers route can call its loader');
+assert.ok(html.indexOf('frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5') < html.indexOf('admin.js?v=20261028-nav-refresh-v1'), 'Delivery & Offers must load before Owner bootstrap so a direct #offers route can call its loader');
 assert.match(html,/data-more-screen="offers">🎟 Delivery & offers/,'mobile More menu must expose Delivery & Offers');
 console.log('owner navigation history and safe initial settings bootstrap OK');
