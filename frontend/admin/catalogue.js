@@ -103,7 +103,7 @@
   function install(){
     const baseNavigate=window.navigateAdminScreen;
     if(typeof baseNavigate!=='function')return;
-    window.navigateAdminScreen=function(id){const result=baseNavigate(id);if(id==='catalogue'){selected=null;shell();load()}return result};
+    window.navigateAdminScreen=function(id,options){const result=baseNavigate(id,options);if(id==='catalogue'){selected=null;shell();load()}return result};
     document.addEventListener('click',e=>{const target=e.target;const b=target.closest('[data-fw-manage]');if(b){selected=b.dataset.fwManage;render();return}if(target.closest('#fwAddCategory')){categoryForm();return}if(target.closest('#fwRefreshCatalogue')){load();return}if(target.closest('#fwAllCategories')){selected=null;render();return}if(target.closest('#fwAddProduct')){productForm();return}if(target.closest('#fwAddPromotion')){promotionForm();return}const ec=target.closest('[data-fw-edit-cat]');if(ec){categoryForm(categoryById(ec.dataset.fwEditCat));return}const tc=target.closest('[data-fw-toggle-cat]');if(tc){const c=categoryById(tc.dataset.fwToggleCat);if(c)mutate(`/admin/categories/${encodeURIComponent(c.id)}`,'PATCH',{name:c.name,icon:c.icon,description:c.description,displayOrder:c.display_order,active:!c.active},'Category updated');return}const dc=target.closest('[data-fw-delete-cat]');if(dc){const c=categoryById(dc.dataset.fwDeleteCat);if(c&&confirm(`Delete ${c.name}? Categories containing products cannot be deleted.`))mutate(`/admin/categories/${encodeURIComponent(c.id)}`,'DELETE',null,'Category deleted');return}const ep=target.closest('[data-fw-edit-product]');if(ep){const p=data.products.find(x=>String(x.id)===String(ep.dataset.fwEditProduct));if(p)productForm(p);return}const tp=target.closest('[data-fw-toggle-product]');if(tp){const p=data.products.find(x=>String(x.id)===String(tp.dataset.fwToggleProduct));if(p)mutate(`/admin/catalogue/products/${encodeURIComponent(p.id)}`,'PATCH',{name:p.name,categoryId:p.category_id,price:p.price,unit:p.unit,emoji:p.emoji,displayOrder:p.display_order,active:!p.active,stockManaged:Number(p.stock_managed)===1,stockQuantity:Number(p.stock_quantity||0),lowStockThreshold:Number(p.low_stock_threshold||5)},'Product updated');return}const dp=target.closest('[data-fw-delete-product]');if(dp){const p=data.products.find(x=>String(x.id)===String(dp.dataset.fwDeleteProduct));if(p&&confirm(`Delete ${p.name}? This cannot be undone.`))mutate(`/admin/catalogue/products/${encodeURIComponent(p.id)}`,'DELETE',null,'Product deleted');return}if(target.closest('[data-fw-close]'))closeModal();const epromo=target.closest('[data-fw-edit-promo]');if(epromo){const p=data.promotions.find(x=>String(x.id)===String(epromo.dataset.fwEditPromo));if(p)promotionForm(p);return}const tpromo=target.closest('[data-fw-toggle-promo]');if(tpromo){const p=data.promotions.find(x=>String(x.id)===String(tpromo.dataset.fwTogglePromo));if(p)mutate('/admin/promotions/'+encodeURIComponent(p.id),'PATCH',{imageData:p.image_data,imageMimeType:p.image_mime_type,altText:p.alt_text,displayOrder:p.display_order,active:!p.active},'Promotion updated');return}const dpromo=target.closest('[data-fw-delete-promo]');if(dpromo){const p=data.promotions.find(x=>String(x.id)===String(dpromo.dataset.fwDeletePromo));if(p&&confirm('Delete this home promotion?'))mutate('/admin/promotions/'+encodeURIComponent(p.id),'DELETE',null,'Promotion deleted');return}},false);
     document.addEventListener('change',async e=>{if(e.target.id==='fwPromoImage'){try{const image=await compressPromotionImage(e.target.files?.[0]);window.__fwPromotionImage=image;renderPromotionImagePreview();toast('Banner image ready to save')}catch(x){e.target.value='';toast(x.message)}return}if(e.target.id==='fwCatImage'){try{const image=await compressProductImage(e.target.files?.[0]);window.__fwCategoryImage=image;renderCategoryImagePreview();const remove=$('#fwRemoveCatImage');if(remove)remove.disabled=false;toast('Image ready to save')}catch(x){e.target.value='';toast(x.message)}return}if(e.target.id!=='fwPImage')return;try{const image=await compressProductImage(e.target.files?.[0]);window.__fwProductImage=image;renderProductImagePreview();const remove=$('#fwRemoveImage');if(remove)remove.disabled=false;toast('Image ready to save')}catch(x){e.target.value='';toast(x.message)}},true);
     document.addEventListener('click',e=>{if(e.target.closest('#fwRemovePromoImage')){window.__fwPromotionImage={data:null,mime:null};renderPromotionImagePreview()}if(e.target.closest('#fwRemoveCatImage')){window.__fwCategoryImage={data:null,mime:null};renderCategoryImagePreview();e.target.closest('#fwRemoveCatImage').disabled=true}if(e.target.closest('#fwRemoveImage')){window.__fwProductImage={data:null,mime:null};renderProductImagePreview();e.target.closest('#fwRemoveImage').disabled=true}},true);
@@ -111,17 +111,15 @@
   }
   install();
 
-  // When Owner is opened directly on #catalogue (including a full browser reload),
-  // admin.js may already have rendered its legacy catalogue before this module loads.
-  // Re-hydrate the dedicated catalogue module so direct reload and in-app navigation
-  // always use the same current /api/admin/catalogue data source.
+  // Keep direct refresh on #catalogue on the same modern Catalogue shell used by navigation.
+  // The legacy list is intentionally not rendered by admin.js; this module owns the screen
+  // and loads categories, products, and promotions from the current API.
   function ownerAuthHint(){
     try{return sessionStorage.getItem('freshway-admin-auth')==='1'||localStorage.getItem('freshway-admin-auth')==='1'}catch(_){return false}
   }
 
   if (location.hash === '#catalogue' && ownerAuthHint()) {
-    // Direct reload on #catalogue: replace the legacy screen immediately, then
-    // fetch the same current catalogue endpoint used by in-app navigation.
+    // Direct reload: prepare the modern shell before loading the current Catalogue data.
     shell();
     load();
   }

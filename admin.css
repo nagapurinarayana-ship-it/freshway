@@ -312,3 +312,6 @@ button,input,textarea,select{touch-action:manipulation}
 .fw-owner-order-pricing{display:flex;flex-wrap:wrap;gap:6px 12px;margin:8px 0;color:var(--muted);font-size:11px}.fw-owner-order-pricing span{white-space:nowrap}
 
 .fw-offers-history{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}.fw-offers-history-note{font-size:11px;color:var(--muted)}.fw-offers-history-list{display:grid;gap:8px;margin-top:8px}.fw-offers-history-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:10px;border-radius:10px;background:#f7faf8;min-width:0}.fw-offers-history-row>div{display:grid;gap:3px;min-width:0}.fw-offers-history-row small{font-size:11px;color:var(--muted);overflow-wrap:anywhere}.fw-offers-history-row>div:last-child{text-align:right;flex-shrink:0}
+
+/* Avoid painting the default Overview screen before hash-route restoration completes. */
+.app:not(.owner-navigation-ready) #appView{visibility:hidden!important}
