@@ -24,6 +24,7 @@ const customerCartActions=window.FreshWayCustomerCartActions;
 const customerCartBar=window.FreshWayCustomerCartBar;
 const customerStateFreshness=window.FreshWayCustomerStateFreshness;
 const customerStoreInfo=window.FreshWayCustomerStoreInfo;
+const customerMessages=window.FreshWayCustomerMessages;
 const customerPromotions=window.FreshWayPromotions;
 const $=s=>document.querySelector(s);
 const $$=s=>[...document.querySelectorAll(s)];
@@ -85,7 +86,7 @@ function renderProfile(){const last=latestOrder(),name=$('#profileName'),phone=$
 const customerOrderData=customerOrdersDataModule.create({api,customerId,readState:()=>state,save,renderOrders,renderProfile,toast,document,intervalMs:0});
 document.addEventListener('freshway:order-actions-changed',event=>{void customerOrderData.load({silentError:event.detail?.silentError===true})});
 let customerFreshness=null;
-function handleView(name){if(name==='orders'){renderOrders();customerOrderData.load();customerOrderData.start()}else customerOrderData.stop();if(name==='cart')renderCart();if(name==='checkout'){prefillCheckout();updateCartBar();window.FreshWayAddressSystem?.syncCheckout?.();void customerDeliveryBooking?.refreshCheckout?.()}if(name==='profile'){renderProfile();window.FreshWayAddressSystem?.renderDisplays?.()}if(name==='about'||name==='contact')customerStoreInfo?.show(name,{api,toast}).catch(error=>toast(error.message));updateCartBar();customerFreshness?.onView(name)}
+function handleView(name){if(name==='orders'){renderOrders();customerOrderData.load();customerOrderData.start()}else customerOrderData.stop();if(name==='cart')renderCart();if(name==='checkout'){prefillCheckout();updateCartBar();window.FreshWayAddressSystem?.syncCheckout?.();void customerDeliveryBooking?.refreshCheckout?.()}if(name==='profile'){renderProfile();window.FreshWayAddressSystem?.renderDisplays?.();customerMessages?.refreshBadge?.()}if(name==='messages')customerMessages?.load();if(name==='about'||name==='contact')customerStoreInfo?.show(name,{api,toast}).catch(error=>toast(error.message));updateCartBar();customerFreshness?.onView(name)}
 const navigation=customerNavigation.create({document,onView:handleView,afterView:name=>window.FreshWaySeo?.setView(name)});
 customerFreshness=customerStateFreshness?.create({document,getView:()=>document.querySelector('.view.active-view')?.id?.replace(/View$/,'')||'home',refreshCatalogue:()=>window.freshWayCustomerCatalogueRefresh?.(),refreshOrders:()=>customerOrderData.load(),refreshPromotions:()=>customerPromotions?.refresh?.(),renderProfile});
 function setView(name,options){if(name==='home'&&options?.history!=='none')window.freshWayCustomerCatalogueGoHome?.();navigation.setView(name,options)}
@@ -98,7 +99,7 @@ window.showConfirmation=showConfirmation;
 window.setView=setView;
 window.state=state;
 document.addEventListener('freshway:session-expired',()=>{state.orders=[];state.profile={address:'',checkout:{}};save();renderOrders([]);renderProfile();customerOrderData.stop()});
-document.addEventListener('freshway:session',()=>{if(customerAuth.customerId()){renderProfile();customerOrderData.load();customerFreshness?.refresh()}});
+document.addEventListener('freshway:session',()=>{if(customerAuth.customerId()){renderProfile();customerOrderData.load();customerFreshness?.refresh();customerMessages?.refreshBadge?.()}});
 document.addEventListener('freshway:catalogue-sync',e=>{const count=Number(e.detail?.removed||0);if(count)toast(count===1?'A cart item is no longer available and was removed.':`${count} cart items are no longer available and were removed.`)});
 document.addEventListener('click',e=>{const t=e.target;const nav=t.closest('[data-nav]');if(nav)setView(nav.dataset.nav);if(t.closest('#viewCartBtn'))setView('cart');if(t.closest('#checkoutBtn'))setView('checkout');if(t.closest('#addressBtn')||t.closest('#profileAddress'))openAddressModal();if(t.closest('[data-close-modal]'))closeModal();if(t.closest('#profileBtn'))setView('profile');if(t.closest('#brandHome'))setView('home');if(t.closest('.back-btn'))navigation.goBack()});
 checkoutSubmit.bind();
@@ -130,4 +131,21 @@ if(navigator.serviceWorker?.addEventListener){
     const clean=new URL(location.href);clean.searchParams.delete('openOrder');clean.hash='orders';
     history.replaceState({[customerNavigation.HISTORY_FLAG]:true,view:'orders'},'',clean.pathname+clean.search+clean.hash);
   }).catch(()=>{});
+})();
+
+
+// Reply notifications open the customer's persisted message thread.
+(function openMessageFromNotification(){
+  const incoming=new URL(location.href);
+  const messageId=incoming.searchParams.get('openMessage');
+  if(!messageId&&location.hash!=='#messages')return;
+  setView('messages',{history:'replace'});
+  if(messageId){
+    customerMessages?.load?.().then(()=>{
+      const messageCard=[...document.querySelectorAll('[data-customer-message-id]')].find(card=>card.dataset.customerMessageId===messageId);
+      messageCard?.scrollIntoView({behavior:'smooth',block:'center'});
+      const clean=new URL(location.href);clean.searchParams.delete('openMessage');clean.hash='messages';
+      history.replaceState({[customerNavigation.HISTORY_FLAG]:true,view:'messages'},'',clean.pathname+clean.search+clean.hash);
+    }).catch(()=>{});
+  }
 })();
