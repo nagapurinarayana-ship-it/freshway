@@ -18,15 +18,17 @@ assert.match(html,/id="accountDeletionSummary"/);
 console.log('owner navigation history and safe initial settings bootstrap OK');
 
 // Keep the Owner UI calm by default; secondary tools and advanced order filters stay tucked away.
-assert.match(html, /class="owner-nav-more"/);
-assert.match(html, /data-screen="overview"[\\s\\S]*?data-screen="orders"[\\s\\S]*?data-screen="catalogue"[\\s\\S]*?data-screen="customers"/);
-assert.match(html, /<details class="panel business-panel">/);
-assert.match(html, /<details class="panel home-preview" open>/);
-assert.match(html, /<details class="panel home-preview">/);
-assert.match(html, /id="orderAdvancedFilters" class="order-advanced-filters"/);
-assert.match(html, /id="orderPayment"/);
-assert.match(html, /id="orderPlan"/);
-assert.match(html, /id="orderSort"/);
-assert.match(html, /id="mobileMoreBtn"/);
-assert.match(html, /<details open><summary>Operations<\\/summary>/);
+assert.ok(html.includes('class="owner-nav-more"'));
+assert.ok(html.indexOf('data-screen="overview"') < html.indexOf('data-screen="orders"'));
+assert.ok(html.indexOf('data-screen="orders"') < html.indexOf('data-screen="catalogue"'));
+assert.ok(html.indexOf('data-screen="catalogue"') < html.indexOf('data-screen="customers"'));
+assert.ok(html.includes('<details class="panel business-panel">'));
+assert.ok(html.includes('<details class="panel home-preview" open>'));
+assert.ok(html.includes('<details class="panel home-preview">'));
+assert.ok(html.includes('id="orderAdvancedFilters" class="order-advanced-filters"'));
+assert.ok(html.includes('id="orderPayment"'));
+assert.ok(html.includes('id="orderPlan"'));
+assert.ok(html.includes('id="orderSort"'));
+assert.ok(html.includes('id="mobileMoreBtn"'));
+assert.ok(html.includes('<details open><summary>Operations</summary>'));
 console.log('Owner UI defaults to core tasks, with secondary navigation and filters collapsed');
