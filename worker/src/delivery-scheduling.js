@@ -208,7 +208,18 @@ function canCustomerCancelImmediately(order) {
   // New/Confirmed orders have not entered fulfilment. Let customers cancel them
   // directly even close to the delivery-slot cutoff instead of leaving them active
   // behind an Owner-review request. Later stages still go through Owner review.
-  return ['New', 'Confirmed'].includes(String(order?.delivery_status || '').trim());
+  return ['new', 'confirmed'].includes(String(order?.delivery_status || '').trim().toLowerCase());
+}
+async function resolvePendingCancellationRequests(env, orderId, note) {
+  try {
+    await env.DB.prepare(
+      "UPDATE order_action_requests SET status='rejected',resolution_note=?,resolved_by='customer',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND request_type='cancellation' AND status='pending'"
+    ).bind(note, orderId).run();
+  } catch (error) {
+    // The cancellation is already durable before this cleanup; don't turn it
+    // into a reported failure if an obsolete request could not be retired.
+    console.error('FreshWay obsolete cancellation request cleanup failed:', error?.message || error);
+  }
 }
 async function queueRequest(env, order, customerId, requestType, body = {}) {
   const existing = await env.DB.prepare("SELECT id,status,request_type,requested_slot_id,requested_delivery_date,reason FROM order_action_requests WHERE order_id=? AND request_type=? AND status='pending' ORDER BY created_at DESC LIMIT 1").bind(order.id, requestType).first();
@@ -370,8 +381,12 @@ async function customerAction(request, env, customerId, orderId, action) {
   const order = await getOrderForAction(env, orderId, customerId);
   if (!order || Number(order.is_test_order || 0)) return response({ error: 'Order was not found in your account.' }, 404);
   if (action === 'cancel') {
-    if (order.delivery_status === 'Cancelled') return response({ ok: true, status: 'Cancelled', alreadyCancelled: true });
-    if (order.delivery_status === 'Delivered') return response({ error: 'Delivered orders cannot be cancelled here. Submit an issue or return request instead.' }, 409);
+    const currentStatus = String(order.delivery_status || '').trim().toLowerCase();
+    if (currentStatus === 'cancelled') {
+      await resolvePendingCancellationRequests(env, order.id, 'Order was already cancelled.');
+      return response({ ok: true, status: 'Cancelled', alreadyCancelled: true });
+    }
+    if (currentStatus === 'delivered') return response({ error: 'Delivered orders cannot be cancelled here. Submit an issue or return request instead.' }, 409);
     if (!canCustomerCancelImmediately(order)) {
       const queued = await queueRequest(env, order, customerId, 'cancellation', body);
       return response({ ok: true, request: queued, status: order.delivery_status }, 202);
@@ -384,6 +399,7 @@ async function customerAction(request, env, customerId, orderId, action) {
     const changed = await updateOrder(env, order.id, { status: 'Cancelled' }, {
       actorType: 'customer', actorId: customerId, reason: cancelReason
     });
+    await resolvePendingCancellationRequests(env, order.id, 'Order was cancelled directly by the customer.');
     const after = await env.DB.prepare('SELECT customer_id,delivery_status,payment_status,delivery_plan,is_test_order FROM orders WHERE id=?').bind(order.id).first();
     await notifyCustomerAndOwner(env, order.id, before, 'order_cancelled_by_customer', 'Your order has been cancelled.', after);
     return response({ ok: true, status: changed.status, message: 'Your order has been cancelled.' });

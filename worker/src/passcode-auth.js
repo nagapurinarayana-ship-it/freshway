@@ -167,7 +167,7 @@ async function completePasscodeReset(request, env) {
   }, env, token);
 }
 async function updateCustomer(request, env) { const sessionId = await sessionCustomerId(request, env); if (!sessionId) return response({ error: 'Customer authentication required.' }, 401, env); let payload = {}; try { payload = await request.json(); } catch (_) {} if (String(payload.id || '').trim() !== sessionId) return response({ error: 'Customer identity does not match the signed-in account.' }, 409, env); await env.DB.prepare('UPDATE customers SET whatsapp_opt_in=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(payload.whatsappOptIn ? 1 : 0, sessionId).run(); return response({ ok: true, customerId: sessionId }, 200, env); }
-async function customerOrdersFromSnapshots(request, env, customerId) {
+export async function customerOrdersFromSnapshots(request, env, customerId) {
   const { results } = await env.DB.prepare(`SELECT o.id,o.customer_name,o.customer_phone,o.total,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.delivered_at,o.payment_collected_at,o.scheduled_delivery_date,o.scheduled_slot_id,o.assigned_store_id,o.scheduled_start_minute,o.scheduled_end_minute,o.schedule_status,ds.name assigned_store_name,
     c.name registered_name,c.phone registered_phone,
     COALESCE(s.recipient_name,a.recipient_name,o.customer_name) recipient_name,
@@ -181,6 +181,7 @@ async function customerOrdersFromSnapshots(request, env, customerId) {
     oi.product_id,oi.name,oi.unit,oi.qty,oi.price,oi.line_total
     FROM orders o
     LEFT JOIN customers c ON c.id=o.customer_id
+    LEFT JOIN delivery_stores ds ON ds.id=o.assigned_store_id
     LEFT JOIN order_address_snapshots s ON s.order_id=o.id
     LEFT JOIN addresses a ON a.id=o.address_id
     LEFT JOIN order_items oi ON oi.order_id=o.id

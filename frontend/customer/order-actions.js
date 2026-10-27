@@ -9,7 +9,7 @@
       const cancel = event.target.closest('[data-customer-order-cancel]');
       if (cancel) {
         const orderId = cancel.dataset.customerOrderCancel;
-        if (!orderId || !window.confirm('Cancel this order? If it is past the cancellation cutoff, FreshWay will review your request.')) return;
+        if (!orderId || !window.confirm('Cancel this order? New or Confirmed orders are cancelled immediately. Orders already being fulfilled may need FreshWay review.')) return;
         cancel.disabled = true;
         try {
           const api = request(); if (!api) throw new Error('Order actions are temporarily unavailable.');

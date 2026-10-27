@@ -3,7 +3,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const source=fs.readFileSync(__dirname+'/orders-data.js','utf8');
 
-function setup({customerId='cust-1',orders=[{id:'o1'}],api=async()=>({orders:[{id:'o2'}]}),notifications=null}={}){
+function setup({customerId='cust-1',orders=[{id:'o1'}],api=async()=>({orders:[{id:'o2'}]}),notifications=null,activeView='orders'}={}){
   const calls=[];
   const intervals=[];
   const cleared=[];
@@ -16,7 +16,11 @@ function setup({customerId='cust-1',orders=[{id:'o1'}],api=async()=>({orders:[{i
   }
   const context={
     window:{FreshWayNotifications:notificationApi||undefined},
-    document:{querySelector:()=>({classList:{contains:()=>true}})},
+    document:{querySelector:selector=>{
+      if(selector==='#ordersView.active-view')return activeView==='orders'?{id:'ordersView',classList:{contains:()=>true}}:null;
+      if(selector==='#ordersView')return {id:'ordersView',classList:{contains:()=>activeView==='orders'}};
+      return null;
+    }},
     setInterval:(fn,ms)=>{intervals.push({fn,ms});return intervals.length},
     clearInterval:id=>cleared.push(id)
   };
@@ -45,6 +49,11 @@ function setup({customerId='cust-1',orders=[{id:'o1'}],api=async()=>({orders:[{i
   const offline=setup({api:async()=>{throw new Error('offline')},orders:[{id:'saved'}]});
   await offline.service.load();
   assert.deepEqual(offline.events,[['orders',[{id:'saved'}]],['toast','Could not refresh orders. Showing saved details; try again shortly.']]);
+
+  const homeOffline=setup({activeView:'home',api:async()=>{throw new Error('offline')},orders:[{id:'saved'}]});
+  await homeOffline.service.load();
+  assert.equal(homeOffline.events.some(event=>Array.isArray(event)&&event[0]==='toast'),false,'Home must not show order-refresh feedback');
+  assert.deepEqual(homeOffline.events,[['orders',[{id:'saved'}]]]);
 
   const unauthorized=setup({api:async()=>{const error=new Error('Customer authentication required.');error.status=401;throw error},orders:[{id:'saved'}]});
   await unauthorized.service.load();
