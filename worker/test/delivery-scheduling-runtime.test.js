@@ -191,6 +191,9 @@ test('checkout creates an order with a server-validated preferred date and reser
   try {
     db.db.prepare(`UPDATE delivery_scheduling_settings
       SET enabled=1,booking_horizon_days=7,same_day_cutoff_minutes=120,timezone='Asia/Kolkata' WHERE id=1`).run();
+    const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+    db.db.prepare(`INSERT INTO coupons(id,code,title,discount_amount,first_order_only,starts_on,active)
+      VALUES ('coupon-first25','FIRST25','First order fixed coupon',25,1,?,1)`).run(today);
     let deferred;
     const ctx={waitUntil(promise){deferred=promise;}};
     const payload={
@@ -198,14 +201,31 @@ test('checkout creates an order with a server-validated preferred date and reser
       customer:{name:'Test Customer',phone:'1234567890'},
       address:{house:'1-1',area:'Test Area',city:'Test City',pincode:'500001',latitude:17.385,longitude:78.4867},
       items:[{id:'product-1',qty:2}],
+      couponCode:'FIRST25',
+      expectedTotal:205,
       preferredDeliveryDate:'2026-10-28',
       clientOrderId:'checkout-test-0001'
     };
     const placed=await createOrder({DB:db,APP_ORIGIN:'https://fwcoldpressed.in'},payload,ctx);
     if(deferred)await deferred;
     assert.ok(placed.id);
+    assert.equal(placed.total,205);
+    assert.equal(placed.itemsSubtotal,200);
+    assert.equal(placed.deliveryFee,30);
+    assert.equal(placed.couponCode,'FIRST25');
+    assert.equal(placed.couponDiscount,25);
+    assert.equal(placed.pricingBreakdownKnown,true);
     assert.equal(placed.scheduledDelivery.date,'2026-10-28');
-    const order=db.db.prepare('SELECT delivery_status,scheduled_delivery_date,scheduled_slot_id,assigned_store_id,schedule_status FROM orders WHERE id=?').get(placed.id);
+    const order=db.db.prepare('SELECT total,items_subtotal,delivery_fee,coupon_id,coupon_code,coupon_discount,pricing_breakdown_known,delivery_status,scheduled_delivery_date,scheduled_slot_id,assigned_store_id,schedule_status FROM orders WHERE id=?').get(placed.id);
+    assert.equal(order.total,205);
+    assert.equal(order.items_subtotal,200);
+    assert.equal(order.delivery_fee,30);
+    assert.equal(order.coupon_id,'coupon-first25');
+    assert.equal(order.coupon_code,'FIRST25');
+    assert.equal(order.coupon_discount,25);
+    assert.equal(order.pricing_breakdown_known,1);
+    assert.equal(db.db.prepare('SELECT COUNT(*) count FROM coupon_redemptions WHERE order_id=? AND status=\'redeemed\'').get(placed.id).count,1);
+    assert.equal(db.db.prepare('SELECT COUNT(*) count FROM first_order_coupon_claims WHERE customer_id=\'customer-1\'').get().count,1);
     assert.equal(order.delivery_status,'New');
     assert.equal(order.scheduled_delivery_date,'2026-10-28');
     assert.equal(order.scheduled_slot_id,null);
@@ -219,6 +239,14 @@ test('checkout creates an order with a server-validated preferred date and reser
 
     const retried=await createOrder({DB:db,APP_ORIGIN:'https://fwcoldpressed.in'},payload,{waitUntil(promise){deferred=promise;}});
     assert.equal(retried.id,placed.id,'idempotent checkout retry must return the original order');
+    assert.equal(retried.total,205);
+    assert.equal(retried.pricingBreakdownKnown,true);
+    assert.equal(retried.itemsSubtotal,200);
+    assert.equal(retried.deliveryFee,30);
+    assert.equal(retried.couponCode,'FIRST25');
+    assert.equal(retried.couponDiscount,25);
+    assert.equal(db.db.prepare('SELECT COUNT(*) count FROM coupon_redemptions WHERE order_id=?').get(placed.id).count,1,'retry must not create another redemption');
+    assert.equal(db.db.prepare('SELECT COUNT(*) count FROM first_order_coupon_claims WHERE customer_id=\'customer-1\'').get().count,1,'retry must not create another first-order claim');
     assert.equal(db.db.prepare(`SELECT stock_quantity FROM products WHERE id='product-1'`).get().stock_quantity,1,'retry must not reserve global stock twice');
     assert.equal(db.db.prepare('SELECT COUNT(*) count FROM delivery_slot_reservations WHERE order_id=?').get(placed.id).count,0);
   } finally { db.close(); }
