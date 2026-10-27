@@ -121,8 +121,10 @@ export async function listCustomerMessages(env, customerId) {
       'order_request' AS source,r.order_id
       FROM order_action_requests r
       WHERE r.customer_id=? AND r.request_type='issue'
-        AND r.created_at >= datetime('now','-90 days')
-        AND (r.status IN ('pending','approved') OR r.admin_reply IS NOT NULL)
+        AND (
+          (r.admin_reply IS NULL AND r.status IN ('pending','approved'))
+          OR (r.admin_reply IS NOT NULL AND r.replied_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now','-90 days'))
+        )
       ORDER BY r.created_at DESC LIMIT 50`).bind(customerId).all()
   ]);
   return [...(general.results || []), ...(orderRequests.results || [])]
@@ -155,22 +157,23 @@ export async function listAdminCustomerMessages(env, statusValue = 'pending') {
   const orderStatusWhere = status === 'pending'
     ? "AND (r.admin_reply IS NULL OR trim(r.admin_reply)='') AND r.status IN ('pending','approved')"
     : status === 'replied'
-      ? "AND r.admin_reply IS NOT NULL AND trim(r.admin_reply)<>''"
-      : "AND (r.status IN ('pending','approved') OR r.admin_reply IS NOT NULL)";
+      ? "AND r.admin_reply IS NOT NULL AND trim(r.admin_reply)<>'' AND r.replied_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now','-90 days')"
+      : "AND (((r.admin_reply IS NULL OR trim(r.admin_reply)='') AND r.status IN ('pending','approved')) OR (r.admin_reply IS NOT NULL AND r.replied_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now','-90 days')))";
   const orderSql = `SELECT r.id, c.name AS customer_name, substr(c.phone,-4) AS customer_phone_last4,
       ('Order help · ' || r.order_id) AS subject,r.reason AS message,
       CASE WHEN r.admin_reply IS NULL OR trim(r.admin_reply)='' THEN 'pending' ELSE 'replied' END AS status,
       r.admin_reply,r.created_at,r.updated_at,r.replied_at,'order_request' AS source,r.order_id
       FROM order_action_requests r LEFT JOIN customers c ON c.id=r.customer_id
-      WHERE r.request_type='issue' AND r.created_at >= datetime('now','-90 days') ${orderStatusWhere}
+      WHERE r.request_type='issue' AND r.customer_id IS NOT NULL ${orderStatusWhere}
       ORDER BY r.created_at DESC LIMIT ${limit}`;
   const [general, orderRequests, generalCounts, orderCounts] = await Promise.all([
     (status === 'all' ? env.DB.prepare(generalSql) : env.DB.prepare(generalSql).bind(status)).all(),
     env.DB.prepare(orderSql).all(),
     env.DB.prepare("SELECT status,COUNT(*) AS total FROM customer_messages WHERE expires_at > strftime('%Y-%m-%dT%H:%M:%fZ','now') GROUP BY status").all(),
     env.DB.prepare(`SELECT CASE WHEN admin_reply IS NULL OR trim(admin_reply)='' THEN 'pending' ELSE 'replied' END AS status,COUNT(*) AS total
-      FROM order_action_requests WHERE request_type='issue' AND created_at >= datetime('now','-90 days')
-      AND (status IN ('pending','approved') OR admin_reply IS NOT NULL) GROUP BY status`).all()
+      FROM order_action_requests WHERE request_type='issue' AND customer_id IS NOT NULL AND
+      (((admin_reply IS NULL OR trim(admin_reply)='') AND status IN ('pending','approved')) OR
+       (admin_reply IS NOT NULL AND replied_at >= strftime('%Y-%m-%dT%H:%M:%fZ','now','-90 days'))) GROUP BY status`).all()
   ]);
   const allMessages = [...(general.results || []), ...(orderRequests.results || [])];
   const summary = { pending: 0, replied: 0 };
@@ -210,6 +213,7 @@ export async function replyToCustomerMessage(env, id, payloadValue) {
   if (isOrderRequest) {
     const existing = await env.DB.prepare("SELECT id,customer_id,admin_reply FROM order_action_requests WHERE id=? AND request_type='issue' LIMIT 1").bind(id).first();
     if (!existing) problem('CUSTOMER_MESSAGE_NOT_FOUND', 404);
+    if (!existing.customer_id) problem('This request no longer belongs to an active customer account.', 409);
     if (String(existing.admin_reply || '') === reply) return { ok: true, unchanged: true, notification: 'already_sent' };
     await env.DB.prepare("UPDATE order_action_requests SET admin_reply=?,replied_at=strftime('%Y-%m-%dT%H:%M:%fZ','now'),reply_seen_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=? AND request_type='issue'")
       .bind(reply, id).run();
