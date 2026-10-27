@@ -47,7 +47,7 @@ export async function cleanupExpiredCustomerMessages(env) {
 async function removeMessage(env, id) {
   await env.DB.batch([
     env.DB.prepare('DELETE FROM customer_messages WHERE id=?').bind(id),
-    env.DB.prepare("DELETE FROM notification_events WHERE event_type='customer_message_reply' AND event_key LIKE ?").bind('customer-message:' + id + ':reply:%')
+    env.DB.prepare("DELETE FROM notification_events WHERE event_type IN ('customer_message_reply','customer_message_new') AND event_key LIKE ?").bind('customer-message:' + id + ':%')
   ]);
 }
 
