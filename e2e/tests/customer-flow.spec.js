@@ -190,6 +190,7 @@ test.beforeEach(async ({ page }) => {
           id: 'FW-E2E-0001',
           customerId: payload.customerId,
           total: Number(payload.expectedTotal ?? 150),
+          pricingBreakdownKnown: true,
           itemsSubtotal: 120,
           deliveryFee: 30,
           couponCode: null,
