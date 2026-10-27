@@ -207,12 +207,12 @@
     const toggle=event.target.closest('[data-fw-toggle-coupon]');if(toggle){
       const coupon=coupons.find(c=>c.id===toggle.dataset.fwToggleCoupon);if(!coupon)return;
       const nextActive=toggle.dataset.active!=='1';
+      if(!nextActive&&!confirm('Pause this coupon? New customers will no longer be able to use it.'))return;
       if(hasUnsavedChanges()){
         if(!confirm('Discard unsaved Delivery & Offers changes before changing this coupon?'))return;
         if(unsavedCoupon)editingId=null;
         unsavedSettings=false;unsavedCoupon=false;settingsDraft=null;
       }
-      if(!nextActive&&!confirm('Pause this coupon? New customers will no longer be able to use it.'))return;
       toggle.disabled=true;
       try{await api('/admin/coupons/'+encodeURIComponent(coupon.id),{method:'PATCH',body:JSON.stringify({active:nextActive})});await load();status(nextActive?'Coupon activated.':'Coupon paused.');}
       catch(error){status(error.message||'Could not update coupon.',true);toggle.disabled=false;}
