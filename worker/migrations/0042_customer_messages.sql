@@ -23,3 +23,11 @@ CREATE INDEX IF NOT EXISTS idx_customer_messages_status_created
   ON customer_messages(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_customer_messages_expires
   ON customer_messages(expires_at);
+
+-- Keep order-related Contact FreshWay requests replyable without changing their
+-- existing review, resolution, and audit workflow.
+ALTER TABLE order_action_requests ADD COLUMN admin_reply TEXT;
+ALTER TABLE order_action_requests ADD COLUMN replied_at TEXT;
+ALTER TABLE order_action_requests ADD COLUMN reply_seen_at TEXT;
+CREATE INDEX IF NOT EXISTS idx_order_action_requests_customer_issue
+  ON order_action_requests(customer_id, request_type, created_at DESC);
