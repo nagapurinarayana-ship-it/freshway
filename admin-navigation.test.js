@@ -15,4 +15,9 @@ assert.match(source,/document\.readyState==='loading'\)document\.addEventListene
 assert.ok(html.indexOf('admin.js?v=20261027-customer-messages-v1') < html.indexOf('frontend/admin/store-profile.js'),
   'the regression test should cover the real script-loading order');
 assert.match(html,/id="accountDeletionSummary"/);
+assert.match(html,/class="owner-nav-primary" data-screen="orders"/,'Orders must remain a primary Owner navigation item');
+assert.match(html,/<details class="owner-nav-more" id="ownerNavMore">/,'secondary Owner tools must be grouped under More tools');
+assert.match(html,/<details class="owner-business-details">/,'business metrics must be collapsed by default to reduce dashboard clutter');
+assert.match(html,/<details class="panel owner-secondary-home">/,'recent customers must be available without taking over the dashboard');
+assert.doesNotMatch(html,/<button data-screen="messages">[\s\S]*?<button data-screen="cash">/,'secondary options must not interrupt primary navigation');
 console.log('owner navigation history and safe initial settings bootstrap OK');
