@@ -103,7 +103,7 @@ export async function createCustomerMessage(env, customerId, payloadValue) {
       audience: 'owner', customerId: null, orderId: null,
       eventType: 'customer_message_new', eventKey: `customer-message:${id}:received:owner`,
       title: 'OWNER · New customer message',
-      body: `${name} · ${subject}`, url: '/admin/#messages'
+      body: 'Open Owner Admin to read and reply.', url: '/admin/#messages'
     });
   } catch (error) { console.error('FreshWay new customer message alert failed:', error?.message || error); }
   return { ok: true, id, message: 'Message sent to FreshWay. You can view the reply in Profile → Messages.' };
@@ -190,7 +190,7 @@ async function sendReplyNotification(env, customerId, messageId, body, kind = 'm
       eventType: 'customer_message_reply',
       eventKey: (kind==='order_request'?'order-request:':'customer-message:')+messageId+':reply:'+Date.now()+':'+uuid(),
       title: 'FreshWay replied to your message',
-      body: body.length > 220 ? body.slice(0, 217) + '…' : body,
+      body: 'Open FreshWay to read your reply.',
       url: '/?openMessage=' + encodeURIComponent(messageId) + '#messages'
     });
   } catch (error) {
