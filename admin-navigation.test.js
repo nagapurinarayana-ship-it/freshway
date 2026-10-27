@@ -19,5 +19,11 @@ assert.match(html,/class="owner-nav-primary" data-screen="orders"/,'Orders must 
 assert.match(html,/<details class="owner-nav-more" id="ownerNavMore">/,'secondary Owner tools must be grouped under More tools');
 assert.match(html,/<details class="owner-business-details">/,'business metrics must be collapsed by default to reduce dashboard clutter');
 assert.match(html,/<details class="panel owner-secondary-home">/,'recent customers must be available without taking over the dashboard');
-assert.doesNotMatch(html,/<button data-screen="messages">[\s\S]*?<button data-screen="cash">/,'secondary options must not interrupt primary navigation');
+const sideNav=html.slice(html.indexOf('<aside class="side">'),html.indexOf('<main>'));
+assert.match(sideNav,/<button class="owner-nav-primary" data-screen="orders">/,'Orders must remain in the primary navigation');
+assert.match(sideNav,/<details class="owner-nav-more" id="ownerNavMore">[\s\S]*data-screen="messages"/,'Customer messages must remain reachable inside More tools');
+assert.doesNotMatch(sideNav.slice(0,sideNav.indexOf('<details class="owner-nav-more"')),/data-screen="messages|customers|catalogue|reports|settings/,'secondary options must not crowd the primary navigation');
+assert.match(html,/mobile-more-group/,'mobile More menu must group secondary options');
+assert.match(html,/#kpis \.kpi:nth-child\(n\+5\)\{display:none\}/,'dashboard must show only four primary KPI cards');
+
 console.log('owner navigation history and safe initial settings bootstrap OK');
