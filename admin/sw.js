@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v49';
+const CACHE = 'fw-owner-v50';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -7,10 +7,10 @@ const SHELL = [
   '/admin/icons/icon-512-maskable-v2.png?v=20261026-brand-v2',
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/owner-pwa-install.css?v=20261019-install-prompt-v2',
-  '/admin/admin.css?v=20261027-delivery-offers-v1',
-  '/admin/admin.js?v=20261027-delivery-offers-v1',
+  '/admin/admin.css?v=20261027-delivery-offers-v2',
+  '/admin/admin.js?v=20261027-delivery-offers-v2',
   '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2',
-  '/admin/frontend/admin/delivery-offers.js?v=20261027-fixed-coupons-v1',
+  '/admin/frontend/admin/delivery-offers.js?v=20261027-fixed-coupons-v2',
   '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
   '/admin/frontend/phone-display.js?v=20261009-phone-display-v1',
@@ -35,9 +35,9 @@ const REQUIRED_SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
-  '/admin/admin.css?v=20261027-delivery-offers-v1',
-  '/admin/admin.js?v=20261027-delivery-offers-v1',
-  '/admin/frontend/admin/delivery-offers.js?v=20261027-fixed-coupons-v1',
+  '/admin/admin.css?v=20261027-delivery-offers-v2',
+  '/admin/admin.js?v=20261027-delivery-offers-v2',
+  '/admin/frontend/admin/delivery-offers.js?v=20261027-fixed-coupons-v2',
   '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
   '/admin/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1',
