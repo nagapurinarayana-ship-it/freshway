@@ -26,7 +26,7 @@ export async function cleanupExpiredCustomerMessages(env) {
   // Order requests are operational records tied to order history, so retain the
   // request row but purge the free-text reply after 90 days.
   const orderReplies = await env.DB.prepare(
-    "UPDATE order_action_requests SET admin_reply=NULL,replied_at=NULL,reply_seen_at=NULL WHERE request_type='issue' AND admin_reply IS NOT NULL AND created_at < datetime('now','-90 days')"
+    "UPDATE order_action_requests SET admin_reply=NULL,replied_at=NULL,reply_seen_at=NULL WHERE request_type='issue' AND admin_reply IS NOT NULL AND replied_at < strftime('%Y-%m-%dT%H:%M:%fZ','now','-90 days')"
   ).run();
   let notifications = 0;
   try {
