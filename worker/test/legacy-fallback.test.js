@@ -112,12 +112,12 @@ test('owner lifecycle script cache-busting version matches the service-worker sh
   assert.doesNotMatch(ownerServiceWorkerSource, /20260909-refresh-v3/, 'no stale owner-lifecycle URL rewrite should remain');
 });
 
-test('service worker keeps documents fresh and serves versioned code from cache', () => {
+test('service worker keeps documents fresh and refreshes versioned code before cache fallback', () => {
   assert.ok(serviceWorkerSource.includes("if (isNavigation && ['/', '/index.html'].includes(url.pathname))"));
   assert.ok(serviceWorkerSource.includes("if (url.pathname === '/admin.html' || url.pathname.startsWith('/admin/'))"));
   assert.match(ownerServiceWorkerSource, /const CACHE = 'fw-owner-v[0-9]+'/);
   assert.ok(serviceWorkerSource.includes("const isVersionedCode = ['script','style'].includes(destination) && url.searchParams.has('v')"));
-  assert.ok(serviceWorkerSource.includes("if (cached && isVersionedCode) return cached"));
+  assert.ok(serviceWorkerSource.includes("if (isVersionedCode)") && serviceWorkerSource.includes("return cached||Response.error()"), "customer versioned assets should use network-first with an offline cache fallback");
   assert.ok(serviceWorkerSource.includes("if (cached) {"));
   assert.ok(serviceWorkerSource.includes("const cached = await cache.match(event.request)"));
   assert.ok(serviceWorkerSource.includes("return (await cache.match(event.request)) || Response.error()"));
