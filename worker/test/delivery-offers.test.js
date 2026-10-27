@@ -2,11 +2,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
-import { calculatePriceBreakdown, handleAdminDeliveryOffersRequest } from '../src/delivery-offers.js';
+import { calculatePriceBreakdown, handleAdminDeliveryOffersRequest, handleCustomerDeliveryOffersRequest } from '../src/delivery-offers.js';
 import { groupOrders } from '../src/index.js';
 
 const defaults = { freeDeliveryEnabled: true, freeDeliveryThreshold: 800, standardDeliveryFee: 30 };
 const migration = readFileSync(new URL('../migrations/0043_delivery_offers_fixed_coupons.sql', import.meta.url), 'utf8');
+const orderWriterSource = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
 
 test('no order minimum: amounts below the threshold remain orderable and pay standard delivery', () => {
   assert.deepEqual(calculatePriceBreakdown(defaults, 100), {
@@ -48,6 +49,8 @@ function legacyDatabase() {
   db.exec('PRAGMA foreign_keys=ON;');
   db.exec(`
     CREATE TABLE customers (id TEXT PRIMARY KEY, name TEXT, phone TEXT);
+    CREATE TABLE products (id TEXT PRIMARY KEY, name TEXT NOT NULL, unit TEXT NOT NULL, price INTEGER NOT NULL, active INTEGER NOT NULL DEFAULT 1, stock_managed INTEGER NOT NULL DEFAULT 0, stock_quantity INTEGER NOT NULL DEFAULT 0);
+    INSERT INTO products(id,name,unit,price,active,stock_managed,stock_quantity) VALUES ('p100','Rice','kg',100,1,0,0),('p800','Oil','litre',800,1,0,0);
     CREATE TABLE orders (
       id TEXT PRIMARY KEY,
       customer_id TEXT NOT NULL REFERENCES customers(id),
@@ -202,4 +205,41 @@ test('Owner coupon UI exposes and requests redemption history', () => {
   assert.match(ownerUi,/data-fw-coupon-history/);
   assert.match(ownerUi,/data-fw-coupon-history/);
   assert.match(ownerUi,/redemptions/);
+});
+
+test('customer quote endpoint uses D1 catalogue prices and integrates coupon plus delivery rules', async () => {
+  const db=legacyDatabase();
+  try {
+    db.exec(migration);
+    db.prepare("INSERT INTO coupons(id,code,title,discount_amount,starts_on) VALUES ('quote-coupon','SAVE50','Fixed offer',50,'2026-01-01')").run();
+    const quote=async(items,couponCode='')=>handleCustomerDeliveryOffersRequest(
+      new Request('https://freshway.example/api/checkout/quote',{
+        method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({items,couponCode})
+      }),
+      {DB:d1Adapter(db)},
+      'customer-3'
+    );
+    const smallResponse=await quote([{id:'p100',qty:1,price:1}],'SAVE50');
+    assert.equal(smallResponse.status,200);
+    const small=(await smallResponse.json()).pricing;
+    assert.equal(small.itemsSubtotal,100,'client-supplied prices must be ignored');
+    assert.equal(small.items[0].price,100,'quote must return the current catalogue price');
+    assert.equal(small.couponDiscount,50);
+    assert.equal(small.deliveryFee,30);
+    assert.equal(small.finalTotal,80);
+
+    const thresholdResponse=await quote([{id:'p800',qty:1}],'SAVE50');
+    assert.equal(thresholdResponse.status,200);
+    const threshold=(await thresholdResponse.json()).pricing;
+    assert.equal(threshold.itemsSubtotal,800);
+    assert.equal(threshold.deliveryFee,0,'free delivery is based on the subtotal before coupon discount');
+    assert.equal(threshold.couponDiscount,50);
+    assert.equal(threshold.finalTotal,750);
+  } finally { db.close(); }
+});
+
+test('new order insert saves the pricing-provenance flag atomically with its pricing snapshot', () => {
+  assert.match(orderWriterSource,/INSERT INTO orders \\(id,customer_id,address_id,customer_name,customer_phone,total,items_subtotal,delivery_fee,coupon_id,coupon_code,coupon_discount,pricing_breakdown_known,payment_status/);
+  assert.match(orderWriterSource,/pricing\.couponDiscount,1,deliveryPlan/);
 });
