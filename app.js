@@ -133,19 +133,3 @@ if(navigator.serviceWorker?.addEventListener){
   }).catch(()=>{});
 })();
 
-
-// Reply notifications open the customer's persisted message thread.
-(function openMessageFromNotification(){
-  const incoming=new URL(location.href);
-  const messageId=incoming.searchParams.get('openMessage');
-  if(!messageId&&location.hash!=='#messages')return;
-  setView('messages',{history:'replace'});
-  if(messageId){
-    customerMessages?.load?.().then(()=>{
-      const messageCard=[...document.querySelectorAll('[data-customer-message-id]')].find(card=>card.dataset.customerMessageId===messageId);
-      messageCard?.scrollIntoView({behavior:'smooth',block:'center'});
-      const clean=new URL(location.href);clean.searchParams.delete('openMessage');clean.hash='messages';
-      history.replaceState({[customerNavigation.HISTORY_FLAG]:true,view:'messages'},'',clean.pathname+clean.search+clean.hash);
-    }).catch(()=>{});
-  }
-})();
