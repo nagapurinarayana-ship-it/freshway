@@ -29,8 +29,8 @@ assert.match(admin,/refreshOwnerAfterOrderMutation\(\)/);
 assert.doesNotMatch(admin,/localStorage\.setItem\(['"]freshway-admin-session['"]/);
 assert.doesNotMatch(admin,/sessionStorage\.setItem\(['"]freshway-admin-session['"]/);
 assert.match(admin,/AUTH_HINT='freshway-admin-auth'/);
-assert.match(html,/admin\.js\?v=20261027-customer-messages-v1/);
-assert.match(html,/admin\.css\?v=20261027-store-management-v1/);
+assert.match(html,/admin\.js\?v=20261027-owner-simple-v1/);
+assert.match(html,/admin\.css\?v=20261027-owner-simple-v1/);
 assert.doesNotMatch(html,/\.exact-location/);
 
 assert.match(sw,/const CACHE = 'freshway-v\d+'/);
