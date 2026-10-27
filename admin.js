@@ -226,8 +226,18 @@ bind();
 function startOwnerApp(){
   // Supporting Owner modules are loaded by later script tags in admin.html.
   // Wait until DOMContentLoaded so a direct refresh on Settings cannot race their registration.
+  // Keep the app shell hidden until the requested hash route is selected. Otherwise
+  // the HTML's default Overview screen can flash before a refreshed route appears.
   initOwnerHistory();
-  if(session()){auth(true);setAdminScreenVisual(location.hash.slice(1)||'overview');bootstrap()}else auth(false);
+  if(session()){
+    auth(true);
+    setAdminScreenVisual(location.hash.slice(1)||'overview');
+    $('.app')?.classList.add('owner-navigation-ready');
+    bootstrap();
+  }else{
+    auth(false);
+    $('.app')?.classList.add('owner-navigation-ready');
+  }
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',startOwnerApp,{once:true});
 else startOwnerApp();;
