@@ -66,7 +66,9 @@
         '<div class="fw-offers-coupon-meta"><span>'+esc(c.firstOrderOnly?'First order':'All eligible customers')+'</span><span>'+esc(c.startsOn)+(c.endsOn?' – '+esc(c.endsOn):' · No expiry')+'</span><span>'+Number(c.usedCount||0)+' used'+(c.maxRedemptions!=null?' of '+Number(c.maxRedemptions):'')+'</span></div>' +
         '<div class="fw-offers-coupon-actions"><span class="fw-offers-status '+esc(c.status)+'">'+esc(c.status==='active'?'Active':c.status==='scheduled'?'Scheduled':c.status==='expired'?'Expired':'Paused')+'</span>' +
         '<button type="button" class="ghost" data-fw-edit-coupon="'+esc(c.id)+'">Edit</button>' +
-        '<button type="button" class="'+(c.active?'ghost':'secondary-btn')+'" data-fw-toggle-coupon="'+esc(c.id)+'" data-active="'+(c.active?'1':'0')+'">'+(c.active?'Pause':'Activate')+'</button></div></article>').join('')+
+        '<button type="button" class="ghost" data-fw-coupon-history="'+esc(c.id)+'">View history</button>' +
+        '<button type="button" class="'+(c.active?'ghost':'secondary-btn')+'" data-fw-toggle-coupon="'+esc(c.id)+'" data-active="'+(c.active?'1':'0')+'">'+(c.active?'Pause':'Activate')+'</button></div>' +
+        '<div class="fw-offers-history" data-fw-coupon-history-panel="'+esc(c.id)+'" hidden></div></article>').join('')+
       '</div></section>';
   }
   function render() {
@@ -148,6 +150,27 @@
     if(event.target.closest('[data-fw-save-settings]')){await saveSettings();return;}
     if(event.target.closest('[data-fw-cancel-edit]')){editingId=null;render();return;}
     const edit=event.target.closest('[data-fw-edit-coupon]');if(edit){editingId=edit.dataset.fwEditCoupon;render();return;}
+    const historyButton=event.target.closest('[data-fw-coupon-history]');
+    if(historyButton){
+      const couponId=historyButton.dataset.fwCouponHistory;
+      const panel=Array.from(root.querySelectorAll('[data-fw-coupon-history-panel]')).find(el=>el.dataset.fwCouponHistoryPanel===couponId);
+      if(!panel)return;
+      const opening=panel.hidden;
+      panel.hidden=!opening;
+      historyButton.textContent=opening?'Hide history':'View history';
+      if(!opening)return;
+      panel.innerHTML='<p class="muted">Loading redemption history…</p>';
+      try{
+        const result=await api('/admin/coupons/'+encodeURIComponent(couponId)+'/redemptions');
+        const rows=Array.isArray(result.redemptions)?result.redemptions:[];
+        panel.innerHTML=rows.length
+          ? '<p class="fw-offers-history-note">Recent redemptions (up to '+Number(result.limit||100)+'). Cancelled orders remain in this history.</p><div class="fw-offers-history-list">'+rows.map(row=>
+            '<div class="fw-offers-history-row"><div><strong>'+esc(row.orderId)+'</strong><small>'+esc(row.customerName)+(row.customerPhone?' · '+esc(row.customerPhone):'')+'</small><small>'+esc(String(row.createdAt||'').replace('T',' ').slice(0,16)||'Date unavailable')+'</small></div><div><b>'+money(row.discountAmount)+'</b><small>'+esc(row.status)+' · '+esc(row.orderStatus)+'</small><small>Order '+money(row.orderTotal)+'</small></div></div>'
+          ).join('')+'</div>'
+          : '<p class="muted">No redemptions recorded yet.</p>';
+      }catch(error){panel.innerHTML='<p class="fw-offers-status-message" data-error="true">'+esc(error.message||'Could not load redemption history.')+'</p>';}
+      return;
+    }
     const toggle=event.target.closest('[data-fw-toggle-coupon]');if(toggle){
       const coupon=coupons.find(c=>c.id===toggle.dataset.fwToggleCoupon);if(!coupon)return;
       const nextActive=toggle.dataset.active!=='1';
