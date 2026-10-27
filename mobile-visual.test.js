@@ -10,7 +10,7 @@ const index=fs.readFileSync('index.html','utf8');
 assert.ok(index.includes('styles.css?v=20261027-orders-screen-cleanup-v1'),'HTML loads the current mobile viewport stylesheet');
 assert.ok(index.includes('frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2'),'HTML loads the selected-category fold-fit stylesheet');
 assert.ok(categoryFoldStyles.includes('height:100%!important;aspect-ratio:1/1'),'product artwork uses a square contained image box so the complete illustration is visible');
-assert.ok(sw.includes('/styles.css?v=20261027-checkout-ux-v2'),'service worker caches the current mobile viewport stylesheet');
+assert.ok(sw.includes('/styles.css?v=20261027-orders-screen-cleanup-v1'),'service worker caches the current mobile viewport stylesheet');
 assert.ok(sw.includes('/frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2'),'service worker caches the selected-category fold-fit stylesheet');
 assert.ok(index.includes('frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2'),'HTML loads the current category navigation asset');
 assert.ok(sw.includes('/frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2'),'service worker caches the current category navigation asset');
