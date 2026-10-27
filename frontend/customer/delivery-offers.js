@@ -97,7 +97,11 @@
     if (button) { button.disabled = true; button.textContent = 'Checking…'; }
     try {
       const pricing = await fetchQuote(lastItems, candidate);
-      if (version !== renderVersion) return;
+      if (version !== renderVersion) {
+        const input = document.querySelector('#fwCouponCode');
+        if (input) input.value = appliedCode;
+        return;
+      }
       setCode(candidate);
       lastQuote = pricing;
       const pricingRoot = document.querySelector('#fwDeliveryPricing');
