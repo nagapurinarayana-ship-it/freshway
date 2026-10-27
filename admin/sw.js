@@ -40,7 +40,7 @@ const REQUIRED_SHELL = [
   '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2',
   '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2',
   '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2',
-  '/admin/owner-lifecycle.js?v=20261023-available-fields-invoice-v1'
+  '/admin/owner-lifecycle.js?v=20261027-owner-delivery-date-v1'
 ];
 
 self.addEventListener('install', event => {
