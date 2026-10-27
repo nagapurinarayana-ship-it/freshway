@@ -104,9 +104,10 @@ async function fetchCurrentOwnerAppShell(attempts = 60) {
         const currentAlerts = hasScriptReference(html, response.url, EXPECTED_OWNER_ALERTS_SCRIPT);
         const currentStoreProfile = hasScriptReference(html, response.url, EXPECTED_OWNER_STORE_PROFILE_SCRIPT);
         const currentDelivery = hasScriptReference(html, response.url, EXPECTED_OWNER_DELIVERY_SCRIPT);
+        const currentStoreManagement = hasScriptReference(html, response.url, EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT);
         const currentLifecycle = hasScriptReference(html, response.url, EXPECTED_OWNER_LIFECYCLE_SCRIPT);
-        if (currentCss && currentAdmin && currentInvoiceSettings && currentAccountDeletions && currentAlerts && currentStoreProfile && currentDelivery && currentLifecycle) return { response, html };
-        lastError = new Error('/admin/ still serves stale Owner assets (attempt ' + attempt + '/' + attempts + '); expected ' + EXPECTED_OWNER_CSS + ', ' + EXPECTED_OWNER_ADMIN_SCRIPT + ', ' + EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT + ', ' + EXPECTED_OWNER_ACCOUNT_DELETIONS_SCRIPT + ', ' + EXPECTED_OWNER_ALERTS_SCRIPT + ', ' + EXPECTED_OWNER_STORE_PROFILE_SCRIPT + ', ' + EXPECTED_OWNER_DELIVERY_SCRIPT + ' and ' + EXPECTED_OWNER_LIFECYCLE_SCRIPT);
+        if (currentCss && currentAdmin && currentInvoiceSettings && currentAccountDeletions && currentAlerts && currentStoreProfile && currentDelivery && currentStoreManagement && currentLifecycle) return { response, html };
+        lastError = new Error('/admin/ still serves stale Owner assets (attempt ' + attempt + '/' + attempts + '); expected ' + EXPECTED_OWNER_CSS + ', ' + EXPECTED_OWNER_ADMIN_SCRIPT + ', ' + EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT + ', ' + EXPECTED_OWNER_ACCOUNT_DELETIONS_SCRIPT + ', ' + EXPECTED_OWNER_ALERTS_SCRIPT + ', ' + EXPECTED_OWNER_STORE_PROFILE_SCRIPT + ', ' + EXPECTED_OWNER_DELIVERY_SCRIPT + ', ' + EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT + ' and ' + EXPECTED_OWNER_LIFECYCLE_SCRIPT);
       }
     } catch (error) {
       lastError = error;
@@ -135,8 +136,9 @@ async function fetchCurrentOwnerServiceWorker(attempts = 60) {
         const currentAlerts = worker.includes(EXPECTED_OWNER_ALERTS_SCRIPT);
         const currentStoreProfile = worker.includes(EXPECTED_OWNER_STORE_PROFILE_SCRIPT);
         const currentDelivery = worker.includes(EXPECTED_OWNER_DELIVERY_SCRIPT);
+        const currentStoreManagement = worker.includes(EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT);
         const currentLifecycle = worker.includes(EXPECTED_OWNER_LIFECYCLE_SCRIPT);
-        if (currentCache && currentCss && currentAdmin && currentInvoiceSettings && currentAccountDeletions && currentAlerts && currentStoreProfile && currentDelivery && currentLifecycle) return { response, worker };
+        if (currentCache && currentCss && currentAdmin && currentInvoiceSettings && currentAccountDeletions && currentAlerts && currentStoreProfile && currentDelivery && currentStoreManagement && currentLifecycle) return { response, worker };
         lastError = new Error('/admin/sw.js still serves stale Owner cache/assets (attempt ' + attempt + '/' + attempts + '); expected ' + EXPECTED_OWNER_CACHE + ' and current Owner script URLs');
       }
     } catch (error) {
@@ -167,6 +169,7 @@ assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_ALERTS_SCRIP
 assert.match(html, /id="ownerOrderAlertTest"/, 'Owner app must expose the push delivery test control');
 assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_STORE_PROFILE_SCRIPT), 'Owner app must load the latest business profile and shop pin editor');
   assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_DELIVERY_SCRIPT), 'Owner app must load delivery scheduling and exception management');
+assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT), 'Owner app must load Store Manager and Customer Requests');
 assert.ok(hasScriptReference(html, pageResponse.url, EXPECTED_OWNER_LIFECYCLE_SCRIPT), 'Owner app must load the cache-busted order lifecycle map handler');
 
 for (const [, value] of html.matchAll(/\b(?:src|href)=["']([^"']+)["']/gi)) {
@@ -215,6 +218,7 @@ assert.ok(worker.includes(EXPECTED_OWNER_ACCOUNT_DELETIONS_SCRIPT), 'Owner servi
 assert.ok(worker.includes(EXPECTED_OWNER_ALERTS_SCRIPT), 'Owner service worker shell must cache the latest push setup script');
 assert.ok(worker.includes(EXPECTED_OWNER_STORE_PROFILE_SCRIPT), 'Owner service worker shell must cache the latest shop location editor');
   assert.ok(worker.includes(EXPECTED_OWNER_DELIVERY_SCRIPT), 'Owner service worker shell must cache delivery scheduling and exception management');
+assert.ok(worker.includes(EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT), 'Owner service worker shell must cache Store Manager and Customer Requests');
 assert.ok(worker.includes(EXPECTED_OWNER_LIFECYCLE_SCRIPT), 'Owner service worker shell must cache the latest order lifecycle map handler');
 const installScriptResponse = await fetchOwnerRoute(installScriptUrl.pathname + installScriptUrl.search);
 assertCacheableOwnerAsset(installScriptResponse, 'Owner install/bootstrap script', installScriptUrl.pathname + installScriptUrl.search);
