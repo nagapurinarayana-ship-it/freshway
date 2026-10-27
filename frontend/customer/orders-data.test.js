@@ -3,13 +3,19 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const source=fs.readFileSync(__dirname+'/orders-data.js','utf8');
 
-function setup({customerId='cust-1',orders=[{id:'o1'}],api=async()=>({orders:[{id:'o2'}]})}={}){
+function setup({customerId='cust-1',orders=[{id:'o1'}],api=async()=>({orders:[{id:'o2'}]}),notifications=null}={}){
   const calls=[];
   const intervals=[];
   const cleared=[];
   const state={orders};
+  let currentCustomerId=customerId;
+  const notificationApi=notifications||null;
+  if(notificationApi){
+    const originalSet=notificationApi.setCustomerId;
+    notificationApi.setCustomerId=value=>{currentCustomerId=String(value);originalSet?.(value)};
+  }
   const context={
-    window:{},
+    window:{FreshWayNotifications:notificationApi||undefined},
     document:{querySelector:()=>({classList:{contains:()=>true}})},
     setInterval:(fn,ms)=>{intervals.push({fn,ms});return intervals.length},
     clearInterval:id=>cleared.push(id)
@@ -18,7 +24,7 @@ function setup({customerId='cust-1',orders=[{id:'o1'}],api=async()=>({orders:[{i
   const events=[];
   const service=context.window.FreshWayCustomerOrdersData.create({
     api:async(...args)=>{calls.push(args);return api(...args)},
-    customerId:()=>customerId,
+    customerId:()=>currentCustomerId,
     readState:()=>state,
     save:()=>events.push('save'),
     renderOrders:list=>events.push(['orders',list]),
@@ -43,6 +49,42 @@ function setup({customerId='cust-1',orders=[{id:'o1'}],api=async()=>({orders:[{i
   const unauthorized=setup({api:async()=>{const error=new Error('Customer authentication required.');error.status=401;throw error},orders:[{id:'saved'}]});
   await unauthorized.service.load();
   assert.deepEqual(unauthorized.events,[['orders',[{id:'saved'}]],['toast','Your sign-in needs refreshing. Sign in again to load current orders.']]);
+
+  let recoveryCalls=0;
+  let setCustomerIdCalls=0;
+  const recoverable=setup({
+    orders:[{id:'saved'}],
+    notifications:{
+      session:async()=>({customerId:'cust-1'}),
+      setCustomerId:()=>{setCustomerIdCalls++}
+    },
+    api:async()=>{
+      recoveryCalls++;
+      if(recoveryCalls===1){const error=new Error('Customer identity does not match the signed-in account.');error.status=403;throw error}
+      return {orders:[{id:'fresh-after-session-check'}]}
+    }
+  });
+  await recoverable.service.load();
+  assert.equal(recoveryCalls,2,'an authentication failure is retried once after a successful session check');
+  assert.equal(setCustomerIdCalls,1,'the validated session customer ID is synchronized');
+  assert.deepEqual(recoverable.state.orders,[{id:'fresh-after-session-check'}]);
+  assert.equal(recoverable.events.filter(event=>Array.isArray(event)&&event[0]==='toast').length,0);
+
+  let changedIdCalls=0;
+  const changedId=setup({
+    customerId:'stale-id',
+    orders:[{id:'previous-account-order'}],
+    notifications:{session:async()=>({customerId:'current-id'}),setCustomerId:()=>{}},
+    api:async(path)=>{
+      changedIdCalls++;
+      if(path.includes('stale-id')){const error=new Error('Customer identity does not match the signed-in account.');error.status=403;throw error}
+      return {orders:[{id:'current-account-order'}]}
+    }
+  });
+  await changedId.service.load();
+  assert.equal(changedIdCalls,2,'stale local identity is replaced and the current account is retried');
+  assert.deepEqual(changedId.state.orders,[{id:'current-account-order'}]);
+
 
   let resolveOrders;
   let calls=0;
