@@ -29,7 +29,7 @@ assert.match(admin,/refreshOwnerAfterOrderMutation\(\)/);
 assert.doesNotMatch(admin,/localStorage\.setItem\(['"]freshway-admin-session['"]/);
 assert.doesNotMatch(admin,/sessionStorage\.setItem\(['"]freshway-admin-session['"]/);
 assert.match(admin,/AUTH_HINT='freshway-admin-auth'/);
-assert.match(html,/admin\.js\?v=20261027-delivery-offers-v2/);
+assert.match(html,/admin\.js\?v=20261027-owner-offers-route-v1/);
 assert.match(html,/admin\.css\?v=20261027-delivery-offers-v2/);
 assert.doesNotMatch(html,/admin\.js\?v=20261027-customer-messages-v1/,'Owner HTML must not retain the previous script version after simplification');
 assert.doesNotMatch(html,/\.exact-location/);
