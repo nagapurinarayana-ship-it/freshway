@@ -9,8 +9,10 @@ const create=sandbox.window.FreshWayCustomerCheckoutSubmit.create;
 assert.equal(typeof create,'function');
 
 const listeners=[];
+let failOrderCreation=false;
+const submitButton={disabled:false,innerHTML:'',textContent:''};
 const elements={
-  '#checkoutForm':{noValidate:false,querySelector:()=>({disabled:false,innerHTML:'',textContent:''}),addEventListener:(type,fn)=>listeners.push([type,fn]),reset:()=>{}},
+  '#checkoutForm':{noValidate:false,querySelector:()=>submitButton,addEventListener:(type,fn)=>listeners.push([type,fn]),reset:()=>{}},
   '#customerName':{value:'Ravi'},
   '#customerPhone':{value:'stale-invalid-phone'},
   '#whatsappOptIn':{checked:true}
@@ -33,7 +35,7 @@ const deps={
   },
   customerAuth:{ensureAuthenticated:async(phone)=>calls.push(['auth',phone])},
   customerId:()=> 'customer-1',
-  api:async(path,options)=>{calls.push(['api',path,JSON.parse(options.body)]);if(path==='/api/checkout/quote')return {pricing:{itemsSubtotal:120,freeDeliveryEnabled:true,freeDeliveryThreshold:800,qualifiesForFreeDelivery:false,amountToFreeDelivery:680,standardDeliveryFee:30,deliveryFee:30,couponDiscount:0,finalTotal:150,coupon:null}};return {id:'order-1',items:[{name:'Apple',unit:'kg',qty:1,price:120,lineTotal:120}],total:150,itemsSubtotal:120,deliveryFee:30,couponDiscount:0,payment:'Cash',status:'New',deliveryPlan:'Standard',createdAt:'now',updatedAt:'now'}},
+  api:async(path,options)=>{calls.push(['api',path,JSON.parse(options.body)]);if(path==='/api/checkout/quote')return {pricing:{itemsSubtotal:120,freeDeliveryEnabled:true,freeDeliveryThreshold:800,qualifiesForFreeDelivery:false,amountToFreeDelivery:680,standardDeliveryFee:30,deliveryFee:30,couponDiscount:0,finalTotal:150,coupon:null}};if(path==='/api/orders'&&failOrderCreation)throw new Error('Simulated order endpoint failure');return {id:'order-1',items:[{name:'Apple',unit:'kg',qty:1,price:120,lineTotal:120}],total:150,itemsSubtotal:120,deliveryFee:30,couponDiscount:0,payment:'Cash',status:'New',deliveryPlan:'Standard',createdAt:'now',updatedAt:'now'}},
   customerNotifications:{registerCustomer:async(...args)=>calls.push(['notify',...args])},
   toast:message=>calls.push(['toast',message]),
   renderProducts:()=>calls.push('products'),
@@ -85,5 +87,17 @@ assert.equal(listeners[0][0],'submit');
   await service.submitOrder({preventDefault(){},target:elements['#checkoutForm']});
   assert.equal(state.orders.length,1,'retrying after reviewing the revised total should place the order');
   assert.equal(confirmationCount,1,'the same total-change prompt must not repeat once that total is displayed');
+
+  // A failed order submission must keep the server-quoted payable total on the retry button,
+  // not fall back to the item subtotal and hide delivery/coupon adjustments.
+  failOrderCreation=true;
+  displayedTotal=120;
+  state.cart={apple:1};
+  state.orders=[];
+  state.profile={};
+  sandbox.window.confirm=()=>true;
+  await service.submitOrder({preventDefault(){},target:elements['#checkoutForm']});
+  assert.match(submitButton.innerHTML,/Place order · <span id="checkoutTotal">₹150<\/span>/,
+    'failed checkout retry must show the quoted payable total, including delivery and discounts');
   console.log('customer checkout submission tests passed');
 })().catch(err=>{console.error(err);process.exitCode=1});
