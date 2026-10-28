@@ -11,9 +11,9 @@ const INTERMEDIATE_CUSTOMER_MESSAGES_PATH = '/frontend/customer/messages.js?v=20
 const CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?v=msg1';
 const INTERMEDIATE_CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?v=20261027-customer-messages-v1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
-const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261027-checkout-ux-v2';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v95';
-const LEGACY_CUSTOMER_CACHES = ['freshway-v94', 'freshway-v93'];
+const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261028-selected-address-v1';
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v96';
+const LEGACY_CUSTOMER_CACHES = ['freshway-v95', 'freshway-v94'];
 const SUPPORTED_CUSTOMER_CACHES = [EXPECTED_CUSTOMER_CACHE, ...LEGACY_CUSTOMER_CACHES];
 const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261024-native-install-v1';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -284,8 +284,8 @@ for (const expected of expectedBrandIcons) {
 assert.ok(sw.includes('/icons/icon-192-brand-v2.png?v=20261026-brand-v2'), 'customer service worker must cache the branded 192px icon');
 assert.ok(sw.includes('/icons/icon-512-brand-v2.png?v=20261026-brand-v2'), 'customer service worker must cache the branded 512px icon');
 assert.ok(sw.includes('/icons/icon-512-maskable-v2.png?v=20261026-brand-v2'), 'customer service worker must cache the branded maskable icon');
-assert.ok(sw.includes("icon: data.icon || '/icons/icon-192-brand-v2.png?v=20261026-brand-v2'"), 'customer push notifications must default to the FreshWay brand icon');
-assert.ok(sw.includes("badge: data.badge || '/icons/icon-192-brand-v2.png?v=20261026-brand-v2'"), 'customer push notifications must default to the FreshWay brand badge');
+assert.match(sw, /icon:\s*data\.icon\s*\|\|\s*'\/icons\/icon-192-brand-v2\.png\?v=20261026-brand-v2'/, 'customer push notifications must default to the FreshWay brand icon');
+assert.match(sw, /badge:\s*data\.badge\s*\|\|\s*'\/icons\/icon-192-brand-v2\.png\?v=20261026-brand-v2'/, 'customer push notifications must default to the FreshWay brand badge');
 
 const logoResponse = await fetchWithRetry(`${base}/freshway-logo-master.webp?v=20261008-master-v1`);
 assert.equal(logoResponse.status, 200);
