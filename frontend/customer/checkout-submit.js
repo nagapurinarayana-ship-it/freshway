@@ -76,7 +76,14 @@
         renderProfile();
         showConfirmation(order);
       }catch(err){toast(err.message||'Could not place order. Your cart is still saved.')}finally{
-        if(button){button.disabled=false;button.innerHTML='Place order · <span id="checkoutTotal">'+money(cartItems().length?cartItems().reduce((sum,x)=>sum+x.lineTotal,0):0)+'</span>'}
+        if(button){
+          button.disabled=false;
+          const remainingItems=cartItems();
+          const displayedTotal=window.FreshWayCustomerDeliveryOffers?.getDisplayedTotal?.();
+          const itemSubtotal=remainingItems.reduce((sum,x)=>sum+Number(x.lineTotal||Number(x.product?.price||0)*Number(x.qty||0)),0);
+          const payableTotal=remainingItems.length&&Number.isSafeInteger(Number(displayedTotal))?Number(displayedTotal):(remainingItems.length?itemSubtotal:0);
+          button.innerHTML='Place order · <span id="checkoutTotal">'+money(payableTotal)+'</span>';
+        }
         updateCartBar();
       }
     };
