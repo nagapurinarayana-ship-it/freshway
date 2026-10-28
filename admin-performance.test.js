@@ -29,19 +29,20 @@ assert.match(admin,/refreshOwnerAfterOrderMutation\(\)/);
 assert.doesNotMatch(admin,/localStorage\.setItem\(['"]freshway-admin-session['"]/);
 assert.doesNotMatch(admin,/sessionStorage\.setItem\(['"]freshway-admin-session['"]/);
 assert.match(admin,/AUTH_HINT='freshway-admin-auth'/);
-assert.match(html,/admin\.js\?v=20261027-owner-offers-draft-guard-v2/);
+assert.match(html,/admin\.js\?v=20261028-nav-refresh-v1/);
 assert.match(html,/admin\.css\?v=20261027-delivery-offers-v2/);
 assert.doesNotMatch(html,/admin\.js\?v=20261027-customer-messages-v1/,'Owner HTML must not retain the previous script version after simplification');
 assert.doesNotMatch(html,/\.exact-location/);
 
 assert.match(sw,/const CACHE = 'freshway-v\d+'/);
-assert.match(sw,/const cached = await cache\.match\(event\.request\)/);
+assert.match(sw,/const cached=await cache\.match\(event\.request\)/);
 assert.match(sw,/event\.waitUntil\(update\.catch\(\(\) => undefined\)\)/);
 assert.match(sw,/url\.pathname === '\/admin\.html' \|\| url\.pathname\.startsWith\('\/admin\/'\)/);
 assert.match(sw,/keys\.filter\(key => key\.startsWith\('freshway-'\) && key !== CACHE\)/);
 assert.doesNotMatch(sw,/\/admin\.css\?v=/);
 assert.doesNotMatch(sw,/\/admin\.js\?v=/);
-assert.match(sw,/if \(cached && isVersionedCode\) return cached/);
+assert.match(sw,/if \(isVersionedCode\)/,'versioned assets must prefer a network response over a cached legacy script');
+assert.match(sw,/return cached\|\|Response\.error\(\)/,'a cached asset should only be used when the network fails');
 assert.match(sw,/if \(cached\) \{/);
 assert.doesNotMatch(sw,/cached && !freshCode/);
 assert.match(sw,/cache: 'no-store'/);
@@ -53,7 +54,7 @@ assert.doesNotMatch(auth,/response\(\{ok:true,version:ADMIN_AUTH_VERSION,session
 assert.match(auth,/SameSite=Lax/);
 assert.match(response,/SameSite=Lax/);
 
-assert.match(ownerSw,/const CACHE = 'fw-owner-v54'/);
+assert.match(ownerSw,/const CACHE = 'fw-owner-v55'/);
 assert.match(ownerSw,/if \(cached && isVersionedCode\) return cached/);
 assert.match(ownerSw,/if \(isDocument \|\| isManifest\)/);
 assert.match(ownerRouter,/OWNER_VERSIONED_ASSET_CACHE_CONTROL/);

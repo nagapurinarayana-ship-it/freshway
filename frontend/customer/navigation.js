@@ -3,9 +3,21 @@
  (function(){
    const HISTORY_FLAG='__freshwayCustomer';
    const currentView=()=>document.querySelector('.view.active-view')?.id.replace(/View$/,'')||'home';
+   const validViews=new Set(['home','cart','checkout','orders','messages','profile','about','contact','confirmation']);
+   const preferredInitialView=()=>{
+     const state=window.history.state;
+     if(state?.[HISTORY_FLAG]&&validViews.has(state.view))return state.view;
+     const hash=String(window.location.hash||'').replace(/^#/,'');
+     if(validViews.has(hash)&&hash!=='confirmation')return hash;
+     try{
+       const saved=sessionStorage.getItem('freshway-current-view-v1');
+       if(validViews.has(saved))return saved;
+     }catch(_){}
+     return currentView();
+   };
    const ensureHistory=()=>{
      if(window.history.state?.[HISTORY_FLAG])return;
-     const state={[HISTORY_FLAG]:true,view:currentView()};
+     const state={[HISTORY_FLAG]:true,view:preferredInitialView()};
      window.history.replaceState(state,'',window.location.href);
      window.history.pushState(state,'',window.location.href);
    };
@@ -32,6 +44,7 @@
        [...document.querySelectorAll('.nav-item')].forEach(b=>b.classList.toggle('active',b.dataset.nav===name));
        if(history==='push')window.history.pushState({[HISTORY_FLAG]:true,view:name},'',window.location.href);
        else if(history==='replace')window.history.replaceState({[HISTORY_FLAG]:true,view:name},'',window.location.href);
+       window.FreshWayCustomerViewState?.saveView(name);
        onView(name);
        afterView(name);
        window.scrollTo({top:0,behavior:'smooth'});
@@ -44,8 +57,9 @@
      window.addEventListener('popstate',event=>{
        if(visibleModal()){restoreAfterModalBack();return}
        const state=event.state;
-       if(state?.[HISTORY_FLAG])setView(state.view||'home',{history:'none'});
-       else setView('home',{history:'none'});
+       const nextView=state?.[HISTORY_FLAG]?state.view||'home':'home';
+       window.FreshWayCustomerViewState?.saveView(nextView);
+       setView(nextView,{history:'none'});
      });
      return Object.freeze({setView,goBack});
    };

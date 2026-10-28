@@ -11,6 +11,7 @@
   let lastMoney = money;
   let busy = false;
   let renderVersion = 0;
+  let couponsLoadVersion = 0;
   try { appliedCode = sessionStorage.getItem(CODE_KEY) || ''; } catch (_) {}
   const codeFromInput = () => String(document.querySelector('#fwCouponCode')?.value || '').trim().toUpperCase();
   const setCode = value => {
@@ -74,10 +75,16 @@
   }
   async function loadAvailableCoupons() {
     const root = document.querySelector('#fwAvailableCoupons');
+    if (!root) return;
     const request = api();
-    if (!root || !request) return;
+    const version = ++couponsLoadVersion;
+    if (!request) {
+      root.innerHTML = '<small class="fw-coupon-unavailable">Available offers are temporarily unavailable. You can still enter a code.</small>';
+      return;
+    }
     try {
       const data = await request('/api/coupons/available');
+      if (version !== couponsLoadVersion || root !== document.querySelector('#fwAvailableCoupons')) return;
       const coupons = Array.isArray(data.coupons) ? data.coupons : [];
       root.innerHTML = coupons.length
         ? '<div class="fw-coupon-list">' + coupons.map(coupon =>
@@ -88,7 +95,9 @@
         : '';
     } catch (_) {
       // Coupon discovery is optional; the manual code field remains usable.
-      root.innerHTML = '';
+      if (version === couponsLoadVersion && root === document.querySelector('#fwAvailableCoupons')) {
+        root.innerHTML = '<small class="fw-coupon-unavailable">Available offers could not be loaded. You can still enter a code.</small>';
+      }
     }
   }
   async function applyCandidate(code) {
@@ -161,6 +170,8 @@
       return;
     }
     if (pricingRoot) pricingRoot.innerHTML = '<div class="summary-line"><span>Calculating delivery and offers…</span></div>';
+    // Fetch coupon choices in parallel with the price quote to avoid a second visible wait.
+    void loadAvailableCoupons();
     try {
       let pricing;
       try {
@@ -186,7 +197,6 @@
         '<p class="fw-offer-error">Could not refresh delivery pricing. Please retry before checkout.</p>';
       message(error.message || 'Could not refresh pricing.', true);
     }
-    void loadAvailableCoupons();
   }
   function renderCheckoutQuote(pricing, moneyFn = lastMoney) {
     // A checkout-authoritative quote supersedes any slower cart/apply request.

@@ -159,7 +159,9 @@ test.beforeEach(async ({ page }) => {
     }
 
     if (url.pathname === '/api/coupons/available' && method === 'GET') {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ coupons: [] }) });
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ coupons: [
+        { code: 'TEST50', title: 'E2E fixed offer', discountAmount: 50, eligible: true, firstOrderOnly: false }
+      ] }) });
     }
 
     if (url.pathname === '/api/checkout/quote' && method === 'POST') {
@@ -270,6 +272,23 @@ test('customer can browse, add a product, checkout, and receive confirmation', a
   await page.locator('#viewCartBtn').click();
   await expect(page.locator('#checkoutBtn')).toBeVisible();
   await expect(page.locator('#fwDeliveryPricing')).toContainText('₹150');
+  await expect(page.locator('#fwAvailableCoupons')).toContainText('TEST50');
+
+  // A resume/freshness refresh must not replace the live cart summary with
+  // the legacy price-only layout while coupon options are already visible.
+  const refreshedProducts = page.waitForResponse(response =>
+    new URL(response.url()).pathname === '/api/products' &&
+    response.request().method() === 'GET'
+  );
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await refreshedProducts;
+  await expect(page.locator('#fwAvailableCoupons')).toContainText('TEST50');
+  await expect(page.locator('#fwDeliveryPricing')).toContainText('₹150');
+  await page.evaluate(() => {
+    window.scrollTo(0, document.body.scrollHeight);
+    window.scrollTo(0, 0);
+  });
+  await expect(page.locator('#fwAvailableCoupons')).toContainText('TEST50');
   await page.locator('#checkoutBtn').click();
 
   // New customers manage their first address from the dedicated address
@@ -378,4 +397,55 @@ test('customer shell exposes the direct-install PWA contract', async ({ page }) 
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0f7a4b');
   await expect(page.locator('.skip-link')).toHaveAttribute('href', '#main-content');
   await expect(page.locator('#main-content')).toBeVisible();
+});
+
+
+test('refresh and browser back/forward restore the correct view without showing legacy Home', async ({ page }) => {
+  await page.addInitScript(() => {
+    const state = history.state;
+    const valid = new Set(['home', 'cart', 'checkout', 'orders', 'messages', 'profile', 'about', 'contact', 'confirmation']);
+    const hash = location.hash.slice(1);
+    const saved = state?.__freshwayCustomer && valid.has(state.view) ? state.view : (valid.has(hash) && hash !== 'confirmation' ? hash : '');
+    if (!saved || saved === 'home') return;
+    window.__freshwayLegacyHomeFlash = false;
+    const inspect = () => {
+      const app = document.querySelector('#app');
+      const home = document.querySelector('#homeView');
+      if (app && home?.classList.contains('active-view') && getComputedStyle(app).visibility !== 'hidden') {
+        window.__freshwayLegacyHomeFlash = true;
+      }
+    };
+    new MutationObserver(inspect).observe(document.documentElement, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['class']
+    });
+  });
+
+  await page.goto('/');
+  await page.locator('#profileBtn').click();
+  await expect(page.locator('#profileView')).toHaveClass(/active-view/);
+  await page.locator('#profileView [data-nav="orders"]').click();
+  await expect(page.locator('#ordersView')).toHaveClass(/active-view/);
+
+  await page.reload();
+  await expect(page.locator('#ordersView')).toHaveClass(/active-view/);
+  await expect(page.locator('#homeView')).not.toHaveClass(/active-view/);
+  expect(await page.evaluate(() => window.__freshwayLegacyHomeFlash || false)).toBe(false);
+
+  await page.goBack();
+  await expect(page.locator('#profileView')).toHaveClass(/active-view/);
+  await expect(page.locator('#homeView')).not.toHaveClass(/active-view/);
+
+  await page.goForward();
+  await expect(page.locator('#ordersView')).toHaveClass(/active-view/);
+  await expect(page.locator('#homeView')).not.toHaveClass(/active-view/);
+
+  // A new direct URL with a view hash must also choose the requested screen
+  // before the default Home markup can be painted.
+  await page.goto('/?nav-refresh-test=1#profile');
+  await expect(page.locator('#profileView')).toHaveClass(/active-view/);
+  await expect(page.locator('#homeView')).not.toHaveClass(/active-view/);
+  expect(await page.evaluate(() => window.__freshwayLegacyHomeFlash || false)).toBe(false);
 });
