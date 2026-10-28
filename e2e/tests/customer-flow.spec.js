@@ -17,8 +17,14 @@ const products = [{
 test.beforeEach(async ({ page }) => {
   savedAddresses = [];
   await page.addInitScript(() => {
-    localStorage.clear();
-    sessionStorage.clear();
+    // Reset once per isolated test page, not on every reload: selection persistence is part of the customer contract.
+    if (sessionStorage.getItem('__freshwayE2EInitialized') !== '1') {
+      localStorage.clear();
+      sessionStorage.clear();
+      sessionStorage.setItem('__freshwayE2EInitialized', '1');
+    }
+    // This flow is testing delivery addresses, not the separate timed install-help nudge.
+    sessionStorage.setItem('freshway-pwa-install-nudge', '1');
     // Keep this E2E deterministic without depending on browser/device GPS permissions.
     Object.defineProperty(navigator, 'geolocation', {
       configurable: true,
@@ -403,6 +409,68 @@ test('selecting a new pin replaces stale geographic fields but preserves custome
   expect(saved.longitude).toBe(78.486671);
   expect(saved.recipientName).toBe('Narayana Nagapuri');
   expect(saved.note).toBe('Call before delivery');
+});
+
+test('new address added from Home becomes the selected address across screens and refresh', async ({ page }) => {
+  savedAddresses = [{
+    id: 41,
+    label: 'Home',
+    recipientName: 'Default Recipient',
+    deliveryPhone: '9876543210',
+    houseFlat: '1',
+    building: '',
+    floor: '',
+    street: 'Default Road',
+    area: 'Default Colony',
+    locality: 'Default Locality',
+    city: 'Hyderabad',
+    district: '',
+    state: 'Telangana',
+    pincode: '500001',
+    landmark: '',
+    note: '',
+    latitude: 17.30,
+    longitude: 78.30,
+    accuracyMeters: 10,
+    locationSource: 'GPS',
+    placeId: 'default-place',
+    locationUpdatedAt: '2026-10-01T00:00:00.000Z',
+    isDefault: true
+  }];
+
+  await page.goto('/');
+  await expect(page.locator('#homeAddress')).toContainText('Default Colony');
+  await page.locator('#addressBtn').click();
+  await expect(page.locator('[data-fw-edit="41"]')).toBeVisible();
+  await page.locator('#fwAddressManagerNew').click();
+
+  await page.locator('#fwAddrName').fill('New Recipient');
+  await page.locator('#fwAddrPhone').fill('9876543211');
+  await page.locator('#fwAddrHouse').fill('9');
+  await page.locator('#fwAddrArea').fill('Typed Area');
+  await page.locator('#fwAddrCity').fill('Hyderabad');
+  await page.locator('#fwAddrPincode').fill('500001');
+  await page.locator('#fwAddressGps').click();
+  await expect(page.locator('#fwAddressLocationStatus')).toContainText('Delivery pin selected');
+  await page.locator('#fwAddressSave').click();
+
+  await expect(page.locator('[data-fw-use="42"]')).toBeVisible();
+  await expect(page.locator('.fw-address-card.is-selected')).toContainText('New Colony');
+  await page.locator('#addressModal [data-close-modal]').click();
+  await expect(page.locator('#homeAddress')).toContainText('New Colony');
+
+  await page.locator('#profileBtn').click();
+  await expect(page.locator('#profileAddressText')).toContainText('New Colony');
+  await page.evaluate(() => window.setView('checkout'));
+  await expect(page.locator('#fwCheckoutAddressSummary')).toContainText('New Colony');
+
+  // The explicitly selected saved address must survive a full refresh independently of the saved default.
+  await page.reload();
+  await expect(page.locator('#homeAddress')).toContainText('New Colony');
+  await page.locator('#profileBtn').click();
+  await expect(page.locator('#profileAddressText')).toContainText('New Colony');
+  await page.evaluate(() => window.setView('checkout'));
+  await expect(page.locator('#fwCheckoutAddressSummary')).toContainText('New Colony');
 });
 
 test('customer shell exposes the direct-install PWA contract', async ({ page }) => {
