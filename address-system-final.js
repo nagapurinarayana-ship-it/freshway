@@ -4,6 +4,7 @@
   'use strict';
 
   const $ = function (selector) { return document.querySelector(selector); };
+  const SELECTED_ADDRESS_STORAGE_KEY = 'freshway-selected-address-id-v1';
   const esc = function (value) {
     return String(value == null ? '' : value).replace(/[&<>'"]/g, function (character) {
       return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' })[character];
@@ -165,18 +166,34 @@
     return label === 'Home' ? '🏠' : label === 'Work' ? '💼' : '📍';
   }
 
+  function persistedAddressId() {
+    try {
+      const raw = localStorage.getItem(SELECTED_ADDRESS_STORAGE_KEY);
+      const id = Number(raw);
+      return raw && Number.isSafeInteger(id) && id > 0 ? id : null;
+    } catch (_) { return null; }
+  }
+
+  function persistAddressSelection(address) {
+    try {
+      const id = Number(address && address.id);
+      if (Number.isSafeInteger(id) && id > 0) localStorage.setItem(SELECTED_ADDRESS_STORAGE_KEY, String(id));
+      else localStorage.removeItem(SELECTED_ADDRESS_STORAGE_KEY);
+    } catch (_) {}
+  }
+
   function renderDisplays() {
     const preferred = activeAddress || defaultAddress();
     const home = $('#homeAddress');
     const profile = $('#profileAddressText');
     if (home) home.textContent = preferred ? (iconFor(preferred.label) + ' ' + (shortAddress(preferred) || preferred.label)) : 'Add your delivery address';
-    const savedDefault = defaultAddress();
-    if (profile) profile.textContent = savedDefault ? (savedDefault.label + ' · ' + fullAddress(savedDefault)) : 'Not saved yet';
+    if (profile) profile.textContent = preferred ? ((preferred.label || 'Delivery address') + ' · ' + fullAddress(preferred)) : 'Not saved yet';
     syncCheckout();
   }
 
   function setActive(address) {
     activeAddress = address ? normalizeAddress(address) : null;
+    persistAddressSelection(activeAddress);
     renderDisplays();
   }
 
@@ -189,7 +206,8 @@
 
   async function loadSaved(options) {
     const preserveSelection = !options || options.preserveSelection !== false;
-    const previousId = preserveSelection && activeAddress ? activeAddress.id : null;
+    // Only an explicitly selected/saved address is persisted. With no selection, always use the current default.
+    const previousId = preserveSelection ? persistedAddressId() : null;
     try {
       const r = await fetch('/api/addresses', { credentials: 'include', cache: 'no-store' });
       if (!r.ok) {
@@ -210,7 +228,10 @@
       const data = await readJsonResponse(r);
       if (!Array.isArray(data.addresses)) throw new Error('Saved addresses could not be read. Please retry.');
       addresses = uniqueAddresses(data.addresses); addressLoadError = ''; guestAddressMode = false;
-      activeAddress = addresses.find(function (address) { return Number(address.id) === Number(previousId); }) || defaultAddress();
+      const restoredSelection = previousId == null ? null : addresses.find(function (address) { return Number(address.id) === Number(previousId); }) || null;
+      activeAddress = restoredSelection || defaultAddress();
+      // If the selected address was deleted or is not owned by this account, fall back to its current default.
+      if (previousId != null && !restoredSelection) persistAddressSelection(null);
       renderDisplays();
       if ($('#addressModal') && !$('#addressModal').classList.contains('hidden') && !(options && options.deferRender)) renderManager();
       return true;
@@ -817,8 +838,11 @@
       addresses = uniqueAddresses(data.addresses || []);
       const returnedAddress = addresses.find(function (item) { return Number(item.id) === Number(data.id); }) ||
         addresses.find(function (item) { return Number(item.id) === Number(editingAddress && editingAddress.id); }) || null;
-      if (modalOrigin === 'checkout' && returnedAddress) {
+      if (returnedAddress && (!editingAddress || modalOrigin === 'checkout')) {
+        // A newly added address becomes the active delivery destination on every screen,
+        // not only when the address manager happened to be opened from checkout.
         activeAddress = returnedAddress;
+        persistAddressSelection(returnedAddress);
       } else if (wasActiveId != null) {
         activeAddress = addresses.find(function (item) { return Number(item.id) === Number(wasActiveId); }) || defaultAddress();
       } else {
@@ -855,6 +879,7 @@
       if (!r.ok) throw new Error(data.error || 'Could not change the default address.');
       addresses = uniqueAddresses(data.addresses || []);
       activeAddress = addresses.find(function (address) { return Number(address.id) === Number(id); }) || defaultAddress();
+      persistAddressSelection(activeAddress);
       renderDisplays();
       renderManager();
       toast('Default address updated.');
@@ -875,7 +900,9 @@
       if (!r.ok) throw new Error(data.error || 'Could not delete this address.');
       const previousActiveId = activeAddress && activeAddress.id;
       addresses = uniqueAddresses(data.addresses || []);
-      activeAddress = addresses.find(function (address) { return Number(address.id) === Number(previousActiveId); }) || defaultAddress();
+      const retainedActive = addresses.find(function (address) { return Number(address.id) === Number(previousActiveId); }) || null;
+      activeAddress = retainedActive || defaultAddress();
+      if (previousActiveId != null && !retainedActive) persistAddressSelection(null);
       renderDisplays();
       renderManager();
       toast(addresses.length ? 'Address deleted. Your remaining default is ready to use.' : 'Address deleted. Add an address when you are ready.');
@@ -1019,8 +1046,7 @@
       if (target.closest('#fwUseMatchingAddress')) {
         const match = findMatchingAddress(readEditor());
         if (match) {
-          activeAddress = match;
-          renderDisplays();
+          setActive(match);
           renderManager();
           toast('Using the saved address. No duplicate was created and your default was not changed.');
         }
@@ -1093,7 +1119,7 @@
     interceptOrderAddress();
     ensureCheckoutSummary();
     renderDisplays();
-    loadSaved({ preserveSelection: false, showError: false });
+    loadSaved({ preserveSelection: true, showError: false });
     const checkoutView = $('#checkoutView');
     if (checkoutView && window.MutationObserver) {
       const observer = new MutationObserver(function () {
