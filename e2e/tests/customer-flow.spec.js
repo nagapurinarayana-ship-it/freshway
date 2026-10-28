@@ -168,7 +168,8 @@ test.beforeEach(async ({ page }) => {
       const payload = JSON.parse(request.postData() || '{}');
       const qty = Number(payload.items?.[0]?.qty || 1);
       const itemsSubtotal = 120 * qty;
-      const discount = 0;
+      const couponCode = String(payload.couponCode || '').trim().toUpperCase();
+      const discount = couponCode === 'TEST50' ? 50 : 0;
       const deliveryFee = itemsSubtotal >= 800 ? 0 : 30;
       return route.fulfill({
         status: 200,
@@ -177,7 +178,7 @@ test.beforeEach(async ({ page }) => {
           itemsSubtotal, freeDeliveryEnabled: true, freeDeliveryThreshold: 800,
           qualifiesForFreeDelivery: itemsSubtotal >= 800, amountToFreeDelivery: Math.max(0, 800 - itemsSubtotal),
           standardDeliveryFee: 30, deliveryFee, couponDiscount: discount, finalTotal: itemsSubtotal - discount + deliveryFee,
-          coupon: null,
+          coupon: discount > 0 ? { code: couponCode, eligibilityPending: false } : null,
           items: [{ id: 'p1', name: 'Basmati Rice', unit: 'kg', qty, price: 120, lineTotal: 120 * qty }]
         } })
       });
@@ -273,6 +274,21 @@ test('customer can browse, add a product, checkout, and receive confirmation', a
   await expect(page.locator('#checkoutBtn')).toBeVisible();
   await expect(page.locator('#fwDeliveryPricing')).toContainText('₹150');
   await expect(page.locator('#fwAvailableCoupons')).toContainText('TEST50');
+
+  await page.locator('#fwCouponCode').fill('TEST50');
+  await page.locator('[data-fw-apply-coupon]').click();
+  await expect(page.locator('#fwDeliveryPricing')).toContainText('Coupon TEST50');
+  await expect(page.locator('#fwDeliveryPricing')).toContainText('₹100');
+  await expect(page.locator('#fwCouponStatus')).toContainText('Coupon applied');
+
+  // Clearing an applied code and pressing Apply must remove the discount,
+  // not restore the old code or require a second Remove coupon button.
+  await page.locator('#fwCouponCode').fill('');
+  await page.locator('[data-fw-apply-coupon]').click();
+  await expect(page.locator('#fwCouponCode')).toHaveValue('');
+  await expect(page.locator('#fwCouponStatus')).toContainText('Coupon removed');
+  await expect(page.locator('#fwDeliveryPricing')).not.toContainText('Coupon TEST50');
+  await expect(page.locator('#fwDeliveryPricing')).toContainText('₹150');
 
   // A resume/freshness refresh must not replace the live cart summary with
   // the legacy price-only layout while coupon options are already visible.
