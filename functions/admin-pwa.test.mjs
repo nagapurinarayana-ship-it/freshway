@@ -40,7 +40,7 @@ assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ADMIN_SCRIPT = '/a
 assert.ok(ownerLiveSmokeSource.includes("const LEGACY_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-owner-offers-route-v1';"), 'production Owner smoke must accept the previously deployed Owner script during rollout');
 assert.ok(ownerLiveSmokeSource.includes("const OLDER_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-delivery-offers-v2';"), 'production Owner smoke must also accept the older Owner script during rollout');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CUSTOMER_MESSAGES_SCRIPT = '/admin/frontend/admin/customer-messages.js?v=20261027-customer-messages-v1';"), 'production Owner smoke must verify the new Customer Messages screen asset');
-assert.ok(ownerLiveSmokeSource.includes("const LEGACY_OWNER_CACHE = 'fw-owner-v51';"), 'production Owner smoke must accept the pre-merge cache during rollout');
+assert.ok(ownerLiveSmokeSource.includes("const LEGACY_OWNER_CACHE = 'fw-owner-v54';"), 'production Owner smoke must accept the pre-merge cache during rollout');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT = '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2';"), 'production Owner smoke must demand the current optional invoice settings script');
 
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1';"), 'production Owner smoke must demand the current push setup version');
