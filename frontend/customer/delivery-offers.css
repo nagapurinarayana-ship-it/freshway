@@ -2,3 +2,6 @@
 
 
 .fw-coupon-box+#checkoutBtn{margin-bottom:90px}
+
+/* Keep fixed coupon codes readable on narrow phone screens. */
+.fw-coupon-card{align-items:center;min-width:0;flex-wrap:wrap;overflow-wrap:anywhere}.fw-coupon-card>span{flex:1 1 140px;min-width:0}.fw-coupon-card>span strong{font-size:14px;letter-spacing:.02em;overflow-wrap:anywhere;word-break:normal}.fw-coupon-card>b{flex:0 0 auto;white-space:nowrap}.fw-coupon-actions input{width:0;min-width:0}
