@@ -23,6 +23,10 @@ assert.match(source, /function setActive\(address\)[\s\S]*?persistAddressSelecti
   'choosing a saved address must persist the selection for checkout and refresh');
 assert.match(source, /loadSaved\(\{ preserveSelection: true, showError: false \}\)/,
   'initial load must restore the selected address or fall back to the default');
+assert.match(source, /if \(previousId != null && !restoredSelection\) persistAddressSelection\(null\)/,
+  'a deleted or foreign-account selection must be cleared so the current default is used');
+assert.match(source, /if \(previousActiveId != null && !retainedActive\) persistAddressSelection\(null\)/,
+  'deleting the selected address must clear the old preference and fall back to default');
 assert.match(source, /deliveryPhone: normalizePhone\(rawPhone\) \|\| rawPhone/,
   'saved +91 phone must be normalized at the shared address boundary');
 assert.match(source, /const normalizedFieldPhone = normalizePhone\(phoneField && phoneField\.value\)/,
