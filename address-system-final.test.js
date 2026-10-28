@@ -27,8 +27,8 @@ assert.match(source, /const revisionAtStart = selectionRevision[\s\S]*?selection
   'a stale initial address fetch must not replace a newer explicit selection');
 assert.match(source, /loadSaved\(\{ preserveSelection: true, showError: false \}\)/,
   'initial load must restore the selected address or fall back to the default');
-assert.match(source, /if \(previousId != null && !restoredSelection\) persistAddressSelection\(null\)/,
-  'a deleted or foreign-account selection must be cleared so the current default is used');
+assert.match(source, /else if \(currentId != null && !restoredSelection\) persistAddressSelection\(null\)/,
+  'a deleted or foreign-account selected address must be cleared so the current default is used');
 assert.match(source, /if \(previousActiveId != null && !retainedActive\) persistAddressSelection\(null\)/,
   'deleting the selected address must clear the old preference and fall back to default');
 assert.match(source, /deliveryPhone: normalizePhone\(rawPhone\) \|\| rawPhone/,
