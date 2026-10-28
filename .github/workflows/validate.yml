@@ -70,6 +70,7 @@ jobs:
           node frontend/customer/keyboard.test.js
           node frontend/customer/cart-actions.test.js
           node frontend/customer/cart-bar.test.js
+          node frontend/customer/delivery-offers.test.js
           node worker/test/store-profile.test.js
           node mobile-visual.test.js
           node frontend/customer/checkout-submit.test.js
