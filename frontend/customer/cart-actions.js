@@ -12,7 +12,7 @@
       if(add)changeQty(add.dataset.add,1);
       if(plus)changeQty(plus.dataset.plus,1);
       if(minus)changeQty(minus.dataset.minus,-1);
-      if((add||plus)&&typeof toast==='function')toast('Added to cart');
+      if((add||plus)&&typeof toast==='function'&&!document.querySelector('#cartView.active-view'))toast('Added to cart');
     });
   };
   window.FreshWayCustomerCartActions=Object.freeze({bind});
