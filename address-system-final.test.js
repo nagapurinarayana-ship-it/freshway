@@ -21,6 +21,10 @@ assert.match(source, /if \(profile\) profile\.textContent = preferred \?/,
   'Home and Profile must display the same selected address rather than Home-selected/Profile-default');
 assert.match(source, /function setActive\(address\)[\s\S]*?persistAddressSelection\(activeAddress\)/,
   'choosing a saved address must persist the selection for checkout and refresh');
+assert.match(source, /let selectionRevision = 0/,
+  'address selection must track changes made while a saved-address refresh is in flight');
+assert.match(source, /const revisionAtStart = selectionRevision[\s\S]*?selectionRevision !== revisionAtStart[\s\S]*?Never let an older background request overwrite a choice made while it was in flight/,
+  'a stale initial address fetch must not replace a newer explicit selection');
 assert.match(source, /loadSaved\(\{ preserveSelection: true, showError: false \}\)/,
   'initial load must restore the selected address or fall back to the default');
 assert.match(source, /if \(previousId != null && !restoredSelection\) persistAddressSelection\(null\)/,
