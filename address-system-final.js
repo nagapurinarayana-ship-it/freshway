@@ -33,6 +33,7 @@
   const checkoutIds = ['customerName', 'customerPhone', 'house', 'area', 'city', 'pincode', 'landmark', 'note'];
   let addresses = [];
   let activeAddress = null;
+  let selectionRevision = 0;
   let modalOrigin = 'profile';
   let editingAddress = null;
   let editorCoordinates = null;
@@ -192,6 +193,7 @@
   }
 
   function setActive(address) {
+    selectionRevision += 1;
     activeAddress = address ? normalizeAddress(address) : null;
     persistAddressSelection(activeAddress);
     renderDisplays();
@@ -208,6 +210,7 @@
     const preserveSelection = !options || options.preserveSelection !== false;
     // Only an explicitly selected/saved address is persisted. With no selection, always use the current default.
     const previousId = preserveSelection ? persistedAddressId() : null;
+    const revisionAtStart = selectionRevision;
     try {
       const r = await fetch('/api/addresses', { credentials: 'include', cache: 'no-store' });
       if (!r.ok) {
@@ -228,10 +231,14 @@
       const data = await readJsonResponse(r);
       if (!Array.isArray(data.addresses)) throw new Error('Saved addresses could not be read. Please retry.');
       addresses = uniqueAddresses(data.addresses); addressLoadError = ''; guestAddressMode = false;
-      const restoredSelection = previousId == null ? null : addresses.find(function (address) { return Number(address.id) === Number(previousId); }) || null;
+      const selectionChangedWhileLoading = selectionRevision !== revisionAtStart;
+      const currentId = selectionChangedWhileLoading && activeAddress ? Number(activeAddress.id) : previousId;
+      const restoredSelection = currentId == null ? null : addresses.find(function (address) { return Number(address.id) === Number(currentId); }) || null;
       activeAddress = restoredSelection || defaultAddress();
-      // If the selected address was deleted or is not owned by this account, fall back to its current default.
-      if (previousId != null && !restoredSelection) persistAddressSelection(null);
+      // Never let an older background request overwrite a choice made while it was in flight.
+      // If that choice no longer belongs to this refreshed list, fall back to the current default.
+      if (selectionChangedWhileLoading && restoredSelection) persistAddressSelection(restoredSelection);
+      else if (currentId != null && !restoredSelection) persistAddressSelection(null);
       renderDisplays();
       if ($('#addressModal') && !$('#addressModal').classList.contains('hidden') && !(options && options.deferRender)) renderManager();
       return true;
@@ -841,11 +848,14 @@
       if (returnedAddress && (!editingAddress || modalOrigin === 'checkout')) {
         // A newly added address becomes the active delivery destination on every screen,
         // not only when the address manager happened to be opened from checkout.
+        selectionRevision += 1;
         activeAddress = returnedAddress;
         persistAddressSelection(returnedAddress);
       } else if (wasActiveId != null) {
+        selectionRevision += 1;
         activeAddress = addresses.find(function (item) { return Number(item.id) === Number(wasActiveId); }) || defaultAddress();
       } else {
+        selectionRevision += 1;
         activeAddress = defaultAddress();
       }
       editingAddress = null;
@@ -878,6 +888,7 @@
       const data = await readJsonResponse(r);
       if (!r.ok) throw new Error(data.error || 'Could not change the default address.');
       addresses = uniqueAddresses(data.addresses || []);
+      selectionRevision += 1;
       activeAddress = addresses.find(function (address) { return Number(address.id) === Number(id); }) || defaultAddress();
       persistAddressSelection(activeAddress);
       renderDisplays();
@@ -899,6 +910,7 @@
       const data = await readJsonResponse(r);
       if (!r.ok) throw new Error(data.error || 'Could not delete this address.');
       const previousActiveId = activeAddress && activeAddress.id;
+      selectionRevision += 1;
       addresses = uniqueAddresses(data.addresses || []);
       const retainedActive = addresses.find(function (address) { return Number(address.id) === Number(previousActiveId); }) || null;
       activeAddress = retainedActive || defaultAddress();
