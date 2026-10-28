@@ -210,6 +210,9 @@ const items=[{product:{id:'p1'},qty:1,lineTotal:100}];
     assert.equal(h.module.getAppliedCode(),'');
     assert.match(h.elements['#fwCouponStatus'].textContent,/Enter a coupon code/i,
       'empty Apply with no active coupon should ask for a code rather than act like removal');
+    await h.module.renderCart({items,total:100});
+    assert.equal(h.elements['#fwCouponStatus'].textContent,'',
+      'the empty-code validation should clear when the cart is rendered again rather than remain as stale red feedback');
   }
 
   console.log('customer delivery-offers quote consistency and cache-version assertions passed');
