@@ -1,5 +1,6 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
+const vm=require('node:vm');
 
 const source=fs.readFileSync('frontend/customer/catalogue.js','utf8');
 const app=fs.readFileSync('app.js','utf8');
@@ -133,3 +134,55 @@ assert.ok(categoryFoldStyles.includes('body.fw-category-selected .product-image{
 assert.match(categoryFoldStyles,/max-height:800px/,'short mobile screens receive an additional compact layout');
 assert.match(categoryFoldStyles,/\.product-image img\{[^}]*width:auto!important;height:100%!important;aspect-ratio:1\/1[^}]*max-width:100%!important;max-height:100%!important;object-fit:contain!important;object-position:center!important/,'category product images render as centered square artwork without stretching/cropping');
 console.log('four-product category fold-fit contract OK');
+
+
+// Repeated catalogue refreshes with unchanged cart contents must not rebuild the
+// pricing/coupon DOM or re-trigger quote/coupon requests.
+{
+  let cartItemsHTML='';
+  let cartSummaryHTML='';
+  let summaryWrites=0;
+  const cartItemsElement={
+    get innerHTML(){return cartItemsHTML},
+    set innerHTML(value){cartItemsHTML=String(value)},
+    querySelector(selector){
+      if(selector==='.empty')return cartItemsHTML.includes('class="empty"')?{}:null;
+      if(selector==='[data-fw-cart-product]')return cartItemsHTML.includes('data-fw-cart-product=')?{}:null;
+      return null;
+    }
+  };
+  const cartSummaryElement={
+    get innerHTML(){return cartSummaryHTML},
+    set innerHTML(value){summaryWrites++;cartSummaryHTML=String(value)},
+    querySelector(selector){
+      const marker={'#fwDeliveryPricing':'id="fwDeliveryPricing"','#fwAvailableCoupons':'id="fwAvailableCoupons"'}[selector];
+      return marker&&cartSummaryHTML.includes(marker)?{}:null;
+    }
+  };
+  const testDocument={querySelector(selector){
+    if(selector==='#cartItems')return cartItemsElement;
+    if(selector==='#cartSummary')return cartSummaryElement;
+    return null;
+  }};
+  let pricingRenders=0;
+  const testContext={document:testDocument,window:{FreshWayCustomerDeliveryOffers:{renderCart(){pricingRenders++}}}};
+  vm.createContext(testContext);
+  vm.runInContext(cartView,testContext);
+  const view=testContext.window.FreshWayCustomerCartView;
+  const renderOptions={esc:value=>String(value??''),money:value=>'₹'+value,setView(){}};
+  const product={id:'p1',name:'Groundnut oil',unit:'kg',price:1850,emoji:'🫙',image_mime_type:'image/png',image_data:'image-data-v1'};
+  view.render([{product,qty:1}],1850,renderOptions);
+  const writesAfterInitialRender=summaryWrites;
+  assert.equal(pricingRenders,1);
+  view.render([{product:{...product},qty:1}],1850,renderOptions);
+  assert.equal(summaryWrites,writesAfterInitialRender,'an unchanged catalogue refresh must preserve the existing pricing/coupon UI');
+  assert.equal(pricingRenders,1,'an unchanged catalogue refresh must not restart pricing and coupon requests');
+  view.render([{product:{...product,price:1900},qty:1}],1900,renderOptions);
+  assert.equal(summaryWrites,writesAfterInitialRender+1,'a real product price change must rerender the cart');
+  assert.equal(pricingRenders,2,'a real product price change must refresh the quote');
+  cartSummaryElement.innerHTML='';
+  const writesAfterExternalClear=summaryWrites;
+  view.render([{product:{...product,price:1900},qty:1}],1900,renderOptions);
+  assert.equal(summaryWrites,writesAfterExternalClear+1,'missing pricing DOM must be rebuilt even when cart contents are unchanged');
+}
+console.log('customer cart stable-render regression OK');
