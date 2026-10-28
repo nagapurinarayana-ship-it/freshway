@@ -198,6 +198,36 @@
       message(error.message || 'Could not refresh pricing.', true);
     }
   }
+  async function removeAppliedCoupon() {
+    // Share one authoritative removal path between the explicit Remove button
+    // and Apply with an empty field, so both persist the same code/price state.
+    const version = ++renderVersion;
+    setCode('');
+    lastQuote = null;
+    message('Updating total without the coupon…');
+    const pricingRoot = document.querySelector('#fwDeliveryPricing');
+    const checkoutRoot = document.querySelector('#fwCheckoutPricing');
+    const loadingMarkup = '<div class="summary-line"><span>Updating your total…</span></div>';
+    if (pricingRoot) pricingRoot.innerHTML = loadingMarkup;
+    if (checkoutRoot) checkoutRoot.innerHTML = loadingMarkup;
+    updateDisplayedTotals('Updating…');
+    try {
+      const pricing = await fetchQuote(lastItems, '');
+      if (version !== renderVersion) return;
+      lastQuote = pricing;
+      renderBreakdown(pricing, pricingRoot, lastMoney);
+      if (checkoutRoot) renderBreakdown(pricing, checkoutRoot, lastMoney);
+      updateCartLinePrices(pricing.items);
+      updateDisplayedTotals(pricing.finalTotal);
+      message('Coupon removed.');
+    } catch (error) {
+      if (version !== renderVersion) return;
+      if (pricingRoot) pricingRoot.innerHTML = '<p class="fw-offer-error">Could not refresh delivery pricing. Please retry before checkout.</p>';
+      if (checkoutRoot) checkoutRoot.innerHTML = '<p class="fw-offer-error">Could not refresh delivery pricing. Please retry before checkout.</p>';
+      updateDisplayedTotals('Check total');
+      message(error.message || 'Could not refresh pricing.', true);
+    }
+  }
   function renderCheckoutQuote(pricing, moneyFn = lastMoney) {
     // A checkout-authoritative quote supersedes any slower cart/apply request.
     // submitOrder captures the previous total before calling this, so its first
@@ -226,37 +256,19 @@
     const apply = event.target.closest('[data-fw-apply-coupon]');
     if (apply) {
       event.preventDefault();
-      try { await applyCandidate(codeFromInput()); }
+      const candidate = codeFromInput();
+      if (!candidate && appliedCode) {
+        await removeAppliedCoupon();
+        return;
+      }
+      try { await applyCandidate(candidate); }
       catch (error) { showApplyError(error); }
       return;
     }
     const remove = event.target.closest('[data-fw-remove-coupon]');
     if (remove) {
-      const version = ++renderVersion;
-      setCode('');
-      lastQuote = null;
-      message('Updating total without the coupon…');
-      const pricingRoot = document.querySelector('#fwDeliveryPricing');
-      const checkoutRoot = document.querySelector('#fwCheckoutPricing');
-      const loadingMarkup = '<div class="summary-line"><span>Updating your total…</span></div>';
-      if (pricingRoot) pricingRoot.innerHTML = loadingMarkup;
-      if (checkoutRoot) checkoutRoot.innerHTML = loadingMarkup;
-      updateDisplayedTotals('Updating…');
-      try {
-        const pricing = await fetchQuote(lastItems, '');
-        if (version !== renderVersion) return;
-        lastQuote = pricing;
-        renderBreakdown(pricing, pricingRoot, lastMoney);
-        if (checkoutRoot) renderBreakdown(pricing, checkoutRoot, lastMoney);
-        updateDisplayedTotals(pricing.finalTotal);
-        message('Coupon removed.');
-      } catch (error) {
-        if (version !== renderVersion) return;
-        if (pricingRoot) pricingRoot.innerHTML = '<p class="fw-offer-error">Could not refresh delivery pricing. Please retry before checkout.</p>';
-        if (checkoutRoot) checkoutRoot.innerHTML = '<p class="fw-offer-error">Could not refresh delivery pricing. Please retry before checkout.</p>';
-        updateDisplayedTotals('Check total');
-        message(error.message || 'Could not refresh pricing.', true);
-      }
+      event.preventDefault();
+      await removeAppliedCoupon();
       return;
     }
     const card = event.target.closest('[data-fw-offer-code]');

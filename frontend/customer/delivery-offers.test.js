@@ -8,11 +8,11 @@ const worker=fs.readFileSync('sw.js','utf8');
 
 assert.match(source,/Number\(pricing\.standardDeliveryFee\) > 0 && pricing\.freeDeliveryEnabled && !pricing\.qualifiesForFreeDelivery/,
   'do not show threshold progress when delivery is already free at every order amount');
-assert.ok(index.includes('frontend/customer/delivery-offers.js?v=20261028-cart-offers-stable-v1'),
+assert.ok(index.includes('frontend/customer/delivery-offers.js?v=20261028-empty-apply-removes-v1'),
   'HTML must load the updated delivery-offers module');
-assert.ok(worker.includes('/frontend/customer/delivery-offers.js?v=20261028-cart-offers-stable-v1'),
+assert.ok(worker.includes('/frontend/customer/delivery-offers.js?v=20261028-empty-apply-removes-v1'),
   'service worker must cache the updated delivery-offers module');
-assert.match(worker,/const CACHE = 'freshway-v94'/,
+assert.match(worker,/const CACHE = 'freshway-v95'/,
   'the service-worker cache version must match the current customer shell');
 assert.match(source,/function isCouponEligibilityError\(error\)/,
   'only a server-confirmed coupon eligibility error may clear an applied coupon');
@@ -65,6 +65,7 @@ function createHarness(request, savedCode='') {
   return {
     module:context.window.FreshWayCustomerDeliveryOffers,
     elements,
+    storage,
     click(selector){
       if(!clickHandler)throw new Error('Customer offer click handler was not registered.');
       return clickHandler({
@@ -164,19 +165,51 @@ const items=[{product:{id:'p1'},qty:1,lineTotal:100}];
   }
 
   {
+    const quoteCodes=[];
     const request=async(path,options={})=>{
-      if(path==='/api/checkout/quote')return {pricing:pricingFor(JSON.parse(options.body||'{}').couponCode||'')};
+      if(path==='/api/checkout/quote'){
+        const code=JSON.parse(options.body||'{}').couponCode||'';
+        quoteCodes.push(code);
+        return {pricing:pricingFor(code)};
+      }
       if(path==='/api/coupons/available')return {coupons:[]};
       throw new Error('Unexpected mocked request: '+path);
     };
     const h=createHarness(request,'FUN');
     await h.module.renderCart({items,total:100});
+    assert.equal(h.module.getAppliedCode(),'FUN');
+    assert.equal(h.module.getDisplayedTotal(),120,'the applied coupon discount is included in the initial total');
     h.elements['#fwCouponCode'].value='';
     await h.click('[data-fw-apply-coupon]');
-    assert.equal(h.module.getAppliedCode(),'FUN','an empty replacement must preserve the applied coupon');
-    assert.equal(h.elements['#fwCouponCode'].value,'FUN','the input must be restored to the currently applied coupon');
-    assert.match(h.elements['#fwCouponStatus'].textContent,/Coupon FUN is already applied.*Enter a different code to replace it/i,
-      'empty replacement should explain how to replace or remove the existing coupon');
+    assert.equal(h.module.getAppliedCode(),'','empty Apply removes the applied coupon');
+    assert.equal(h.elements['#fwCouponCode'].value,'','the input remains empty after removal');
+    assert.equal(h.storage.has('freshway-applied-fixed-coupon'),false,'removal clears the saved coupon code');
+    assert.equal(h.module.getDisplayedTotal(),130,'the total is recalculated without the coupon discount');
+    assert.doesNotMatch(h.elements['#fwDeliveryPricing'].innerHTML,/Coupon FUN/,
+      'the removed coupon and discount disappear from the pricing breakdown');
+    assert.match(h.elements['#fwCouponStatus'].textContent,/Coupon removed/i);
+    assert.deepEqual(quoteCodes,['FUN',''],'removal must be confirmed by the server quote without a coupon');
+  }
+
+  {
+    let quoteCount=0;
+    const request=async(path,options={})=>{
+      if(path==='/api/checkout/quote'){
+        quoteCount++;
+        return {pricing:pricingFor(JSON.parse(options.body||'{}').couponCode||'')};
+      }
+      if(path==='/api/coupons/available')return {coupons:[]};
+      throw new Error('Unexpected mocked request: '+path);
+    };
+    const h=createHarness(request,'');
+    await h.module.renderCart({items,total:100});
+    assert.equal(h.module.getDisplayedTotal(),130);
+    h.elements['#fwCouponCode'].value='';
+    await h.click('[data-fw-apply-coupon]');
+    assert.equal(quoteCount,1,'empty Apply without an active coupon must not trigger another quote');
+    assert.equal(h.module.getAppliedCode(),'');
+    assert.match(h.elements['#fwCouponStatus'].textContent,/Enter a coupon code/i,
+      'empty Apply with no active coupon should ask for a code rather than act like removal');
   }
 
   console.log('customer delivery-offers quote consistency and cache-version assertions passed');
