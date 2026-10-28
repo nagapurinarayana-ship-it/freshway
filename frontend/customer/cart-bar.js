@@ -15,7 +15,8 @@
     if(badge){badge.textContent=n;if(typeof badge.setAttribute==='function')badge.setAttribute('aria-label',`${n} ${n===1?'item':'items'} in cart`);badge.classList.toggle('hidden',!n)}
     const ordersActive=!!document.querySelector('#ordersView.active-view');
     const checkoutActive=!!document.querySelector('#checkoutView.active-view');
-    const showBar=n>0&&!ordersActive&&!checkoutActive;
+    const cartActive=!!document.querySelector('#cartView.active-view');
+    const showBar=n>0&&!ordersActive&&!checkoutActive&&!cartActive;
     if(bar){bar.classList.toggle('hidden',!showBar);document.documentElement.classList.toggle('fw-cart-bar-visible',showBar)}
     if(checkoutTotal)checkoutTotal.textContent=money(value);
   };
