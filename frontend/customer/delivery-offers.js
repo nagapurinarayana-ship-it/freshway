@@ -160,6 +160,10 @@
     lastMoney = typeof moneyFn === 'function' ? moneyFn : money;
     const input = document.querySelector('#fwCouponCode');
     if (input && input.value !== appliedCode) input.value = appliedCode;
+    // A missing-code validation error belongs to the Apply action that produced it;
+    // clear it when the customer returns to/reopens the cart instead of showing stale red feedback.
+    const status = document.querySelector('#fwCouponStatus');
+    if (!appliedCode && status && /^Enter a coupon code\.?$/i.test(String(status.textContent || '').trim())) message('');
     const pricingRoot = document.querySelector('#fwDeliveryPricing');
     if (!lastItems.length) {
       lastQuote = null;

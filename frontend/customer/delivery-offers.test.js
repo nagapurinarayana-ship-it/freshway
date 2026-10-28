@@ -8,11 +8,11 @@ const worker=fs.readFileSync('sw.js','utf8');
 
 assert.match(source,/Number\(pricing\.standardDeliveryFee\) > 0 && pricing\.freeDeliveryEnabled && !pricing\.qualifiesForFreeDelivery/,
   'do not show threshold progress when delivery is already free at every order amount');
-assert.ok(index.includes('frontend/customer/delivery-offers.js?v=20261028-empty-apply-removes-v1'),
+assert.ok(index.includes('frontend/customer/delivery-offers.js?v=20261028-coupon-stale-clear-v1'),
   'HTML must load the updated delivery-offers module');
-assert.ok(worker.includes('/frontend/customer/delivery-offers.js?v=20261028-empty-apply-removes-v1'),
+assert.ok(worker.includes('/frontend/customer/delivery-offers.js?v=20261028-coupon-stale-clear-v1'),
   'service worker must cache the updated delivery-offers module');
-assert.match(worker,/const CACHE = 'freshway-v96'/,
+assert.match(worker,/const CACHE = 'freshway-v98'/,
   'the service-worker cache version must match the current customer shell');
 assert.match(source,/function isCouponEligibilityError\(error\)/,
   'only a server-confirmed coupon eligibility error may clear an applied coupon');
@@ -210,6 +210,9 @@ const items=[{product:{id:'p1'},qty:1,lineTotal:100}];
     assert.equal(h.module.getAppliedCode(),'');
     assert.match(h.elements['#fwCouponStatus'].textContent,/Enter a coupon code/i,
       'empty Apply with no active coupon should ask for a code rather than act like removal');
+    await h.module.renderCart({items,total:100});
+    assert.equal(h.elements['#fwCouponStatus'].textContent,'',
+      'the empty-code validation should clear when the cart is rendered again rather than remain as stale red feedback');
   }
 
   console.log('customer delivery-offers quote consistency and cache-version assertions passed');
