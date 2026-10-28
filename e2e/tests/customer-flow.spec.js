@@ -159,7 +159,9 @@ test.beforeEach(async ({ page }) => {
     }
 
     if (url.pathname === '/api/coupons/available' && method === 'GET') {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ coupons: [] }) });
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ coupons: [
+        { code: 'TEST50', title: 'E2E fixed offer', discountAmount: 50, eligible: true, firstOrderOnly: false }
+      ] }) });
     }
 
     if (url.pathname === '/api/checkout/quote' && method === 'POST') {
@@ -270,6 +272,23 @@ test('customer can browse, add a product, checkout, and receive confirmation', a
   await page.locator('#viewCartBtn').click();
   await expect(page.locator('#checkoutBtn')).toBeVisible();
   await expect(page.locator('#fwDeliveryPricing')).toContainText('₹150');
+  await expect(page.locator('#fwAvailableCoupons')).toContainText('TEST50');
+
+  // A resume/freshness refresh must not replace the live cart summary with
+  // the legacy price-only layout while coupon options are already visible.
+  const refreshedProducts = page.waitForResponse(response =>
+    new URL(response.url()).pathname === '/api/products' &&
+    response.request().method() === 'GET'
+  );
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await refreshedProducts;
+  await expect(page.locator('#fwAvailableCoupons')).toContainText('TEST50');
+  await expect(page.locator('#fwDeliveryPricing')).toContainText('₹150');
+  await page.evaluate(() => {
+    window.scrollTo(0, document.body.scrollHeight);
+    window.scrollTo(0, 0);
+  });
+  await expect(page.locator('#fwAvailableCoupons')).toContainText('TEST50');
   await page.locator('#checkoutBtn').click();
 
   // New customers manage their first address from the dedicated address
