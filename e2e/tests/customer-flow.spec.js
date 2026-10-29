@@ -1113,6 +1113,27 @@ test('captures the remaining implemented customer screens and modal states', asy
   await page.setViewportSize({ width: 1365, height: 900 });
   await capture('desktop-pwa-install-help');
   await page.locator('.pwa-help .icon-btn').click();
+
+  await page.evaluate(() => { window.FreshWayNotifications.login().catch(() => {}); });
+  await expect(page.locator('#passcodeModal')).toBeVisible();
+  await capture('desktop-passcode-login');
+  await page.locator('#passcodeMode').click();
+  await expect(page.locator('#passcodeName')).toBeVisible();
+  await capture('desktop-passcode-registration');
+  await page.locator('#passcodeMode').click();
+  await page.locator('#passcodeForgot').click();
+  await page.locator('#passcodePhone').fill('9876543210');
+  await page.locator('#passcodeSubmit').click();
+  await expect(page.locator('#passcodeResetCode')).toBeVisible();
+  await capture('desktop-passcode-recovery-code');
+  await page.locator('#passcodeCancel').click();
+
+  await page.evaluate(() => window.setView('profile'));
+  await page.locator('#enableNotifications').click();
+  await expect(page.locator('#notificationPermissionHelp')).toBeVisible();
+  await capture('desktop-notification-permission-help');
+  await page.locator('#notificationPermissionHelp [data-notification-permission-close]').first().click();
+
   await page.evaluate(() => window.setView('home'));
   await page.locator('#addressBtn').click();
   await expect(page.locator('[data-fw-edit="51"]')).toBeVisible();
@@ -1141,6 +1162,13 @@ test('captures customer Messages populated, empty, error and desktop states', as
     }
     if (url.pathname === '/api/customer/messages/read' && request.method() === 'PATCH') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, markedRead: 1 }) });
+    }
+    if (url.pathname === '/api/customer/messages' && request.method() === 'POST') {
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, message: 'Message sent. We will reply in Profile → Messages.' })
+      });
     }
     if (url.pathname === '/api/customer/messages' && request.method() === 'GET') {
       if (failMessages) return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Message service is temporarily unavailable.' }) });
@@ -1193,6 +1221,22 @@ test('captures customer Messages populated, empty, error and desktop states', as
   await page.evaluate(() => window.FreshWayCustomerMessages.load());
   await expect(page.locator('#customerMessagesContent [data-customer-message-id]')).toContainText('Customer support');
   await capture('desktop-messages-populated');
+
+  await page.evaluate(() => window.setView('contact'));
+  const contactForm = page.locator('#contactContent [data-customer-message-form]');
+  await expect(contactForm).toBeVisible();
+  await contactForm.locator('input[name="subject"]').fill('Delivery question');
+  await contactForm.locator('textarea[name="message"]').fill('Please confirm my delivery date.');
+  await contactForm.locator('[data-compose-submit]').click();
+  await expect(page.locator('#contactContent [data-compose-status]')).toContainText('Message sent. We will reply in Profile → Messages.');
+  await expect(page.locator('#contactContent [data-compose-submit]')).toBeEnabled();
+  await page.locator('#contactContent [data-compose-status]').scrollIntoViewIfNeeded();
+  await expect(page.locator('#toast')).not.toHaveClass(/show/);
+  await capture('desktop-contact-message-sent');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('#contactContent [data-compose-status]').scrollIntoViewIfNeeded();
+  await capture('mobile-contact-message-sent');
 });
 
 test('captures populated orders, delivery rescheduling, order help, invoice download and confirmation', async ({ page }) => {
