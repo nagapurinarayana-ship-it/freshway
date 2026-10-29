@@ -32,74 +32,22 @@ const money=customerOrderDisplay.money;
 const esc=v=>String(v??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c]));
 const state=customerStorage.read();
 let PRODUCTS=[];
-const cartProductSnapshot=(product,unavailable=false)=>({
-  id:String(product?.id??''),
-  name:String(product?.name||'Saved cart item'),
-  unit:String(product?.unit||''),
-  price:Math.max(0,Number(product?.price)||0),
-  emoji:String(product?.emoji||'🛒'),
-  unavailable:!!unavailable
-});
-const publishCatalogueProducts=next=>{
-  const incoming=Array.isArray(next)?next:[];
-  const byId=new Map(incoming.filter(p=>p&&p.id!==undefined&&p.id!==null).map(p=>[String(p.id),p]));
-  PRODUCTS=incoming;
-  state.cartProducts=state.cartProducts&&typeof state.cartProducts==='object'?state.cartProducts:{};
-  const unavailable=[];
-  let changed=false;
-  for(const id of Object.keys(state.cart||{})){
-    const product=byId.get(String(id));
-    const previous=state.cartProducts[String(id)];
-    if(product){
-      const snapshot=cartProductSnapshot(product,false);
-      if(JSON.stringify(previous)!==JSON.stringify(snapshot))changed=true;
-      state.cartProducts[String(id)]=snapshot;
-    }else{
-      const snapshot=cartProductSnapshot(previous||{id,name:'Saved cart item',unit:'',price:0,emoji:'🛒'},true);
-      if(JSON.stringify(previous)!==JSON.stringify(snapshot))changed=true;
-      state.cartProducts[String(id)]=snapshot;
-      unavailable.push(String(id));
-    }
-  }
-  if(changed)save();
-  renderProducts($('#searchInput')?.value||'');
-  if($('#cartView')?.classList.contains('active-view'))renderCart();
-  updateCartBar();
-  return {removed:0,unavailable:unavailable.length};
-};
-const clearCatalogue=()=>{
-  // A failed catalogue request is not evidence that the customer's saved cart is empty.
-  PRODUCTS=[];
-  renderProducts($('#searchInput')?.value||'');
-  if($('#cartView')?.classList.contains('active-view'))renderCart();
-  updateCartBar();
-  return {removed:0,unavailable:0};
-};
-const syncQuotedCartItems=quotedItems=>{
-  if(!Array.isArray(quotedItems))return;
-  state.cartProducts=state.cartProducts&&typeof state.cartProducts==='object'?state.cartProducts:{};
-  let changed=false;
-  for(const item of quotedItems){
-    if(item?.id===undefined||item?.id===null)continue;
-    const id=String(item.id);
-    if(!Object.prototype.hasOwnProperty.call(state.cart||{},id))continue;
-    const existing=state.cartProducts[id]||{id,name:'Saved cart item',unit:'',price:0,emoji:'🛒'};
-    const quoted={...existing,id,name:String(item.name||existing.name||'Saved cart item'),unit:String(item.unit||existing.unit||''),price:Math.max(0,Number(item.price??existing.price)||0),unavailable:false};
-    if(JSON.stringify(existing)!==JSON.stringify(quoted))changed=true;
-    state.cartProducts[id]=quoted;
-    const at=PRODUCTS.findIndex(product=>String(product.id)===id);
-    if(at>=0&&Number.isFinite(Number(item.price))&&Number(item.price)>=0&&Number(PRODUCTS[at].price)!==Number(item.price)){
-      PRODUCTS[at]={...PRODUCTS[at],price:Number(item.price)};
-    }
-  }
-  if(changed)save();
-  updateCartBar();
-};
-window.FreshWayCustomerCatalogue=Object.freeze({setProducts:publishCatalogueProducts,clear:clearCatalogue,syncQuotedItems:syncQuotedCartItems});
 const save=()=>customerStorage.save(state);
-
-const api=customerAPI.request;
-const customerId=customerAuth.customerId;
+const cartPersistence=window.FreshWayCustomerCartPersistence.create({
+  state,
+  getProducts:()=>PRODUCTS,
+  setProducts:next=>{PRODUCTS=next},
+  save,
+  renderProducts:()=>renderProducts($('#searchInput')?.value||''),
+  renderCart,
+  updateCartBar:()=>updateCartBar(),
+  isCartActive:()=>!!$('#cartView')?.classList.contains('active-view')
+});
+window.FreshWayCustomerCatalogue=Object.freeze({
+  setProducts:cartPersistence.setProducts,
+  clear:cartPersistence.clear,
+  syncQuotedItems:cartPersistence.syncQuotedItems
+});
 const cartItems=()=>catalogueCart.items(state,PRODUCTS);
 const cartTotal=()=>catalogueCart.total(state,PRODUCTS);
 const cartCount=()=>catalogueCart.count(state,PRODUCTS);
@@ -141,7 +89,7 @@ function handleView(name){if(name==='orders'){renderOrders();customerOrderData.l
 const navigation=customerNavigation.create({document,onView:handleView,afterView:name=>window.FreshWaySeo?.setView(name)});
 customerFreshness=customerStateFreshness?.create({document,getView:()=>document.querySelector('.view.active-view')?.id?.replace(/View$/,'')||'home',refreshCatalogue:()=>window.freshWayCustomerCatalogueRefresh?.(),refreshOrders:()=>customerOrderData.load(),refreshPromotions:()=>customerPromotions?.refresh?.(),renderProfile});
 function setView(name,options){if(name==='home'&&options?.history!=='none')window.freshWayCustomerCatalogueGoHome?.();navigation.setView(name,options)}
-function changeQty(id,delta){const key=String(id);const current=Number(state.cart[key]||0);const next=catalogueCart.nextQuantity(current,delta);if(delta>0&&current>=99){toast('Maximum quantity is 99');return}if(next<=0){delete state.cart[key];if(state.cartProducts)delete state.cartProducts[key]}else{state.cart[key]=next;const product=PRODUCTS.find(item=>String(item.id)===key);if(product){state.cartProducts=state.cartProducts&&typeof state.cartProducts==='object'?state.cartProducts:{};state.cartProducts[key]=cartProductSnapshot(product,false)}}save();renderProducts($('#searchInput')?.value||'');if($('#cartView')?.classList.contains('active-view'))renderCart();if($('#checkoutView')?.classList.contains('active-view'))void customerDeliveryBooking?.refreshCheckout?.()}
+function changeQty(id,delta){const key=String(id);const current=Number(state.cart[key]||0);const next=catalogueCart.nextQuantity(current,delta);if(delta>0&&current>=99){toast('Maximum quantity is 99');return}if(next<=0){delete state.cart[key];cartPersistence.removeProduct(key)}else{state.cart[key]=next;const product=PRODUCTS.find(item=>String(item.id)===key);if(product)cartPersistence.rememberProduct(key,product)}save();renderProducts($('#searchInput')?.value||'');if($('#cartView')?.classList.contains('active-view'))renderCart();if($('#checkoutView')?.classList.contains('active-view'))void customerDeliveryBooking?.refreshCheckout?.()}
 function openAddressModal(){customerModal.open(document)}
 function closeModal(){customerModal.close(document)}
 function showConfirmation(order){customerConfirmation.show(order,{esc,planText:customerOrderDisplay.planText,setView,updateCartBar,toast});renderProfile()}
