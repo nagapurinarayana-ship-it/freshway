@@ -22,7 +22,8 @@ assert.match(css,/grid-template-columns:1fr 1fr/);
 assert.match(css,/@media\(max-width:480px\)/);
 
 assert.match(html,/id="liveOrdersTab"/);assert.match(html,/id="testOrdersTab"/);assert.match(js,/testOrders:modeAtStart\?'1':'0'/);assert.match(js,/data-test-order-toggle/);assert.match(js,/function orderFilterState/);
-assert.ok(js.includes("$('#liveOrdersTab').onclick=()=>{if(!testOrderMode)return;"),'Live orders tab must switch back from Test orders mode');
+assert.ok(js.includes("$('#liveOrdersTab').onclick=()=>{if(!testOrderMode){void loadOrders(true);return}setTestOrderMode(false);"),'Live orders tab must switch back from Test orders mode');
+assert.ok(js.includes("$('#testOrdersTab').onclick=()=>{if(testOrderMode){void loadOrders(true);return}setTestOrderMode(true);"),'Test Orders must load only after the Owner explicitly selects that tab');
 assert.match(lifecycle,/function isTestModeActive\(\)/);
 assert.match(lifecycle,/testOrders:testOrders\?'1':'0'/);
 assert.match(lifecycle,/data-life-test-toggle=/);
