@@ -88,7 +88,7 @@ async function makeHarness({
     calls.push({ type: 'fetch', path, options });
     if (path === '/api/auth/session') {
       if (sessionDelayMs > 0) await new Promise(resolve => setTimeout(resolve, sessionDelayMs));
-      return response(sessionData());
+      return response(sessionData(), customerId ? 200 : 401);
     }
     if (path === '/api/push/public-key') return response({ publicKey: 'AQID' });
     if (path === '/api/push/subscribe') return response({ ok: true });
@@ -192,8 +192,29 @@ async function makeHarness({
     const h = await makeHarness({ sessionDelayMs: 20 });
     const results = await Promise.all([h.service.session(), h.service.session(), h.service.session(), h.service.session()]);
     assert.equal(results.length, 4);
-    const sessionCalls = h.calls.filter(call => call.type === 'fetch' && call.path === '/api/auth/session');
+    let sessionCalls = h.calls.filter(call => call.type === 'fetch' && call.path === '/api/auth/session');
     assert.equal(sessionCalls.length, 1, 'concurrent startup/session consumers must share one in-flight authentication request');
+    await h.service.session();
+    sessionCalls = h.calls.filter(call => call.type === 'fetch' && call.path === '/api/auth/session');
+    assert.equal(sessionCalls.length, 1, 'immediate startup consumers must reuse the short-lived session result');
+    await new Promise(resolve => setTimeout(resolve, 780));
+    await h.service.session();
+    sessionCalls = h.calls.filter(call => call.type === 'fetch' && call.path === '/api/auth/session');
+    assert.equal(sessionCalls.length, 2, 'session state must be revalidated after the short cache window');
+  }
+  {
+    const h = await makeHarness({ customerId: null, sessionDelayMs: 20 });
+    const results = await Promise.allSettled([h.service.session(), h.service.session(), h.service.session()]);
+    assert.ok(results.every(result => result.status === 'rejected' && result.reason.status === 401));
+    let sessionCalls = h.calls.filter(call => call.type === 'fetch' && call.path === '/api/auth/session');
+    assert.equal(sessionCalls.length, 1, 'unauthenticated startup checks should share one request');
+    await h.service.session().catch(() => {});
+    sessionCalls = h.calls.filter(call => call.type === 'fetch' && call.path === '/api/auth/session');
+    assert.equal(sessionCalls.length, 1, 'the unauthenticated result should be briefly cached to avoid sequential duplicate guest requests');
+    await new Promise(resolve => setTimeout(resolve, 780));
+    await h.service.session().catch(() => {});
+    sessionCalls = h.calls.filter(call => call.type === 'fetch' && call.path === '/api/auth/session');
+    assert.equal(sessionCalls.length, 2, 'guest session state should be rechecked after the cache expires');
   }
   console.log('FreshWay notification permission state, prompt, subscription and recovery contracts passed');
 })().catch(error => {
