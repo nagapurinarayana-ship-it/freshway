@@ -1141,6 +1141,9 @@ test('captures the remaining implemented customer screens and modal states', asy
   await page.evaluate(() => window.setView('home'));
   await page.locator('#addressBtn').click();
   await expect(page.locator('[data-fw-edit="51"]')).toBeVisible();
+  const addressDialog = await page.locator('#addressModal .address-modal-sheet').boundingBox();
+  expect(addressDialog?.y ?? -1, 'desktop address manager should be vertically centered within the viewport').toBeGreaterThan(16);
+  expect((addressDialog?.y ?? 0) + (addressDialog?.height ?? 0), 'desktop address manager should leave a margin below the dialog').toBeLessThanOrEqual(await page.evaluate(() => window.innerHeight - 16));
   await capture('desktop-address-manager');
 });
 
