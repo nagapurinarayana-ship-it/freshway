@@ -1239,3 +1239,15 @@ body.fw-category-selected #app .product-action-control > .qty-control span {
     max-height: calc(100dvh - 32px);
   }
 }
+
+/* The address-book sheet has a more-specific mobile bottom-sheet rule. Center it on desktop explicitly. */
+@media (min-width: 700px) {
+  #addressModal.fw-address-modal {
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  #addressModal.fw-address-modal .address-modal-sheet {
+    border-radius: 22px;
+  }
+}
