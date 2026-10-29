@@ -21,7 +21,7 @@
     'rice':BASE+'hmt-rice.svg'
   });
   const productByName=name=>{
-    const key=normalize(name).replace(/\\bground\\s+nut\\b/g,'groundnut');
+    const key=normalize(name).replace(/\bground\s+nut\b/g,'groundnut');
     if(key.includes('groundnut'))return BASE+'groundnut-oil.svg';
     if(key.includes('sunflower'))return BASE+'sunflower-oil.svg';
     if(key.includes('hmt')&&key.includes('rice'))return BASE+'hmt-rice.svg';
