@@ -546,6 +546,56 @@ test('checkout refuses a quote for a different cart item instead of showing a mi
   await expect(placeOrder).not.toContainText('₹0');
 });
 
+test('selected delivery day survives checkout page refresh', async ({ page }) => {
+  await page.route('**/api/checkout/quote', async route => {
+    const payload = JSON.parse(route.request().postData() || '{}');
+    const requested = Array.isArray(payload.items) ? payload.items : [];
+    const items = [];
+    for (const item of requested) {
+      const product = products.find(p => String(p.id) === String(item.id));
+      if (!product) {
+        return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: 'Product unavailable.' }) });
+      }
+      const qty = Number(item.qty || 0);
+      items.push({ id: product.id, name: product.name, unit: product.unit, qty, price: product.price, lineTotal: product.price * qty });
+    }
+    const itemsSubtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
+    const qualifiesForFreeDelivery = itemsSubtotal >= 800;
+    const deliveryFee = qualifiesForFreeDelivery ? 0 : 30;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ pricing: {
+        itemsSubtotal,
+        freeDeliveryEnabled: true,
+        freeDeliveryThreshold: 800,
+        qualifiesForFreeDelivery,
+        amountToFreeDelivery: Math.max(0, 800 - itemsSubtotal),
+        standardDeliveryFee: 30,
+        deliveryFee,
+        couponDiscount: 0,
+        finalTotal: itemsSubtotal + deliveryFee,
+        coupon: null,
+        items
+      } })
+    });
+  });
+
+  await page.goto('/');
+  await page.locator('[data-fw-category="cat-rice"]').click();
+  await page.locator('#productGrid .add-btn').click();
+  await page.locator('#viewCartBtn').click();
+  await page.locator('#checkoutBtn').click();
+  await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
+  await page.locator('[data-fw-date-choice="tomorrow"]').click();
+  const summaryBeforeReload = (await page.locator('.fw-delivery-date-summary').textContent() || '').replace(/\s+/g, ' ').trim();
+  await expect(page.locator('[data-fw-date-choice="tomorrow"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.reload();
+  await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
+  await expect(page.locator('.fw-delivery-date-summary')).toHaveText(summaryBeforeReload);
+  await expect(page.locator('[data-fw-date-choice="tomorrow"]')).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('new address defaults to registered name/mobile but lets the customer edit both', async ({ page }) => {
   let sessionCalls = 0;
   let registrationDetailsAvailable = false;
