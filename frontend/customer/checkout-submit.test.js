@@ -20,6 +20,8 @@ const elements={
 const document={querySelector:selector=>elements[selector]||null};
 const state={cart:{apple:1},orders:[],profile:{}};
 const calls=[];
+let clearedDeliveryDate=0;
+sandbox.window.FreshWayCustomerDeliveryBookingInstance={clearCheckoutDate(){clearedDeliveryDate++}};
 const deps={
   document,
   cartItems:()=>[{product:{id:'apple'},qty:1,lineTotal:120}],
@@ -60,6 +62,7 @@ assert.equal(listeners[0][0],'submit');
   assert.equal(state.profile.checkout.name,'Saved Recipient');
   assert.equal(state.profile.checkout.phone,'9876543210','a valid saved delivery number must beat an invalid stale hidden input');
   assert.equal(state.profile.pendingCheckout,undefined);
+  assert.equal(clearedDeliveryDate,1,'successful order placement clears the saved delivery date');
   assert.ok(calls.some(x=>Array.isArray(x)&&x[0]==='auth'&&x[1]==='9876543210'),'checkout must pass the normalized selected delivery phone to authentication');
   assert.ok(calls.some(x=>Array.isArray(x)&&x[0]==='api'&&x[1]==='/api/orders'));
   assert.ok(calls.some(x=>Array.isArray(x)&&x[0]==='notify'));
@@ -98,6 +101,7 @@ assert.equal(listeners[0][0],'submit');
   state.profile={};
   sandbox.window.confirm=()=>true;
   await service.submitOrder({preventDefault(){},target:elements['#checkoutForm']});
+  assert.equal(clearedDeliveryDate,2,'failed order submission must retain the saved delivery date');
   assert.match(submitButton.innerHTML,/Place order · <span id="checkoutTotal">₹150<\/span>/,
     'failed checkout retry must show the quoted payable total, including delivery and discounts');
   console.log('customer checkout submission tests passed');
