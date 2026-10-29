@@ -22,6 +22,6 @@ assert.ok(ownerCatalogue.includes('id="fwPromoAlt" required minlength="3" maxlen
 assert.ok(ownerCatalogue.includes('Description repeated — make it unique'), 'Owner must flag repeated promotional descriptions');
 assert.ok(ownerCatalogue.includes('const duplicate=data.promotions.find'), 'Owner must prevent duplicate descriptions before sending an API request');
 assert.ok(ownerCatalogue.includes('if(nextActive&&!isUsefulPromoAlt(alt))'), 'Owner must not activate a legacy promotion with a missing or generic description');
-assert.ok(ownerCatalogue.includes('if(alt)payload.altText=alt'), 'hiding a legacy banner must not force an immediate description rewrite');
+assert.ok(ownerCatalogue.includes('if(nextActive&&alt)payload.altText=alt'), 'hiding a legacy banner must not force an immediate description rewrite');
 assert.ok(customerPromotions.includes("p.alt_text||'FreshWay promotion'"), 'customer carousel must still provide a text alternative if a legacy record has no description');
 console.log('home promotions API, Owner accessibility, and customer fallback contracts OK');
