@@ -100,9 +100,9 @@ const save=()=>customerStorage.save(state);
 
 const api=customerAPI.request;
 const customerId=customerAuth.customerId;
-const cartItems=()=>Object.entries(state.cart||{}).map(([id,quantity])=>({product:PRODUCTS.find(product=>String(product.id)===String(id))||state.cartProducts?.[String(id)]||null,qty:Number(quantity)})).filter(item=>item.product&&Number.isInteger(item.qty)&&item.qty>0);
-const cartTotal=()=>cartItems().reduce((sum,item)=>sum+Math.max(0,Number(item.product.price)||0)*item.qty,0);
-const cartCount=()=>cartItems().reduce((sum,item)=>sum+item.qty,0);
+const cartItems=()=>catalogueCart.items(state,PRODUCTS);
+const cartTotal=()=>catalogueCart.total(state,PRODUCTS);
+const cartCount=()=>catalogueCart.count(state,PRODUCTS);
 function toast(msg){customerFeedback.show(document,msg)}
 const checkoutDeliveryAddress=()=>{
   const selected=window.FreshWayAddressSystem?.getSelectedAddress?.()||null;
