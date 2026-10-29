@@ -588,7 +588,7 @@ test('selected delivery day survives checkout page refresh', async ({ page }) =>
   await page.locator('#checkoutBtn').click();
   await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
   await page.locator('[data-fw-date-choice="tomorrow"]').click();
-  const summaryBeforeReload = (await page.locator('.fw-delivery-date-summary').textContent() || '').replace(/\\s+/g, ' ').trim();
+  const summaryBeforeReload = (await page.locator('.fw-delivery-date-summary').textContent() || '').replace(/\s+/g, ' ').trim();
   await expect(page.locator('[data-fw-date-choice="tomorrow"]')).toHaveAttribute('aria-pressed', 'true');
   await page.reload();
   await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
