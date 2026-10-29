@@ -1178,7 +1178,6 @@ test('captures customer Messages populated, empty, error and desktop states', as
   });
 
   const capture = async name => {
-    await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({
       path: 'test-results/visual-review/' + name + '.png',
       fullPage: false,
