@@ -55,13 +55,14 @@ test('uses a branded invoice hierarchy and preserves payment and seller details'
   assert.match(invoicePdfSource,/Cash Received:/);
   assert.match(invoicePdfSource,/Change Amount:/);
   assert.match(invoicePdfSource,/Payment Type: Cash/);
+  assert.match(invoicePdfSource,/Commercial invoice \/ order record\./);
 });
 
 test('commercial invoices show only verified pricing breakdowns and keep historical details unknown',()=>{
   assert.match(invoicePdfSource,/invoice\.totals\.pricingBreakdownKnown===true/);
   assert.match(invoicePdfSource,/\['Items subtotal',invoice\.totals\.itemsSubtotalPaise/);
   assert.match(invoicePdfSource,/couponDiscountPaise/);
-  assert.match(invoicePdfSource,/drawDiscountRight\(page,invoice\.totals\.couponDiscountPaise/);
+  assert.match(invoicePdfSource,/if\(kind==='discount'\)drawDiscountRight\(page,value/);
   assert.match(invoicePdfSource,/\['Delivery fee',invoice\.totals\.deliveryFeePaise/);
   assert.match(invoicePdfSource,/\['Order total',totalPaise/);
 });
