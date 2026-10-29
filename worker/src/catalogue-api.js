@@ -28,19 +28,16 @@ const id=prefix=>`${prefix}-${Date.now().toString(36)}-${Math.random().toString(
 const stockStatus=(managed,quantity,threshold)=>!managed?'not_tracked':Number(quantity)<=0?'out_of_stock':Number(quantity)<=Number(threshold||0)?'low_stock':'in_stock';
 const MAX_IMAGE_DATA=900000;
 function imageFields(p,label='Product'){const imageData=p.imageData===null||p.imageData===undefined?null:String(p.imageData||'').trim();const imageMimeType=clean(p.imageMimeType||p.image_mime_type||'',40);if(imageData===null||imageData==='')return{imageData:null,imageMimeType:null};if(imageData.length>MAX_IMAGE_DATA)throw new Error(`${label} image is too large. Please use a smaller image.`);if(!/^[A-Za-z0-9+/=]+$/.test(imageData))throw new Error(`${label} image data is invalid.`);if(!/^image\/(png|jpe?g|webp)$/.test(imageMimeType))throw new Error(`${label} image format must be PNG, JPEG, or WebP.`);return{imageData,imageMimeType}}
-function imageVersion(row) {
-  // Include every byte of the stored Base64 image in the URL version.
-  // This prevents immutable URL reuse when an image is replaced with the
-  // same length, timestamp, and matching first/last characters.
-  return encodeURIComponent([
-    row.updated_at || '',
-    row.image_length || 0,
-    row.image_data || ''
-  ].join('|'));
+async function imageVersion(row) {
+  // Hash the image content, not the Base64 itself, so immutable URLs stay short
+  // while any byte-level image replacement necessarily gets a different URL.
+  const input = new TextEncoder().encode(String(row.image_data || ''));
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', input));
+  return Array.from(digest, value => value.toString(16).padStart(2, '0')).join('');
 }
-function publicImageUrl(type, row) {
+async function publicImageUrl(type, row) {
   if (Number(row.has_custom_image) !== 1) return null;
-  return '/api/catalogue/images/' + type + '/' + encodeURIComponent(row.id) + '?v=' + imageVersion(row);
+  return '/api/catalogue/images/' + type + '/' + encodeURIComponent(row.id) + '?v=' + await imageVersion(row);
 }
 async function publicProducts(env) {
   const query = "SELECT p.id,p.name,p.unit,p.price,p.emoji,p.active,p.category_id,p.display_order," +
@@ -50,15 +47,15 @@ async function publicProducts(env) {
     "FROM products p LEFT JOIN categories c ON c.id=p.category_id " +
     "WHERE p.active=1 AND c.active=1 ORDER BY c.display_order,c.name,p.display_order,p.name";
   const { results } = await env.DB.prepare(query).all();
-  return { products: (results || []).map(p => {
+  return { products: await Promise.all((results || []).map(async p => {
     const { has_custom_image, image_length, image_data, updated_at,
       stock_managed, stock_quantity, low_stock_threshold, ...product } = p;
     return {
       ...product,
-      image_url: publicImageUrl('products', { id: p.id, has_custom_image, image_length, image_data, updated_at }),
+      image_url: await publicImageUrl('products', { id: p.id, has_custom_image, image_length, image_data, updated_at }),
       stock_status: stockStatus(stock_managed, stock_quantity, low_stock_threshold)
     };
-  }) };
+  })) };
 }
 async function publicCategories(env) {
   const query = "SELECT c.id,c.name,c.slug,c.icon,c.description,c.display_order,c.updated_at," +
@@ -68,13 +65,13 @@ async function publicCategories(env) {
     "WHERE c.active=1 GROUP BY c.id,c.name,c.slug,c.icon,c.description,c.display_order,c.updated_at " +
     "HAVING COUNT(p.id)>0 ORDER BY c.display_order ASC,c.name ASC";
   const { results } = await env.DB.prepare(query).all();
-  return { categories: (results || []).map(c => {
+  return { categories: await Promise.all((results || []).map(async c => {
     const { has_custom_image, image_length, image_data, updated_at, ...category } = c;
     return {
       ...category,
-      image_url: publicImageUrl('categories', { id: c.id, has_custom_image, image_length, image_data, updated_at })
+      image_url: await publicImageUrl('categories', { id: c.id, has_custom_image, image_length, image_data, updated_at })
     };
-  }) };
+  })) };
 }
 function imageNotFound() {
   return new Response('Image not found.', {
