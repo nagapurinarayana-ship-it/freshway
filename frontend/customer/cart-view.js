@@ -4,13 +4,13 @@
   let lastRenderedItems=null;
   const snapshotItems=items=>(Array.isArray(items)?items:[]).map(item=>{
     const p=item.product||{};
-    return {qty:item.qty,product:{id:p.id,name:p.name,unit:p.unit,price:p.price,emoji:p.emoji,image_mime_type:p.image_mime_type,image_data:p.image_data}};
+    return {qty:item.qty,product:{id:p.id,name:p.name,unit:p.unit,price:p.price,emoji:p.emoji,image_mime_type:p.image_mime_type,image_data:p.image_data,unavailable:p.unavailable===true}};
   });
   const sameItems=(items,previous)=>{
     if(!Array.isArray(previous)||items.length!==previous.length)return false;
     return items.every((item,index)=>{
       const p=item.product||{},old=previous[index]||{},q=old.product||{};
-      return item.qty===old.qty&&p.id===q.id&&p.name===q.name&&p.unit===q.unit&&p.price===q.price&&p.emoji===q.emoji&&p.image_mime_type===q.image_mime_type&&p.image_data===q.image_data;
+      return item.qty===old.qty&&p.id===q.id&&p.name===q.name&&p.unit===q.unit&&p.price===q.price&&p.emoji===q.emoji&&p.image_mime_type===q.image_mime_type&&p.image_data===q.image_data&&(p.unavailable===true)===(q.unavailable===true);
     });
   };
   const render=(items,total,{esc,money,setView})=>{
