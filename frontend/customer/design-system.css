@@ -878,3 +878,121 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 #app .form-card input[type="checkbox"] {
   min-height: 20px;
 }
+
+/* Preserve the compact selected-category layout: global polish must not clip
+   the price, availability or quantity action inside fixed-height product cards. */
+body.fw-category-selected #app .product-card {
+  height: 196px;
+  min-height: 0;
+  padding: 7px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+body.fw-category-selected #app .product-image {
+  height: 76px;
+  min-height: 76px;
+  max-height: 76px;
+  aspect-ratio: auto;
+  padding: 4px;
+  margin-bottom: 6px;
+  flex: 0 0 76px;
+}
+body.fw-category-selected #app .product-card h3 {
+  min-height: 26px;
+  margin: 0 0 5px;
+  font-size: 11px;
+  line-height: 1.15;
+  letter-spacing: normal;
+}
+body.fw-category-selected #app .product-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 5px;
+  margin-top: auto;
+  padding-top: 5px;
+  flex: 0 0 auto;
+}
+body.fw-category-selected #app .product-action-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+  gap: 4px;
+}
+body.fw-category-selected #app .product-price {
+  font-size: 13px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+body.fw-category-selected #app .product-price small {
+  font-size: 9px;
+}
+body.fw-category-selected #app .stock-pill {
+  padding: 3px 5px;
+  font-size: 8px;
+  line-height: 1;
+  white-space: nowrap;
+}
+body.fw-category-selected #app .product-action-control,
+body.fw-category-selected #app .product-action-control > .add-btn,
+body.fw-category-selected #app .product-action-control > .qty-control {
+  width: 100%;
+  min-width: 0;
+}
+body.fw-category-selected #app .product-action-control > .add-btn {
+  min-height: 29px;
+  height: 29px;
+  padding: 5px 8px;
+  border-radius: 9px;
+  font-size: 10px;
+}
+body.fw-category-selected #app .product-action-control > .qty-control {
+  min-height: 29px;
+  height: 29px;
+  justify-content: space-between;
+}
+body.fw-category-selected #app .product-action-control > .qty-control button {
+  height: 27px;
+  width: 30px;
+  min-width: 30px;
+}
+body.fw-category-selected #app .product-action-control > .qty-control span {
+  flex: 1;
+  width: auto;
+  min-width: 20px;
+}
+@media (max-height: 800px) {
+  body.fw-category-selected #app .product-card {
+    height: 180px;
+  }
+  body.fw-category-selected #app .product-image {
+    height: 64px;
+    max-height: 64px;
+    flex-basis: 64px;
+  }
+  body.fw-category-selected #app .product-card h3 {
+    min-height: 24px;
+    margin-bottom: 3px;
+  }
+  body.fw-category-selected #app .product-actions {
+    padding-top: 4px;
+    gap: 4px;
+  }
+}
+@media (max-width: 380px) {
+  body.fw-category-selected #app .product-card {
+    height: 184px;
+    padding: 6px;
+  }
+  body.fw-category-selected #app .product-image {
+    height: 68px;
+    max-height: 68px;
+    flex-basis: 68px;
+  }
+  body.fw-category-selected #app .product-price {
+    font-size: 12px;
+  }
+}
