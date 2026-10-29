@@ -409,10 +409,9 @@
     const auth = window.FreshWayCustomerAuth || window.FreshWayNotifications;
     if (!auth || typeof auth.session !== 'function') return;
     if (!registrationPrefillPromise) {
-      registrationPrefillPromise = Promise.resolve()
-        .then(function () { return auth.session(); })
-        .catch(function () { return null; })
-        .then(function () { registrationPrefillPromise = null; });
+      registrationPrefillPromise = (async function () {
+        try { await auth.session(); } catch (_) {}
+      })().then(function () { registrationPrefillPromise = null; });
     }
     await registrationPrefillPromise;
   }
