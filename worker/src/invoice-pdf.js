@@ -165,20 +165,14 @@ async function createReceiptPdf(invoice){
     });
     y-=58;
 
-    const gap=12,colWidth=(contentWidth-gap)/2,boxHeight=98,boxTop=y;
+    const gap=12,colWidth=(contentWidth-gap)/2,boxTop=y;
     const leftX=MARGIN,rightX=MARGIN+colWidth+gap;
-    rect(page,leftX,boxTop-boxHeight,colWidth,boxHeight,PALE);
-    rect(page,rightX,boxTop-boxHeight,colWidth,boxHeight,PALE);
-    drawText(page,'ISSUED BY',leftX+11,boxTop-15,7,bold,GREEN);
-    drawText(page,'BILL TO / DELIVER TO',rightX+11,boxTop-15,7,bold,GREEN);
     const sellerLines=[
       sellerName,
       invoice.seller.address?'Address: '+invoice.seller.address:'',
       invoice.seller.gstin?'Tax Number: '+invoice.seller.gstin:'',
       sellerPhone?'Contact Us: '+sellerPhone:''
-    ].filter(Boolean).flatMap(value=>wrap(value,regular,7.1,colWidth-22)).slice(0,6);
-    let sy=boxTop-29;
-    for(const value of sellerLines){if(sy<boxTop-boxHeight+7)break;drawText(page,value,leftX+11,sy,7.1,regular,INK);sy-=9.5;}
+    ].filter(Boolean).flatMap(value=>wrap(value,regular,8,colWidth-22)).slice(0,12);
 
     const buyer=invoice.buyer||{},address=buyer.address||{};
     const addressText=[address.house,address.building,address.floor,address.street,address.area,address.locality,address.city,address.district,address.state,address.pincode,address.landmark].filter(Boolean).join(', ');
@@ -190,10 +184,20 @@ async function createReceiptPdf(invoice){
       deliveryPhone&&deliveryPhone!==customerPhone?'Delivery: '+deliveryPhone:'',
       addressText
     ].filter(Boolean);
-    const buyerLines=contactText.flatMap(value=>wrap(value,regular,7.1,colWidth-22)).slice(0,7);
-    let by=boxTop-29;
-    for(const value of buyerLines){if(by<boxTop-boxHeight+7)break;drawText(page,value,rightX+11,by,7.1,regular,INK);by-=9.5;}
-    y-=111;
+    const buyerLines=contactText.flatMap(value=>wrap(value,regular,8,colWidth-22)).slice(0,12);
+
+    // Give billing/delivery details enough space for longer Indian addresses instead
+    // of squeezing them into a small fixed-height box or silently dropping lines.
+    const boxHeight=Math.max(118,Math.min(168,42+Math.max(sellerLines.length,buyerLines.length)*10.5));
+    rect(page,leftX,boxTop-boxHeight,colWidth,boxHeight,PALE);
+    rect(page,rightX,boxTop-boxHeight,colWidth,boxHeight,PALE);
+    drawText(page,'ISSUED BY',leftX+11,boxTop-15,7,bold,GREEN);
+    drawText(page,'BILL TO / DELIVER TO',rightX+11,boxTop-15,7,bold,GREEN);
+    let sy=boxTop-31;
+    for(const value of sellerLines){if(sy<boxTop-boxHeight+10)break;drawText(page,value,leftX+11,sy,8,regular,INK);sy-=10.5;}
+    let by=boxTop-31;
+    for(const value of buyerLines){if(by<boxTop-boxHeight+10)break;drawText(page,value,rightX+11,by,8,regular,INK);by-=10.5;}
+    y-=boxHeight+13;
   };
 
   const drawItemsHeader=()=>{
