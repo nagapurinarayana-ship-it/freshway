@@ -866,7 +866,7 @@ test('captures responsive customer visual review snapshots', async ({ page }) =>
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await expect(page.locator('#productGrid .product-card')).toContainText('Basmati Rice');
-  await expect(page.locator('#cartBar')).toBeVisible();
+  await expect(page.locator('#cartBar')).toBeHidden();
   await capture('mobile-home');
 
   await page.locator('[data-fw-category="cat-rice"]').click();
@@ -886,6 +886,7 @@ test('captures responsive customer visual review snapshots', async ({ page }) =>
   expect(compactCardLayout.controlVisible, 'quantity control should be visible in the compact product card').toBe(true);
   expect(compactCardLayout.controlHeight, 'quantity control should retain a usable height').toBeGreaterThanOrEqual(27);
   expect(compactCardLayout.controlBottom, 'quantity control should not be clipped by its product card').toBeLessThanOrEqual(compactCardLayout.cardBottom + 1);
+  await expect(page.locator('#cartBar')).toBeVisible();
   await capture('mobile-home-with-cart');
 
   await page.locator('#viewCartBtn').click();
