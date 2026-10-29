@@ -29,7 +29,17 @@
       body: JSON.stringify({ items: itemsForQuote(items), couponCode: code || '' })
     });
     if (!result?.pricing) throw new Error('Could not calculate your order total.');
-    return result.pricing;
+    const pricing = result.pricing;
+    const expected = itemsForQuote(items);
+    const quoted = Array.isArray(pricing.items) ? pricing.items : [];
+    const quotedById = new Map(quoted.map(item => [String(item?.id ?? ''), item]));
+    if (!expected.length || quoted.length !== expected.length || expected.some(item => {
+      const match = quotedById.get(String(item.id ?? ''));
+      return !match || Number(match.qty) !== Number(item.qty);
+    })) {
+      throw new Error('We could not verify every cart item. Return to your cart, refresh it, and remove any unavailable item before checkout.');
+    }
+    return pricing;
   }
   function renderBreakdown(pricing, target, currency = lastMoney) {
     if (!target || !pricing) return;
@@ -115,6 +125,7 @@
         if (input) input.value = appliedCode;
         return;
       }
+      window.FreshWayCustomerCatalogue?.syncQuotedItems?.(pricing.items);
       setCode(candidate);
       lastQuote = pricing;
       const pricingRoot = document.querySelector('#fwDeliveryPricing');
@@ -148,7 +159,8 @@
     }
   }
   function updateDisplayedTotals(total) {
-    const value = lastMoney(total);
+    const valid = total !== '' && total !== null && total !== undefined && Number.isSafeInteger(Number(total));
+    const value = valid ? lastMoney(total) : String(total || 'Checking total…');
     const bar = document.querySelector('#cartTotal');
     const checkout = document.querySelector('#checkoutTotal');
     if (bar) bar.textContent = value;
@@ -158,6 +170,7 @@
     const version = ++renderVersion;
     lastItems = Array.isArray(items) ? items : [];
     lastMoney = typeof moneyFn === 'function' ? moneyFn : money;
+    lastQuote = null;
     const input = document.querySelector('#fwCouponCode');
     if (input && input.value !== appliedCode) input.value = appliedCode;
     // A missing-code validation error belongs to the Apply action that produced it;
@@ -188,6 +201,7 @@
         pricing = await fetchQuote(lastItems, '');
       }
       if (version !== renderVersion) return;
+      window.FreshWayCustomerCatalogue?.syncQuotedItems?.(pricing.items);
       lastQuote = pricing;
       renderBreakdown(pricing, pricingRoot, lastMoney);
       updateCartLinePrices(pricing.items);
@@ -218,6 +232,7 @@
     try {
       const pricing = await fetchQuote(lastItems, '');
       if (version !== renderVersion) return;
+      window.FreshWayCustomerCatalogue?.syncQuotedItems?.(pricing.items);
       lastQuote = pricing;
       renderBreakdown(pricing, pricingRoot, lastMoney);
       if (checkoutRoot) renderBreakdown(pricing, checkoutRoot, lastMoney);
@@ -239,6 +254,7 @@
     // now visible at checkout instead of repeating the same confirmation prompt.
     renderVersion++;
     lastMoney = typeof moneyFn === 'function' ? moneyFn : lastMoney;
+    window.FreshWayCustomerCatalogue?.syncQuotedItems?.(pricing.items);
     lastQuote = pricing;
     updateCartLinePrices(pricing.items);
     renderBreakdown(pricing, document.querySelector('#fwCheckoutPricing'), lastMoney);
@@ -251,17 +267,20 @@
     lastMoney = typeof moneyFn === 'function' ? moneyFn : money;
     const button = document.querySelector('#checkoutForm button[type="submit"]');
     const checkoutRoot = document.querySelector('#fwCheckoutPricing');
+    lastQuote = null;
     if (!lastItems.length) {
-      lastQuote = null;
       if (checkoutRoot) checkoutRoot.innerHTML = '<p class="fw-offer-error">Your cart is empty. Add items before checkout.</p>';
+      updateDisplayedTotals('Your cart is empty');
       if (button) { button.disabled = true; button.textContent = 'Your cart is empty'; }
-      return;
+      return null;
     }
+    updateDisplayedTotals('Checking total…');
     if (checkoutRoot) checkoutRoot.innerHTML = '<div class="summary-line"><span>Refreshing your order total…</span></div>';
     if (button) { button.disabled = true; button.textContent = 'Calculating total…'; }
     try {
       const pricing = await fetchQuote(lastItems, appliedCode);
-      if (version !== renderVersion) return;
+      if (version !== renderVersion) return null;
+      window.FreshWayCustomerCatalogue?.syncQuotedItems?.(pricing.items);
       lastQuote = pricing;
       renderBreakdown(pricing, checkoutRoot, lastMoney);
       updateCartLinePrices(pricing.items);
@@ -270,12 +289,15 @@
         button.disabled = false;
         button.innerHTML = 'Place order · <span id="checkoutTotal">' + lastMoney(pricing.finalTotal) + '</span>';
       }
+      return pricing;
     } catch (error) {
-      if (version !== renderVersion) return;
+      if (version !== renderVersion) return null;
       lastQuote = null;
+      updateDisplayedTotals('Total unavailable');
       if (checkoutRoot) checkoutRoot.innerHTML = '<p class="fw-offer-error">Could not refresh your order total. Check your connection and reopen checkout.</p>';
       if (button) { button.disabled = true; button.textContent = 'Total unavailable — retry checkout'; }
       message(error.message || 'Could not refresh pricing.', true);
+      return null;
     }
   }
   function getDisplayedTotal() {
