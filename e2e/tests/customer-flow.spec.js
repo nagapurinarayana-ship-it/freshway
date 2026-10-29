@@ -1009,3 +1009,398 @@ test('captures responsive customer visual review snapshots', async ({ page }) =>
   await expect(page.locator('h1')).toHaveText('Privacy Policy');
   await expect(page.locator('#privacyContact')).toContainText('privacy@example.test');
 });
+
+
+test('captures the remaining implemented customer screens and modal states', async ({ page }) => {
+  const capture = async name => {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({
+      path: 'test-results/visual-review/' + name + '.png',
+      fullPage: false,
+      animations: 'disabled'
+    });
+  };
+
+  await page.route('**/api/auth/passcode-reset/start', async route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: true, message: 'If this mobile is registered, a verification code has been sent.' })
+  }));
+
+  savedAddresses = [{
+    id: 51,
+    label: 'Home',
+    recipientName: 'E2E Customer',
+    deliveryPhone: '9876543210',
+    houseFlat: '12',
+    building: '',
+    floor: '',
+    street: 'Example Street',
+    area: 'Test Colony',
+    locality: 'Test Colony',
+    city: 'Hyderabad',
+    district: 'Hyderabad',
+    state: 'Telangana',
+    pincode: '500001',
+    landmark: 'Near test market',
+    note: 'Call before delivery',
+    latitude: 17.385044,
+    longitude: 78.486671,
+    accuracyMeters: 10,
+    locationSource: 'GPS',
+    placeId: 'e2e-home',
+    locationUpdatedAt: '2026-10-29T00:00:00.000Z',
+    isDefault: true
+  }];
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.locator('#addressBtn').click();
+  await expect(page.locator('#addressModal')).not.toHaveClass(/hidden/);
+  await expect(page.locator('[data-fw-edit="51"]')).toBeVisible();
+  await capture('mobile-address-manager');
+  await page.locator('#addressModal [data-close-modal]').click();
+  await expect(page.locator('#addressModal')).toHaveClass(/hidden/);
+
+  // The production authentication surface is the dynamic passcode modal,
+  // not the legacy static OTP markup retained in the HTML shell.
+  await page.evaluate(() => { window.FreshWayNotifications.login().catch(() => {}); });
+  await expect(page.locator('#passcodeModal')).toBeVisible();
+  await expect(page.locator('#passcodePhone')).toBeVisible();
+  await capture('mobile-passcode-login');
+
+  await page.locator('#passcodeMode').click();
+  await expect(page.locator('#passcodeName')).toBeVisible();
+  await expect(page.locator('#passcodeConfirm')).toBeVisible();
+  await capture('mobile-passcode-registration');
+
+  await page.locator('#passcodeMode').click();
+  await page.locator('#passcodeForgot').click();
+  await expect(page.locator('#passcodeHint')).toContainText('verification code');
+  await expect(page.locator('#passcodeResetCode')).toBeHidden();
+  await capture('mobile-passcode-recovery-start');
+
+  await page.locator('#passcodePhone').fill('9876543210');
+  await page.locator('#passcodeSubmit').click();
+  await expect(page.locator('#passcodeResetCode')).toBeVisible();
+  await expect(page.locator('#passcodeResetNew')).toBeVisible();
+  await expect(page.locator('#passcodeResetConfirm')).toBeVisible();
+  await capture('mobile-passcode-recovery-code');
+  await page.locator('#passcodeCancel').click();
+  await expect(page.locator('#passcodeModal')).toBeHidden();
+
+  // Permission help is reachable when browser/site notifications are blocked.
+  await page.evaluate(() => {
+    Object.defineProperty(window, 'Notification', {
+      configurable: true,
+      value: { permission: 'denied' }
+    });
+    window.setView('profile');
+  });
+  await page.locator('#enableNotifications').click();
+  await expect(page.locator('#notificationPermissionHelp')).toBeVisible();
+  await expect(page.locator('#notificationPermissionHelp')).toContainText('Allow order updates');
+  await capture('mobile-notification-permission-help');
+  await page.locator('#notificationPermissionHelp [data-notification-permission-close]').first().click();
+  await expect(page.locator('#notificationPermissionHelp')).toHaveCount(0);
+
+  await page.evaluate(() => window.FreshWayPwaInstall.showInstallHelp());
+  await expect(page.locator('.pwa-help')).toBeVisible();
+  await expect(page.locator('.pwa-help')).toContainText('Install FreshWay');
+  await capture('mobile-pwa-install-help');
+
+  // Desktop snapshots verify these existing overlays retain usable width and spacing.
+  await page.setViewportSize({ width: 1365, height: 900 });
+  await capture('desktop-pwa-install-help');
+  await page.locator('.pwa-help .icon-btn').click();
+  await page.evaluate(() => window.setView('home'));
+  await page.locator('#addressBtn').click();
+  await expect(page.locator('[data-fw-edit="51"]')).toBeVisible();
+  await capture('desktop-address-manager');
+});
+
+test('captures customer Messages populated, empty, error and desktop states', async ({ page }) => {
+  let messages = [{
+    id: 'msg-e2e-1',
+    subject: 'Delivery update',
+    message: 'Could you confirm the delivery date?',
+    created_at: '2026-10-28T10:00:00.000Z',
+    status: 'replied',
+    reply_seen_at: null,
+    replied_at: '2026-10-28T11:00:00.000Z',
+    admin_reply: 'Your order is scheduled for tomorrow.',
+    order_id: 'FW-E2E-MSG-1'
+  }];
+  let failMessages = false;
+
+  await page.route('**/api/customer/messages**', async route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname === '/api/customer/messages/unread-count' && request.method() === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ unreadCount: 1 }) });
+    }
+    if (url.pathname === '/api/customer/messages/read' && request.method() === 'PATCH') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, markedRead: 1 }) });
+    }
+    if (url.pathname === '/api/customer/messages' && request.method() === 'GET') {
+      if (failMessages) return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Message service is temporarily unavailable.' }) });
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages }) });
+    }
+    return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'Unexpected test message endpoint.' }) });
+  });
+
+  const capture = async name => {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({
+      path: 'test-results/visual-review/' + name + '.png',
+      fullPage: false,
+      animations: 'disabled'
+    });
+  };
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(() => window.setView('messages'));
+  await expect(page.locator('#customerMessagesContent [data-customer-message-id]')).toContainText('Delivery update');
+  await expect(page.locator('#customerMessagesContent .fw-customer-message-reply')).toContainText('scheduled for tomorrow');
+  await capture('mobile-messages-populated');
+
+  messages = [];
+  await page.evaluate(() => window.FreshWayCustomerMessages.load());
+  await expect(page.locator('#customerMessagesContent')).toContainText('No messages yet');
+  await expect(page.locator('#customerMessagesContent [data-messages-contact]')).toBeVisible();
+  await capture('mobile-messages-empty');
+
+  failMessages = true;
+  await page.evaluate(() => window.FreshWayCustomerMessages.load());
+  await expect(page.locator('#customerMessagesContent')).toContainText('Could not load messages');
+  await expect(page.locator('#customerMessagesContent [data-messages-refresh]')).toBeVisible();
+  await capture('mobile-messages-error');
+
+  failMessages = false;
+  messages = [{
+    id: 'msg-e2e-2',
+    subject: 'Customer support',
+    message: 'Please check my delivery.',
+    created_at: '2026-10-28T10:00:00.000Z',
+    status: 'pending',
+    reply_seen_at: null,
+    replied_at: null,
+    admin_reply: null,
+    order_id: null
+  }];
+  await page.setViewportSize({ width: 1365, height: 900 });
+  await page.evaluate(() => window.FreshWayCustomerMessages.load());
+  await expect(page.locator('#customerMessagesContent [data-customer-message-id]')).toContainText('Customer support');
+  await capture('desktop-messages-populated');
+});
+
+test('captures populated orders, delivery rescheduling, order help, invoice download and confirmation', async ({ page }) => {
+  const orderId = 'FW-QA-1001';
+  const scheduledDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const sentRequests = [];
+  const sampleOrder = () => ({
+    id: orderId,
+    status: 'Confirmed',
+    payment: 'Not Collected',
+    deliveryPlan: 'Tomorrow',
+    createdAt: '2026-10-28T10:00:00.000Z',
+    updatedAt: '2026-10-28T10:00:00.000Z',
+    total: 150,
+    pricingBreakdownKnown: true,
+    itemsSubtotal: 120,
+    deliveryFee: 30,
+    couponCode: null,
+    couponDiscount: 0,
+    items: [{ id: 'p1', name: 'Basmati Rice', unit: 'kg', qty: 1, price: 120, lineTotal: 120 }],
+    address: { house: '12', area: 'Test Colony', city: 'Hyderabad', pincode: '500001', landmark: 'Test market', note: 'Call before delivery' },
+    scheduledDelivery: { date: scheduledDate, startTime: '10:00', endTime: '12:00', status: 'scheduled' },
+    invoice: { number: 'INV-QA-1001' }
+  });
+
+  await page.route('**/api/orders**', async route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const method = request.method();
+    if (url.pathname === '/api/orders/' + orderId + '/invoice' && method === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/pdf',
+        headers: { 'content-disposition': 'attachment; filename="FreshWay-invoice-FW-QA-1001.pdf"' },
+        body: '%PDF-1.4\n% FreshWay test invoice\n%%EOF'
+      });
+    }
+    if (url.pathname === '/api/orders/' + orderId + '/request' && method === 'POST') {
+      sentRequests.push(JSON.parse(request.postData() || '{}'));
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, request: { id: 'REQ-QA-1' } }) });
+    }
+    if (url.pathname === '/api/orders/' + orderId + '/reschedule' && method === 'POST') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, message: 'Delivery date updated.' }) });
+    }
+    if (url.pathname === '/api/orders/' + orderId + '/cancel' && method === 'POST') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, status: 'Cancelled' }) });
+    }
+    if (url.pathname === '/api/orders' && method === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ orders: [sampleOrder()] }) });
+    }
+    return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'Unexpected test order endpoint.' }) });
+  });
+
+  const capture = async name => {
+    await page.screenshot({
+      path: 'test-results/visual-review/' + name + '.png',
+      fullPage: false,
+      animations: 'disabled'
+    });
+  };
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(() => window.FreshWayNotifications.setCustomerId('e2e-customer-1'));
+  await page.evaluate(() => window.setView('orders'));
+  const orderCard = page.locator('[data-order-id="' + orderId + '"]');
+  await expect(orderCard).toBeVisible();
+  await expect(orderCard).toContainText('INV-QA-1001');
+  await expect(orderCard).toContainText('Delivery fee');
+  await expect(orderCard).toContainText('Test Colony');
+  await capture('mobile-orders-populated');
+
+  await orderCard.locator('[data-customer-order-open-request="issue"]').click();
+  const requestPanel = orderCard.locator('[data-customer-order-request-panel]');
+  await expect(requestPanel).toBeVisible();
+  await expect(requestPanel).toContainText('Contact FreshWay about this order');
+  await requestPanel.scrollIntoViewIfNeeded();
+  await capture('mobile-order-help');
+  await requestPanel.locator('textarea').fill('Please confirm the delivery.');
+  await requestPanel.locator('[data-customer-order-submit-request]').click();
+  await expect.poll(() => sentRequests.length).toBe(1);
+  expect(sentRequests[0].reason).toBe('Please confirm the delivery.');
+  expect(sentRequests[0].requestType).toBe('issue');
+
+  await page.evaluate(() => window.setView('orders'));
+  const refreshedCard = page.locator('[data-order-id="' + orderId + '"]');
+  await expect(refreshedCard).toBeVisible();
+  await refreshedCard.locator('[data-customer-order-reschedule]').click();
+  const picker = refreshedCard.locator('[data-customer-reschedule-picker]');
+  await expect(picker).toBeVisible();
+  await picker.locator('[data-fw-date-choice="custom"]').click();
+  await expect(picker.locator('[data-fw-delivery-date]')).toBeVisible();
+  await picker.scrollIntoViewIfNeeded();
+  await capture('mobile-order-reschedule');
+
+  const downloadPromise = page.waitForEvent('download');
+  await refreshedCard.locator('[data-download-invoice]').click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('FreshWay-invoice-FW-QA-1001.pdf');
+
+  // Desktop review for a populated order and the actual confirmation presentation.
+  await page.setViewportSize({ width: 1365, height: 900 });
+  await page.evaluate(() => window.setView('orders'));
+  const desktopCard = page.locator('[data-order-id="' + orderId + '"]');
+  await expect(desktopCard).toBeVisible();
+  await capture('desktop-orders-populated');
+  await desktopCard.locator('[data-customer-order-open-request="issue"]').click();
+  const desktopRequestPanel = desktopCard.locator('[data-customer-order-request-panel]');
+  await expect(desktopRequestPanel).toBeVisible();
+  await desktopRequestPanel.scrollIntoViewIfNeeded();
+  await capture('desktop-order-help');
+  await page.evaluate(() => window.setView('orders'));
+  const desktopRescheduleCard = page.locator('[data-order-id="' + orderId + '"]');
+  await desktopRescheduleCard.locator('[data-customer-order-reschedule]').click();
+  const desktopPicker = desktopRescheduleCard.locator('[data-customer-reschedule-picker]');
+  await expect(desktopPicker).toBeVisible();
+  await desktopPicker.scrollIntoViewIfNeeded();
+  await capture('desktop-order-reschedule');
+
+  const confirmation = {
+    id: 'FW-QA-CONFIRM-1001',
+    total: 150,
+    pricingBreakdownKnown: true,
+    itemsSubtotal: 120,
+    deliveryFee: 30,
+    couponCode: null,
+    couponDiscount: 0,
+    payment: 'Not Collected',
+    status: 'New',
+    deliveryPlan: 'Tomorrow'
+  };
+  await page.evaluate(order => window.showConfirmation(order), confirmation);
+  await expect(page.locator('#confirmationView')).toBeVisible();
+  await expect(page.locator('#confirmationView')).toContainText('FW-QA-CONFIRM-1001');
+  await capture('desktop-order-confirmation');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await capture('mobile-order-confirmation');
+  await page.locator('#confirmationOrders').click();
+  await expect(page.locator('#ordersView')).toHaveClass(/active-view/);
+  await page.evaluate(order => window.showConfirmation(order), confirmation);
+  await page.locator('#confirmationHome').click();
+  await expect(page.locator('#homeView')).toHaveClass(/active-view/);
+});
+
+test('checks the standalone account-deletion request flow on mobile and desktop', async ({ page }) => {
+  let startCalls = 0;
+  let verifyCalls = 0;
+  await page.route('**/api/account-deletion/**', async route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname === '/api/account-deletion/start' && request.method() === 'POST') {
+      startCalls += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, message: 'If an account matches, a verification code has been sent.' })
+      });
+    }
+    if (url.pathname === '/api/account-deletion/verify' && request.method() === 'POST') {
+      verifyCalls += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, message: 'Your deletion request has been submitted.', requestId: 'E2E-DELETE-001' })
+      });
+    }
+    return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'Unexpected test deletion endpoint.' }) });
+  });
+
+  const capture = async name => {
+    await page.screenshot({
+      path: 'test-results/visual-review/' + name + '.png',
+      fullPage: true,
+      animations: 'disabled'
+    });
+  };
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/delete-account.html');
+  await expect(page.locator('h1')).toHaveText('Request account deletion');
+  await expect(page.locator('#startForm')).toBeVisible();
+  await capture('mobile-account-deletion-start');
+
+  await page.locator('#phone').fill('123');
+  await page.locator('#startForm button[type="submit"]').click();
+  await expect(page.locator('#message')).toContainText('valid 10-digit');
+  await capture('mobile-account-deletion-invalid-phone');
+
+  await page.locator('#phone').fill('9876543210');
+  await page.locator('#startForm button[type="submit"]').click();
+  await expect(page.locator('#verifyForm')).toBeVisible();
+  await expect(page.locator('#verifyForm')).toContainText('SMS verification code');
+  await capture('mobile-account-deletion-verify');
+
+  await page.locator('#code').fill('654321');
+  await page.locator('#verifyForm button[type="submit"]').click();
+  await expect(page.locator('#message')).toContainText('request has been submitted');
+  await expect(page.locator('body')).toContainText('E2E-DELETE-001');
+  await expect.poll(() => startCalls).toBe(1);
+  await expect.poll(() => verifyCalls).toBe(1);
+  await capture('mobile-account-deletion-success');
+
+  await page.setViewportSize({ width: 1365, height: 900 });
+  await page.reload();
+  await expect(page.locator('#startForm')).toBeVisible();
+  await capture('desktop-account-deletion-start');
+  await page.locator('#phone').fill('9876543210');
+  await page.locator('#startForm button[type="submit"]').click();
+  await expect(page.locator('#verifyForm')).toBeVisible();
+  await capture('desktop-account-deletion-verify');
+});
