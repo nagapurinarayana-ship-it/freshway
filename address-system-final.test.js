@@ -33,6 +33,8 @@ assert.match(source, /if \(target\.closest\('#fwAddressManagerNew'\)\)[\s\S]*?aw
   'Add address must load registered details before opening the editor');
 assert.match(source, /const revisionAtStart = selectionRevision[\s\S]*?selectionRevision !== revisionAtStart[\s\S]*?Never let an older background request overwrite a choice made while it was in flight/,
   'a stale initial address fetch must not replace a newer explicit selection');
+assert.match(source, /async function loadSaved\(options\) \{[\s\S]*?const auth = window\.FreshWayCustomerAuth \|\| window\.FreshWayNotifications;[\s\S]*?await auth\.session\(\)[\s\S]*?if \(sessionResolved && !session\?\.customerId\)[\s\S]*?enterGuestAddressMode\(options\);[\s\S]*?fetch\('\/api\/addresses'/,
+  'guest visits must resolve the shared auth session before fetching saved addresses, avoiding a predictable unauthenticated 401');
 assert.match(source, /loadSaved\(\{ preserveSelection: true, showError: false \}\)/,
   'initial load must restore the selected address or fall back to the default');
 assert.match(source, /else if \(currentId != null && !restoredSelection\) persistAddressSelection\(null\)/,
@@ -99,13 +101,13 @@ assert.match(source, /id="addressModalTitle" tabindex="-1"/);
 assert.match(source, /modalReturnFocus/);
 assert.ok(index.includes('frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3'), 'HTML must load the current geocode field mapper');
 assert.ok(sw.includes('/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3'), 'service worker must cache the current geocode field mapper');
-assert.ok(index.includes('address-system-final.js?v=20261029-registration-prefill-v1'), 'HTML must load the selected-address fix');
-assert.ok(sw.includes('/address-system-final.js?v=20261029-registration-prefill-v1'), 'service worker must cache the selected-address fix');
+assert.ok(index.includes('address-system-final.js?v=20261029-guest-session-gate-v1'), 'HTML must load the selected-address fix');
+assert.ok(sw.includes('/address-system-final.js?v=20261029-guest-session-gate-v1'), 'service worker must cache the selected-address fix');
 assert.ok(index.includes('address-book.css?v=20261027-checkout-ux-v2'), 'HTML must load the current address CSS');
 assert.ok(sw.includes('/frontend/customer/address-book.css?v=20261027-checkout-ux-v2'), 'service worker must cache the current address CSS');
 assert.ok(index.includes('notifications.js?v=notif2'), 'HTML must load the notification permission-state module');
 assert.ok(sw.includes('/notifications.js?v=notif2'), 'service worker must cache the notification permission-state module');
-assert.match(sw, /const CACHE = 'freshway-v111'/);
+assert.match(sw, /const CACHE = 'freshway-v112'/);
 assert.match(css, /#toast\s*\{[^}]*white-space:\s*normal/s);
 assert.match(css, /\.fw-address-incomplete\s*\{/);
 console.log('checkout address completion, geocoding preservation, error feedback, accessibility and asset cache tests passed');
