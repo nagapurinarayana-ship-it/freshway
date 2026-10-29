@@ -5,6 +5,14 @@ import test from 'node:test';
 import { handleAdminDeliveryRequest, handleCustomerDeliveryRequest } from '../src/delivery-scheduling.js';
 import { createOrder } from '../src/index.js';
 
+function dateInIndia(daysFromToday = 0) {
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(new Date());
+  const [year, month, day] = today.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + daysFromToday)).toISOString().slice(0, 10);
+}
+
 class SQLiteD1 {
   constructor() {
     this.db = new DatabaseSync(':memory:');
@@ -22,7 +30,7 @@ class SQLiteD1 {
       INSERT INTO delivery_slots (id,store_id,delivery_date,start_minute,end_minute,capacity,is_active)
         VALUES ('slot-old','store-1','2026-01-01',600,720,5,1);
       INSERT INTO delivery_slots (id,store_id,delivery_date,start_minute,end_minute,capacity,is_active)
-        VALUES ('slot-new','store-1','2026-10-28',600,720,5,1);
+        VALUES ('slot-new','store-1','${dateInIndia(1)}',600,720,5,1);
     `);
   }
   prepare(sql) {
@@ -111,17 +119,18 @@ test('customer can directly cancel a New order even when its same-day slot is in
 
 test('customer reschedule saves the date, releases the old slot, and preserves store stock reservations', async () => {
   const db=new SQLiteD1();
+  const requestedDate=dateInIndia(1);
   try {
     db.seedOrder('order-reschedule',{date:'2026-01-01',status:'confirmed'});
     const customerResponse=await handleCustomerDeliveryRequest(new Request(
       'https://api.example.test/api/orders/order-reschedule/reschedule',
-      {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestedDeliveryDate:'2026-10-28'})}
+      {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestedDeliveryDate:requestedDate})}
     ),{DB:db},'customer-1');
     assert.equal(customerResponse.status,200);
     const result=await customerResponse.json();
     assert.equal(result.status,'updated');
-    assert.equal(result.scheduledDelivery.date,'2026-10-28');
-    assert.equal(db.db.prepare("SELECT scheduled_delivery_date FROM orders WHERE id='order-reschedule'").get().scheduled_delivery_date,'2026-10-28');
+    assert.equal(result.scheduledDelivery.date,requestedDate);
+    assert.equal(db.db.prepare("SELECT scheduled_delivery_date FROM orders WHERE id='order-reschedule'").get().scheduled_delivery_date,requestedDate);
     assert.equal(db.db.prepare("SELECT schedule_status FROM orders WHERE id='order-reschedule'").get().schedule_status,'confirmed');
     assert.equal(db.db.prepare("SELECT scheduled_slot_id FROM orders WHERE id='order-reschedule'").get().scheduled_slot_id,null);
     assert.equal(db.db.prepare("SELECT status FROM delivery_slot_reservations WHERE order_id='order-reschedule'").get().status,'released');
@@ -137,11 +146,12 @@ test('customer reschedule saves the date, releases the old slot, and preserves s
 
 test('legacy generic request cannot queue a delivery-date approval request', async () => {
   const db=new SQLiteD1();
+  const requestedDate=dateInIndia(1);
   try {
     db.seedOrder('order-legacy-reschedule',{date:'2026-10-27',status:'confirmed'});
     const response=await handleCustomerDeliveryRequest(new Request(
       'https://api.example.test/api/orders/order-legacy-reschedule/request',
-      {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestType:'reschedule',requestedDeliveryDate:'2026-10-28'})}
+      {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestType:'reschedule',requestedDeliveryDate:requestedDate})}
     ),{DB:db},'customer-1');
     assert.equal(response.status,409);
     assert.match((await response.json()).error,/Delivery dates update directly/i);
@@ -151,6 +161,7 @@ test('legacy generic request cannot queue a delivery-date approval request', asy
 });
 
 test('customer reschedule rejects delivered and cancelled orders without changing their dates', async () => {
+  const requestedDate=dateInIndia(1);
   for (const status of ['Delivered','Cancelled']) {
     const db=new SQLiteD1();
     try {
@@ -158,7 +169,7 @@ test('customer reschedule rejects delivered and cancelled orders without changin
       db.db.prepare('UPDATE orders SET delivery_status=? WHERE id=?').run(status,'order-terminal');
       const response=await handleCustomerDeliveryRequest(new Request(
         'https://api.example.test/api/orders/order-terminal/reschedule',
-        {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestedDeliveryDate:'2026-10-28'})}
+        {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestedDeliveryDate:requestedDate})}
       ),{DB:db},'customer-1');
       assert.equal(response.status,409);
       assert.equal(db.db.prepare("SELECT scheduled_delivery_date FROM orders WHERE id='order-terminal'").get().scheduled_delivery_date,'2026-10-27');
@@ -169,14 +180,15 @@ test('customer reschedule rejects delivered and cancelled orders without changin
 
 test('Owner can still save an order delivery date directly without creating slot reservations', async () => {
   const db=new SQLiteD1();
+  const requestedDate=dateInIndia(1);
   try {
     db.seedOrder('order-owner-date',{date:'2026-10-27',status:'confirmed'});
     const ownerResponse=await handleAdminDeliveryRequest(new Request(
       'https://api.example.test/api/admin/delivery/orders/order-owner-date/schedule',
-      {method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({deliveryDate:'2026-10-29'})}
+      {method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({deliveryDate:requestedDate})}
     ),{DB:db});
     assert.equal(ownerResponse.status,200);
-    assert.equal(db.db.prepare("SELECT scheduled_delivery_date FROM orders WHERE id='order-owner-date'").get().scheduled_delivery_date,'2026-10-29');
+    assert.equal(db.db.prepare("SELECT scheduled_delivery_date FROM orders WHERE id='order-owner-date'").get().scheduled_delivery_date,requestedDate);
     assert.equal(db.db.prepare("SELECT schedule_status FROM orders WHERE id='order-owner-date'").get().schedule_status,'confirmed');
     assert.equal(db.db.prepare("SELECT scheduled_slot_id FROM orders WHERE id='order-owner-date'").get().scheduled_slot_id,null);
     assert.equal(db.db.prepare("SELECT status FROM delivery_slot_reservations WHERE order_id='order-owner-date'").get().status,'released');
@@ -203,7 +215,7 @@ test('checkout creates an order with a server-validated preferred date and reser
       items:[{id:'product-1',qty:2}],
       couponCode:'FIRST25',
       expectedTotal:205,
-      preferredDeliveryDate:'2026-10-28',
+      preferredDeliveryDate:dateInIndia(1),
       clientOrderId:'checkout-test-0001'
     };
     const placed=await createOrder({DB:db,APP_ORIGIN:'https://fwcoldpressed.in'},payload,ctx);
@@ -215,7 +227,7 @@ test('checkout creates an order with a server-validated preferred date and reser
     assert.equal(placed.couponCode,'FIRST25');
     assert.equal(placed.couponDiscount,25);
     assert.equal(placed.pricingBreakdownKnown,true);
-    assert.equal(placed.scheduledDelivery.date,'2026-10-28');
+    assert.equal(placed.scheduledDelivery.date,dateInIndia(1));
     const order=db.db.prepare('SELECT total,items_subtotal,delivery_fee,coupon_id,coupon_code,coupon_discount,pricing_breakdown_known,delivery_status,scheduled_delivery_date,scheduled_slot_id,assigned_store_id,schedule_status FROM orders WHERE id=?').get(placed.id);
     assert.equal(order.total,205);
     assert.equal(order.items_subtotal,200);
@@ -227,7 +239,7 @@ test('checkout creates an order with a server-validated preferred date and reser
     assert.equal(db.db.prepare('SELECT COUNT(*) count FROM coupon_redemptions WHERE order_id=? AND status=\'redeemed\'').get(placed.id).count,1);
     assert.equal(db.db.prepare('SELECT COUNT(*) count FROM first_order_coupon_claims WHERE customer_id=\'customer-1\'').get().count,1);
     assert.equal(order.delivery_status,'New');
-    assert.equal(order.scheduled_delivery_date,'2026-10-28');
+    assert.equal(order.scheduled_delivery_date,dateInIndia(1));
     assert.equal(order.scheduled_slot_id,null);
     assert.equal(order.assigned_store_id,null);
     assert.equal(order.schedule_status,'requested');
