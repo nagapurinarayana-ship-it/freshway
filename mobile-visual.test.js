@@ -2,6 +2,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 
 const view=fs.readFileSync('frontend/customer/product-view.js','utf8');
+const cartView=fs.readFileSync('frontend/customer/cart-view.js','utf8');
 const css=fs.readFileSync('styles.css','utf8');
 const designSystem=fs.readFileSync('frontend/customer/design-system.css','utf8');
 const categoryFoldStyles=fs.readFileSync('frontend/customer/category-fold-fit.css','utf8');
@@ -15,6 +16,7 @@ assert.match(designSystem,/--fw-font-ui:/,'customer screens use a defined shared
 assert.match(designSystem,/--fw-heading-md: 23px/,'customer screens use a consistent heading scale');
 assert.match(designSystem,/#app \.form-card input[\s\S]*?min-height: 48px/,'checkout fields meet the shared touch-target height');
 assert.match(designSystem,/#app \.nav-item[\s\S]*?font-size: 11px/,'bottom navigation labels remain readable');
+assert.ok(cartView.includes('placeholder="Enter code"'),'coupon placeholder stays short enough for small mobile inputs');
 assert.ok(index.includes('frontend/customer/delivery-offers.css?v=20261028-cart-offers-stable-v1'),'HTML loads delivery/coupon UI styles');
 assert.ok(sw.includes('/frontend/customer/delivery-offers.css?v=20261028-cart-offers-stable-v1'),'service worker caches delivery/coupon UI styles');
 assert.ok(index.includes('frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2'),'HTML loads the selected-category fold-fit stylesheet');
