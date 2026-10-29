@@ -1247,6 +1247,7 @@ test('captures populated orders, delivery rescheduling, order help, invoice down
   });
 
   const capture = async name => {
+    await expect(page.locator('#toast')).not.toHaveClass(/show/);
     await page.screenshot({
       path: 'test-results/visual-review/' + name + '.png',
       fullPage: false,
@@ -1286,6 +1287,12 @@ test('captures populated orders, delivery rescheduling, order help, invoice down
   await picker.locator('[data-fw-date-choice="custom"]').click();
   await expect(picker.locator('[data-fw-delivery-date]')).toBeVisible();
   await picker.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, 140));
+  const pickerLayout = await picker.locator('[data-fw-delivery-confirm]').evaluate(element => ({
+    buttonBottom: element.getBoundingClientRect().bottom,
+    navTop: document.querySelector('.bottom-nav').getBoundingClientRect().top
+  }));
+  expect(pickerLayout.buttonBottom, 'reschedule save action should remain above the fixed bottom navigation').toBeLessThan(pickerLayout.navTop);
   await capture('mobile-order-reschedule');
 
   const downloadPromise = page.waitForEvent('download');
