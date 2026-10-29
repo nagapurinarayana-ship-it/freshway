@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
 import { createInvoicePdf, formatInvoicePhone, formatSellerPhone } from '../src/invoice-pdf.js';
 
@@ -71,6 +71,10 @@ test('commercial invoices show only verified pricing breakdowns and keep histori
 
 test('creates a valid one-page commercial invoice PDF',async()=>{
   const bytes=await createInvoicePdf(fixture());
+  if (process.env.FRESHWAY_VISUAL_ARTIFACTS === '1') {
+    mkdirSync('test-results/visual-review', { recursive: true });
+    writeFileSync('test-results/visual-review/commercial-invoice.pdf', bytes);
+  }
   assert.ok(bytes instanceof Uint8Array);
   assert.ok(bytes.length>500);
   assert.equal(new TextDecoder().decode(bytes.slice(0,5)),'%PDF-');
