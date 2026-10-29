@@ -1,7 +1,7 @@
 const MAX_IMAGE_DATA=900000;
 const ALLOWED_IMAGE_MIME=new Set(['image/png','image/jpeg','image/webp']);
 const clean=(v,max)=>String(v??'').trim().slice(0,max);
-const normalizeAltText=value=>String(value??'').normalize('NFKC').trim().replace(/\\s+/g,' ').toLocaleLowerCase('en');
+const normalizeAltText=value=>String(value??'').normalize('NFKC').trim().replace(/\s+/g,' ').toLocaleLowerCase('en');
 const GENERIC_ALT_TEXT=new Set(['image','image preview','banner','offer','promo','promotion','promotion preview','promotion image','freshway promotion']);
 const id=()=>`promo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
 
@@ -30,7 +30,7 @@ function validPayload(payload,current={},options={}){
     imageData:payload.imageData===undefined?current.image_data:payload.imageData,
     imageMimeType:payload.imageMimeType===undefined?current.image_mime_type:payload.imageMimeType
   });
-  const alt=clean(payload.altText===undefined?current.alt_text:payload.altText,160).replace(/\\s+/g,' ');
+  const alt=clean(payload.altText===undefined?current.alt_text:payload.altText,160).replace(/\s+/g,' ');
   const order=Number(payload.displayOrder===undefined?current.display_order:payload.displayOrder);
   const active=payload.active===undefined?Number(current.active??1)===1:payload.active===true||payload.active===1;
   if(!Number.isInteger(order)||order<1||order>99999)throw new Error('Promotion display order must be a positive whole number.');
