@@ -1116,6 +1116,10 @@ test('captures the remaining implemented customer screens and modal states', asy
 
   await page.evaluate(() => { window.FreshWayNotifications.login().catch(() => {}); });
   await expect(page.locator('#passcodeModal')).toBeVisible();
+  const desktopPasscodeDialog = await page.locator('#passcodeModal .modal-sheet').boundingBox();
+  expect(desktopPasscodeDialog?.y ?? -1, 'desktop login dialog should start within the viewport').toBeGreaterThanOrEqual(0);
+  expect((desktopPasscodeDialog?.y ?? 0) + (desktopPasscodeDialog?.height ?? 0), 'desktop login dialog should end within the viewport').toBeLessThanOrEqual(await page.evaluate(() => window.innerHeight));
+  await expect(page.locator('#passcodeModal .modal-sheet')).toHaveCSS('overflow-y', 'auto');
   await capture('desktop-passcode-login');
   await page.locator('#passcodeMode').click();
   await expect(page.locator('#passcodeName')).toBeVisible();
