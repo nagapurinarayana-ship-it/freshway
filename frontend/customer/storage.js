@@ -2,12 +2,13 @@
 // This deliberately preserves the existing state shape and storage key.
 (function(){
   const KEY='freshway-state-v2';
-  const initialState=()=>({cart:{},orders:[],profile:{address:'',checkout:{}}});
+  const initialState=()=>({cart:{},cartProducts:{},orders:[],profile:{address:'',checkout:{}}});
   const read=()=>{try{
     const value=JSON.parse(localStorage.getItem(KEY)||'null');
     if(!value||typeof value!=='object')return initialState();
     return {
       cart:value.cart&&typeof value.cart==='object'?value.cart:{},
+      cartProducts:value.cartProducts&&typeof value.cartProducts==='object'?value.cartProducts:{},
       orders:Array.isArray(value.orders)?value.orders:[],
       profile:{
         address:String(value.profile?.address||''),

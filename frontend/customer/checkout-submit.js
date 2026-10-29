@@ -46,9 +46,26 @@
         const deliveryOffers=window.FreshWayCustomerDeliveryOffers;
         const couponCode=deliveryOffers?.getAppliedCode?.()||'';
         const oldTotal=deliveryOffers?.getDisplayedTotal?.();
-        const quote=await api('/api/checkout/quote',{method:'POST',body:JSON.stringify({items:cartItems().map(x=>({id:x.product.id,qty:x.qty})),couponCode})});
+        let quote;
+        try{
+          quote=await api('/api/checkout/quote',{method:'POST',body:JSON.stringify({items:cartItems().map(x=>({id:x.product.id,qty:x.qty})),couponCode})});
+        }catch(error){
+          deliveryOffers?.invalidateDisplayedQuote?.();
+          throw error;
+        }
         const pricing=quote?.pricing;
-        if(!pricing||!Number.isSafeInteger(Number(pricing.finalTotal)))throw new Error('Could not verify the order total. Return to your cart and try again.');
+        if(!pricing||!Number.isSafeInteger(Number(pricing.finalTotal))){
+          deliveryOffers?.invalidateDisplayedQuote?.();
+          throw new Error('Could not verify the order total. Return to your cart and try again.');
+        }
+        const expectedItems=cartItems().map(item=>({id:String(item.product?.id??''),qty:Number(item.qty)}));
+        const quotedItems=Array.isArray(pricing.items)?pricing.items:[];
+        const quotedById=new Map(quotedItems.map(item=>[String(item?.id??''),item]));
+        if(!expectedItems.length||quotedItems.length!==expectedItems.length||expectedItems.some(item=>{const matched=quotedById.get(item.id);return !matched||Number(matched.qty)!==item.qty;})){
+          deliveryOffers?.invalidateDisplayedQuote?.();
+          throw new Error('We could not verify every item in your cart. Return to your cart, refresh it, and remove any unavailable item before checkout.');
+        }
+        window.FreshWayCustomerCatalogue?.syncQuotedItems?.(pricing.items);
         deliveryOffers?.renderCheckoutQuote?.(pricing,money);
         if(oldTotal!=null&&Number(oldTotal)!==Number(pricing.finalTotal)&&!window.confirm('Your order total changed from '+money(oldTotal)+' to '+money(pricing.finalTotal)+'. Continue with the updated total?'))throw new Error('Review the updated total before placing the order.');
         orderPayload.couponCode=couponCode;
@@ -64,6 +81,7 @@
         const order={id:result.id,customer:{name:customerAuth.registeredName?.()||name,phone:registeredPhone},address:{...address,recipientName:address.recipientName||name,deliveryPhone:phone},items:(result.items||[]).map(i=>({name:i.name,unit:i.unit,qty:i.qty,price:i.price,lineTotal:i.lineTotal})),total:result.total,pricingBreakdownKnown:result.pricingBreakdownKnown===true,itemsSubtotal:result.itemsSubtotal??null,deliveryFee:result.deliveryFee??null,couponCode:result.couponCode||null,couponDiscount:result.couponDiscount??null,payment:result.payment,status:result.status,deliveryPlan:result.deliveryPlan,scheduledDelivery:result.scheduledDelivery||null,scheduleStatus:result.scheduledDelivery?.status||'unscheduled',createdAt:result.createdAt,updatedAt:result.updatedAt};
         state.orders=[order,...state.orders.filter(x=>x.id!==order.id)];
         state.cart={};
+        state.cartProducts={};
         state.profile.address=customerAddress.format(address);
         state.profile.checkout={name,phone,address};
         delete state.profile.pendingCheckout;
@@ -80,9 +98,10 @@
           button.disabled=false;
           const remainingItems=cartItems();
           const displayedTotal=window.FreshWayCustomerDeliveryOffers?.getDisplayedTotal?.();
-          const itemSubtotal=remainingItems.reduce((sum,x)=>sum+Number(x.lineTotal||Number(x.product?.price||0)*Number(x.qty||0)),0);
-          const payableTotal=remainingItems.length&&Number.isSafeInteger(Number(displayedTotal))?Number(displayedTotal):(remainingItems.length?itemSubtotal:0);
-          button.innerHTML='Place order · <span id="checkoutTotal">'+money(payableTotal)+'</span>';
+          const hasVerifiedTotal=displayedTotal!==null&&displayedTotal!==undefined&&displayedTotal!==''&&Number.isSafeInteger(Number(displayedTotal));
+          if(!remainingItems.length){button.disabled=true;button.textContent='Your cart is empty'}
+          else if(!hasVerifiedTotal){button.disabled=true;button.textContent='Total unavailable — retry checkout'}
+          else{button.disabled=false;button.innerHTML='Place order · <span id="checkoutTotal">'+money(displayedTotal)+'</span>'}
         }
         updateCartBar();
       }

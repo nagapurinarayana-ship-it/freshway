@@ -85,7 +85,7 @@ async function dispatchPush(payload) {
   const index = fs.readFileSync('index.html', 'utf8');
   assert.match(app, /freshway:order-updated/);
   assert.match(app, /customerOrderData\.load\(\)/);
-  assert.match(index, /app\.js\?v=msg1/);
+  assert.match(index, /app\.js\?v=102/);
   assert.match(index, /frontend\/customer\/orders-data\.js\?v=orders3/);
   assert.match(index, /frontend\/customer\/messages\.js\?v=msg1/);
   assert.match(index, /frontend\/customer\/store-info\.js\?v=msg1/);

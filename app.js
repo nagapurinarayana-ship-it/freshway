@@ -32,23 +32,25 @@ const money=customerOrderDisplay.money;
 const esc=v=>String(v??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c]));
 const state=customerStorage.read();
 let PRODUCTS=[];
-const publishCatalogueProducts=next=>{
-  const incoming=Array.isArray(next)?next:[];
-  const validIds=new Set(incoming.map(p=>String(p?.id||'')));
-  const removed=Object.keys(state.cart||{}).filter(id=>!validIds.has(String(id)));
-  removed.forEach(id=>delete state.cart[id]);
-  if(removed.length)save();
-  PRODUCTS=incoming;
-  renderProducts($('#searchInput')?.value||'');
-  if($('#cartView')?.classList.contains('active-view'))renderCart();
-  updateCartBar();
-  return {removed};
-};
-window.FreshWayCustomerCatalogue=Object.freeze({setProducts:publishCatalogueProducts,clear:()=>publishCatalogueProducts([])});
 const save=()=>customerStorage.save(state);
-
+// Shared request/session aliases used by checkout, address and order modules.
 const api=customerAPI.request;
 const customerId=customerAuth.customerId;
+const cartPersistence=window.FreshWayCustomerCartPersistence.create({
+  state,
+  getProducts:()=>PRODUCTS,
+  setProducts:next=>{PRODUCTS=next},
+  save,
+  renderProducts:()=>renderProducts($('#searchInput')?.value||''),
+  renderCart,
+  updateCartBar:()=>updateCartBar(),
+  isCartActive:()=>!!$('#cartView')?.classList.contains('active-view')
+});
+window.FreshWayCustomerCatalogue=Object.freeze({
+  setProducts:cartPersistence.setProducts,
+  clear:cartPersistence.clear,
+  syncQuotedItems:cartPersistence.syncQuotedItems
+});
 const cartItems=()=>catalogueCart.items(state,PRODUCTS);
 const cartTotal=()=>catalogueCart.total(state,PRODUCTS);
 const cartCount=()=>catalogueCart.count(state,PRODUCTS);
@@ -86,11 +88,11 @@ function renderProfile(){const last=latestOrder(),name=$('#profileName'),phone=$
 const customerOrderData=customerOrdersDataModule.create({api,customerId,readState:()=>state,save,renderOrders,renderProfile,toast,document,intervalMs:0});
 document.addEventListener('freshway:order-actions-changed',event=>{void customerOrderData.load({silentError:event.detail?.silentError===true})});
 let customerFreshness=null;
-function handleView(name){if(name==='orders'){renderOrders();customerOrderData.load();customerOrderData.start()}else customerOrderData.stop();if(name==='cart')renderCart();if(name==='checkout'){prefillCheckout();updateCartBar();window.FreshWayAddressSystem?.syncCheckout?.();void customerDeliveryBooking?.refreshCheckout?.()}if(name==='profile'){renderProfile();window.FreshWayAddressSystem?.renderDisplays?.();customerMessages?.refreshBadge?.()}if(name==='messages')customerMessages?.load();if(name==='about'||name==='contact')customerStoreInfo?.show(name,{api,toast}).catch(error=>toast(error.message));updateCartBar();customerFreshness?.onView(name)}
+function handleView(name){if(name==='orders'){renderOrders();customerOrderData.load();customerOrderData.start()}else customerOrderData.stop();if(name==='cart')renderCart();if(name==='checkout'){prefillCheckout();updateCartBar();window.FreshWayAddressSystem?.syncCheckout?.();void window.FreshWayCustomerDeliveryOffers?.refreshCheckoutQuote?.(cartItems(),money);void customerDeliveryBooking?.refreshCheckout?.()}if(name==='profile'){renderProfile();window.FreshWayAddressSystem?.renderDisplays?.();customerMessages?.refreshBadge?.()}if(name==='messages')customerMessages?.load();if(name==='about'||name==='contact')customerStoreInfo?.show(name,{api,toast}).catch(error=>toast(error.message));updateCartBar();customerFreshness?.onView(name)}
 const navigation=customerNavigation.create({document,onView:handleView,afterView:name=>window.FreshWaySeo?.setView(name)});
 customerFreshness=customerStateFreshness?.create({document,getView:()=>document.querySelector('.view.active-view')?.id?.replace(/View$/,'')||'home',refreshCatalogue:()=>window.freshWayCustomerCatalogueRefresh?.(),refreshOrders:()=>customerOrderData.load(),refreshPromotions:()=>customerPromotions?.refresh?.(),renderProfile});
 function setView(name,options){if(name==='home'&&options?.history!=='none')window.freshWayCustomerCatalogueGoHome?.();navigation.setView(name,options)}
-function changeQty(id,delta){const current=Number(state.cart[id]||0);const next=catalogueCart.nextQuantity(current,delta);if(delta>0&&current>=99){toast('Maximum quantity is 99');return}if(next<=0)delete state.cart[id];else state.cart[id]=next;save();renderProducts($('#searchInput')?.value||'');if($('#cartView')?.classList.contains('active-view'))renderCart();if($('#checkoutView')?.classList.contains('active-view'))void customerDeliveryBooking?.refreshCheckout?.()}
+function changeQty(id,delta){const key=String(id);const current=Number(state.cart[key]||0);const next=catalogueCart.nextQuantity(current,delta);if(delta>0&&current>=99){toast('Maximum quantity is 99');return}if(next<=0){delete state.cart[key];cartPersistence.removeProduct(key)}else{state.cart[key]=next;const product=PRODUCTS.find(item=>String(item.id)===key);if(product)cartPersistence.rememberProduct(key,product)}save();renderProducts($('#searchInput')?.value||'');if($('#cartView')?.classList.contains('active-view'))renderCart();if($('#checkoutView')?.classList.contains('active-view'))void customerDeliveryBooking?.refreshCheckout?.()}
 function openAddressModal(){customerModal.open(document)}
 function closeModal(){customerModal.close(document)}
 function showConfirmation(order){customerConfirmation.show(order,{esc,planText:customerOrderDisplay.planText,setView,updateCartBar,toast});renderProfile()}
@@ -100,7 +102,7 @@ window.setView=setView;
 window.state=state;
 document.addEventListener('freshway:session-expired',()=>{state.orders=[];state.profile={address:'',checkout:{}};save();renderOrders([]);renderProfile();customerOrderData.stop()});
 document.addEventListener('freshway:session',()=>{if(customerAuth.customerId()){renderProfile();customerOrderData.load();customerFreshness?.refresh();customerMessages?.refreshBadge?.()}});
-document.addEventListener('freshway:catalogue-sync',e=>{const count=Number(e.detail?.removed||0);if(count)toast(count===1?'A cart item is no longer available and was removed.':`${count} cart items are no longer available and were removed.`)});
+document.addEventListener('freshway:catalogue-sync',e=>{const count=Number(e.detail?.unavailable||0);if(count)toast(count===1?'A saved cart item is no longer available. Remove it before checkout.':`${count} saved cart items are no longer available. Remove them before checkout.`)});
 document.addEventListener('click',e=>{const t=e.target;const nav=t.closest('[data-nav]');if(nav)setView(nav.dataset.nav);if(t.closest('#viewCartBtn'))setView('cart');if(t.closest('#checkoutBtn'))setView('checkout');if(t.closest('#addressBtn')||t.closest('#profileAddress'))openAddressModal();if(t.closest('[data-close-modal]'))closeModal();if(t.closest('#profileBtn'))setView('profile');if(t.closest('#brandHome'))setView('home');if(t.closest('.back-btn'))navigation.goBack()});
 checkoutSubmit.bind();
 customerSearch.bind({document,render:renderProducts});

@@ -8,11 +8,11 @@ const worker=fs.readFileSync('sw.js','utf8');
 
 assert.match(source,/Number\(pricing\.standardDeliveryFee\) > 0 && pricing\.freeDeliveryEnabled && !pricing\.qualifiesForFreeDelivery/,
   'do not show threshold progress when delivery is already free at every order amount');
-assert.ok(index.includes('frontend/customer/delivery-offers.js?v=20261028-coupon-stale-clear-v1'),
+assert.ok(index.includes('frontend/customer/delivery-offers.js?v=102'),
   'HTML must load the updated delivery-offers module');
-assert.ok(worker.includes('/frontend/customer/delivery-offers.js?v=20261028-coupon-stale-clear-v1'),
+assert.ok(worker.includes('/frontend/customer/delivery-offers.js?v=102'),
   'service worker must cache the updated delivery-offers module');
-assert.match(worker,/const CACHE = 'freshway-v100'/,
+assert.match(worker,/const CACHE = 'freshway-v102'/,
   'the service-worker cache version must match the current customer shell');
 assert.match(source,/function isCouponEligibilityError\(error\)/,
   'only a server-confirmed coupon eligibility error may clear an applied coupon');
@@ -40,6 +40,7 @@ function createHarness(request, savedCode='') {
     '#fwCheckoutPricing':{innerHTML:''},
     '#cartTotal':{textContent:''},
     '#checkoutTotal':{textContent:''},
+    '#checkoutForm button[type="submit"]':{disabled:false,textContent:'Place order · ₹0',innerHTML:''},
     '[data-fw-apply-coupon]':{disabled:false,textContent:'Apply'}
   };
   let clickHandler=null;
@@ -213,6 +214,22 @@ const items=[{product:{id:'p1'},qty:1,lineTotal:100}];
     await h.module.renderCart({items,total:100});
     assert.equal(h.elements['#fwCouponStatus'].textContent,'',
       'the empty-code validation should clear when the cart is rendered again rather than remain as stale red feedback');
+  }
+
+  {
+    const request=async(path,options={})=>{
+      if(path==='/api/checkout/quote')return {pricing:pricingFor(JSON.parse(options.body||'{}').couponCode||'')};
+      if(path==='/api/coupons/available')return {coupons:[]};
+      throw new Error('Unexpected mocked request: '+path);
+    };
+    const h=createHarness(request,'SAVE10');
+    const button=h.elements['#checkoutForm button[type="submit"]'];
+    await h.module.refreshCheckoutQuote(items,value=>'₹'+value);
+    assert.equal(h.module.getDisplayedTotal(),120,'opening checkout after refresh must fetch the authoritative payable quote');
+    assert.match(h.elements['#fwCheckoutPricing'].innerHTML,/120/,'checkout summary must render the refreshed quote');
+    assert.equal(h.elements['#checkoutTotal'].textContent,'₹120','checkout button total must match the summary');
+    assert.equal(button.disabled,false,'checkout becomes available only after a valid quote loads');
+    assert.match(button.innerHTML,/₹120/);
   }
 
   console.log('customer delivery-offers quote consistency and cache-version assertions passed');
