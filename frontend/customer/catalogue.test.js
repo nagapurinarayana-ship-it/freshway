@@ -24,7 +24,7 @@ assert.equal(cartContext.window.FreshWayCatalogueCart.total(savedCart,[]),1850,'
 const legacyCart=cartContext.window.FreshWayCatalogueCart.items({cart:{'old-id':1}},[]);
 assert.equal(legacyCart.length,1,'older carts without snapshots must still retain their item quantity and ID');
 assert.equal(legacyCart[0].product.id,'old-id');
-assert.match(fs.readFileSync('frontend/customer/cart-persistence.js','utf8'),/const clearCatalogue=\(\)=>\{[\s\S]*failed\/empty catalogue response is not a customer cart-delete action/);
+assert.match(fs.readFileSync('frontend/customer/cart-persistence.js','utf8'),/const clearCatalogue=\(\)=>\{[\s\S]*Empty\/failed catalogue response is not a customer cart-delete action/);
 
 
 assert.match(source,/window\.FreshWayCustomerAPI\?\.request/);
