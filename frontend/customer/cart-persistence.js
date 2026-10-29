@@ -54,7 +54,11 @@
           products[at]={...products[at],price:Number(item.price)};
         }
       }
-      if(changed)save();
+      if(changed){
+        save();
+        // Replace a temporary "Saved cart item" placeholder after the server quote resolves.
+        if(typeof isCartActive==='function'&&isCartActive()&&typeof renderCart==='function')renderCart();
+      }
       if(typeof updateCartBar==='function')updateCartBar();
     };
     const rememberProduct=(id,product)=>{
