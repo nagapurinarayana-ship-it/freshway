@@ -347,6 +347,64 @@ test('customer can browse, add a product, checkout, and receive confirmation', a
   await expect(page.locator('#cartCount')).toHaveText('0 items');
 });
 
+test('checkout button shows the final payable total, not the item subtotal', async ({ page }) => {
+  // Reproduce the reported production example: ₹799 subtotal, ₹50 coupon,
+  // ₹100 delivery fee means ₹849 payable. Cart-bar refreshes must not replace
+  // the checkout button's server-quoted total with the subtotal.
+  await page.route('**/api/products', async route => {
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ products: [{ ...products[0], price: 799 }] })
+    });
+  });
+  await page.route('**/api/checkout/quote', async route => {
+    const payload = JSON.parse(route.request().postData() || '{}');
+    const qty = Number(payload.items?.[0]?.qty || 1);
+    const itemsSubtotal = 799 * qty;
+    const couponCode = String(payload.couponCode || '').trim().toUpperCase();
+    const couponDiscount = couponCode === 'FUN' ? 50 : 0;
+    const deliveryFee = 100;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ pricing: {
+        itemsSubtotal,
+        freeDeliveryEnabled: true,
+        freeDeliveryThreshold: 800,
+        qualifiesForFreeDelivery: itemsSubtotal >= 800,
+        amountToFreeDelivery: Math.max(0, 800 - itemsSubtotal),
+        standardDeliveryFee: deliveryFee,
+        deliveryFee,
+        couponDiscount,
+        finalTotal: itemsSubtotal - couponDiscount + deliveryFee,
+        coupon: couponDiscount ? { code: couponCode, eligibilityPending: false } : null,
+        items: [{ id: 'p1', name: 'Basmati Rice', unit: 'kg', qty, price: 799, lineTotal: itemsSubtotal }]
+      } })
+    });
+  });
+
+  await page.goto('/');
+  await expect(page.locator('#productGrid .product-card')).toContainText('Basmati Rice');
+  await page.locator('#productGrid .add-btn').click();
+  await expect(page.locator('#cartTotal')).toHaveText('₹799');
+  await page.locator('#viewCartBtn').click();
+
+  await page.locator('#fwCouponCode').fill('FUN');
+  await page.locator('[data-fw-apply-coupon]').click();
+  await expect(page.locator('#fwDeliveryPricing')).toContainText('Coupon FUN');
+  await expect(page.locator('#fwDeliveryPricing')).toContainText('₹799');
+  await expect(page.locator('#fwDeliveryPricing')).toContainText('−₹50');
+  await expect(page.locator('#fwDeliveryPricing')).toContainText('₹100');
+  await expect(page.locator('#fwDeliveryPricing')).toContainText('₹849');
+
+  await page.locator('#checkoutBtn').click();
+  await expect(page.locator('#fwCheckoutPricing')).toContainText('₹849');
+  const placeOrder = page.locator('#checkoutForm button[type="submit"]');
+  await expect(placeOrder).toContainText('₹849');
+  await expect(placeOrder).not.toContainText('₹799');
+});
+
 test('new address defaults to registered name/mobile but lets the customer edit both', async ({ page }) => {
   let sessionCalls = 0;
   let registrationDetailsAvailable = false;
