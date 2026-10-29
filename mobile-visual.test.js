@@ -3,6 +3,7 @@ const fs=require('node:fs');
 
 const view=fs.readFileSync('frontend/customer/product-view.js','utf8');
 const css=fs.readFileSync('styles.css','utf8');
+const designSystem=fs.readFileSync('frontend/customer/design-system.css','utf8');
 const categoryFoldStyles=fs.readFileSync('frontend/customer/category-fold-fit.css','utf8');
 const adminCss=fs.readFileSync('admin.css','utf8');
 const sw=fs.readFileSync('sw.js','utf8');
@@ -10,6 +11,10 @@ const index=fs.readFileSync('index.html','utf8');
 assert.ok(index.includes('styles.css?v=20261027-delivery-offers-v1'),'HTML loads the current mobile viewport stylesheet');
 assert.ok(index.includes('frontend/customer/design-system.css?v=20261029-design-system-v1'),'customer screens load the shared production design system');
 assert.ok(sw.includes('/frontend/customer/design-system.css?v=20261029-design-system-v1'),'service worker caches the shared production design system');
+assert.match(designSystem,/--fw-font-ui:/,'customer screens use a defined shared font stack');
+assert.match(designSystem,/--fw-heading-md: 23px/,'customer screens use a consistent heading scale');
+assert.match(designSystem,/#app \.form-card input[\s\S]*?min-height: 48px/,'checkout fields meet the shared touch-target height');
+assert.match(designSystem,/#app \.nav-item[\s\S]*?font-size: 11px/,'bottom navigation labels remain readable');
 assert.ok(index.includes('frontend/customer/delivery-offers.css?v=20261028-cart-offers-stable-v1'),'HTML loads delivery/coupon UI styles');
 assert.ok(sw.includes('/frontend/customer/delivery-offers.css?v=20261028-cart-offers-stable-v1'),'service worker caches delivery/coupon UI styles');
 assert.ok(index.includes('frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2'),'HTML loads the selected-category fold-fit stylesheet');
