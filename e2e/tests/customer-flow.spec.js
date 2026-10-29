@@ -23,8 +23,6 @@ test.beforeEach(async ({ page }) => {
       sessionStorage.clear();
       sessionStorage.setItem('__freshwayE2EInitialized', '1');
     }
-    // This flow is testing delivery addresses, not the separate timed install-help nudge.
-    sessionStorage.setItem('freshway-pwa-install-nudge', '1');
     // Keep this E2E deterministic without depending on browser/device GPS permissions.
     Object.defineProperty(navigator, 'geolocation', {
       configurable: true,
@@ -796,6 +794,12 @@ test('customer shell exposes the direct-install PWA contract', async ({ page }) 
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0f7a4b');
   await expect(page.locator('.skip-link')).toHaveAttribute('href', '#main-content');
   await expect(page.locator('#main-content')).toBeVisible();
+  await page.waitForTimeout(3500);
+  await expect(page.locator('.pwa-help'), 'install help must not interrupt first-time browsing').toHaveCount(0);
+  await page.evaluate(() => window.FreshWayPwaInstall.showInstallHelp());
+  await expect(page.locator('.pwa-help')).toBeVisible();
+  await page.locator('.pwa-help .pwa-install-later').click();
+  await expect(page.locator('.pwa-help')).toHaveCount(0);
 });
 
 
@@ -1111,6 +1115,9 @@ test('captures the remaining implemented customer screens and modal states', asy
   await page.locator('#notificationPermissionHelp [data-notification-permission-close]').first().click();
   await expect(page.locator('#notificationPermissionHelp')).toHaveCount(0);
 
+  // Installation guidance must remain available on demand without interrupting shopping.
+  await page.waitForTimeout(3500);
+  await expect(page.locator('.pwa-help')).toHaveCount(0);
   await page.evaluate(() => window.FreshWayPwaInstall.showInstallHelp());
   await expect(page.locator('.pwa-help')).toBeVisible();
   await expect(page.locator('.pwa-help')).toContainText('Install FreshWay');
