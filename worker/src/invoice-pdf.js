@@ -130,7 +130,6 @@ async function createReceiptPdf(invoice){
   const totalPaise=Number(invoice.totals.totalPaise??invoice.totals.grossPaise??0);
   const paymentStatusLabel=normalizeInvoicePaymentStatus(invoice.buyer.paymentStatus);
   const balanceDuePaise=paymentStatusLabel==='Not Collected'?totalPaise:0;
-  const cashReceivedPaise=collected?totalPaise:0;
   const totalItems=(invoice.items||[]).reduce((sum,item)=>sum+Math.max(0,Number(item.qty)||0),0);
   const sellerName=invoice.seller.legalName||invoice.seller.storeName||'FreshWay';
   const sellerPhone=formatSellerPhone(invoice.seller.phone);
