@@ -833,11 +833,17 @@ test('refresh and browser back/forward restore the correct view without showing 
 });
 
 test('captures responsive customer visual review snapshots', async ({ page }) => {
-  const capture = async name => page.screenshot({
-    path: `test-results/visual-review/${name}.png`,
-    fullPage: true,
-    animations: 'disabled'
-  });
+  const capture = async name => {
+    // Capture an actual viewport, not a stitched full-page image that can
+    // misplace sticky headers and fixed navigation during screenshot stitching.
+    await expect(page.locator('#toast')).not.toHaveClass(/show/);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({
+      path: `test-results/visual-review/${name}.png`,
+      fullPage: false,
+      animations: 'disabled'
+    });
+  };
 
   // Mobile-first review: actual customer shell, product cards, cart, and checkout.
   await page.setViewportSize({ width: 390, height: 844 });
