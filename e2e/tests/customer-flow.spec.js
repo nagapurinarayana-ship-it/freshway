@@ -385,6 +385,9 @@ test('checkout button shows the final payable total, not the item subtotal', asy
   });
 
   await page.goto('/');
+  await expect(page.locator('[data-fw-category="cat-rice"]')).toContainText('Rice');
+  await page.locator('[data-fw-category="cat-rice"]').click();
+  await expect(page.locator('#productGrid')).toBeVisible();
   await expect(page.locator('#productGrid .product-card')).toContainText('Basmati Rice');
   await page.locator('#productGrid .add-btn').click();
   await expect(page.locator('#cartTotal')).toHaveText('₹799');
