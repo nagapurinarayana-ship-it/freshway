@@ -200,6 +200,7 @@ test('Owner can still save an order delivery date directly without creating slot
 
 test('checkout creates an order with a server-validated preferred date and reserves global stock exactly once', async () => {
   const db=new SQLiteD1();
+  const requestedDate=dateInIndia(1);
   try {
     db.db.prepare(`UPDATE delivery_scheduling_settings
       SET enabled=1,booking_horizon_days=7,same_day_cutoff_minutes=120,timezone='Asia/Kolkata' WHERE id=1`).run();
@@ -215,7 +216,7 @@ test('checkout creates an order with a server-validated preferred date and reser
       items:[{id:'product-1',qty:2}],
       couponCode:'FIRST25',
       expectedTotal:205,
-      preferredDeliveryDate:dateInIndia(1),
+      preferredDeliveryDate:requestedDate,
       clientOrderId:'checkout-test-0001'
     };
     const placed=await createOrder({DB:db,APP_ORIGIN:'https://fwcoldpressed.in'},payload,ctx);
@@ -227,7 +228,7 @@ test('checkout creates an order with a server-validated preferred date and reser
     assert.equal(placed.couponCode,'FIRST25');
     assert.equal(placed.couponDiscount,25);
     assert.equal(placed.pricingBreakdownKnown,true);
-    assert.equal(placed.scheduledDelivery.date,dateInIndia(1));
+    assert.equal(placed.scheduledDelivery.date,requestedDate);
     const order=db.db.prepare('SELECT total,items_subtotal,delivery_fee,coupon_id,coupon_code,coupon_discount,pricing_breakdown_known,delivery_status,scheduled_delivery_date,scheduled_slot_id,assigned_store_id,schedule_status FROM orders WHERE id=?').get(placed.id);
     assert.equal(order.total,205);
     assert.equal(order.items_subtotal,200);
@@ -239,7 +240,7 @@ test('checkout creates an order with a server-validated preferred date and reser
     assert.equal(db.db.prepare('SELECT COUNT(*) count FROM coupon_redemptions WHERE order_id=? AND status=\'redeemed\'').get(placed.id).count,1);
     assert.equal(db.db.prepare('SELECT COUNT(*) count FROM first_order_coupon_claims WHERE customer_id=\'customer-1\'').get().count,1);
     assert.equal(order.delivery_status,'New');
-    assert.equal(order.scheduled_delivery_date,dateInIndia(1));
+    assert.equal(order.scheduled_delivery_date,requestedDate);
     assert.equal(order.scheduled_slot_id,null);
     assert.equal(order.assigned_store_id,null);
     assert.equal(order.schedule_status,'requested');
