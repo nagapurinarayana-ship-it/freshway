@@ -410,7 +410,12 @@ test('checkout button shows the final payable total, not the item subtotal', asy
 
 test('₹1,850 cart item persists through checkout navigation and page refresh', async ({ page }) => {
   const quotePayloads = [];
-  await page.route('**/api/products', async route => route.fulfill({
+  let productRequests = 0;
+  await page.route('**/api/products', async route => {
+    productRequests += 1;
+    // Simulate a slow catalogue response on reload so checkout restores before products arrive.
+    if (productRequests > 1) await new Promise(resolve => setTimeout(resolve, 600));
+    return route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({ products: [{
@@ -424,7 +429,8 @@ test('₹1,850 cart item persists through checkout navigation and page refresh',
       category_name: 'Rice',
       category_slug: 'rice'
     }] })
-  }));
+    });
+  });
   await page.route('**/api/checkout/quote', async route => {
     const payload = JSON.parse(route.request().postData() || '{}');
     quotePayloads.push(payload);
@@ -469,6 +475,12 @@ test('₹1,850 cart item persists through checkout navigation and page refresh',
   const savedBeforeReload = await page.evaluate(() => JSON.parse(localStorage.getItem('freshway-state-v2') || '{}'));
   expect(savedBeforeReload.cart['42']).toBe(1);
   expect(savedBeforeReload.cartProducts['42'].price).toBe(1850);
+  // Emulate a cart saved by the older app version, which stored only IDs and quantities.
+  await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem('freshway-state-v2') || '{}');
+    delete state.cartProducts;
+    localStorage.setItem('freshway-state-v2', JSON.stringify(state));
+  });
   await page.reload();
   await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
   await expect(page.locator('#fwCheckoutPricing')).toContainText('₹1,850');
