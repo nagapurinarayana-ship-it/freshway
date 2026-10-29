@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v56';
+const CACHE = 'fw-owner-v57';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -19,7 +19,7 @@ const SHELL = [
   '/admin/frontend/admin/store-management.js?v=20261027-store-manager-v1',
   '/admin/frontend/admin/customer-messages.js?v=20261027-customer-messages-v1',
   '/admin/frontend/catalogue-media.js?v=20261008-ui-media-v1',
-  '/admin/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1',
+  '/admin/frontend/admin/catalogue.js?v=20261029-promo-alttext-v1',
   '/admin/frontend/admin/owner-lifecycle-autosave.js?v=20260909-owner-lifecycle-v1',
   '/admin/frontend/admin/push.js?v=20260908-push-v1',
   '/admin/owner-lifecycle.js?v=20261029-test-order-manual-tab-v1',
@@ -40,7 +40,7 @@ const REQUIRED_SHELL = [
   '/admin/frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5',
   '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1',
-  '/admin/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1',
+  '/admin/frontend/admin/catalogue.js?v=20261029-promo-alttext-v1',
   '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2',
   '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2',
   '/admin/frontend/admin/store-management.js?v=20261027-store-manager-v1',
