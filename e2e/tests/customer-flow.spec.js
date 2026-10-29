@@ -831,3 +831,53 @@ test('refresh and browser back/forward restore the correct view without showing 
   await expect(page.locator('#homeView')).not.toHaveClass(/active-view/);
   expect(await page.evaluate(() => window.__freshwayLegacyHomeFlash || false)).toBe(false);
 });
+
+test('captures responsive customer visual review snapshots', async ({ page }) => {
+  const capture = async name => page.screenshot({
+    path: `test-results/visual-review/${name}.png`,
+    fullPage: true,
+    animations: 'disabled'
+  });
+
+  // Mobile-first review: actual customer shell, product cards, cart, and checkout.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await expect(page.locator('#productGrid .product-card')).toContainText('Basmati Rice');
+  await capture('mobile-home');
+
+  await page.locator('[data-fw-category="cat-rice"]').click();
+  await page.locator('#productGrid .add-btn').click();
+  await expect(page.locator('#cartCount')).toHaveText('1 item');
+  await capture('mobile-home-with-cart');
+
+  await page.locator('#viewCartBtn').click();
+  await expect(page.locator('#checkoutBtn')).toBeVisible();
+  await capture('mobile-cart');
+
+  await page.locator('#checkoutBtn').click();
+  await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
+  await expect(page.locator('#checkoutForm')).toBeVisible();
+  await capture('mobile-checkout');
+
+  await page.evaluate(() => window.setView('profile'));
+  await expect(page.locator('#profileView')).toHaveClass(/active-view/);
+  await capture('mobile-profile');
+
+  await page.evaluate(() => window.setView('orders'));
+  await expect(page.locator('#ordersView')).toHaveClass(/active-view/);
+  await capture('mobile-orders');
+
+  // Desktop-width snapshots verify that responsive layouts do not become stretched.
+  await page.setViewportSize({ width: 1365, height: 900 });
+  await page.evaluate(() => window.setView('home'));
+  await expect(page.locator('#homeView')).toHaveClass(/active-view/);
+  await capture('desktop-home');
+
+  await page.evaluate(() => window.setView('cart'));
+  await expect(page.locator('#cartView')).toHaveClass(/active-view/);
+  await capture('desktop-cart');
+
+  await page.evaluate(() => window.setView('checkout'));
+  await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
+  await capture('desktop-checkout');
+});
