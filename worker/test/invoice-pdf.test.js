@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
-import { createInvoicePdf, formatInvoicePhone, formatSellerPhone } from '../src/invoice-pdf.js';
+import { createInvoicePdf, formatInvoicePhone, formatSellerPhone, normalizeInvoicePaymentStatus } from '../src/invoice-pdf.js';
 
 const invoicePdfSource = readFileSync(new URL('../src/invoice-pdf.js', import.meta.url), 'utf8');
 
@@ -38,6 +38,16 @@ test('renders the saved customer phone in domestic format',()=>{
   assert.ok(invoicePdfSource.includes("'Customer Phone: '+customerPhone"),'receipt must show the buyer phone');
 });
 
+test('normalizes invoice collection states without mislabeling uncollected COD as pending',()=>{
+  assert.equal(normalizeInvoicePaymentStatus('Collected'),'Collected');
+  assert.equal(normalizeInvoicePaymentStatus('collected'),'Collected');
+  assert.equal(normalizeInvoicePaymentStatus('Refunded'),'Refunded');
+  assert.equal(normalizeInvoicePaymentStatus('Cancelled'),'Cancelled');
+  assert.equal(normalizeInvoicePaymentStatus('Not Collected'),'Not Collected');
+  assert.equal(normalizeInvoicePaymentStatus('Pending'),'Not Collected');
+  assert.equal(normalizeInvoicePaymentStatus(''),'Not Collected');
+});
+
 test('prints seller contact numbers with the India country code and a visible vector rupee mark',()=>{
   assert.equal(formatSellerPhone('7396805280'),'+917396805280');
   assert.equal(formatSellerPhone('+91 73968 05280'),'+917396805280');
@@ -60,9 +70,12 @@ test('uses a branded invoice hierarchy and preserves payment and seller details'
   assert.ok(invoicePdfSource.includes('wrap(value,regular,8,colWidth-22)).slice(0,12)'), 'seller and delivery details use readable 8pt text and retain up to 12 wrapped lines');
   assert.ok(invoicePdfSource.includes('Math.max(118,Math.min(168,42+Math.max(sellerLines.length,buyerLines.length)*10.5))'), 'billing panels grow for longer addresses instead of clipping them into a fixed-height box');
   assert.match(invoicePdfSource,/invoice\.seller\.gstin\?'Tax Number: '\+invoice\.seller\.gstin:''/);
-  assert.match(invoicePdfSource,/Cash Received:/);
-  assert.match(invoicePdfSource,/Change Amount:/);
-  assert.match(invoicePdfSource,/Payment Type: Cash/);
+  assert.match(invoicePdfSource,/Payment Type: Cash on delivery/);
+  assert.match(invoicePdfSource,/Payment status: '\+paymentStatusLabel/);
+  assert.match(invoicePdfSource,/Balance due:/);
+  assert.match(invoicePdfSource,/balanceDuePaise=paymentStatusLabel==='Not Collected'\?totalPaise:0/);
+  assert.doesNotMatch(invoicePdfSource,/Cash Received:/,'do not claim actual cash tender when it is not stored');
+  assert.doesNotMatch(invoicePdfSource,/Change Amount:/,'do not claim change given when it is not stored');
   assert.match(invoicePdfSource,/Commercial invoice \/ order record\./);
 });
 
