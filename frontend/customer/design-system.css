@@ -872,3 +872,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   line-height: 1.4;
   box-shadow: 0 8px 26px rgba(9, 29, 20, .18);
 }
+
+
+/* Native opt-in checkboxes keep their compact visual size inside full-height form fields. */
+#app .form-card input[type="checkbox"] {
+  min-height: 20px;
+}
