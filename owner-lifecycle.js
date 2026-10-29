@@ -68,7 +68,7 @@
             if(Boolean(fresh.isTestOrder)===nextTest){
               setSaveState('Saved · verified','saved');
               const destination=document.getElementById(nextTest?'testOrdersTab':'liveOrdersTab');
-              if(destination&&destination.getAttribute('aria-selected')!=='true')destination.click();
+              if(!nextTest&&destination&&destination.getAttribute('aria-selected')!=='true')destination.click();
               let refreshFailed=false;
               try{if(typeof refreshOwnerAfterOrderMutation==='function')await refreshOwnerAfterOrderMutation()}catch(_){refreshFailed=true}
               toast(refreshFailed?'The database confirms the classification was saved, but some Owner lists failed to refresh. Refresh before continuing.':(nextTest?'The database confirms this order is in Test orders.':'The database confirms this order is in Live orders.'));
@@ -86,7 +86,7 @@
         const saved={...(state.order||o),isTestOrder:Number(result?.isTestOrder??(nextTest?1:0))===1};
         if(state.id===o.id)renderLifecycle(saved);
         const destination=document.getElementById(nextTest?'testOrdersTab':'liveOrdersTab');
-        if(destination&&destination.getAttribute('aria-selected')!=='true')destination.click();
+        if(!nextTest&&destination&&destination.getAttribute('aria-selected')!=='true')destination.click();
         let refreshFailed=false,verified=false;
         try{
           const fresh=await getOrder(o.id,nextTest);
