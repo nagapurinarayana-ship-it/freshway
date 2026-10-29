@@ -15,7 +15,7 @@ assert.ok(index.includes('styles.css?v=20261027-delivery-offers-v1'),'HTML loads
 assert.ok(index.includes('frontend/customer/design-system.css?v=ds3'),'customer screens load the shared production design system');
 assert.ok(index.includes('frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'customer app loads the fixed floating cart behavior');
 assert.ok(sw.includes('/frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'service worker caches the fixed floating cart behavior');
-assert.ok(sw.includes("const CACHE = 'freshway-v107'"),'service worker refreshes the app shell after the cart-bar update');
+assert.ok(sw.includes("const CACHE = 'freshway-v108'"),'service worker refreshes the app shell after the cart-bar update');
 assert.match(privacyPage,/grid-template-columns: minmax\(145px, \.36fr\) minmax\(0, 1fr\)/,'privacy contact details use a clear desktop label/value layout');
 assert.match(privacyPage,/@media \(max-width: 600px\)[\s\S]*?\.contact-line \{ grid-template-columns: minmax\(0, 1fr\)/,'privacy contact details stack cleanly on mobile');
 assert.match(privacyPage,/This policy remains a working draft/,'privacy policy clearly retains the operator-review status');
