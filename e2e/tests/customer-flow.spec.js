@@ -939,7 +939,7 @@ test('captures responsive customer visual review snapshots', async ({ page }) =>
   await expect(privacyPage.locator('h1')).toHaveText('Privacy Policy');
   await expect(privacyPage.locator('#privacyContact')).toHaveAttribute('aria-busy', 'false');
   await expect(privacyPage.locator('#privacyContact')).toContainText('privacy@example.test');
-  await expect(privacyPage.locator('.note')).toContainText('Operator review required');
+  await expect(privacyPage.locator('.note').last()).toContainText('Operator review required');
   await privacyPage.screenshot({
     path: 'test-results/visual-review/mobile-privacy-policy.png',
     fullPage: true,
