@@ -1059,6 +1059,13 @@ test('captures the remaining implemented customer screens and modal states', asy
   await expect(page.locator('#addressModal')).not.toHaveClass(/hidden/);
   await expect(page.locator('[data-fw-edit="51"]')).toBeVisible();
   await capture('mobile-address-manager');
+  await page.locator('[data-fw-edit="51"]').click();
+  await expect(page.locator('#fwAddrName')).toBeVisible();
+  await expect(page.locator('#addressModalTitle')).toHaveText('Edit delivery address');
+  await expect(page.locator('#fwAddrPhone')).toHaveValue('9876543210');
+  await capture('mobile-address-edit');
+  await page.locator('#fwAddressCancel').click();
+  await expect(page.locator('#addressModalTitle')).toHaveText('Your addresses');
   await page.locator('#addressModal [data-close-modal]').click();
   await expect(page.locator('#addressModal')).toHaveClass(/hidden/);
 
@@ -1145,6 +1152,13 @@ test('captures the remaining implemented customer screens and modal states', asy
   expect(addressDialog?.y ?? -1, 'desktop address manager should be vertically centered within the viewport').toBeGreaterThan(16);
   expect((addressDialog?.y ?? 0) + (addressDialog?.height ?? 0), 'desktop address manager should leave a margin below the dialog').toBeLessThanOrEqual(await page.evaluate(() => window.innerHeight - 16));
   await capture('desktop-address-manager');
+  await page.locator('[data-fw-edit="51"]').click();
+  await expect(page.locator('#fwAddrName')).toBeVisible();
+  await expect(page.locator('#addressModalTitle')).toHaveText('Edit delivery address');
+  const desktopEditor = await page.locator('#addressModal .address-editor-sheet').boundingBox();
+  expect(desktopEditor?.y ?? -1, 'desktop address editor should start within the viewport').toBeGreaterThanOrEqual(16);
+  expect((desktopEditor?.y ?? 0) + (desktopEditor?.height ?? 0), 'desktop address editor should fit within the viewport').toBeLessThanOrEqual(await page.evaluate(() => window.innerHeight - 16));
+  await capture('desktop-address-edit');
 });
 
 test('captures customer Messages populated, empty, error and desktop states', async ({ page }) => {
