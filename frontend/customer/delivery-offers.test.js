@@ -8,9 +8,9 @@ const worker=fs.readFileSync('sw.js','utf8');
 
 assert.match(source,/Number\(pricing\.standardDeliveryFee\) > 0 && pricing\.freeDeliveryEnabled && !pricing\.qualifiesForFreeDelivery/,
   'do not show threshold progress when delivery is already free at every order amount');
-assert.ok(index.includes('frontend/customer/delivery-offers.js?v=20261029-cart-persist-refresh-v1'),
+assert.ok(index.includes('frontend/customer/delivery-offers.js?v=102'),
   'HTML must load the updated delivery-offers module');
-assert.ok(worker.includes('/frontend/customer/delivery-offers.js?v=20261029-cart-persist-refresh-v1'),
+assert.ok(worker.includes('/frontend/customer/delivery-offers.js?v=102'),
   'service worker must cache the updated delivery-offers module');
 assert.match(worker,/const CACHE = 'freshway-v102'/,
   'the service-worker cache version must match the current customer shell');
