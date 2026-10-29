@@ -47,7 +47,7 @@
     const discount = Number(pricing.couponDiscount || 0);
     const amountLeft = pricing.amountToFreeDelivery;
     const progress = Number(pricing.standardDeliveryFee) > 0 && pricing.freeDeliveryEnabled && !pricing.qualifiesForFreeDelivery && amountLeft > 0
-      ? '<div class="fw-offer-progress"><strong>Add ' + currency(amountLeft) + ' more for free delivery</strong><small>No minimum order — this only unlocks a delivery benefit.</small></div>'
+      ? '<div class="fw-offer-progress"><strong>Add ' + currency(amountLeft) + ' more to unlock free delivery</strong><small>Delivery fee applies until you reach the free-delivery threshold.</small></div>'
       : pricing.qualifiesForFreeDelivery
         ? '<div class="fw-offer-progress is-unlocked"><strong>✓ You’ve unlocked free delivery</strong></div>'
         : '';
