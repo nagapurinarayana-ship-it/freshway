@@ -136,7 +136,7 @@ test('public product catalogue returns image URLs without embedding Base64 image
   const row = {
     id: 'p-1', name: 'Test oil', unit: 'litre', price: 500, emoji: '🫙', active: 1,
     category_id: 'cat-1', display_order: 1, has_custom_image: 1, image_length: 36,
-    image_head: 'aGVsbG8=', image_tail: 'd29ybGQ=', updated_at: '2026-10-29 12:00:00',
+    image_data: 'aGVsbG8gd29ybGQ=', updated_at: '2026-10-29 12:00:00',
     stock_managed: 0, stock_quantity: 0, low_stock_threshold: 5,
     category_name: 'Oils', category_slug: 'oils'
   };
@@ -154,7 +154,7 @@ test('public category catalogue returns image URLs and avoids grouping on Base64
   const row = {
     id: 'cat-1', name: 'Oils', slug: 'oils', icon: '🫙', description: '',
     display_order: 1, updated_at: '2026-10-29 12:00:00', has_custom_image: 1,
-    image_length: 40, image_head: 'aGVsbG8=', image_tail: 'd29ybGQ=', product_count: 2
+    image_length: 40, image_data: 'aGVsbG8gd29ybGQ=', product_count: 2
   };
   const fixture = imageEnv(row);
   const response = await handleCatalogueRequest(new Request('https://api.example.test/api/categories'), fixture.env);
@@ -180,4 +180,21 @@ test('malformed Base64 image returns 404 instead of an API exception response', 
   const response = await handleCatalogueRequest(new Request('https://api.example.test/api/catalogue/images/products/p-1?v=v1'), env);
   assert.equal(response.status, 404);
   assert.equal(response.headers.get('cache-control'), 'no-store');
+});
+
+
+test('immutable image URL version changes when image content changes but its outer metadata matches', async () => {
+  const makeRow = image_data => ({
+    id: 'p-version', name: 'Test oil', unit: 'litre', price: 500, emoji: '🫙', active: 1,
+    category_id: 'cat-1', display_order: 1, has_custom_image: 1, image_length: image_data.length,
+    image_data, updated_at: '2026-10-29 12:00:00', stock_managed: 0,
+    stock_quantity: 0, low_stock_threshold: 5, category_name: 'Oils', category_slug: 'oils'
+  });
+  const before = imageEnv(makeRow('AAAA-middle-BBBB'));
+  const after = imageEnv(makeRow('AAAA-changed-BBBB'));
+  const beforeResponse = await handleCatalogueRequest(new Request('https://api.example.test/api/products'), before.env);
+  const afterResponse = await handleCatalogueRequest(new Request('https://api.example.test/api/products'), after.env);
+  const beforeUrl = (await beforeResponse.json()).products[0].image_url;
+  const afterUrl = (await afterResponse.json()).products[0].image_url;
+  assert.notEqual(beforeUrl, afterUrl, 'different image bytes must never share an immutable URL version');
 });
