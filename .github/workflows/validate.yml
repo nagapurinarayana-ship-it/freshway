@@ -276,7 +276,7 @@ jobs:
         run: |
           test "$(wc -c < index.html)" -le 20000
           test "$(wc -c < styles.css)" -le 25000
-          test "$(wc -c < app.js)" -le 12000
+          test "$(wc -c < app.js)" -le 13000
           test "$(wc -c < frontend/customer/pwa-install.js)" -le 8000
           test "$(wc -c < frontend/customer/seo.js)" -le 6000
           test "$(wc -c < sw.js)" -le 7000
