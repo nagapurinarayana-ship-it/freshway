@@ -1062,7 +1062,7 @@ body.fw-category-selected #app .product-action-control > .qty-control span {
     border-radius: 20px;
   }
   #app .product-image {
-    height: 160px;
+    height: 128px;
     border-radius: 16px;
     margin-bottom: 14px;
   }
@@ -1139,8 +1139,8 @@ body.fw-category-selected #app .product-action-control > .qty-control span {
     gap: 18px;
   }
   #app .fw-category-card {
-    height: 136px;
-    min-height: 136px;
+    height: 120px;
+    min-height: 120px;
     padding: 16px;
   }
 }
@@ -1154,13 +1154,13 @@ body.fw-category-selected #app .product-action-control > .qty-control span {
     padding: 16px;
   }
   body.fw-category-selected #app .product-image {
-    height: 160px;
-    min-height: 160px;
-    max-height: 160px;
+    height: 128px;
+    min-height: 128px;
+    max-height: 128px;
     aspect-ratio: auto;
     padding: 8px;
     margin-bottom: 14px;
-    flex: 0 0 160px;
+    flex: 0 0 128px;
   }
   body.fw-category-selected #app .product-card h3 {
     min-height: 2.4em;
