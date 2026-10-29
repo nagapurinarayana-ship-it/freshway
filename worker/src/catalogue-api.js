@@ -29,11 +29,13 @@ const stockStatus=(managed,quantity,threshold)=>!managed?'not_tracked':Number(qu
 const MAX_IMAGE_DATA=900000;
 function imageFields(p,label='Product'){const imageData=p.imageData===null||p.imageData===undefined?null:String(p.imageData||'').trim();const imageMimeType=clean(p.imageMimeType||p.image_mime_type||'',40);if(imageData===null||imageData==='')return{imageData:null,imageMimeType:null};if(imageData.length>MAX_IMAGE_DATA)throw new Error(`${label} image is too large. Please use a smaller image.`);if(!/^[A-Za-z0-9+/=]+$/.test(imageData))throw new Error(`${label} image data is invalid.`);if(!/^image\/(png|jpe?g|webp)$/.test(imageMimeType))throw new Error(`${label} image format must be PNG, JPEG, or WebP.`);return{imageData,imageMimeType}}
 function imageVersion(row) {
+  // Include every byte of the stored Base64 image in the URL version.
+  // This prevents immutable URL reuse when an image is replaced with the
+  // same length, timestamp, and matching first/last characters.
   return encodeURIComponent([
     row.updated_at || '',
     row.image_length || 0,
-    row.image_head || '',
-    row.image_tail || ''
+    row.image_data || ''
   ].join('|'));
 }
 function publicImageUrl(type, row) {
@@ -43,18 +45,17 @@ function publicImageUrl(type, row) {
 async function publicProducts(env) {
   const query = "SELECT p.id,p.name,p.unit,p.price,p.emoji,p.active,p.category_id,p.display_order," +
     "CASE WHEN p.image_data IS NOT NULL AND p.image_data <> '' THEN 1 ELSE 0 END AS has_custom_image," +
-    "LENGTH(p.image_data) AS image_length,SUBSTR(p.image_data,1,12) AS image_head," +
-    "SUBSTR(p.image_data,-12) AS image_tail,p.updated_at,p.stock_managed,p.stock_quantity,p.low_stock_threshold," +
+    "LENGTH(p.image_data) AS image_length,p.image_data,p.updated_at,p.stock_managed,p.stock_quantity,p.low_stock_threshold," +
     "c.name AS category_name,c.slug AS category_slug " +
     "FROM products p LEFT JOIN categories c ON c.id=p.category_id " +
     "WHERE p.active=1 AND c.active=1 ORDER BY c.display_order,c.name,p.display_order,p.name";
   const { results } = await env.DB.prepare(query).all();
   return { products: (results || []).map(p => {
-    const { has_custom_image, image_length, image_head, image_tail, updated_at,
+    const { has_custom_image, image_length, image_data, updated_at,
       stock_managed, stock_quantity, low_stock_threshold, ...product } = p;
     return {
       ...product,
-      image_url: publicImageUrl('products', { id: p.id, has_custom_image, image_length, image_head, image_tail, updated_at }),
+      image_url: publicImageUrl('products', { id: p.id, has_custom_image, image_length, image_data, updated_at }),
       stock_status: stockStatus(stock_managed, stock_quantity, low_stock_threshold)
     };
   }) };
@@ -62,17 +63,16 @@ async function publicProducts(env) {
 async function publicCategories(env) {
   const query = "SELECT c.id,c.name,c.slug,c.icon,c.description,c.display_order,c.updated_at," +
     "MAX(CASE WHEN c.image_data IS NOT NULL AND c.image_data <> '' THEN 1 ELSE 0 END) AS has_custom_image," +
-    "MAX(LENGTH(c.image_data)) AS image_length,MAX(SUBSTR(c.image_data,1,12)) AS image_head," +
-    "MAX(SUBSTR(c.image_data,-12)) AS image_tail,COUNT(p.id) AS product_count " +
+    "MAX(LENGTH(c.image_data)) AS image_length,MAX(c.image_data) AS image_data,COUNT(p.id) AS product_count " +
     "FROM categories c LEFT JOIN products p ON p.category_id=c.id AND p.active=1 " +
     "WHERE c.active=1 GROUP BY c.id,c.name,c.slug,c.icon,c.description,c.display_order,c.updated_at " +
     "HAVING COUNT(p.id)>0 ORDER BY c.display_order ASC,c.name ASC";
   const { results } = await env.DB.prepare(query).all();
   return { categories: (results || []).map(c => {
-    const { has_custom_image, image_length, image_head, image_tail, updated_at, ...category } = c;
+    const { has_custom_image, image_length, image_data, updated_at, ...category } = c;
     return {
       ...category,
-      image_url: publicImageUrl('categories', { id: c.id, has_custom_image, image_length, image_head, image_tail, updated_at })
+      image_url: publicImageUrl('categories', { id: c.id, has_custom_image, image_length, image_data, updated_at })
     };
   }) };
 }
