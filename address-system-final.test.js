@@ -23,6 +23,14 @@ assert.match(source, /function setActive\(address\)[\s\S]*?persistAddressSelecti
   'choosing a saved address must persist the selection for checkout and refresh');
 assert.match(source, /let selectionRevision = 0/,
   'address selection must track changes made while a saved-address refresh is in flight');
+assert.match(source, /function registeredCustomerDetails\(\)[\s\S]*?registeredName\(\)[\s\S]*?registeredPhone\(\)/,
+  'new addresses must read the registered customer name and mobile when available');
+assert.match(source, /async function ensureRegisteredCustomerDetails\(\)[\s\S]*?await auth\.session\(\)/,
+  'new-address defaults must refresh the authenticated session if registration details are not loaded yet');
+assert.match(source, /function newAddressDraft\(\)[\s\S]*?const registered = registeredCustomerDetails\(\)[\s\S]*?recipientName: firstName[\s\S]*?deliveryPhone: firstPhone/,
+  'new address fields must default from registration while retaining editable per-address values');
+assert.match(source, /if \(target\.closest\('#fwAddressManagerNew'\)\)[\s\S]*?await ensureRegisteredCustomerDetails\(\);[\s\S]*?buildEditor\(null\)/,
+  'Add address must load registered details before opening the editor');
 assert.match(source, /const revisionAtStart = selectionRevision[\s\S]*?selectionRevision !== revisionAtStart[\s\S]*?Never let an older background request overwrite a choice made while it was in flight/,
   'a stale initial address fetch must not replace a newer explicit selection');
 assert.match(source, /loadSaved\(\{ preserveSelection: true, showError: false \}\)/,
@@ -91,13 +99,13 @@ assert.match(source, /id="addressModalTitle" tabindex="-1"/);
 assert.match(source, /modalReturnFocus/);
 assert.ok(index.includes('frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3'), 'HTML must load the current geocode field mapper');
 assert.ok(sw.includes('/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3'), 'service worker must cache the current geocode field mapper');
-assert.ok(index.includes('address-system-final.js?v=20261028-selection-race-v2'), 'HTML must load the selected-address fix');
-assert.ok(sw.includes('/address-system-final.js?v=20261028-selection-race-v2'), 'service worker must cache the selected-address fix');
+assert.ok(index.includes('address-system-final.js?v=20261029-registration-prefill-v1'), 'HTML must load the selected-address fix');
+assert.ok(sw.includes('/address-system-final.js?v=20261029-registration-prefill-v1'), 'service worker must cache the selected-address fix');
 assert.ok(index.includes('address-book.css?v=20261027-checkout-ux-v2'), 'HTML must load the current address CSS');
 assert.ok(sw.includes('/frontend/customer/address-book.css?v=20261027-checkout-ux-v2'), 'service worker must cache the current address CSS');
 assert.ok(index.includes('notifications.js?v=notif1'), 'HTML must load the notification permission-state module');
 assert.ok(sw.includes('/notifications.js?v=notif1'), 'service worker must cache the notification permission-state module');
-assert.match(sw, /const CACHE = 'freshway-v98'/);
+assert.match(sw, /const CACHE = 'freshway-v99'/);
 assert.match(css, /#toast\s*\{[^}]*white-space:\s*normal/s);
 assert.match(css, /\.fw-address-incomplete\s*\{/);
 console.log('checkout address completion, geocoding preservation, error feedback, accessibility and asset cache tests passed');
