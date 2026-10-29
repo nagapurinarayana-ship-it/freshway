@@ -9,6 +9,14 @@ const dateTimeText=value=>{
   if(Number.isNaN(d.getTime()))return safe(value);
   return d.toLocaleString('en-GB',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).replace(',','');
 };
+export function normalizeInvoicePaymentStatus(value){
+  const status=String(value??'').trim().toLowerCase();
+  if(status==='collected')return 'Collected';
+  if(status==='refunded')return 'Refunded';
+  if(status==='cancelled')return 'Cancelled';
+  return 'Not Collected';
+}
+
 export function formatInvoicePhone(value){
   const digits=String(value??'').replace(/\D/g,'');
   return digits.length===12&&digits.startsWith('91')?digits.slice(2):digits;
@@ -120,7 +128,8 @@ async function createReceiptPdf(invoice){
   const customerName=invoice.buyer.name||'Customer';
   const customerPhone=formatInvoicePhone(invoice.buyer.phone);
   const totalPaise=Number(invoice.totals.totalPaise??invoice.totals.grossPaise??0);
-  const collected=String(invoice.buyer.paymentStatus||'').toLowerCase()==='collected';
+  const paymentStatusLabel=normalizeInvoicePaymentStatus(invoice.buyer.paymentStatus);
+  const balanceDuePaise=paymentStatusLabel==='Not Collected'?totalPaise:0;
   const cashReceivedPaise=collected?totalPaise:0;
   const totalItems=(invoice.items||[]).reduce((sum,item)=>sum+Math.max(0,Number(item.qty)||0),0);
   const sellerName=invoice.seller.legalName||invoice.seller.storeName||'FreshWay';
@@ -258,12 +267,11 @@ async function createReceiptPdf(invoice){
   rect(page,MARGIN,y-paymentBoxHeight,contentWidth,paymentBoxHeight,PALE);
   const paymentCol2=MARGIN+contentWidth*0.53;
   drawText(page,'PAYMENT',MARGIN+12,y-14,6.8,bold,GREEN);
-  drawText(page,'Payment Type: Cash',MARGIN+12,y-30,8.2,regular,INK);
-  drawText(page,'Payment status: '+(collected?'Collected':'Pending'),MARGIN+12,y-44,8,regular,MUTED);
-  drawText(page,'Cash Received:',paymentCol2,y-25,8,regular,MUTED);
-  drawAmountRight(page,cashReceivedPaise,PAGE_W-MARGIN-12,y-25,8.4,bold,INK);
-  drawText(page,'Change Amount:',paymentCol2,y-42,8,regular,MUTED);
-  drawAmountRight(page,0,PAGE_W-MARGIN-12,y-42,8.4,regular,INK);
+  drawText(page,'Payment Type: Cash on delivery',MARGIN+12,y-30,8.2,regular,INK);
+  drawText(page,'Payment status: '+paymentStatusLabel,MARGIN+12,y-44,8,regular,MUTED);
+  drawText(page,'Balance due:',paymentCol2,y-25,8,regular,MUTED);
+  drawAmountRight(page,balanceDuePaise,PAGE_W-MARGIN-12,y-25,8.4,bold,INK);
+  drawText(page,paymentStatusLabel==='Not Collected'?'Collect on delivery':'No balance due',paymentCol2,y-42,7.4,regular,MUTED);
   y-=paymentBoxHeight+13;
 
   const noteText='Commercial invoice / order record. '+(invoice.seller.footer||'Thank you for shopping with FreshWay.');
