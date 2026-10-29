@@ -6,6 +6,7 @@ const cartView=fs.readFileSync('frontend/customer/cart-view.js','utf8');
 const css=fs.readFileSync('styles.css','utf8');
 const designSystem=fs.readFileSync('frontend/customer/design-system.css','utf8');
 const privacyPage=fs.readFileSync('privacy.html','utf8');
+const cartBar=fs.readFileSync('frontend/customer/cart-bar.js','utf8');
 const categoryFoldStyles=fs.readFileSync('frontend/customer/category-fold-fit.css','utf8');
 const adminCss=fs.readFileSync('admin.css','utf8');
 const sw=fs.readFileSync('sw.js','utf8');
@@ -15,6 +16,7 @@ assert.ok(index.includes('frontend/customer/design-system.css?v=ds1'),'customer 
 assert.match(privacyPage,/grid-template-columns: minmax\(145px, \.36fr\) minmax\(0, 1fr\)/,'privacy contact details use a clear desktop label/value layout');
 assert.match(privacyPage,/@media \(max-width: 600px\)[\s\S]*?\.contact-line \{ grid-template-columns: minmax\(0, 1fr\)/,'privacy contact details stack cleanly on mobile');
 assert.match(privacyPage,/This policy remains a working draft/,'privacy policy clearly retains the operator-review status');
+assert.match(cartBar,/const homeActive=!!document\.querySelector\('#homeView\.active-view'\)[\s\S]*?const showBar=n>0&&homeActive/,'floating cart shortcut is restricted to the shopping screen');
 assert.ok(sw.includes('/frontend/customer/design-system.css?v=ds1'),'service worker caches the shared production design system');
 assert.match(designSystem,/--fw-font-ui:/,'customer screens use a defined shared font stack');
 assert.match(designSystem,/--fw-heading-md: 23px/,'customer screens use a consistent heading scale');
