@@ -46,13 +46,25 @@
         const deliveryOffers=window.FreshWayCustomerDeliveryOffers;
         const couponCode=deliveryOffers?.getAppliedCode?.()||'';
         const oldTotal=deliveryOffers?.getDisplayedTotal?.();
-        const quote=await api('/api/checkout/quote',{method:'POST',body:JSON.stringify({items:cartItems().map(x=>({id:x.product.id,qty:x.qty})),couponCode})});
+        let quote;
+        try{
+          quote=await api('/api/checkout/quote',{method:'POST',body:JSON.stringify({items:cartItems().map(x=>({id:x.product.id,qty:x.qty})),couponCode})});
+        }catch(error){
+          deliveryOffers?.invalidateDisplayedQuote?.();
+          throw error;
+        }
         const pricing=quote?.pricing;
-        if(!pricing||!Number.isSafeInteger(Number(pricing.finalTotal)))throw new Error('Could not verify the order total. Return to your cart and try again.');
+        if(!pricing||!Number.isSafeInteger(Number(pricing.finalTotal))){
+          deliveryOffers?.invalidateDisplayedQuote?.();
+          throw new Error('Could not verify the order total. Return to your cart and try again.');
+        }
         const expectedItems=cartItems().map(item=>({id:String(item.product?.id??''),qty:Number(item.qty)}));
         const quotedItems=Array.isArray(pricing.items)?pricing.items:[];
         const quotedById=new Map(quotedItems.map(item=>[String(item?.id??''),item]));
-        if(!expectedItems.length||quotedItems.length!==expectedItems.length||expectedItems.some(item=>{const matched=quotedById.get(item.id);return !matched||Number(matched.qty)!==item.qty;}))throw new Error('We could not verify every item in your cart. Return to your cart, refresh it, and remove any unavailable item before checkout.');
+        if(!expectedItems.length||quotedItems.length!==expectedItems.length||expectedItems.some(item=>{const matched=quotedById.get(item.id);return !matched||Number(matched.qty)!==item.qty;})){
+          deliveryOffers?.invalidateDisplayedQuote?.();
+          throw new Error('We could not verify every item in your cart. Return to your cart, refresh it, and remove any unavailable item before checkout.');
+        }
         window.FreshWayCustomerCatalogue?.syncQuotedItems?.(pricing.items);
         deliveryOffers?.renderCheckoutQuote?.(pricing,money);
         if(oldTotal!=null&&Number(oldTotal)!==Number(pricing.finalTotal)&&!window.confirm('Your order total changed from '+money(oldTotal)+' to '+money(pricing.finalTotal)+'. Continue with the updated total?'))throw new Error('Review the updated total before placing the order.');
