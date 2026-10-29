@@ -25,7 +25,18 @@ jobs:
         run: npm audit --audit-level=high
       - name: Run automated Worker tests
         working-directory: worker
+        env:
+          FRESHWAY_VISUAL_ARTIFACTS: '1'
         run: npm test
+
+      - name: Upload invoice visual review PDFs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: freshway-invoice-visual-review
+          path: worker/test-results/visual-review/*.pdf
+          if-no-files-found: warn
+          retention-days: 7
       - name: Check browser JavaScript
         run: |
           find . -maxdepth 3 -type f -name '*.js' -not -path './node_modules/*' -not -path './worker/node_modules/*' -print0 | xargs -0 -n1 node --check
