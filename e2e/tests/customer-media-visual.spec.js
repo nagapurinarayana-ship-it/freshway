@@ -84,6 +84,24 @@ test('customer visual review: bundled category and product art plus decoded prom
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
+  const semanticMedia = await page.evaluate(() => ({
+    categoryWithChangedId: window.FreshWayCatalogueMedia.image('categories', 'category-renamed-oils', { name: 'Cooking Oils', slug: 'cooking-oils' }),
+    riceCategoryWithChangedId: window.FreshWayCatalogueMedia.image('categories', 'category-renamed-rice', { name: 'Rice', slug: 'rice' }),
+    groundnutWithChangedId: window.FreshWayCatalogueMedia.image('products', 'product-renamed-groundnut', { name: 'Ground nut oil / 5 ltrs' }),
+    sunflowerWithChangedId: window.FreshWayCatalogueMedia.image('products', 'product-renamed-sunflower', { name: 'Organic Sunflower Oil' }),
+    hmtWithChangedId: window.FreshWayCatalogueMedia.image('products', 'product-renamed-hmt', { name: 'HMT Rice' }),
+    sonaWithChangedId: window.FreshWayCatalogueMedia.image('products', 'product-renamed-sona', { name: 'Sona Masuri Rice' }),
+    unknownProduct: window.FreshWayCatalogueMedia.image('products', 'unmapped-product', { name: 'Unmapped Product' })
+  }));
+  expect(semanticMedia).toEqual({
+    categoryWithChangedId: 'frontend/media/catalogue/groundnut-oil.svg',
+    riceCategoryWithChangedId: 'frontend/media/catalogue/hmt-rice.svg',
+    groundnutWithChangedId: 'frontend/media/catalogue/groundnut-oil.svg',
+    sunflowerWithChangedId: 'frontend/media/catalogue/sunflower-oil.svg',
+    hmtWithChangedId: 'frontend/media/catalogue/hmt-rice.svg',
+    sonaWithChangedId: 'frontend/media/catalogue/sona-masuri.svg',
+    unknownProduct: ''
+  });
   await expect.poll(() => page.locator('.hero-banner .fw-promo-slide img').count()).toBe(2);
   await decoded(page.locator('.hero-banner .fw-promo-slide img'));
 
