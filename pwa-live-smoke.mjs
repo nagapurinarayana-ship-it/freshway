@@ -287,7 +287,7 @@ assert.ok(sw.includes('/icons/icon-512-maskable-v2.png?v=20261026-brand-v2'), 'c
 assert.match(sw, /icon:\s*data\.icon\s*\|\|\s*'\/icons\/icon-192-brand-v2\.png\?v=20261026-brand-v2'/, 'customer push notifications must default to the FreshWay brand icon');
 assert.match(sw, /badge:\s*data\.badge\s*\|\|\s*'\/icons\/icon-192-brand-v2\.png\?v=20261026-brand-v2'/, 'customer push notifications must default to the FreshWay brand badge');
 
-const logoResponse = await fetchWithRetry(`${base}/freshway-logo-master.webp?v=20261008-master-v1`);
+const logoResponse = await fetchWithRetry(`${base}/freshway-logo-master.webp?v=1`);
 assert.equal(logoResponse.status, 200);
 assert.match(logoResponse.headers.get('content-type') || '', /^image\/webp/i, 'master FreshWay logo must be served as WebP');
 assert.ok((await logoResponse.arrayBuffer()).byteLength > 100, 'master FreshWay logo must contain image data');
