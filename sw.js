@@ -1,5 +1,5 @@
 const CACHE = 'freshway-v104';
-const APP_SHELL = ['/','/index.html','/styles.css?v=20261027-delivery-offers-v1','/frontend/customer/design-system.css?v=20261029-design-system-v1','/frontend/customer/delivery-offers.css?v=20261028-cart-offers-stable-v1','/frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2','/address-system.css?v=20260907-address-v2','/frontend/customer/address-book.css?v=20261027-checkout-ux-v2','/frontend/customer/storage.js?v=102','/frontend/customer/catalogue-cart.js?v=102','/frontend/customer/cart-persistence.js?v=102','/frontend/customer/checkout-submit.js?v=103','/frontend/customer/delivery-booking.js?v=20261029-date-persistence-v1','/app.js?v=102','/frontend/customer/delivery-offers.js?v=102','/frontend/customer/cart-view.js?v=102','/frontend/customer/cart-actions.js?v=20261028-cart-toast-guard-v1','/frontend/customer/cart-bar.js?v=20261029-checkout-total-owner-v1','/frontend/customer/navigation.js?v=20261028-nav-restore-v2','/frontend/customer/view-state.js?v=20261028-nav-restore-v2','/frontend/customer/confirmation.js?v=20261027-fixed-coupons-v2','/frontend/customer/orders-view.js?v=20261027-pricing-breakdown-v2','/frontend/customer/orders-data.js?v=orders3','/frontend/customer/product-view.js?v=20261019-catalogue-premium-v1','/frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2','/notifications.js?v=notif1','/frontend/customer/notifications.js?v=notif2','/frontend/customer/account-actions.js?v=notif3','/address-fix.js?v=20261009-address-fallback-safety-v5','/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3','/address-system-final.js?v=20261029-registration-prefill-v1','/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4','/frontend/customer/store-info.js?v=msg1','/frontend/customer/messages.js?v=msg1','/frontend/customer/profile.js?v=20261009-customer-profile-v2','/icons/icon-192-brand-v2.png?v=20261026-brand-v2','/icons/icon-512-brand-v2.png?v=20261026-brand-v2','/icons/icon-512-maskable-v2.png?v=20261026-brand-v2','/frontend/customer/pwa-install.js?v=20261024-native-install-v1','/freshway-logo-master.webp?v=1','/freshway-logo-clean.svg?v=20261008-brand-v1'
+const APP_SHELL = ['/','/index.html','/styles.css?v=20261027-delivery-offers-v1','/frontend/customer/design-system.css?v=ds1','/frontend/customer/delivery-offers.css?v=20261028-cart-offers-stable-v1','/frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2','/address-system.css?v=20260907-address-v2','/frontend/customer/address-book.css?v=20261027-checkout-ux-v2','/frontend/customer/storage.js?v=102','/frontend/customer/catalogue-cart.js?v=102','/frontend/customer/cart-persistence.js?v=102','/frontend/customer/checkout-submit.js?v=103','/frontend/customer/delivery-booking.js?v=20261029-date-persistence-v1','/app.js?v=102','/frontend/customer/delivery-offers.js?v=102','/frontend/customer/cart-view.js?v=102','/frontend/customer/cart-actions.js?v=20261028-cart-toast-guard-v1','/frontend/customer/cart-bar.js?v=20261029-checkout-total-owner-v1','/frontend/customer/navigation.js?v=20261028-nav-restore-v2','/frontend/customer/view-state.js?v=20261028-nav-restore-v2','/frontend/customer/confirmation.js?v=20261027-fixed-coupons-v2','/frontend/customer/orders-view.js?v=20261027-pricing-breakdown-v2','/frontend/customer/orders-data.js?v=orders3','/frontend/customer/product-view.js?v=20261019-catalogue-premium-v1','/frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2','/notifications.js?v=notif1','/frontend/customer/notifications.js?v=notif2','/frontend/customer/account-actions.js?v=notif3','/address-fix.js?v=20261009-address-fallback-safety-v5','/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3','/address-system-final.js?v=20261029-registration-prefill-v1','/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4','/frontend/customer/store-info.js?v=msg1','/frontend/customer/messages.js?v=msg1','/frontend/customer/profile.js?v=20261009-customer-profile-v2','/icons/icon-192-brand-v2.png?v=20261026-brand-v2','/icons/icon-512-brand-v2.png?v=20261026-brand-v2','/icons/icon-512-maskable-v2.png?v=20261026-brand-v2','/frontend/customer/pwa-install.js?v=20261024-native-install-v1','/freshway-logo-master.webp?v=1','/freshway-logo-clean.svg?v=20261008-brand-v1'
 ];
 const REQUIRED_SHELL = ['/','/index.html'
 ];
@@ -100,7 +100,6 @@ badge:data.badge||'/icons/icon-192-brand-v2.png?v=20261026-brand-v2',
 tag:data.tag||'freshway-notification',
 data:{url:data.url||'/',...(data.data||{})}
 });
-
 const alert=data.data||{};
 if(alert.audience!=='customer'||!alert.orderId)return;
 const pages=await self.clients.matchAll({type:'window',includeUncontrolled:true});
@@ -120,19 +119,19 @@ eventType:String(alert.eventType||'order_update')
 });
 self.addEventListener('notificationclick', event => {
 event.notification.close();
-const target = event.notification.data?.url || '/';
+const target=event.notification.data?.url||'/';
 event.waitUntil((async () => {
-const pages = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+const pages=await clients.matchAll({type:'window',includeUncontrolled:true});
 const same = pages.find(client => {
 try {
 const page = new URL(client.url);
 return page.origin === self.location.origin && !page.pathname.startsWith('/admin/') && page.pathname !== '/admin.html';
 } catch (_) { return false; }
 });
-if (same) {
+if(same){
 await same.focus();
 if ('navigate' in same) await same.navigate(target);
-} else if (clients.openWindow) {
+}else if(clients.openWindow){
 await clients.openWindow(target);
 }
 })());
