@@ -1,22 +1,23 @@
 const CACHE = 'freshway-v109';
 const APP_SHELL = ['/','/index.html','/styles.css?v=20261027-delivery-offers-v1','/frontend/customer/design-system.css?v=ds3','/frontend/customer/delivery-offers.css?v=20261028-cart-offers-stable-v1','/frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2','/address-system.css?v=20260907-address-v2','/frontend/customer/address-book.css?v=20261027-checkout-ux-v2','/frontend/customer/storage.js?v=102','/frontend/customer/catalogue-cart.js?v=102','/frontend/customer/cart-persistence.js?v=102','/frontend/customer/checkout-submit.js?v=103','/frontend/customer/delivery-booking.js?v=20261029-date-persistence-v1','/app.js?v=102','/frontend/customer/delivery-offers.js?v=103','/frontend/customer/cart-view.js?v=102','/frontend/customer/cart-actions.js?v=20261028-cart-toast-guard-v1','/frontend/customer/cart-bar.js?v=20261029-cartbar-v2','/frontend/customer/navigation.js?v=20261028-nav-restore-v2','/frontend/customer/view-state.js?v=20261028-nav-restore-v2','/frontend/customer/confirmation.js?v=20261027-fixed-coupons-v2','/frontend/customer/orders-view.js?v=20261027-pricing-breakdown-v2','/frontend/customer/orders-data.js?v=orders3','/frontend/catalogue-media.js?v=20261029-semantic-media-v1','/frontend/customer/product-view.js?v=20261019-catalogue-premium-v1','/frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2','/notifications.js?v=notif1','/frontend/customer/notifications.js?v=notif2','/frontend/customer/account-actions.js?v=notif3','/address-fix.js?v=20261009-address-fallback-safety-v5','/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3','/address-system-final.js?v=20261029-registration-prefill-v1','/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4','/frontend/customer/store-info.js?v=msg1','/frontend/customer/messages.js?v=msg1','/frontend/customer/profile.js?v=20261009-customer-profile-v2','/icons/icon-192-brand-v2.png?v=20261026-brand-v2','/icons/icon-512-brand-v2.png?v=20261026-brand-v2','/icons/icon-512-maskable-v2.png?v=20261026-brand-v2','/frontend/customer/pwa-install.js?v=20261024-native-install-v1','/freshway-logo-master.webp?v=1','/freshway-logo-clean.svg?v=20261008-brand-v1'
 ];
+const REQUIRED_SHELL=['/','/index.html'];
 
-self.addEventListener('install', event => {
-event.waitUntil((async () => {
-const cache = await caches.open(CACHE);
-const results = await Promise.all(APP_SHELL.map(async asset => {
+self.addEventListener('install',event=>{
+event.waitUntil((async()=>{
+const cache=await caches.open(CACHE);
+const results=await Promise.all(APP_SHELL.map(async asset=>{
 try {
-const response = await fetch(new Request(asset, { cache: 'no-cache' }));
-if (!response.ok) throw new Error('HTTP ' + response.status);
-await cache.put(asset, response.clone());
+const response=await fetch(new Request(asset,{cache:'no-cache'}));
+if(!response.ok)throw new Error('HTTP '+response.status);
+await cache.put(asset,response.clone());
 return true;
 } catch (error) {
 console.error('SW shell asset failed:', asset, error);
 return false;
 }
 }));
-if (!results[0] || !results[1]) {
+if(!REQUIRED_SHELL.every(asset=>results[APP_SHELL.indexOf(asset)])){
 throw new Error('App shell cache failed.');
 }
 })());
@@ -41,8 +42,8 @@ const isStaticAsset = ['script','style','image','font','manifest'].includes(dest
 if (!isNavigation && !isStaticAsset) return;
 event.respondWith((async () => {
 const isLogo = url.pathname === '/freshway-logo-clean.svg';
-const isVersionedCode = ['script','style'].includes(destination) && url.searchParams.has('v');
-const request = isLogo ? new Request(event.request, { cache: 'reload' }) : new Request(event.request, { cache: 'no-store' });
+const isVersionedCode=['script','style'].includes(destination)&&url.searchParams.has('v');
+const request=isLogo?new Request(event.request,{cache:'reload'}):new Request(event.request,{cache:'no-store'});
 const cache = await caches.open(CACHE);
 if (isNavigation && ['/', '/index.html'].includes(url.pathname)) {
 const key = url.pathname === '/index.html' ? '/index.html' : '/';
