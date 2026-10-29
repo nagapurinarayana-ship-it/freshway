@@ -55,7 +55,7 @@ test('legacy database migration stays aligned with the fresh schema', () => {
 
 
 const addressesTable = schema.match(
-  /CREATE TABLE IF NOT EXISTS addresses \\(([\\s\\S]*?)\\n\\);/
+  /CREATE TABLE IF NOT EXISTS addresses \(([\s\S]*?)\n\);/
 )?.[1];
 
 test('reusable address visibility separates order-only rows without changing order foreign keys', () => {
