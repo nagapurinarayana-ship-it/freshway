@@ -82,6 +82,7 @@
         state.orders=[order,...state.orders.filter(x=>x.id!==order.id)];
         state.cart={};
         state.cartProducts={};
+        window.FreshWayCustomerDeliveryBookingInstance?.clearCheckoutDate?.();
         state.profile.address=customerAddress.format(address);
         state.profile.checkout={name,phone,address};
         delete state.profile.pendingCheckout;
