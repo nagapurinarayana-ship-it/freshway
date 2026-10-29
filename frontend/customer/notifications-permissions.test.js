@@ -11,7 +11,8 @@ async function makeHarness({
   initiallySubscribed = false,
   supported = true,
   standalone = false,
-  sessionDelayMs = 0
+  sessionDelayMs = 0,
+  sessionResponses = null
 } = {}) {
   const storage = new Map();
   if (customerId) storage.set('freshway-customer-id', customerId);
@@ -21,6 +22,7 @@ async function makeHarness({
     removeItem(key) { storage.delete(key); }
   };
   const calls = [];
+  let sessionResponseIndex = 0;
   let permissionValue = permission;
   let requestPermissionCalls = 0;
   let subscription = initiallySubscribed ? {
@@ -88,7 +90,10 @@ async function makeHarness({
     calls.push({ type: 'fetch', path, options });
     if (path === '/api/auth/session') {
       if (sessionDelayMs > 0) await new Promise(resolve => setTimeout(resolve, sessionDelayMs));
-      return response(sessionData(), customerId ? 200 : 401);
+      const data = Array.isArray(sessionResponses) && sessionResponses.length
+        ? sessionResponses[Math.min(sessionResponseIndex++, sessionResponses.length - 1)]
+        : sessionData();
+      return response(data, customerId ? 200 : 401);
     }
     if (path === '/api/push/public-key') return response({ publicKey: 'AQID' });
     if (path === '/api/push/subscribe') return response({ ok: true });
@@ -201,6 +206,23 @@ async function makeHarness({
     await h.service.session();
     sessionCalls = h.calls.filter(call => call.type === 'fetch' && call.path === '/api/auth/session');
     assert.equal(sessionCalls.length, 2, 'session state must be revalidated after the short cache window');
+  }
+  {
+    const h = await makeHarness({
+      sessionDelayMs: 20,
+      sessionResponses: [
+        { customerId: 'customer-123' },
+        { customerId: 'customer-123', name: 'Registered Full Name', registeredPhone: '9876543210' }
+      ]
+    });
+    await h.service.session();
+    assert.equal(h.service.registeredName(), '', 'an incomplete session does not invent registration details');
+    const refreshed = await h.service.session();
+    assert.equal(refreshed.name, 'Registered Full Name');
+    assert.equal(h.service.registeredName(), 'Registered Full Name');
+    assert.equal(h.service.registeredPhone(), '9876543210');
+    const sessionCalls = h.calls.filter(call => call.type === 'fetch' && call.path === '/api/auth/session');
+    assert.equal(sessionCalls.length, 2, 'incomplete successful session payloads must not be cached over a later registration-details refresh');
   }
   {
     const h = await makeHarness({ customerId: null, sessionDelayMs: 20 });
