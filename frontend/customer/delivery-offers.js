@@ -245,6 +245,39 @@
     const checkout = document.querySelector('#checkoutTotal');
     if (checkout) checkout.textContent = lastMoney(pricing.finalTotal);
   }
+  async function refreshCheckoutQuote(items, moneyFn = money) {
+    const version = ++renderVersion;
+    lastItems = Array.isArray(items) ? items : [];
+    lastMoney = typeof moneyFn === 'function' ? moneyFn : money;
+    const button = document.querySelector('#checkoutForm button[type="submit"]');
+    const checkoutRoot = document.querySelector('#fwCheckoutPricing');
+    if (!lastItems.length) {
+      lastQuote = null;
+      if (checkoutRoot) checkoutRoot.innerHTML = '<p class="fw-offer-error">Your cart is empty. Add items before checkout.</p>';
+      if (button) { button.disabled = true; button.textContent = 'Your cart is empty'; }
+      return;
+    }
+    if (checkoutRoot) checkoutRoot.innerHTML = '<div class="summary-line"><span>Refreshing your order total…</span></div>';
+    if (button) { button.disabled = true; button.textContent = 'Calculating total…'; }
+    try {
+      const pricing = await fetchQuote(lastItems, appliedCode);
+      if (version !== renderVersion) return;
+      lastQuote = pricing;
+      renderBreakdown(pricing, checkoutRoot, lastMoney);
+      updateCartLinePrices(pricing.items);
+      updateDisplayedTotals(pricing.finalTotal);
+      if (button) {
+        button.disabled = false;
+        button.innerHTML = 'Place order · <span id="checkoutTotal">' + lastMoney(pricing.finalTotal) + '</span>';
+      }
+    } catch (error) {
+      if (version !== renderVersion) return;
+      lastQuote = null;
+      if (checkoutRoot) checkoutRoot.innerHTML = '<p class="fw-offer-error">Could not refresh your order total. Check your connection and reopen checkout.</p>';
+      if (button) { button.disabled = true; button.textContent = 'Total unavailable — retry checkout'; }
+      message(error.message || 'Could not refresh pricing.', true);
+    }
+  }
   function getDisplayedTotal() {
     return lastQuote && Number.isSafeInteger(Number(lastQuote.finalTotal)) ? Number(lastQuote.finalTotal) : null;
   }
@@ -286,7 +319,7 @@
     }
   });
   window.FreshWayCustomerDeliveryOffers = Object.freeze({
-    renderCart, fetchQuote, renderCheckoutQuote, getAppliedCode: () => appliedCode,
+    renderCart, fetchQuote, renderCheckoutQuote, refreshCheckoutQuote, getAppliedCode: () => appliedCode,
     getDisplayedTotal, clearAppliedCode, money
   });
 })();
