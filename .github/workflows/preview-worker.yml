@@ -56,7 +56,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: freshway-invoice-visual-review
-          path: source/worker/test-results/visual-review/commercial-invoice.pdf
+          path: source/worker/test-results/visual-review/*.pdf
           if-no-files-found: warn
           retention-days: 7
       - name: Test preview isolation guards
