@@ -10,7 +10,8 @@ async function makeHarness({
   customerId = 'customer-123',
   initiallySubscribed = false,
   supported = true,
-  standalone = false
+  standalone = false,
+  sessionDelayMs = 0
 } = {}) {
   const storage = new Map();
   if (customerId) storage.set('freshway-customer-id', customerId);
@@ -85,7 +86,10 @@ async function makeHarness({
   });
   const fetch = async (path, options = {}) => {
     calls.push({ type: 'fetch', path, options });
-    if (path === '/api/auth/session') return response(sessionData());
+    if (path === '/api/auth/session') {
+      if (sessionDelayMs > 0) await new Promise(resolve => setTimeout(resolve, sessionDelayMs));
+      return response(sessionData());
+    }
     if (path === '/api/push/public-key') return response({ publicKey: 'AQID' });
     if (path === '/api/push/subscribe') return response({ ok: true });
     if (path === '/api/auth/logout') return response({ ok: true });
@@ -183,6 +187,13 @@ async function makeHarness({
     assert.equal(state.state, 'unsupported');
     const error = await h.service.enable().then(() => null, value => value);
     assert.equal(error.code, 'NOTIFICATION_UNSUPPORTED');
+  }
+  {
+    const h = await makeHarness({ sessionDelayMs: 20 });
+    const results = await Promise.all([h.service.session(), h.service.session(), h.service.session(), h.service.session()]);
+    assert.equal(results.length, 4);
+    const sessionCalls = h.calls.filter(call => call.type === 'fetch' && call.path === '/api/auth/session');
+    assert.equal(sessionCalls.length, 1, 'concurrent startup/session consumers must share one in-flight authentication request');
   }
   console.log('FreshWay notification permission state, prompt, subscription and recovery contracts passed');
 })().catch(error => {
