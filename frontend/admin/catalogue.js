@@ -14,7 +14,7 @@
   function closeModal(){const m=$('#fwCatalogueModal');if(m)m.remove()}
   function categoryById(id){return data.categories.find(c=>String(c.id)===String(id))}
   const GENERIC_PROMO_ALT_TEXT=new Set(['image','image preview','banner','offer','promo','promotion','promotion preview','promotion image','freshway promotion']);
-  const normalizePromoAlt=value=>String(value??'').normalize('NFKC').trim().replace(/\\s+/g,' ').toLocaleLowerCase('en');
+  const normalizePromoAlt=value=>String(value??'').normalize('NFKC').trim().replace(/\s+/g,' ').toLocaleLowerCase('en');
   const isUsefulPromoAlt=value=>{const normalized=normalizePromoAlt(value);return normalized.length>=3&&!GENERIC_PROMO_ALT_TEXT.has(normalized)};
   function promotionAltIssue(p){
     const alt=normalizePromoAlt(p.alt_text);
@@ -60,7 +60,7 @@
     if(!image.data||!image.mime)return toast('Choose a promotion image');
     const order=Number($('#fwPromoOrder').value);
     if(!Number.isInteger(order)||order<1||order>99999)return toast('Enter a valid display order');
-    const altInput=$('#fwPromoAlt'),altText=String(altInput?.value||'').trim().replace(/\\s+/g,' ');
+    const altInput=$('#fwPromoAlt'),altText=String(altInput?.value||'').trim().replace(/\s+/g,' ');
     if(!isUsefulPromoAlt(altText)){toast('Enter a meaningful image description, not a generic label');altInput?.focus();return}
     const normalizedAlt=normalizePromoAlt(altText);
     const duplicate=data.promotions.find(x=>String(x.id)!==String(p?.id||'')&&normalizePromoAlt(x.alt_text)===normalizedAlt);
