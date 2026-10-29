@@ -7,6 +7,26 @@ const app=fs.readFileSync('app.js','utf8');
 const freshness=fs.readFileSync('frontend/customer/state-freshness.js','utf8');
 const ordersData=fs.readFileSync('frontend/customer/orders-data.js','utf8');
 
+// Cart IDs become strings when saved in localStorage. Keep matching stable when
+// catalogue IDs arrive as numbers, and retain the item snapshot if catalogue fetch fails.
+const cartBoundary=fs.readFileSync('frontend/customer/catalogue-cart.js','utf8');
+const cartContext={window:{}};
+vm.createContext(cartContext);
+vm.runInContext(cartBoundary,cartContext);
+const savedCart={cart:{'42':1},cartProducts:{'42':{id:'42',name:'Groundnut oil/5ltrs',unit:'kg',price:1850,emoji:'🛢️',unavailable:false}}};
+const numericProduct={id:42,name:'Groundnut oil/5ltrs',unit:'kg',price:1850,emoji:'🛢️'};
+assert.equal(cartContext.window.FreshWayCatalogueCart.items(savedCart,[numericProduct])[0].product.id,42,'numeric catalogue IDs must match string keys from localStorage');
+assert.equal(cartContext.window.FreshWayCatalogueCart.total(savedCart,[numericProduct]),1850,'the saved item total must remain ₹1,850 after the catalogue refresh');
+const offlineCart=cartContext.window.FreshWayCatalogueCart.items(savedCart,[]);
+assert.equal(offlineCart.length,1,'a temporary empty catalogue must not hide a saved cart line');
+assert.equal(offlineCart[0].product.name,'Groundnut oil/5ltrs');
+assert.equal(cartContext.window.FreshWayCatalogueCart.total(savedCart,[]),1850,'a saved cart snapshot preserves the line while catalogue data is unavailable');
+const legacyCart=cartContext.window.FreshWayCatalogueCart.items({cart:{'old-id':1}},[]);
+assert.equal(legacyCart.length,1,'older carts without snapshots must still retain their item quantity and ID');
+assert.equal(legacyCart[0].product.id,'old-id');
+assert.match(fs.readFileSync('app.js','utf8'),/const clearCatalogue=\(\)=>\{[\s\S]*failed catalogue request is not evidence that the customer's saved cart is empty/);
+
+
 assert.match(source,/window\.FreshWayCustomerAPI\?\.request/);
 assert.match(source,/selected=\(window\.history\.state\?\.__freshwayCustomer&&window\.history\.state\.view==='home'\?window\.history\.state\.category:null\)\|\|getStoredCategory\(\)\|\|null/,'refresh restores the selected category from history or session storage');
 assert.match(source,/sessionStorage\.setItem\(CATEGORY_STORAGE_KEY,String\(selected\)\)/,'selected category is persisted for reload restoration');
