@@ -347,6 +347,52 @@ test('customer can browse, add a product, checkout, and receive confirmation', a
   await expect(page.locator('#cartCount')).toHaveText('0 items');
 });
 
+test('new address defaults to registered name/mobile but lets the customer edit both', async ({ page }) => {
+  let sessionCalls = 0;
+  await page.route('**/api/auth/session', async route => {
+    sessionCalls += 1;
+    // Simulate a session whose first response does not yet expose registration
+    // details; Add address must refresh the session before showing the form.
+    const customer = sessionCalls === 1
+      ? { customerId: 'e2e-customer-registered' }
+      : { customerId: 'e2e-customer-registered', name: 'Registered Full Name', registeredPhone: '919876543210' };
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(customer)
+    });
+  });
+
+  await page.goto('/');
+  await page.locator('#addressBtn').click();
+  await expect(page.locator('#fwAddressManagerNew')).toBeVisible();
+  await page.locator('#fwAddressManagerNew').click();
+
+  await expect(page.locator('#fwAddrName')).toHaveValue('Registered Full Name');
+  await expect(page.locator('#fwAddrPhone')).toHaveValue('9876543210');
+  expect(sessionCalls).toBeGreaterThanOrEqual(2);
+
+  // Both registered values are defaults, not read-only account fields.
+  await page.locator('#fwAddrName').fill('Alternate Recipient');
+  await page.locator('#fwAddrPhone').fill('9123456789');
+  await page.locator('#fwAddrHouse').fill('22-B');
+  await page.locator('#fwAddrArea').fill('Test Colony');
+  await page.locator('#fwAddrCity').fill('Hyderabad');
+  await page.locator('#fwAddrPincode').fill('500072');
+  await page.locator('#fwAddressGps').click();
+  await expect(page.locator('#fwAddressLocationStatus')).toContainText('Delivery pin selected');
+  await expect(page.locator('#fwAddrName')).toHaveValue('Alternate Recipient');
+  await expect(page.locator('#fwAddrPhone')).toHaveValue('9123456789');
+
+  await page.locator('#fwAddressSave').click();
+  await expect.poll(() => savedAddresses.length).toBe(1);
+  expect(savedAddresses[0].recipientName).toBe('Alternate Recipient');
+  expect(savedAddresses[0].deliveryPhone).toBe('9123456789');
+  expect(savedAddresses[0].houseFlat).toBe('9');
+  expect(savedAddresses[0].area).toBe('New Colony');
+  expect(savedAddresses[0].city).toBe('Hyderabad');
+});
+
 test('selecting a new pin replaces stale geographic fields but preserves customer details', async ({ page }) => {
   savedAddresses = [{
     id: 41,
