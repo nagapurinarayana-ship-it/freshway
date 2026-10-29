@@ -349,13 +349,14 @@ test('customer can browse, add a product, checkout, and receive confirmation', a
 
 test('new address defaults to registered name/mobile but lets the customer edit both', async ({ page }) => {
   let sessionCalls = 0;
+  let registrationDetailsAvailable = false;
   await page.route('**/api/auth/session', async route => {
     sessionCalls += 1;
-    // Simulate a session whose first response does not yet expose registration
-    // details; Add address must refresh the session before showing the form.
-    const customer = sessionCalls === 1
-      ? { customerId: 'e2e-customer-registered' }
-      : { customerId: 'e2e-customer-registered', name: 'Registered Full Name', registeredPhone: '919876543210' };
+    // Keep registration details unavailable until the customer explicitly
+    // opens Add address, then verify that the address flow refreshes the session.
+    const customer = registrationDetailsAvailable
+      ? { customerId: 'e2e-customer-registered', name: 'Registered Full Name', registeredPhone: '919876543210' }
+      : { customerId: 'e2e-customer-registered' };
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -366,11 +367,13 @@ test('new address defaults to registered name/mobile but lets the customer edit 
   await page.goto('/');
   await page.locator('#addressBtn').click();
   await expect(page.locator('#fwAddressManagerNew')).toBeVisible();
+  const sessionsBeforeAdd = sessionCalls;
+  registrationDetailsAvailable = true;
   await page.locator('#fwAddressManagerNew').click();
 
   await expect(page.locator('#fwAddrName')).toHaveValue('Registered Full Name');
   await expect(page.locator('#fwAddrPhone')).toHaveValue('9876543210');
-  expect(sessionCalls).toBeGreaterThanOrEqual(2);
+  expect(sessionCalls).toBeGreaterThan(sessionsBeforeAdd);
 
   // Both registered values are defaults, not read-only account fields.
   await page.locator('#fwAddrName').fill('Alternate Recipient');
