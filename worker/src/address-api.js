@@ -37,7 +37,7 @@ function duplicateKey(r) {
     .map(v => String(v ?? '').trim().replace(/\s+/g,' ').toLocaleLowerCase()).join('\u001f');
 }
 async function list(env, customerId) {
-  const { results } = await env.DB.prepare('SELECT * FROM addresses WHERE customer_id=? AND deleted_at IS NULL ORDER BY is_default DESC,id DESC').bind(customerId).all();
+  const { results } = await env.DB.prepare('SELECT * FROM addresses WHERE customer_id=? AND deleted_at IS NULL AND is_saved_address=1 ORDER BY is_default DESC,id DESC').bind(customerId).all();
   const seen = new Set();
   const rows = [];
   for (const row of (results || [])) {
@@ -61,7 +61,7 @@ async function findDuplicate(env, customerId, a) {
   // A repeated GPS reading can move a few metres. Match the textual delivery
   // destination and recipient, not exact coordinates or optional notes.
   return env.DB.prepare(`SELECT id FROM addresses
-    WHERE customer_id=? AND deleted_at IS NULL
+    WHERE customer_id=? AND deleted_at IS NULL AND is_saved_address=1
       AND LOWER(TRIM(label))=LOWER(?) AND LOWER(TRIM(recipient_name))=LOWER(?)
       AND delivery_phone=?
       AND LOWER(TRIM(COALESCE(house,'')))=LOWER(?)
@@ -83,17 +83,17 @@ function normalizeDefaultStatement(env, customerId, preferredId = null) {
   // Keeping normalization in one write avoids a cleared-default state on failure.
   return env.DB.prepare(`UPDATE addresses
     SET is_default=CASE WHEN id=COALESCE(
-      (SELECT id FROM addresses WHERE id=? AND customer_id=? AND deleted_at IS NULL LIMIT 1),
-      (SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL AND is_default=1 ORDER BY id DESC LIMIT 1),
-      (SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1)
+      (SELECT id FROM addresses WHERE id=? AND customer_id=? AND deleted_at IS NULL AND is_saved_address=1 LIMIT 1),
+      (SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL AND is_saved_address=1 AND is_default=1 ORDER BY id DESC LIMIT 1),
+      (SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL AND is_saved_address=1 ORDER BY id DESC LIMIT 1)
     ) THEN 1 ELSE 0 END
-    WHERE customer_id=? AND deleted_at IS NULL`)
+    WHERE customer_id=? AND deleted_at IS NULL AND is_saved_address=1`)
     .bind(preferredId, customerId, customerId, customerId, customerId);
 }
 
 async function ensureDefault(env, customerId) {
   await normalizeDefaultStatement(env, customerId).run();
-  const next = await env.DB.prepare('SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL AND is_default=1 ORDER BY id DESC LIMIT 1').bind(customerId).first();
+  const next = await env.DB.prepare('SELECT id FROM addresses WHERE customer_id=? AND deleted_at IS NULL AND is_saved_address=1 AND is_default=1 ORDER BY id DESC LIMIT 1').bind(customerId).first();
   return next?.id || null;
 }
 export async function handleAddress(request, env, customerId, action) {
@@ -115,8 +115,8 @@ export async function handleAddress(request, env, customerId, action) {
       else await ensureDefault(env, customerId);
       return response({ ok:true, addresses:await list(env,customerId), id:duplicate.id, deduplicated:true }, 200, env);
     }
-    const insert = env.DB.prepare(`INSERT INTO addresses (customer_id,house,area,city,pincode,landmark,note,label,recipient_name,delivery_phone,building,floor,street,locality,district,state,latitude,longitude,accuracy_meters,location_source,place_id,location_updated_at,is_default) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .bind(customerId,a.house_flat,a.area,a.city,a.pincode,a.landmark,a.note,a.label,a.recipient_name,a.delivery_phone,a.building,a.floor,a.street,a.locality,a.district,a.state,a.latitude,a.longitude,a.accuracy_meters,a.location_source,a.place_id,a.location_updated_at,a.is_default);
+    const insert = env.DB.prepare(`INSERT INTO addresses (customer_id,house,area,city,pincode,landmark,note,label,recipient_name,delivery_phone,building,floor,street,locality,district,state,latitude,longitude,accuracy_meters,location_source,place_id,location_updated_at,is_default,is_saved_address) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .bind(customerId,a.house_flat,a.area,a.city,a.pincode,a.landmark,a.note,a.label,a.recipient_name,a.delivery_phone,a.building,a.floor,a.street,a.locality,a.district,a.state,a.latitude,a.longitude,a.accuracy_meters,a.location_source,a.place_id,a.location_updated_at,a.is_default,1);
     // Insert and normalize the default in one D1 transaction. If normalization
     // fails, the new address is rolled back instead of leaving defaults cleared
     // or producing an address with no default when this was the first save.
@@ -124,7 +124,7 @@ export async function handleAddress(request, env, customerId, action) {
     const r = results?.[0];
     return response({ ok:true, addresses:await list(env,customerId), id:r?.meta?.last_row_id }, 201, env);
   }
-  const owned = await env.DB.prepare('SELECT * FROM addresses WHERE id=? AND customer_id=? AND deleted_at IS NULL').bind(id,customerId).first();
+  const owned = await env.DB.prepare('SELECT * FROM addresses WHERE id=? AND customer_id=? AND deleted_at IS NULL AND is_saved_address=1').bind(id,customerId).first();
   // DELETE is intentionally idempotent. A stale UI copy must never surface a false
   // "Address not found" error after the address has already been removed elsewhere.
   if (action === 'delete' && request.method === 'DELETE') {
@@ -142,7 +142,7 @@ export async function handleAddress(request, env, customerId, action) {
     if (payload.default === true || (payload.isDefault === true && payload.recipientName === undefined)) {
       // Selecting a default is one database write; never clear current defaults
       // before confirming the requested address is still active and owned.
-      const latest = await env.DB.prepare('SELECT id FROM addresses WHERE id=? AND customer_id=? AND deleted_at IS NULL').bind(id,customerId).first();
+      const latest = await env.DB.prepare('SELECT id FROM addresses WHERE id=? AND customer_id=? AND deleted_at IS NULL AND is_saved_address=1').bind(id,customerId).first();
       if (!latest) return response({ error:'Address not found.' }, 404, env);
       await normalizeDefaultStatement(env, customerId, id).run();
       return response({ ok:true, addresses:await list(env,customerId) }, 200, env);
@@ -151,7 +151,7 @@ export async function handleAddress(request, env, customerId, action) {
     if (error) return response({ error }, 400, env);
     // Editing keeps this address's default status unless explicitly changed.
     a.is_default = payload.isDefault === undefined ? Number(owned.is_default || 0) : (payload.isDefault ? 1 : 0);
-    const update = env.DB.prepare(`UPDATE addresses SET label=?,recipient_name=?,delivery_phone=?,house=?,building=?,floor=?,street=?,area=?,locality=?,city=?,district=?,state=?,pincode=?,landmark=?,note=?,latitude=?,longitude=?,accuracy_meters=?,location_source=?,place_id=?,location_updated_at=?,is_default=? WHERE id=? AND customer_id=? AND deleted_at IS NULL`)
+    const update = env.DB.prepare(`UPDATE addresses SET label=?,recipient_name=?,delivery_phone=?,house=?,building=?,floor=?,street=?,area=?,locality=?,city=?,district=?,state=?,pincode=?,landmark=?,note=?,latitude=?,longitude=?,accuracy_meters=?,location_source=?,place_id=?,location_updated_at=?,is_default=? WHERE id=? AND customer_id=? AND deleted_at IS NULL AND is_saved_address=1`)
       .bind(a.label,a.recipient_name,a.delivery_phone,a.house_flat,a.building,a.floor,a.street,a.area,a.locality,a.city,a.district,a.state,a.pincode,a.landmark,a.note,a.latitude,a.longitude,a.accuracy_meters,a.location_source,a.place_id,a.location_updated_at,a.is_default,id,customerId);
     // Address edits and default normalization commit together. An explicit
     // default choice takes precedence; otherwise an existing default is retained
