@@ -8,6 +8,7 @@ const accountPhoneMigration = readFileSync(new URL('../migrations/0023_registere
 const authVersionMigration = readFileSync(new URL('../migrations/0024_customer_auth_version.sql', import.meta.url), 'utf8');
 const orderAlertsMigration = readFileSync(new URL('../migrations/0025_order_alerts.sql', import.meta.url), 'utf8');
 const storeCoordinatesMigration = readFileSync(new URL('../migrations/0026_store_profile_shop_coordinates.sql', import.meta.url), 'utf8');
+const savedAddressMigration = readFileSync(new URL('../migrations/0044_reusable_address_visibility.sql', import.meta.url), 'utf8');
 
 const ordersTable = schema.match(
   /CREATE TABLE IF NOT EXISTS orders \(([\s\S]*?)\n\);/
@@ -50,6 +51,26 @@ test('legacy database migration stays aligned with the fresh schema', () => {
     true,
     'schema.sql and migration 0022 must both support Owner live/test-order filtering'
   );
+});
+
+
+const addressesTable = schema.match(
+  /CREATE TABLE IF NOT EXISTS addresses \\(([\\s\\S]*?)\\n\\);/
+)?.[1];
+
+test('reusable address visibility separates order-only rows without changing order foreign keys', () => {
+  assert.ok(addressesTable, 'schema.sql must define the addresses table');
+  assert.match(addressesTable, /is_saved_address INTEGER NOT NULL DEFAULT 1 CHECK\\(is_saved_address IN \\(0,1\\)\\)/);
+  assert.match(savedAddressMigration, /ALTER TABLE addresses ADD COLUMN is_saved_address INTEGER NOT NULL DEFAULT 1 CHECK\\(is_saved_address IN \\(0,1\\)\\);/);
+  assert.match(savedAddressMigration, /UPDATE addresses SET is_saved_address=0, is_default=0/);
+  assert.match(savedAddressMigration, /recipient_name IS NULL OR TRIM\\(recipient_name\\)='' OR delivery_phone IS NULL OR TRIM\\(delivery_phone\\)=''/);
+  assert.match(schema, /idx_addresses_customer_saved_default ON addresses\\(customer_id,is_saved_address,is_default DESC,id DESC\\)/);
+
+  const addressApi = readFileSync(new URL('../src/address-api.js', import.meta.url), 'utf8');
+  const orderWriter = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
+  assert.match(addressApi, /SELECT \\* FROM addresses WHERE customer_id=\\? AND deleted_at IS NULL AND is_saved_address=1/);
+  assert.match(addressApi, /is_default,is_saved_address\\) VALUES \\(/);
+  assert.match(orderWriter, /INSERT INTO addresses \\([^)]*is_saved_address\\) VALUES \\([^)]*,0\\)/);
 });
 
 const snapshotTable = schema.match(
