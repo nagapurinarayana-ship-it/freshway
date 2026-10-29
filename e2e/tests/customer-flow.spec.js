@@ -521,7 +521,7 @@ test('checkout refuses a quote for a different cart item instead of showing a mi
   await page.locator('[data-fw-category="cat-rice"]').click();
   await page.locator('#productGrid .add-btn').click();
   await page.locator('#viewCartBtn').click();
-  await expect(page.locator('#fwDeliveryPricing')).toContainText('We could not verify every cart item');
+  await expect(page.locator('#fwCouponStatus')).toContainText('We could not verify every cart item');
   await page.locator('#checkoutBtn').click();
   const placeOrder = page.locator('#checkoutForm button[type="submit"]');
   await expect(placeOrder).toBeDisabled();
