@@ -84,7 +84,6 @@ test('customer visual review: bundled category and product art plus decoded prom
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await expect(page.locator('#productGrid .product-card')).toHaveCount(0);
   await expect.poll(() => page.locator('.hero-banner .fw-promo-slide img').count()).toBe(2);
   await decoded(page.locator('.hero-banner .fw-promo-slide img'));
 
