@@ -103,7 +103,8 @@ test('customer visual review: bundled category and product art plus decoded prom
   await capture('mobile-products-media-fixture');
 
   await page.setViewportSize({ width: 1365, height: 900 });
-  await page.evaluate(() => window.setView('home'));
+  // Reload at the new viewport so session category selection cannot leak into the desktop capture.
+  await page.reload();
   await expect(page.locator('.hero-banner .fw-promo-slide img')).toHaveCount(2);
   await decoded(page.locator('.hero-banner .fw-promo-slide img'));
   const desktopCategoryImages = page.locator('#fwCategoryCatalogue .fw-category-image img');
