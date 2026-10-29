@@ -33,6 +33,9 @@ const esc=v=>String(v??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'
 const state=customerStorage.read();
 let PRODUCTS=[];
 const save=()=>customerStorage.save(state);
+// Shared request/session aliases used by checkout, address and order modules.
+const api=customerAPI.request;
+const customerId=customerAuth.customerId;
 const cartPersistence=window.FreshWayCustomerCartPersistence.create({
   state,
   getProducts:()=>PRODUCTS,
