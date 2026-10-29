@@ -41,7 +41,6 @@ test('customer visual review: bundled category and product art plus decoded prom
   await page.addInitScript(() => {
     localStorage.clear();
     sessionStorage.clear();
-    sessionStorage.setItem('freshway-pwa-install-nudge', '1');
   });
 
   await page.route('**/api/**', async route => {

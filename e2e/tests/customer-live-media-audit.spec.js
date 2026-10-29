@@ -40,6 +40,9 @@ test('LIVE production media audit: real catalogue, category artwork and configur
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   await page.goto(LIVE_BASE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  // Verify install guidance remains available only on demand and never blocks browsing.
+  await page.waitForTimeout(3500);
+  await expect(page.locator('.pwa-help'), 'install help must not interrupt first-time browsing').toHaveCount(0);
   await expect(page.locator('#fwCategoryCatalogue .fw-category-card').first()).toBeVisible({ timeout: 25000 });
 
   const sourceAudit = await page.evaluate(({ categories, products, promotions }) => {
@@ -121,6 +124,9 @@ test('LIVE production media audit: real catalogue, category artwork and configur
   // Re-capture at desktop width to catch responsive rendering differences.
   await page.setViewportSize({ width: 1365, height: 900 });
   await page.goto(LIVE_BASE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  // Verify install guidance remains available only on demand and never blocks browsing.
+  await page.waitForTimeout(3500);
+  await expect(page.locator('.pwa-help'), 'install help must not interrupt first-time browsing').toHaveCount(0);
   await expect(page.locator('#fwCategoryCatalogue .fw-category-card').first()).toBeVisible({ timeout: 25000 });
   await expectDecodedImages(page.locator('#fwCategoryCatalogue .fw-category-image img'), 'desktop production category artwork');
   const desktopPromotions = page.locator('.hero-banner .fw-promo-slide img');

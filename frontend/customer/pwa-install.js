@@ -5,9 +5,6 @@ const FreshWayPwaInstall=(()=>{
   const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;
   const isIos=()=>/iphone|ipad|ipod/i.test(navigator.userAgent);
   const getRow=()=>document.querySelector('#pwaInstallRow');
-  const canUseSessionStorage=()=>{try{return typeof sessionStorage!=='undefined'}catch(_){return false}};
-  const nudgeSeen=()=>canUseSessionStorage()&&sessionStorage.getItem('freshway-pwa-install-nudge')==='1';
-  const markNudgeSeen=()=>{if(canUseSessionStorage())sessionStorage.setItem('freshway-pwa-install-nudge','1')};
 
   const setAvailable=()=>{
     const row=getRow();
@@ -49,7 +46,6 @@ const FreshWayPwaInstall=(()=>{
   const showInstallHelp=()=>{
     if(isStandalone()||installNudgeShown)return;
     installNudgeShown=true;
-    markNudgeSeen();
 
     const nativeAvailable=Boolean(deferredPrompt);
     const instruction=nativeAvailable
@@ -125,13 +121,6 @@ const FreshWayPwaInstall=(()=>{
     setAvailable();
   };
 
-  const scheduleInstallNudge=()=>{
-    if(isStandalone()||nudgeSeen())return;
-    window.setTimeout(()=>{
-      if(!isStandalone()&&!nudgeSeen())showInstallHelp();
-    },3000);
-  };
-
   const init=()=>{
     addRow();
     window.addEventListener('beforeinstallprompt',event=>{
@@ -153,7 +142,6 @@ const FreshWayPwaInstall=(()=>{
     const register=()=>{void registerServiceWorker()};
     if(document.readyState==='complete')register();
     else window.addEventListener('load',register,{once:true});
-    scheduleInstallNudge();
   };
 
   return{init,install,showInstallHelp};
