@@ -300,6 +300,13 @@
       return null;
     }
   }
+  function invalidateDisplayedQuote(label = 'Total unavailable') {
+    renderVersion++;
+    lastQuote = null;
+    updateDisplayedTotals(label);
+    const button = document.querySelector('#checkoutForm button[type="submit"]');
+    if (button) { button.disabled = true; button.textContent = 'Total unavailable — retry checkout'; }
+  }
   function getDisplayedTotal() {
     return lastQuote && Number.isSafeInteger(Number(lastQuote.finalTotal)) ? Number(lastQuote.finalTotal) : null;
   }
@@ -342,6 +349,6 @@
   });
   window.FreshWayCustomerDeliveryOffers = Object.freeze({
     renderCart, fetchQuote, renderCheckoutQuote, refreshCheckoutQuote, getAppliedCode: () => appliedCode,
-    getDisplayedTotal, clearAppliedCode, money
+    getDisplayedTotal, invalidateDisplayedQuote, clearAppliedCode, money
   });
 })();
