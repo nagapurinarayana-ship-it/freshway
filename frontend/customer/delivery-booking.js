@@ -4,6 +4,10 @@
   const shift=(date,days)=>{const p=date.split('-').map(Number),d=new Date(Date.UTC(p[0],p[1]-1,p[2]+days));return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0')};
   const valid=date=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(String(date||'')))return false;const p=date.split('-').map(Number),d=new Date(Date.UTC(p[0],p[1]-1,p[2]));return d.getUTCFullYear()===p[0]&&d.getUTCMonth()===p[1]-1&&d.getUTCDate()===p[2]};
   const pretty=date=>valid(date)?new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',day:'numeric',month:'short',year:'numeric'}).format(new Date(date+'T12:00:00+05:30')):date;
+  const CHECKOUT_DATE_KEY='freshway-checkout-delivery-date-v1';
+  const readCheckoutDate=()=>{try{const value=window.localStorage.getItem(CHECKOUT_DATE_KEY)||'',min=localDate(),max=shift(min,60);if(valid(value)&&value>=min&&value<=max)return value;if(value)window.localStorage.removeItem(CHECKOUT_DATE_KEY)}catch(_){}return localDate()};
+  const saveCheckoutDate=date=>{try{const min=localDate(),max=shift(min,60);if(valid(date)&&date>=min&&date<=max)window.localStorage.setItem(CHECKOUT_DATE_KEY,date);else window.localStorage.removeItem(CHECKOUT_DATE_KEY)}catch(_){}};
+  const forgetCheckoutDate=()=>{try{window.localStorage.removeItem(CHECKOUT_DATE_KEY)}catch(_){}};
   function create(options){
     let checkoutPicker=null;
     function render(state){
@@ -36,12 +40,13 @@
       state.destroy=()=>{state.destroyed=true;if(container.__fwDeliveryDateState===state)container.__fwDeliveryDateState=null;container.replaceChildren()};
       state.refresh=()=>state.render();
       state.selectedDate=()=>state.date;
+      state.resetDate=()=>{state.date=localDate();state.render()};
       state.isEnabled=()=>true;
       render(state);notify(state);return state;
     }
-    function mountCheckout(container){checkoutPicker?.destroy?.();checkoutPicker=mount(container,{title:'Choose delivery day',description:'Choose the day you would prefer your order to arrive.'});return checkoutPicker}
+    function mountCheckout(container){checkoutPicker?.destroy?.();checkoutPicker=mount(container,{title:'Choose delivery day',description:'Choose the day you would prefer your order to arrive.',initialDate:readCheckoutDate(),onSelect:saveCheckoutDate});return checkoutPicker}
     function mountReschedule(container,details){const order=details?.order||{};return mount(container,{title:'Change delivery day',description:'Choose a new preferred delivery day.',initialDate:order.scheduledDelivery?.date||localDate(),requireConfirm:true,onConfirm:details?.onConfirm})}
-    return Object.freeze({mountCheckout,refreshCheckout(){checkoutPicker?.refresh?.()},checkoutEnabled(){return !!checkoutPicker},selectedCheckoutDate(){return checkoutPicker?.selectedDate?.()||localDate()},mountReschedule});
+    return Object.freeze({mountCheckout,refreshCheckout(){checkoutPicker?.refresh?.()},checkoutEnabled(){return !!checkoutPicker},selectedCheckoutDate(){return checkoutPicker?.selectedDate?.()||localDate()},clearCheckoutDate(){forgetCheckoutDate();checkoutPicker?.resetDate?.()},mountReschedule});
   }
   window.FreshWayCustomerDeliveryBooking=Object.freeze({create});
 })();
