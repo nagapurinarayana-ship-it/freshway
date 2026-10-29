@@ -80,6 +80,20 @@ test('LIVE production media audit: real catalogue, category artwork and configur
   if (validPromotions.length) {
     await expect.poll(() => promotionImages.count(), { timeout: 20000 }).toBe(validPromotions.length);
     await expectDecodedImages(promotionImages, 'production promotion images');
+    await expect.poll(() => page.locator('[data-fw-promo-dot]').count(), { timeout: 10000 }).toBe(validPromotions.length);
+    for (let i = 0; i < validPromotions.length; i++) {
+      await page.locator('[data-fw-promo-dot]').nth(i).click();
+      const activePromotion = page.locator('.hero-banner .fw-promo-slide[aria-hidden="false"] img');
+      await expect(activePromotion).toBeVisible();
+      await expect.poll(() => activePromotion.evaluate(img => img.complete && img.naturalWidth > 0 && img.naturalHeight > 0), {
+        timeout: 10000,
+        message: 'Production promotion slide ' + (i + 1) + ' must decode'
+      }).toBe(true);
+      await page.locator('.hero-banner').screenshot({
+        path: OUTPUT_DIR + '/live-production-promotion-' + (i + 1) + '.png',
+        animations: 'disabled'
+      });
+    }
   } else {
     await expect(page.locator('.hero-banner h1')).toBeVisible();
   }
@@ -110,7 +124,12 @@ test('LIVE production media audit: real catalogue, category artwork and configur
   await expect(page.locator('#fwCategoryCatalogue .fw-category-card').first()).toBeVisible({ timeout: 25000 });
   await expectDecodedImages(page.locator('#fwCategoryCatalogue .fw-category-image img'), 'desktop production category artwork');
   const desktopPromotions = page.locator('.hero-banner .fw-promo-slide img');
-  if (validPromotions.length) await expectDecodedImages(desktopPromotions, 'desktop production promotion images');
+  if (validPromotions.length) {
+    await expect.poll(() => desktopPromotions.count(), { timeout: 20000 }).toBe(validPromotions.length);
+    await expectDecodedImages(desktopPromotions, 'desktop production promotion images');
+  } else {
+    await expect(page.locator('.hero-banner h1')).toBeVisible();
+  }
   await page.screenshot({ path: OUTPUT_DIR + '/live-production-desktop-home.png', fullPage: true, animations: 'disabled' });
   await page.locator('#fwCategoryCatalogue .fw-category-card').first().click();
   const desktopCards = page.locator('#productGrid .product-card:visible');
@@ -145,6 +164,8 @@ test('LIVE production media audit: real catalogue, category artwork and configur
       emojiFallback: fallbackProducts
     },
     promotionArtwork: sourceAudit.promotionRows.map(({ id, alt, hasImageData, mime }) => ({ id, alt, hasImageData, mime })),
+    missingPromotionAltText: sourceAudit.promotionRows.filter(item => !item.alt.trim()).map(item => item.id),
+    repeatedPromotionAltText: [...new Set(sourceAudit.promotionRows.map(item => item.alt.trim()).filter(Boolean).filter((alt, i, all) => all.indexOf(alt) !== i))],
     pageErrors
   };
   await writeFile(OUTPUT_DIR + '/live-production-media-audit.json', JSON.stringify(report, null, 2) + '\n');
