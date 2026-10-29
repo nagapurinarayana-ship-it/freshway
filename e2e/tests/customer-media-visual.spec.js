@@ -116,7 +116,7 @@ test('customer visual review: bundled category and product art plus decoded prom
 
   await page.locator('[data-fw-category="cat-rice"]').click();
   const riceImages = page.locator('#productGrid .product-card:visible .product-image img');
-  await expect(page.locator('#productGrid .product-card')).toHaveCount(2);
+  await expect(page.locator('#productGrid .product-card:visible')).toHaveCount(2);
   await expect(riceImages).toHaveCount(2);
   await riceImages.first().scrollIntoViewIfNeeded();
   await decoded(riceImages);
