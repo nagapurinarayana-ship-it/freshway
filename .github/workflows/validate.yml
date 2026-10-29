@@ -77,6 +77,7 @@ jobs:
           node address-system-final.test.js
           node frontend/customer/address-geocode.test.js
           node frontend/customer/catalogue.test.js
+          node frontend/customer/cart-persistence.test.js
           node worker/test/inventory.test.js
           node functions/api-addresses.test.mjs
           node functions/index.test.mjs
