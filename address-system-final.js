@@ -34,6 +34,7 @@
   let addresses = [];
   let activeAddress = null;
   let selectionRevision = 0;
+  let registrationPrefillPromise = null;
   let modalOrigin = 'profile';
   let editingAddress = null;
   let editorCoordinates = null;
@@ -388,12 +389,43 @@
     focusModalTitle();
   }
 
+  function registeredCustomerDetails() {
+    const auth = window.FreshWayCustomerAuth || window.FreshWayNotifications;
+    let recipientName = '';
+    let deliveryPhone = '';
+    try {
+      recipientName = String(auth && typeof auth.registeredName === 'function' ? auth.registeredName() || '' : '').trim();
+    } catch (_) {}
+    try {
+      deliveryPhone = normalizePhone(auth && typeof auth.registeredPhone === 'function' ? auth.registeredPhone() || '' : '');
+    } catch (_) {}
+    return { recipientName: recipientName, deliveryPhone: deliveryPhone };
+  }
+
+  async function ensureRegisteredCustomerDetails() {
+    if (guestAddressMode) return;
+    const current = registeredCustomerDetails();
+    if (current.recipientName && current.deliveryPhone) return;
+    const auth = window.FreshWayCustomerAuth || window.FreshWayNotifications;
+    if (!auth || typeof auth.session !== 'function') return;
+    if (!registrationPrefillPromise) {
+      registrationPrefillPromise = Promise.resolve()
+        .then(function () { return auth.session(); })
+        .catch(function () { return null; })
+        .then(function () { registrationPrefillPromise = null; });
+    }
+    await registrationPrefillPromise;
+  }
+
   function newAddressDraft() {
-    const firstName = value('customerName') || $('#profileName')?.textContent || '';
-    const firstPhone = value('customerPhone');
+    const registered = registeredCustomerDetails();
+    const profileName = String($('#profileName')?.textContent || '').trim();
+    const fallbackName = value('customerName') || (profileName !== 'Guest customer' ? profileName : '');
+    const firstName = registered.recipientName || fallbackName;
+    const firstPhone = registered.deliveryPhone || normalizePhone(value('customerPhone'));
     return normalizeAddress({
       label: 'Home',
-      recipientName: firstName === 'Guest customer' ? '' : firstName,
+      recipientName: firstName,
       deliveryPhone: firstPhone,
       latitude: null,
       longitude: null,
@@ -1030,6 +1062,7 @@
         return;
       }
       if (target.closest('#fwAddressManagerNew')) {
+        await ensureRegisteredCustomerDetails();
         buildEditor(null);
         return;
       }
