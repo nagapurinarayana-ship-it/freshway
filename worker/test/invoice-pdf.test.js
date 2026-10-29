@@ -38,27 +38,32 @@ test('prints seller contact numbers with the India country code and a visible ve
   assert.equal(formatSellerPhone(''), '');
   assert.match(invoicePdfSource,/function drawRupee\(page,x,baseline,size,color\)/);
   assert.match(invoicePdfSource,/const stroke=Math\.max\(0\.72,size\*0\.09\)/);
-  assert.ok(invoicePdfSource.includes('drawRupee(page,x,y,size*0.98,color)'), 'each monetary amount must draw the ₹ mark before the numeric amount');
+  assert.ok(invoicePdfSource.includes('drawRupee(targetPage,x,baseline,size*0.98,color)'), 'each monetary amount must draw the ₹ mark before the numeric amount');
   assert.match(invoicePdfSource,/Parallel headline bars/,'rupee mark must have the two recognizable horizontal bars');
   assert.match(invoicePdfSource,/Diagonal foot/,'rupee mark must have the lower diagonal leg');
   assert.match(invoicePdfSource,/x\+0\.24\*s,baseline\+0\.91\*s,x\+0\.24\*s,baseline\+0\.39\*s/,'rupee stem must stop above the lower diagonal foot');
 });
 
-test('uses receipt labels and conditionally prints the saved tax number',()=>{
+test('uses a branded invoice hierarchy and preserves payment and seller details',()=>{
+  assert.match(invoicePdfSource,/COMMERCIAL INVOICE/);
+  assert.match(invoicePdfSource,/ORDER SUMMARY/);
+  assert.match(invoicePdfSource,/TOTAL PAYABLE/);
+  assert.match(invoicePdfSource,/ISSUED BY/);
+  assert.match(invoicePdfSource,/BILL TO \/ DELIVER TO/);
   assert.match(invoicePdfSource,/Tax Number:/);
-  assert.ok(invoicePdfSource.includes("if(String(invoice.seller.gstin||'').trim())"),'tax number line must be omitted when no tax number is present');
-  assert.match(invoicePdfSource,/Total Bill Amount is/);
+  assert.match(invoicePdfSource,/invoice\.seller\.gstin\?'Tax Number: '\+invoice\.seller\.gstin:''/);
   assert.match(invoicePdfSource,/Cash Received:/);
   assert.match(invoicePdfSource,/Change Amount:/);
   assert.match(invoicePdfSource,/Payment Type: Cash/);
 });
 
-test('commercial receipts show only verified pricing breakdowns and keep historical details unknown',()=>{
-  assert.match(invoicePdfSource,/if\(invoice\.totals\.pricingBreakdownKnown===true\)/);
-  assert.match(invoicePdfSource,/drawText\(page,'Items subtotal'/);
+test('commercial invoices show only verified pricing breakdowns and keep historical details unknown',()=>{
+  assert.match(invoicePdfSource,/invoice\.totals\.pricingBreakdownKnown===true/);
+  assert.match(invoicePdfSource,/\['Items subtotal',invoice\.totals\.itemsSubtotalPaise/);
+  assert.match(invoicePdfSource,/couponDiscountPaise/);
   assert.match(invoicePdfSource,/drawDiscountRight\(page,invoice\.totals\.couponDiscountPaise/);
-  assert.match(invoicePdfSource,/drawText\(page,'Delivery fee'/);
-  assert.match(invoicePdfSource,/drawText\(page,'Order total'/);
+  assert.match(invoicePdfSource,/\['Delivery fee',invoice\.totals\.deliveryFeePaise/);
+  assert.match(invoicePdfSource,/\['Order total',totalPaise/);
 });
 
 test('creates a valid one-page commercial invoice PDF',async()=>{
@@ -69,6 +74,9 @@ test('creates a valid one-page commercial invoice PDF',async()=>{
   const pdf=await PDFDocument.load(bytes);
   assert.equal(pdf.getPageCount(),1);
   assert.equal(pdf.getTitle(),'FreshWay commercial invoice FW/26-27/000001');
+  const size=pdf.getPage(0).getSize();
+  assert.ok(Math.abs(size.width-595.28)<1,'commercial invoice uses A4 width');
+  assert.ok(Math.abs(size.height-841.89)<1,'commercial invoice uses A4 height');
 });
 
 test('splits long item lists across pages without losing the total',async()=>{
