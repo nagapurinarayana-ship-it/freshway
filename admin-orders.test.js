@@ -45,19 +45,23 @@ assert.match(js,/f\.from&&f\.to&&f\.from>f\.to/);
 assert.match(js,/min!==null&&max!==null&&min>max/);
 assert.match(js,/syncOrderFilterSummary/);
 
-// The Overview "New orders" KPI must take the Owner to the oldest pending order,
-// clear unrelated filters, and scroll that order card into view without changing
-// how the other KPI cards navigate.
+// Dashboard shortcuts clear unrelated filters and show the newest matching orders.
 assert.match(js,/kpi\('New orders',[\s\S]*?'first-new-order'\)/);
 assert.match(js,/data-kpi-action="\$\{action\}"/);
-assert.match(js,/async function openFirstNewOrder\(\)/);
-assert.match(js,/\$\('#orderStatus'\)\.value='New'/);
-assert.match(js,/\$\('#orderSort'\)\.value='oldest'/);
+assert.match(js,/function openFirstNewOrder\(\)/);
+assert.match(js,/status:'New',sort:'newest'/);
+assert.match(js,/\$\('#orderSort'\)\.value=sort/);
+assert.match(js,/status:'Processing',sort:'newest'/);
+assert.match(js,/processing-orders/);
+assert.match(js,/today-deliveries/);
+assert.match(js,/pending-cash/);
+assert.match(lifecycle,/if\(!nextTest&&destination&&destination\.getAttribute\('aria-selected'\)!=='true'\)destination\.click\(\)/,'moving an order to Test Orders must not auto-select that tab');
+assert.doesNotMatch(lifecycle,/if\(destination&&destination\.getAttribute\('aria-selected'\)!=='true'\)destination\.click\(\)/,'classification must not auto-select Test Orders');
 assert.match(js,/navigateAdminScreen\('orders',\{historyMode:'push',deferOrdersLoad:true\}\)/);
 assert.match(js,/target\.scrollIntoView\(\{behavior:'smooth',block:'center'\}\)/);
 assert.match(js,/while\(\(orderLoading\|\|orderLoadPending\)&&waitCount<120\)/,'New-orders shortcut must wait for an in-flight or queued order-list request before scrolling');
 assert.match(js,/Orders are still loading\. Please try again\./,'Slow loading must not be reported as an empty queue');
-assert.match(js,/Could not find the first pending order\. Refresh Orders and try again\./,'A load failure must not be reported as no pending orders');
+assert.match(js,/Could not find the matching orders\. Refresh Orders and try again\./,'A load failure must not be reported as no pending orders');
 
 assert.match(js,/data-kpi-action="first-new-order"/);
 assert.match(js,/function navigateAdminScreen\(id,\{historyMode='push',deferOrdersLoad=false\}=\{\}\)/);
@@ -85,13 +89,13 @@ assert.match(css,/\.order-map-row/);
 assert.match(css,/\.order-map-status/);
 assert.match(css,/\.order-map-link/);
 assert.ok(html.includes('admin.css?v=20261027-delivery-offers-v2'),'Owner HTML must load the compact location-row styles');
-assert.ok(html.includes('admin.js?v=20261028-nav-refresh-v1'),'Owner HTML must load the cleaned order details');
+assert.ok(html.includes('admin.js?v=20261029-order-shortcuts-v1'),'Owner HTML must load the cleaned order details');
 const ownerSw=fs.readFileSync('admin/sw.js','utf8');
-assert.ok(ownerSw.includes('fw-owner-v55'),'Owner PWA cache must advance for updated order detail assets');
-assert.ok(html.includes('owner-lifecycle.js?v=20261027-owner-delivery-date-v1'),'Owner HTML must load the cache-busted map fix');
-assert.ok(ownerSw.includes('/admin/owner-lifecycle.js?v=20261027-owner-delivery-date-v1'),'Owner PWA shell must cache the map fix');
+assert.ok(ownerSw.includes('fw-owner-v56'),'Owner PWA cache must advance for updated order detail assets');
+assert.ok(html.includes('owner-lifecycle.js?v=20261029-test-order-manual-tab-v1'),'Owner HTML must load the cache-busted map fix');
+assert.ok(ownerSw.includes('/admin/owner-lifecycle.js?v=20261029-test-order-manual-tab-v1'),'Owner PWA shell must cache the map fix');
 assert.ok(ownerSw.includes('/admin/admin.css?v=20261027-delivery-offers-v2'),'Owner PWA shell must cache the current Owner CSS');
-assert.ok(ownerSw.includes('/admin/admin.js?v=20261028-nav-refresh-v1'),'Owner PWA shell must cache the current Owner JS');
+assert.ok(ownerSw.includes('/admin/admin.js?v=20261029-order-shortcuts-v1'),'Owner PWA shell must cache the current Owner JS');
 assert.ok(html.includes('frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1'),'Owner HTML must load the login-aware push setup');
 assert.ok(ownerSw.includes('/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1'),'Owner PWA shell must cache the login-aware push setup');
 
