@@ -22,6 +22,7 @@ assert.equal(nodes.cartBar.classList.hidden,false);
 assert.equal(document.documentElement.classList['fw-cart-bar-visible'],true);
 assert.equal(nodes.checkoutTotal.textContent,'₹849','cart subtotal updates must never overwrite the authoritative checkout payable total');
 ordersView.classList.active=true;
+homeView.classList.active=false;
 api.update(document,{count:2,total:240,money:n=>`₹${n}`});
 assert.equal(nodes.cartBar.classList.hidden,true,'floating cart bar must stay hidden on My Orders');
 assert.equal(document.documentElement.classList['fw-cart-bar-visible'],false,'My Orders must not reserve screen space for the hidden cart bar');
