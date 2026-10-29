@@ -893,6 +893,26 @@ test('captures responsive customer visual review snapshots', async ({ page }) =>
   await expect(page.locator('#homeView')).toHaveClass(/active-view/);
   await capture('desktop-home');
 
+  await page.locator('[data-fw-category="cat-rice"]').click();
+  await expect(page.locator('#productGrid .product-card')).toContainText('Basmati Rice');
+  const desktopCardLayout = await page.locator('#productGrid .product-card').first().evaluate(card => {
+    const cardRect = card.getBoundingClientRect();
+    const controls = card.querySelector('.product-action-control .qty-control');
+    const controlRect = controls?.getBoundingClientRect();
+    return {
+      cardBottom: cardRect.bottom,
+      controlBottom: controlRect?.bottom ?? 0,
+      controlHeight: controlRect?.height ?? 0,
+      controlVisible: !!controlRect && controlRect.width > 0 && controlRect.height > 0,
+      cardWidth: cardRect.width
+    };
+  });
+  expect(desktopCardLayout.cardWidth, 'desktop catalogue cards should use the wide-screen grid').toBeGreaterThan(220);
+  expect(desktopCardLayout.controlVisible, 'desktop quantity control should be visible').toBe(true);
+  expect(desktopCardLayout.controlBottom, 'desktop quantity control should not be clipped').toBeLessThanOrEqual(desktopCardLayout.cardBottom + 1);
+  await capture('desktop-products');
+  await page.locator('#fwCategoryBack button').click();
+
   await page.evaluate(() => window.setView('cart'));
   await expect(page.locator('#cartView')).toHaveClass(/active-view/);
   await capture('desktop-cart');
