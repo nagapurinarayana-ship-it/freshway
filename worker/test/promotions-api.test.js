@@ -137,7 +137,7 @@ test('allows a legacy banner with missing alt text to be hidden without rewritin
   const env=makeEnv([promotion({id:'legacy-empty',alt_text:'',active:1})]);
   const response=await handlePromotionRequest(request('/api/admin/promotions/legacy-empty','PATCH',{active:false}),env);
   assert.equal(response.status,200);
-  assert.equal(env.records[0].active,false);
+  assert.equal(env.records[0].active,0);
   assert.equal(env.records[0].alt_text,'');
   assert.equal(env.writes.update,1);
 });
