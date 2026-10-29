@@ -12,10 +12,10 @@
     if(item)item.textContent=`${n} ${n===1?'item':'items'}`;
     if(totalEl)totalEl.textContent=money(value);
     if(badge){badge.textContent=n;if(typeof badge.setAttribute==='function')badge.setAttribute('aria-label',`${n} ${n===1?'item':'items'} in cart`);badge.classList.toggle('hidden',!n)}
-    const ordersActive=!!document.querySelector('#ordersView.active-view');
-    const checkoutActive=!!document.querySelector('#checkoutView.active-view');
-    const cartActive=!!document.querySelector('#cartView.active-view');
-    const showBar=n>0&&!ordersActive&&!checkoutActive&&!cartActive;
+    // The floating checkout shortcut belongs on the shopping screen only.
+    // On About, Contact, Profile and Messages it can obscure forms and page content.
+    const homeActive=!!document.querySelector('#homeView.active-view');
+    const showBar=n>0&&homeActive;
     if(bar){bar.classList.toggle('hidden',!showBar);document.documentElement.classList.toggle('fw-cart-bar-visible',showBar)}
   };
   window.FreshWayCustomerCartBar=Object.freeze({update});
