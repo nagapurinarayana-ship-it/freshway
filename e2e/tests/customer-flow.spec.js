@@ -63,6 +63,23 @@ test.beforeEach(async ({ page }) => {
       });
     }
 
+    if (url.pathname === '/api/store-profile' && method === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ storeProfile: {
+          storeName: 'FreshWay Test Store',
+          address: '12 Example Market, Test Colony, Hyderabad, Telangana 500001',
+          phone: '9000000000',
+          whatsapp: '9000000000',
+          email: 'privacy@example.test',
+          about: 'Fresh groceries and everyday essentials, selected for quality and delivered locally with care.',
+          businessHours: 'Monday–Saturday, 9:00 AM–7:00 PM',
+          deliveryInfo: 'Local delivery slots are confirmed during checkout. Delivery availability depends on your address.'
+        } })
+      });
+    }
+
     if (url.pathname === '/api/categories' && method === 'GET') {
       return route.fulfill({
         status: 200,
