@@ -142,6 +142,19 @@ test('allows a legacy banner with missing alt text to be hidden without rewritin
   assert.equal(env.writes.update,1);
 });
 
+test('allows a legacy duplicate-description banner to be hidden without rewriting the shared text',async()=>{
+  const shared='Buy 5ltr get ₹150 off';
+  const env=makeEnv([
+    promotion({id:'legacy-duplicate',alt_text:shared,active:1}),
+    promotion({id:'other-duplicate',alt_text:shared,active:1,display_order:2})
+  ]);
+  const response=await handlePromotionRequest(request('/api/admin/promotions/legacy-duplicate','PATCH',{active:false}),env);
+  assert.equal(response.status,200);
+  assert.equal(env.records[0].active,0);
+  assert.equal(env.records[0].alt_text,shared);
+  assert.equal(env.writes.update,1);
+});
+
 test('prevents a duplicated legacy description from being reactivated until corrected',async()=>{
   const shared='Buy 5ltr get ₹150 off';
   const env=makeEnv([
