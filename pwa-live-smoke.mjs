@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 const BASE_URL = process.env.BASE_URL || 'https://freshway-f32.pages.dev';
 const VIEWPORT_STYLES_PATH = '/styles.css?v=20261027-delivery-offers-v1';
-const CUSTOMER_APP_PATH = '/app.js?v=20261029-cart-persist-refresh-v1';
+const CUSTOMER_APP_PATH = '/app.js?v=102';
 const INTERMEDIATE_CUSTOMER_APP_PATH = '/app.js?v=20261027-customer-messages-v1';
 const LEGACY_CUSTOMER_APP_PATH = '/app.js?v=20261027-cancel-refresh-v1';
 const SUPPORTED_CUSTOMER_APP_PATHS = [CUSTOMER_APP_PATH, INTERMEDIATE_CUSTOMER_APP_PATH, LEGACY_CUSTOMER_APP_PATH];
