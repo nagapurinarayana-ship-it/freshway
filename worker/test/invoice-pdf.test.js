@@ -6,6 +6,12 @@ import { createInvoicePdf, formatInvoicePhone, formatSellerPhone } from '../src/
 
 const invoicePdfSource = readFileSync(new URL('../src/invoice-pdf.js', import.meta.url), 'utf8');
 
+function saveVisualSample(name, bytes) {
+  if (process.env.FRESHWAY_VISUAL_ARTIFACTS !== '1') return;
+  mkdirSync('test-results/visual-review', { recursive: true });
+  writeFileSync('test-results/visual-review/' + name, bytes);
+}
+
 function fixture(overrides={}){
   const item={
     productId:'oil-1',name:'Groundnut Oil',unit:'litre',qty:2,
@@ -71,10 +77,7 @@ test('commercial invoices show only verified pricing breakdowns and keep histori
 
 test('creates a valid one-page commercial invoice PDF',async()=>{
   const bytes=await createInvoicePdf(fixture());
-  if (process.env.FRESHWAY_VISUAL_ARTIFACTS === '1') {
-    mkdirSync('test-results/visual-review', { recursive: true });
-    writeFileSync('test-results/visual-review/commercial-invoice.pdf', bytes);
-  }
+  saveVisualSample('commercial-invoice.pdf', bytes);
   assert.ok(bytes instanceof Uint8Array);
   assert.ok(bytes.length>500);
   assert.equal(new TextDecoder().decode(bytes.slice(0,5)),'%PDF-');
@@ -86,6 +89,29 @@ test('creates a valid one-page commercial invoice PDF',async()=>{
   assert.ok(Math.abs(size.height-841.89)<1,'commercial invoice uses A4 height');
 });
 
+test('creates a realistic commercial invoice visual sample with long addresses, fixed coupon, delivery fee and collected payment',async()=>{
+  const base=fixture();
+  const invoice=fixture({
+    seller:{...base.seller,address:'Shop No. 12, Sri Sai Commercial Complex, Old Market Road, Main Bazaar, Nennel Mandal, Mancherial District, Telangana 504204'},
+    buyer:{...base.buyer,name:'Sample Customer',phone:'919876543210',deliveryPhone:'9876543210',paymentStatus:'collected',address:{
+      house:'Plot 21, Flat 403',building:'Lakshmi Residency',floor:'Fourth Floor',street:'Road No. 4',
+      area:'Green Valley Layout',locality:'Near Government School',city:'Hyderabad',district:'Medchal-Malkajgiri',
+      state:'Telangana',pincode:'500081',landmark:'Opposite the community health centre, beside the water tank',
+      recipientName:'Delivery Recipient'
+    }},
+    items:[
+      {...base.items[0],productId:'oil-5l',name:'Groundnut Oil',unit:'5 litre can',qty:1,unitPricePaise:165000,grossPaise:165000,taxablePaise:165000},
+      {...base.items[0],productId:'rice-1kg',name:'Basmati Rice',unit:'1 kg bag',qty:2,unitPricePaise:10000,grossPaise:20000,taxablePaise:20000}
+    ],
+    totals:{grossPaise:185000,itemsSubtotalPaise:185000,couponDiscountPaise:5000,couponCode:'FIXED50',deliveryFeePaise:3000,totalPaise:183000,taxablePaise:185000,cgstPaise:0,sgstPaise:0,igstPaise:0,currency:'INR',pricesIncludeTax:true,pricingBreakdownKnown:true}
+  });
+  const bytes=await createInvoicePdf(invoice);
+  saveVisualSample('commercial-invoice-pricing-payment.pdf',bytes);
+  const pdf=await PDFDocument.load(bytes);
+  assert.equal(pdf.getPageCount(),1,'the normal multi-item invoice with longer Indian addresses should fit on one A4 page');
+  assert.ok(bytes.length>1000);
+});
+
 test('splits long item lists across pages without losing the total',async()=>{
   const items=Array.from({length:80},(_,i)=>({
     productId:'item-'+i,name:'FreshWay grocery product '+String(i+1).padStart(2,'0'),
@@ -95,9 +121,10 @@ test('splits long item lists across pages without losing the total',async()=>{
   const gross=items.reduce((sum,item)=>sum+item.grossPaise,0);
   const invoice=fixture({
     items,
-    totals:{grossPaise:gross,taxablePaise:gross,cgstPaise:0,sgstPaise:0,igstPaise:0,totalPaise:gross,currency:'INR',pricesIncludeTax:true}
+    totals:{grossPaise:gross,itemsSubtotalPaise:gross,couponDiscountPaise:0,deliveryFeePaise:3000,taxablePaise:gross,cgstPaise:0,sgstPaise:0,igstPaise:0,totalPaise:gross+3000,currency:'INR',pricesIncludeTax:true,pricingBreakdownKnown:true}
   });
   const bytes=await createInvoicePdf(invoice);
+  saveVisualSample('commercial-invoice-multipage.pdf',bytes);
   const pdf=await PDFDocument.load(bytes);
   assert.ok(pdf.getPageCount()>1);
   assert.ok(bytes.length>1500);
