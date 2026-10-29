@@ -51,6 +51,8 @@ test('uses a branded invoice hierarchy and preserves payment and seller details'
   assert.match(invoicePdfSource,/ISSUED BY/);
   assert.match(invoicePdfSource,/BILL TO \/ DELIVER TO/);
   assert.match(invoicePdfSource,/Tax Number:/);
+  assert.ok(invoicePdfSource.includes('wrap(value,regular,8,colWidth-22)).slice(0,12)'), 'seller and delivery details use readable 8pt text and retain up to 12 wrapped lines');
+  assert.ok(invoicePdfSource.includes('Math.max(118,Math.min(168,42+Math.max(sellerLines.length,buyerLines.length)*10.5))'), 'billing panels grow for longer addresses instead of clipping them into a fixed-height box');
   assert.match(invoicePdfSource,/invoice\.seller\.gstin\?'Tax Number: '\+invoice\.seller\.gstin:''/);
   assert.match(invoicePdfSource,/Cash Received:/);
   assert.match(invoicePdfSource,/Change Amount:/);
