@@ -1215,3 +1215,27 @@ body.fw-category-selected #app .product-action-control > .qty-control span {
     flex: 0 0 42px;
   }
 }
+
+/* Keep long account and address dialogs usable on short desktop and mobile viewports. */
+.modal {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: max(12px, env(safe-area-inset-top, 0px)) 0 0;
+}
+.modal-sheet {
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+@media (min-width: 700px) {
+  .modal {
+    align-items: center;
+    padding: 16px;
+  }
+  .modal-sheet {
+    border-radius: 22px;
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+  }
+}
