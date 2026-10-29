@@ -281,7 +281,8 @@ jobs:
           test "$(wc -c < app.js)" -le 13000
           test "$(wc -c < frontend/customer/pwa-install.js)" -le 8000
           test "$(wc -c < frontend/customer/seo.js)" -le 6000
-          test "$(wc -c < sw.js)" -le 7000
+          # The checkout delivery picker is now included in the offline app shell.
+          test "$(wc -c < sw.js)" -le 7100
           echo 'Critical frontend asset budgets OK'
 
       - name: Check customer module wiring
