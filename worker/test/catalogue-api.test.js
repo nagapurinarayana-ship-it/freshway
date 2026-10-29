@@ -144,7 +144,7 @@ test('public product catalogue returns image URLs without embedding Base64 image
   const response = await handleCatalogueRequest(new Request('https://api.example.test/api/products'), fixture.env);
   assert.equal(response.status, 200);
   const body = await response.json();
-  assert.match(body.products[0].image_url, /^\/api\/catalogue\/images\/products\/p-1\?v=/);
+  assert.match(body.products[0].image_url, /^\/api\/catalogue\/images\/products\/p-1\?v=[a-f0-9]{64}$/);
   assert.equal(Object.hasOwn(body.products[0], 'image_data'), false);
   assert.equal(Object.hasOwn(body.products[0], 'image_mime_type'), false);
   assert.doesNotMatch(fixture.lastSql, /p\.image_data\s*,\s*p\.image_mime_type/);
@@ -160,7 +160,7 @@ test('public category catalogue returns image URLs and avoids grouping on Base64
   const response = await handleCatalogueRequest(new Request('https://api.example.test/api/categories'), fixture.env);
   assert.equal(response.status, 200);
   const body = await response.json();
-  assert.match(body.categories[0].image_url, /^\/api\/catalogue\/images\/categories\/cat-1\?v=/);
+  assert.match(body.categories[0].image_url, /^\/api\/catalogue\/images\/categories\/cat-1\?v=[a-f0-9]{64}$/);
   assert.equal(Object.hasOwn(body.categories[0], 'image_data'), false);
   assert.equal(Object.hasOwn(body.categories[0], 'image_mime_type'), false);
   assert.doesNotMatch(fixture.lastSql, /GROUP BY[^;]*c\.image_data/i);
@@ -191,10 +191,13 @@ test('immutable image URL version changes when image content changes but its out
     stock_quantity: 0, low_stock_threshold: 5, category_name: 'Oils', category_slug: 'oils'
   });
   const before = imageEnv(makeRow('AAAA-middle-BBBB'));
-  const after = imageEnv(makeRow('AAAA-changed-BBBB'));
+  const after = imageEnv(makeRow('AAAA-middlx-BBBB'));
   const beforeResponse = await handleCatalogueRequest(new Request('https://api.example.test/api/products'), before.env);
   const afterResponse = await handleCatalogueRequest(new Request('https://api.example.test/api/products'), after.env);
   const beforeUrl = (await beforeResponse.json()).products[0].image_url;
   const afterUrl = (await afterResponse.json()).products[0].image_url;
   assert.notEqual(beforeUrl, afterUrl, 'different image bytes must never share an immutable URL version');
+  assert.match(beforeUrl, /\\?v=[a-f0-9]{64}$/);
+  assert.ok(beforeUrl.length < 150, 'immutable image URL should remain compact, not embed Base64 data');
+  assert.equal(makeRow('AAAA-middle-BBBB').image_length, makeRow('AAAA-middlx-BBBB').image_length);
 });
