@@ -130,7 +130,7 @@ async function createReceiptPdf(invoice){
 
   const footer=()=>{
     line(page,MARGIN,43,PAGE_W-MARGIN,43,LINE,0.7);
-    drawText(page,'FreshWay | '+(invoice.seller.footer||'Thank you for shopping with FreshWay.'),MARGIN,29,7,regular,MUTED);
+    drawText(page,'FreshWay | Commercial invoice - order record',MARGIN,29,7,regular,MUTED);
     drawRight(page,'Page '+pageNo,PAGE_W-MARGIN,29,7,regular,MUTED);
   };
   const newPage=(continued=false)=>{
@@ -262,23 +262,13 @@ async function createReceiptPdf(invoice){
   drawAmountRight(page,0,PAGE_W-MARGIN-12,y-42,8.4,regular,INK);
   y-=paymentBoxHeight+13;
 
-  const sellerDetails=[
-    sellerName,
-    invoice.seller.address?'Address: '+invoice.seller.address:'',
-    invoice.seller.gstin?'Tax Number: '+invoice.seller.gstin:'',
-    sellerPhone?'Contact Us: '+sellerPhone:''
-  ].filter(Boolean);
-  const sellerTextLines=sellerDetails.flatMap(value=>wrap(value,regular,7.3,contentWidth-22)).slice(0,6);
-  const detailsHeight=22+sellerTextLines.length*9.5;
-  rect(page,MARGIN,y-detailsHeight,contentWidth,detailsHeight,WHITE);
-  line(page,MARGIN,y,PAGE_W-MARGIN,y,LINE,0.7);
-  drawText(page,'SELLER DETAILS',MARGIN+10,y-13,6.8,bold,GREEN);
-  let detailY=y-26;
-  for(const value of sellerTextLines){
-    drawText(page,value,MARGIN+10,detailY,7.3,regular,INK);
-    detailY-=9.5;
-  }
-  y-=detailsHeight+8;
+  const noteText='Commercial invoice / order record. '+(invoice.seller.footer||'Thank you for shopping with FreshWay.');
+  const noteLines=wrap(noteText,regular,7.6,contentWidth-22).slice(0,2);
+  const noteHeight=23+noteLines.length*10;
+  rect(page,MARGIN,y-noteHeight,contentWidth,noteHeight,PALE);
+  drawText(page,'DOCUMENT NOTE',MARGIN+10,y-13,6.8,bold,GREEN);
+  noteLines.forEach((value,index)=>drawText(page,value,MARGIN+10,y-26-index*10,7.6,regular,INK));
+  y-=noteHeight+8;
   return await doc.save();
 }
 
