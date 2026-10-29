@@ -666,3 +666,209 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+
+/* Detail screens: messages, receipts, cart rows, confirmation and order addresses. */
+#app .fw-customer-messages-intro {
+  margin: 6px 0 16px;
+}
+#app .fw-customer-messages-intro p {
+  flex: 1 1 240px;
+  color: var(--fw-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+#app .fw-customer-message {
+  padding: 18px;
+  margin: 14px 0;
+  border-color: var(--fw-line);
+  border-radius: 19px;
+  box-shadow: var(--fw-shadow-card);
+}
+#app .fw-customer-message.is-unread {
+  border-color: #7bbd95;
+  box-shadow: 0 0 0 2px rgba(15, 122, 75, .07), var(--fw-shadow-card);
+}
+#app .fw-customer-message-head {
+  align-items: flex-start;
+  gap: 12px;
+}
+#app .fw-customer-message-head strong {
+  color: var(--fw-ink);
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 750;
+  letter-spacing: -.02em;
+}
+#app .fw-customer-message-head small,
+#app .fw-customer-message-reply small {
+  display: block;
+  font-size: 12px;
+  line-height: 1.4;
+}
+#app .fw-customer-message-status {
+  padding: 6px 9px;
+  font-size: 11px;
+  line-height: 1.25;
+  font-weight: 750;
+}
+#app .fw-customer-message-body {
+  margin: 14px 0 0;
+  color: #35483c;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+#app .fw-customer-message-reply {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid #deece2;
+  border-radius: 14px;
+  background: #f5faf6;
+}
+#app .fw-customer-message-reply strong {
+  font-size: 13px;
+  line-height: 1.4;
+}
+#app .fw-customer-message-reply p,
+#app .fw-customer-message-waiting {
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+#app .fw-promo-controls {
+  padding-top: 6px;
+  padding-bottom: 8px;
+}
+#app .fw-promo-dot {
+  min-width: 7px;
+  min-height: 7px;
+}
+#app .fw-promo-dot.active {
+  min-width: 18px;
+}
+#app .fw-promo-hint {
+  font-size: 10px;
+  line-height: 1.2;
+  padding: 6px 8px;
+}
+#app .empty {
+  padding: 36px 22px;
+  border-color: #d5e2d9;
+  border-radius: 20px;
+  color: var(--fw-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+#app .empty > strong {
+  margin: 7px 0 5px;
+  color: var(--fw-ink);
+  font-size: 17px;
+  line-height: 1.35;
+  font-weight: 760;
+}
+#app .empty p {
+  margin: 8px 0 0;
+  color: var(--fw-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+#app .empty .primary-btn,
+#app .empty .secondary-btn {
+  margin-top: 16px;
+}
+#app .muted {
+  color: var(--fw-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+#app .address-block {
+  margin: 12px 0;
+  padding: 12px 13px;
+  border: 1px solid #e3ebe5;
+  border-radius: 13px;
+  color: #536359;
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+#app .invoice-actions {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--fw-line);
+}
+#app .invoice-download-btn {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 7px 9px;
+  align-items: center;
+  justify-content: center;
+}
+#app .invoice-download-btn small {
+  flex: 0 0 100%;
+  color: var(--fw-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 550;
+  text-align: center;
+}
+#app .fw-confirmation-pricing,
+#app .fw-order-pricing {
+  display: grid;
+  gap: 9px;
+  padding: 15px;
+  margin: 14px 0;
+  border: 1px solid #dfeae2;
+  border-radius: 16px;
+  background: #f8fbf8;
+  color: var(--fw-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+#app .fw-confirmation-pricing > div,
+#app .fw-order-pricing > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+#app .fw-confirmation-pricing strong,
+#app .fw-order-pricing strong {
+  color: var(--fw-ink);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+#app .fw-confirmation-pricing > div:last-child,
+#app .fw-order-pricing > div:last-child {
+  padding-top: 10px;
+  border-top: 1px solid #dbe6de;
+}
+#app .fw-confirmation-pricing > div:last-child strong,
+#app .fw-order-pricing > div:last-child strong {
+  color: var(--fw-green-deep);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+#app .cart-product-title {
+  color: var(--fw-ink);
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 750;
+}
+#app .stock-cart-warning {
+  color: #8c5900;
+  font-size: 12px;
+  line-height: 1.5;
+}
+#app .toast {
+  max-width: min(520px, calc(100vw - 28px));
+  padding: 12px 16px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.4;
+  box-shadow: 0 8px 26px rgba(9, 29, 20, .18);
+}
