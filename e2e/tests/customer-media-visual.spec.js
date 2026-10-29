@@ -95,8 +95,8 @@ test('customer visual review: bundled category and product art plus decoded prom
   await capture('mobile-home-media-fixture');
 
   await page.locator('[data-fw-category="cat-oils"]').click();
-  const oilImages = page.locator('#productGrid .product-card .product-image img');
-  await expect(page.locator('#productGrid .product-card')).toHaveCount(2);
+  const oilImages = page.locator('#productGrid .product-card:visible .product-image img');
+  await expect(page.locator('#productGrid .product-card:visible')).toHaveCount(2);
   await expect(oilImages).toHaveCount(2);
   await oilImages.first().scrollIntoViewIfNeeded();
   await decoded(oilImages);
@@ -115,7 +115,7 @@ test('customer visual review: bundled category and product art plus decoded prom
   await capture('desktop-home-media-fixture');
 
   await page.locator('[data-fw-category="cat-rice"]').click();
-  const riceImages = page.locator('#productGrid .product-card .product-image img');
+  const riceImages = page.locator('#productGrid .product-card:visible .product-image img');
   await expect(page.locator('#productGrid .product-card')).toHaveCount(2);
   await expect(riceImages).toHaveCount(2);
   await riceImages.first().scrollIntoViewIfNeeded();
