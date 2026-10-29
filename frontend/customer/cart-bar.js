@@ -1,5 +1,5 @@
 // Customer cart-bar boundary.
-// Owns only cart summary DOM updates; cart calculations remain in catalogue-cart.
+// Owns cart-count/floating-bar UI only. Checkout payable totals belong to the server quote.
 (function(){
   const update=(document,{count,total,money})=>{
     if(!document||typeof money!=='function')return;
@@ -9,7 +9,6 @@
     const totalEl=document.querySelector('#cartTotal');
     const badge=document.querySelector('#cartBadge');
     const bar=document.querySelector('#cartBar');
-    const checkoutTotal=document.querySelector('#checkoutTotal');
     if(item)item.textContent=`${n} ${n===1?'item':'items'}`;
     if(totalEl)totalEl.textContent=money(value);
     if(badge){badge.textContent=n;if(typeof badge.setAttribute==='function')badge.setAttribute('aria-label',`${n} ${n===1?'item':'items'} in cart`);badge.classList.toggle('hidden',!n)}
@@ -18,7 +17,6 @@
     const cartActive=!!document.querySelector('#cartView.active-view');
     const showBar=n>0&&!ordersActive&&!checkoutActive&&!cartActive;
     if(bar){bar.classList.toggle('hidden',!showBar);document.documentElement.classList.toggle('fw-cart-bar-visible',showBar)}
-    if(checkoutTotal)checkoutTotal.textContent=money(value);
   };
   window.FreshWayCustomerCartBar=Object.freeze({update});
 })();

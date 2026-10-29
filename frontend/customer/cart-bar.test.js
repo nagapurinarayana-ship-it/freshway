@@ -10,6 +10,7 @@ const ordersView={classList:{active:false,contains(name){return name==='active-v
 const checkoutView={classList:{active:false,contains(name){return name==='active-view'&&this.active}}};
 const cartView={classList:{active:false,contains(name){return name==='active-view'&&this.active}}};
 for(const id of ['cartCount','cartTotal','cartBadge','cartBar','checkoutTotal'])nodes[id]={textContent:'',classList:{hidden:false,toggle(name,value){this[name]=value}}};
+nodes.checkoutTotal.textContent='₹849'; // authoritative server quote: subtotal ₹799 + fee ₹100 - coupon ₹50
 const document={documentElement:{classList:{toggle(name,value){this[name]=value}}},querySelector(selector){if(selector==='#ordersView.active-view')return ordersView.classList.active?ordersView:null;if(selector==='#checkoutView.active-view')return checkoutView.classList.active?checkoutView:null;if(selector==='#cartView.active-view')return cartView.classList.active?cartView:null;return nodes[selector.slice(1)]||null}};
 api.update(document,{count:2,total:240,money:n=>`₹${n}`});
 assert.equal(nodes.cartCount.textContent,'2 items');
@@ -18,7 +19,7 @@ assert.equal(nodes.cartBadge.textContent,2);
 assert.equal(nodes.cartBadge.classList.hidden,false);
 assert.equal(nodes.cartBar.classList.hidden,false);
 assert.equal(document.documentElement.classList['fw-cart-bar-visible'],true);
-assert.equal(nodes.checkoutTotal.textContent,'₹240');
+assert.equal(nodes.checkoutTotal.textContent,'₹849','cart subtotal updates must never overwrite the authoritative checkout payable total');
 ordersView.classList.active=true;
 api.update(document,{count:2,total:240,money:n=>`₹${n}`});
 assert.equal(nodes.cartBar.classList.hidden,true,'floating cart bar must stay hidden on My Orders');
