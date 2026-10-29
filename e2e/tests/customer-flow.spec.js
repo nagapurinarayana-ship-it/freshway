@@ -866,6 +866,7 @@ test('captures responsive customer visual review snapshots', async ({ page }) =>
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await expect(page.locator('#productGrid .product-card')).toContainText('Basmati Rice');
+  await expect(page.locator('#cartBar')).toBeVisible();
   await capture('mobile-home');
 
   await page.locator('[data-fw-category="cat-rice"]').click();
@@ -910,6 +911,7 @@ test('captures responsive customer visual review snapshots', async ({ page }) =>
   await expect(page.locator('#aboutContent .store-about-hero')).toBeVisible();
   await expect(page.locator('#aboutContent .store-info-about')).toContainText('Fresh groceries and everyday essentials');
   await expect(page.locator('#aboutContent .store-contact-cta')).toBeVisible();
+  await expect(page.locator('#cartBar')).toBeHidden();
   await capture('mobile-about');
 
   await page.evaluate(() => window.setView('contact'));
@@ -919,6 +921,7 @@ test('captures responsive customer visual review snapshots', async ({ page }) =>
   await expect(page.locator('#contactContent input[name="subject"]')).toBeVisible();
   await expect(page.locator('#contactContent textarea[name="message"]')).toBeVisible();
   await expect(page.locator('#contactContent .store-contact-actions')).toContainText('WhatsApp');
+  await expect(page.locator('#cartBar')).toBeHidden();
   await capture('mobile-contact');
 
   // Privacy Policy is a separate public page, so test the direct URL as well as its responsive content.
