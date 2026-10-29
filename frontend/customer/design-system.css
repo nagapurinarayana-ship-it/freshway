@@ -656,7 +656,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   }
 }
 @media (min-width: 560px) {
-  #app .app-shell {
+  #app.app-shell {
     border-left: 1px solid rgba(22, 58, 38, .045);
     border-right: 1px solid rgba(22, 58, 38, .045);
     box-shadow: 0 0 36px rgba(22, 58, 38, .035);
