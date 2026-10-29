@@ -154,7 +154,7 @@ async function createReceiptPdf(invoice){
     const meta=[
       ['INVOICE DATE',dateTimeText(invoice.issueDate)],
       ['ORDER REFERENCE',invoice.orderId],
-      ['CUSTOMER PHONE',customerPhone||'Not provided']
+      ['ITEM COUNT',String(totalItems)+' item'+(totalItems===1?'':'s')]
     ];
     meta.forEach((entry,index)=>{
       const x=MARGIN+index*(cardWidth+cardGap);
@@ -176,7 +176,7 @@ async function createReceiptPdf(invoice){
       invoice.seller.address?'Address: '+invoice.seller.address:'',
       invoice.seller.gstin?'Tax Number: '+invoice.seller.gstin:'',
       sellerPhone?'Contact Us: '+sellerPhone:''
-    ].filter(Boolean).flatMap(value=>wrap(value,bold===regular?regular:regular,7.1,colWidth-22)).slice(0,6);
+    ].filter(Boolean).flatMap(value=>wrap(value,regular,7.1,colWidth-22)).slice(0,6);
     let sy=boxTop-29;
     for(const value of sellerLines){if(sy<boxTop-boxHeight+7)break;drawText(page,value,leftX+11,sy,7.1,regular,INK);sy-=9.5;}
 
@@ -185,7 +185,7 @@ async function createReceiptPdf(invoice){
     const deliveryPhone=formatInvoicePhone(address.deliveryPhone||buyer.deliveryPhone);
     const contactText=[
       buyer.name||customerName,
-      customerPhone?'Customer: '+customerPhone:'',
+      customerPhone?'Customer Phone: '+customerPhone:'',
       address.recipientName&&address.recipientName!==customerName?'Recipient: '+address.recipientName:'',
       deliveryPhone&&deliveryPhone!==customerPhone?'Delivery: '+deliveryPhone:'',
       addressText
