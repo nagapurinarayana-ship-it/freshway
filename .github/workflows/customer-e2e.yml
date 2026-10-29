@@ -75,3 +75,12 @@ jobs:
 
       - name: Run customer browser E2E
         run: npm test
+
+      - name: Upload responsive visual review screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: freshway-customer-visual-review
+          path: e2e/test-results/visual-review/*
+          if-no-files-found: warn
+          retention-days: 7

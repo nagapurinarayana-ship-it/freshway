@@ -1,6 +1,8 @@
 const MAX_IMAGE_DATA=900000;
 const ALLOWED_IMAGE_MIME=new Set(['image/png','image/jpeg','image/webp']);
 const clean=(v,max)=>String(v??'').trim().slice(0,max);
+const normalizeAltText=value=>String(value??'').normalize('NFKC').trim().replace(/\s+/g,' ').toLocaleLowerCase('en');
+const GENERIC_ALT_TEXT=new Set(['image','image preview','banner','offer','promo','promotion','promotion preview','promotion image','freshway promotion']);
 const id=()=>`promo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
 
 const json=(data,status=200)=>new Response(JSON.stringify(data),{
@@ -18,17 +20,34 @@ function imageFields(payload){
   return{imageData:data,imageMimeType:mime};
 }
 
-function validPayload(payload,current={}){
+function isUsefulAltText(value){
+  const normalized=normalizeAltText(value);
+  return normalized.length>=3&&!GENERIC_ALT_TEXT.has(normalized);
+}
+
+function validPayload(payload,current={},options={}){
   const image=imageFields({
     imageData:payload.imageData===undefined?current.image_data:payload.imageData,
     imageMimeType:payload.imageMimeType===undefined?current.image_mime_type:payload.imageMimeType
   });
-  const alt=clean(payload.altText===undefined?current.alt_text:payload.altText,160);
+  const alt=clean(payload.altText===undefined?current.alt_text:payload.altText,160).replace(/\s+/g,' ');
   const order=Number(payload.displayOrder===undefined?current.display_order:payload.displayOrder);
   const active=payload.active===undefined?Number(current.active??1)===1:payload.active===true||payload.active===1;
   if(!Number.isInteger(order)||order<1||order>99999)throw new Error('Promotion display order must be a positive whole number.');
   if(!image.imageData)throw new Error('Promotion image is required.');
+  if(!options.allowLegacyAltForHide&&!isUsefulAltText(alt)){
+    throw new Error('Enter a meaningful image description (at least 3 characters; not a generic label like “Promotion”).');
+  }
   return{...image,altText:alt,displayOrder:order,active};
+}
+
+async function assertUniqueAltText(env,altText,excludeId=''){
+  const normalized=normalizeAltText(altText);
+  const {results}=await env.DB.prepare(
+    'SELECT id,alt_text FROM home_promotions WHERE id<>?'
+  ).bind(excludeId).all();
+  const duplicate=(results||[]).find(row=>normalizeAltText(row.alt_text)===normalized);
+  if(duplicate)throw new Error('Each banner needs a unique image description. Change the wording so screen-reader users can distinguish this offer.');
 }
 
 async function promotions(env,includeHidden=false){
@@ -44,6 +63,7 @@ async function promotions(env,includeHidden=false){
 
 async function createPromotion(env,payload){
   const v=validPayload(payload);
+  await assertUniqueAltText(env,v.altText);
   const promotionId=id();
   await env.DB.prepare(
     'INSERT INTO home_promotions (id,image_data,image_mime_type,alt_text,display_order,active) VALUES (?,?,?,?,?,?)'
@@ -54,7 +74,14 @@ async function createPromotion(env,payload){
 async function updatePromotion(env,promotionId,payload){
   const current=await env.DB.prepare('SELECT * FROM home_promotions WHERE id=?').bind(promotionId).first();
   if(!current)throw new Error('Promotion not found.');
-  const v=validPayload(payload,current);
+  const hasAltText=Object.prototype.hasOwnProperty.call(payload,'altText');
+  const requestedActive=payload.active===undefined?Number(current.active??1)===1:payload.active===true||payload.active===1;
+  // Keep legacy banners manageable: an existing banner with a blank description
+  // can still be hidden without forcing an unrelated content edit. It cannot be
+  // saved through the form or activated until its description is corrected.
+  const allowLegacyAltForHide=!hasAltText&&!requestedActive;
+  const v=validPayload(payload,current,{allowLegacyAltForHide});
+  if(hasAltText||v.active)await assertUniqueAltText(env,v.altText,promotionId);
   await env.DB.prepare(
     'UPDATE home_promotions SET image_data=?,image_mime_type=?,alt_text=?,display_order=?,active=?,updated_at=CURRENT_TIMESTAMP WHERE id=?'
   ).bind(v.imageData,v.imageMimeType,v.altText,v.displayOrder,v.active?1:0,promotionId).run();

@@ -63,6 +63,23 @@ test.beforeEach(async ({ page }) => {
       });
     }
 
+    if (url.pathname === '/api/store-profile' && method === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ storeProfile: {
+          storeName: 'FreshWay Test Store',
+          address: '12 Example Market, Test Colony, Hyderabad, Telangana 500001',
+          phone: '9000000000',
+          whatsapp: '9000000000',
+          email: 'privacy@example.test',
+          about: 'Fresh groceries and everyday essentials, selected for quality and delivered locally with care.',
+          businessHours: 'Monday–Saturday, 9:00 AM–7:00 PM',
+          deliveryInfo: 'Local delivery slots are confirmed during checkout. Delivery availability depends on your address.'
+        } })
+      });
+    }
+
     if (url.pathname === '/api/categories' && method === 'GET') {
       return route.fulfill({
         status: 200,
@@ -830,4 +847,637 @@ test('refresh and browser back/forward restore the correct view without showing 
   await expect(page.locator('#profileView')).toHaveClass(/active-view/);
   await expect(page.locator('#homeView')).not.toHaveClass(/active-view/);
   expect(await page.evaluate(() => window.__freshwayLegacyHomeFlash || false)).toBe(false);
+});
+
+test('captures responsive customer visual review snapshots', async ({ page }) => {
+  const capture = async name => {
+    // Capture an actual viewport, not a stitched full-page image that can
+    // misplace sticky headers and fixed navigation during screenshot stitching.
+    await expect(page.locator('#toast')).not.toHaveClass(/show/);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({
+      path: `test-results/visual-review/${name}.png`,
+      fullPage: false,
+      animations: 'disabled'
+    });
+  };
+
+  // Mobile-first review: actual customer shell, product cards, cart, and checkout.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await expect(page.locator('#productGrid .product-card')).toContainText('Basmati Rice');
+  await expect(page.locator('#cartBar')).toBeHidden();
+  await capture('mobile-home');
+
+  await page.locator('[data-fw-category="cat-rice"]').click();
+  await page.locator('#productGrid .add-btn').click();
+  await expect(page.locator('#cartCount')).toHaveText('1 item');
+  const compactCardLayout = await page.locator('#productGrid .product-card').first().evaluate(card => {
+    const cardRect = card.getBoundingClientRect();
+    const controls = card.querySelector('.product-action-control .qty-control');
+    const controlRect = controls?.getBoundingClientRect();
+    return {
+      cardBottom: cardRect.bottom,
+      controlBottom: controlRect?.bottom ?? 0,
+      controlHeight: controlRect?.height ?? 0,
+      controlVisible: !!controlRect && controlRect.width > 0 && controlRect.height > 0
+    };
+  });
+  expect(compactCardLayout.controlVisible, 'quantity control should be visible in the compact product card').toBe(true);
+  expect(compactCardLayout.controlHeight, 'quantity control should retain a usable height').toBeGreaterThanOrEqual(27);
+  expect(compactCardLayout.controlBottom, 'quantity control should not be clipped by its product card').toBeLessThanOrEqual(compactCardLayout.cardBottom + 1);
+  await expect(page.locator('#cartBar')).toBeVisible();
+  await capture('mobile-home-with-cart');
+
+  await page.locator('#viewCartBtn').click();
+  await expect(page.locator('#checkoutBtn')).toBeVisible();
+  await capture('mobile-cart');
+
+  await page.locator('#checkoutBtn').click();
+  await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
+  await expect(page.locator('#checkoutForm')).toBeVisible();
+  await capture('mobile-checkout');
+
+  await page.evaluate(() => window.setView('profile'));
+  await expect(page.locator('#profileView')).toHaveClass(/active-view/);
+  await capture('mobile-profile');
+
+  await page.evaluate(() => window.setView('orders'));
+  await expect(page.locator('#ordersView')).toHaveClass(/active-view/);
+  await capture('mobile-orders');
+
+  // About and Contact are real customer-facing pages and need their own visual review.
+  await page.evaluate(() => window.setView('about'));
+  await expect(page.locator('#aboutView')).toHaveClass(/active-view/);
+  await expect(page.locator('#aboutContent .store-about-hero')).toBeVisible();
+  await expect(page.locator('#aboutContent .store-info-about')).toContainText('Fresh groceries and everyday essentials');
+  await expect(page.locator('#aboutContent .store-contact-cta')).toBeVisible();
+  await expect(page.locator('#cartBar')).toBeHidden();
+  await capture('mobile-about');
+
+  await page.evaluate(() => window.setView('contact'));
+  await expect(page.locator('#contactView')).toHaveClass(/active-view/);
+  await expect(page.locator('#contactContent .store-page-intro')).toContainText('Reach FreshWay');
+  await expect(page.locator('#contactContent [data-customer-message-form]')).toBeVisible();
+  await expect(page.locator('#contactContent input[name="subject"]')).toBeVisible();
+  await expect(page.locator('#contactContent textarea[name="message"]')).toBeVisible();
+  await expect(page.locator('#contactContent .store-contact-actions')).toContainText('WhatsApp');
+  await expect(page.locator('#cartBar')).toBeHidden();
+  await capture('mobile-contact');
+
+  // Privacy Policy is a separate public page, so test the direct URL as well as its responsive content.
+  const privacyPage = await page.context().newPage();
+  await privacyPage.route('**/api/store-profile', async route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ storeProfile: {
+      storeName: 'FreshWay Test Store',
+      address: '12 Example Market, Test Colony, Hyderabad, Telangana 500001',
+      phone: '9000000000',
+      whatsapp: '9000000000',
+      email: 'privacy@example.test'
+    } })
+  }));
+  await privacyPage.setViewportSize({ width: 390, height: 844 });
+  await privacyPage.goto('/privacy.html');
+  await expect(privacyPage.locator('h1')).toHaveText('Privacy Policy');
+  await expect(privacyPage.locator('#privacyContact')).toHaveAttribute('aria-busy', 'false');
+  await expect(privacyPage.locator('#privacyContact')).toContainText('privacy@example.test');
+  await expect(privacyPage.locator('.note').last()).toContainText('Operator review required');
+  await privacyPage.screenshot({
+    path: 'test-results/visual-review/mobile-privacy-policy.png',
+    fullPage: true,
+    animations: 'disabled'
+  });
+
+  // Desktop-width snapshots verify that responsive layouts do not become stretched.
+  await page.setViewportSize({ width: 1365, height: 900 });
+  await page.evaluate(() => window.setView('home'));
+  await expect(page.locator('#homeView')).toHaveClass(/active-view/);
+  await capture('desktop-home');
+
+  await page.evaluate(() => window.setView('about'));
+  await expect(page.locator('#aboutContent .store-about-hero')).toBeVisible();
+  await capture('desktop-about');
+
+  await page.evaluate(() => window.setView('contact'));
+  await expect(page.locator('#contactContent [data-customer-message-form]')).toBeVisible();
+  await capture('desktop-contact');
+
+  await privacyPage.setViewportSize({ width: 1365, height: 900 });
+  await privacyPage.screenshot({
+    path: 'test-results/visual-review/desktop-privacy-policy.png',
+    fullPage: true,
+    animations: 'disabled'
+  });
+  await privacyPage.close();
+
+  await page.evaluate(() => window.setView('home'));
+  await expect(page.locator('#homeView')).toHaveClass(/active-view/);
+  await page.locator('[data-fw-category="cat-rice"]').click();
+  await expect(page.locator('#productGrid .product-card')).toContainText('Basmati Rice');
+  const desktopCardLayout = await page.locator('#productGrid .product-card').first().evaluate(card => {
+    const cardRect = card.getBoundingClientRect();
+    const controls = card.querySelector('.product-action-control .qty-control');
+    const controlRect = controls?.getBoundingClientRect();
+    return {
+      cardBottom: cardRect.bottom,
+      controlBottom: controlRect?.bottom ?? 0,
+      controlHeight: controlRect?.height ?? 0,
+      controlVisible: !!controlRect && controlRect.width > 0 && controlRect.height > 0,
+      cardWidth: cardRect.width
+    };
+  });
+  expect(desktopCardLayout.cardWidth, 'desktop catalogue cards should use the wide-screen grid').toBeGreaterThan(220);
+  expect(desktopCardLayout.controlVisible, 'desktop quantity control should be visible').toBe(true);
+  expect(desktopCardLayout.controlBottom, 'desktop quantity control should not be clipped').toBeLessThanOrEqual(desktopCardLayout.cardBottom + 1);
+  await capture('desktop-products');
+  await page.locator('#fwCategoryBack button').click();
+
+  await page.evaluate(() => window.setView('cart'));
+  await expect(page.locator('#cartView')).toHaveClass(/active-view/);
+  await capture('desktop-cart');
+
+  await page.evaluate(() => window.setView('checkout'));
+  await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
+  await capture('desktop-checkout');
+
+  // The Profile entry must actually open the public privacy page, not just render a static URL in isolation.
+  await page.evaluate(() => window.setView('profile'));
+  await page.locator('#privacyPolicyBtn').click();
+  await expect(page).toHaveURL(/\/privacy\.html$/);
+  await expect(page.locator('h1')).toHaveText('Privacy Policy');
+  await expect(page.locator('#privacyContact')).toContainText('privacy@example.test');
+});
+
+
+test('captures the remaining implemented customer screens and modal states', async ({ page }) => {
+  const capture = async name => {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({
+      path: 'test-results/visual-review/' + name + '.png',
+      fullPage: false,
+      animations: 'disabled'
+    });
+  };
+
+  await page.route('**/api/auth/passcode-reset/start', async route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: true, message: 'If this mobile is registered, a verification code has been sent.' })
+  }));
+
+  savedAddresses = [{
+    id: 51,
+    label: 'Home',
+    recipientName: 'E2E Customer',
+    deliveryPhone: '9876543210',
+    houseFlat: '12',
+    building: '',
+    floor: '',
+    street: 'Example Street',
+    area: 'Test Colony',
+    locality: 'Test Colony',
+    city: 'Hyderabad',
+    district: 'Hyderabad',
+    state: 'Telangana',
+    pincode: '500001',
+    landmark: 'Near test market',
+    note: 'Call before delivery',
+    latitude: 17.385044,
+    longitude: 78.486671,
+    accuracyMeters: 10,
+    locationSource: 'GPS',
+    placeId: 'e2e-home',
+    locationUpdatedAt: '2026-10-29T00:00:00.000Z',
+    isDefault: true
+  }];
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.locator('#addressBtn').click();
+  await expect(page.locator('#addressModal')).not.toHaveClass(/hidden/);
+  await expect(page.locator('[data-fw-edit="51"]')).toBeVisible();
+  await capture('mobile-address-manager');
+  await page.locator('[data-fw-edit="51"]').click();
+  await expect(page.locator('#fwAddrName')).toBeVisible();
+  await expect(page.locator('#addressModalTitle')).toHaveText('Edit delivery address');
+  await expect(page.locator('#fwAddrPhone')).toHaveValue('9876543210');
+  await capture('mobile-address-edit');
+  await page.locator('#fwAddressCancel').click();
+  await expect(page.locator('#addressModalTitle')).toHaveText('Your addresses');
+  await page.locator('#addressModal [data-close-modal]').click();
+  await expect(page.locator('#addressModal')).toHaveClass(/hidden/);
+
+  // The production authentication surface is the dynamic passcode modal,
+  // not the legacy static OTP markup retained in the HTML shell.
+  await page.evaluate(() => { window.FreshWayNotifications.login().catch(() => {}); });
+  await expect(page.locator('#passcodeModal')).toBeVisible();
+  await expect(page.locator('#passcodePhone')).toBeVisible();
+  await capture('mobile-passcode-login');
+
+  await page.locator('#passcodeMode').click();
+  await expect(page.locator('#passcodeName')).toBeVisible();
+  await expect(page.locator('#passcodeConfirm')).toBeVisible();
+  await capture('mobile-passcode-registration');
+
+  await page.locator('#passcodeMode').click();
+  await page.locator('#passcodeForgot').click();
+  await expect(page.locator('#passcodeHint')).toContainText('verification code');
+  await expect(page.locator('#passcodeResetCode')).toBeHidden();
+  await capture('mobile-passcode-recovery-start');
+
+  await page.locator('#passcodePhone').fill('9876543210');
+  await page.locator('#passcodeSubmit').click();
+  await expect(page.locator('#passcodeResetCode')).toBeVisible();
+  await expect(page.locator('#passcodeResetNew')).toBeVisible();
+  await expect(page.locator('#passcodeResetConfirm')).toBeVisible();
+  await capture('mobile-passcode-recovery-code');
+  await page.locator('#passcodeCancel').click();
+  await expect(page.locator('#passcodeModal')).toBeHidden();
+
+  // Permission help is reachable when browser/site notifications are blocked.
+  await page.evaluate(() => {
+    Object.defineProperty(window, 'Notification', {
+      configurable: true,
+      value: { permission: 'denied' }
+    });
+    window.setView('profile');
+  });
+  await page.locator('#enableNotifications').click();
+  await expect(page.locator('#notificationPermissionHelp')).toBeVisible();
+  await expect(page.locator('#notificationPermissionHelp')).toContainText('Allow order updates');
+  await capture('mobile-notification-permission-help');
+  await page.locator('#notificationPermissionHelp [data-notification-permission-close]').first().click();
+  await expect(page.locator('#notificationPermissionHelp')).toHaveCount(0);
+
+  await page.evaluate(() => window.FreshWayPwaInstall.showInstallHelp());
+  await expect(page.locator('.pwa-help')).toBeVisible();
+  await expect(page.locator('.pwa-help')).toContainText('Install FreshWay');
+  await capture('mobile-pwa-install-help');
+
+  // Desktop snapshots verify these existing overlays retain usable width and spacing.
+  await page.setViewportSize({ width: 1365, height: 900 });
+  await capture('desktop-pwa-install-help');
+  await page.locator('.pwa-help .icon-btn').click();
+
+  await page.evaluate(() => { window.FreshWayNotifications.login().catch(() => {}); });
+  await expect(page.locator('#passcodeModal')).toBeVisible();
+  const desktopPasscodeDialog = await page.locator('#passcodeModal .modal-sheet').boundingBox();
+  expect(desktopPasscodeDialog?.y ?? -1, 'desktop login dialog should start within the viewport').toBeGreaterThanOrEqual(0);
+  expect((desktopPasscodeDialog?.y ?? 0) + (desktopPasscodeDialog?.height ?? 0), 'desktop login dialog should end within the viewport').toBeLessThanOrEqual(await page.evaluate(() => window.innerHeight));
+  await expect(page.locator('#passcodeModal .modal-sheet')).toHaveCSS('overflow-y', 'auto');
+  await capture('desktop-passcode-login');
+  await page.locator('#passcodeMode').click();
+  await expect(page.locator('#passcodeName')).toBeVisible();
+  await capture('desktop-passcode-registration');
+  await page.locator('#passcodeMode').click();
+  await page.locator('#passcodeForgot').click();
+  await page.locator('#passcodePhone').fill('9876543210');
+  await page.locator('#passcodeSubmit').click();
+  await expect(page.locator('#passcodeResetCode')).toBeVisible();
+  await capture('desktop-passcode-recovery-code');
+  await page.locator('#passcodeCancel').click();
+
+  await page.evaluate(() => window.setView('profile'));
+  await page.locator('#enableNotifications').click();
+  await expect(page.locator('#notificationPermissionHelp')).toBeVisible();
+  await capture('desktop-notification-permission-help');
+  await page.locator('#notificationPermissionHelp [data-notification-permission-close]').first().click();
+
+  await page.evaluate(() => window.setView('home'));
+  await page.locator('#addressBtn').click();
+  await expect(page.locator('[data-fw-edit="51"]')).toBeVisible();
+  const addressDialog = await page.locator('#addressModal .address-modal-sheet').boundingBox();
+  expect(addressDialog?.y ?? -1, 'desktop address manager should be vertically centered within the viewport').toBeGreaterThan(16);
+  expect((addressDialog?.y ?? 0) + (addressDialog?.height ?? 0), 'desktop address manager should leave a margin below the dialog').toBeLessThanOrEqual(await page.evaluate(() => window.innerHeight - 16));
+  await capture('desktop-address-manager');
+  await page.locator('[data-fw-edit="51"]').click();
+  await expect(page.locator('#fwAddrName')).toBeVisible();
+  await expect(page.locator('#addressModalTitle')).toHaveText('Edit delivery address');
+  const desktopEditor = await page.locator('#addressModal .address-editor-sheet').boundingBox();
+  expect(desktopEditor?.y ?? -1, 'desktop address editor should start within the viewport').toBeGreaterThanOrEqual(16);
+  expect((desktopEditor?.y ?? 0) + (desktopEditor?.height ?? 0), 'desktop address editor should fit within the viewport').toBeLessThanOrEqual(await page.evaluate(() => window.innerHeight - 16));
+  await capture('desktop-address-edit');
+});
+
+test('captures customer Messages populated, empty, error and desktop states', async ({ page }) => {
+  let messages = [{
+    id: 'msg-e2e-1',
+    subject: 'Delivery update',
+    message: 'Could you confirm the delivery date?',
+    created_at: '2026-10-28T10:00:00.000Z',
+    status: 'replied',
+    reply_seen_at: null,
+    replied_at: '2026-10-28T11:00:00.000Z',
+    admin_reply: 'Your order is scheduled for tomorrow.',
+    order_id: 'FW-E2E-MSG-1'
+  }];
+  let failMessages = false;
+
+  await page.route('**/api/customer/messages**', async route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname === '/api/customer/messages/unread-count' && request.method() === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ unreadCount: 1 }) });
+    }
+    if (url.pathname === '/api/customer/messages/read' && request.method() === 'PATCH') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, markedRead: 1 }) });
+    }
+    if (url.pathname === '/api/customer/messages' && request.method() === 'POST') {
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, message: 'Message sent. We will reply in Profile → Messages.' })
+      });
+    }
+    if (url.pathname === '/api/customer/messages' && request.method() === 'GET') {
+      if (failMessages) return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Message service is temporarily unavailable.' }) });
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages }) });
+    }
+    return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'Unexpected test message endpoint.' }) });
+  });
+
+  const capture = async name => {
+    await page.screenshot({
+      path: 'test-results/visual-review/' + name + '.png',
+      fullPage: false,
+      animations: 'disabled'
+    });
+  };
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(() => window.setView('messages'));
+  await expect(page.locator('#customerMessagesContent [data-customer-message-id]')).toContainText('Delivery update');
+  await expect(page.locator('#customerMessagesContent .fw-customer-message-reply')).toContainText('scheduled for tomorrow');
+  await capture('mobile-messages-populated');
+
+  messages = [];
+  await page.evaluate(() => window.FreshWayCustomerMessages.load());
+  await expect(page.locator('#customerMessagesContent')).toContainText('No messages yet');
+  await expect(page.locator('#customerMessagesContent [data-messages-contact]')).toBeVisible();
+  await capture('mobile-messages-empty');
+
+  failMessages = true;
+  await page.evaluate(() => window.FreshWayCustomerMessages.load());
+  await expect(page.locator('#customerMessagesContent')).toContainText('Could not load messages');
+  await expect(page.locator('#customerMessagesContent [data-messages-refresh]')).toBeVisible();
+  await capture('mobile-messages-error');
+
+  failMessages = false;
+  messages = [{
+    id: 'msg-e2e-2',
+    subject: 'Customer support',
+    message: 'Please check my delivery.',
+    created_at: '2026-10-28T10:00:00.000Z',
+    status: 'pending',
+    reply_seen_at: null,
+    replied_at: null,
+    admin_reply: null,
+    order_id: null
+  }];
+  await page.setViewportSize({ width: 1365, height: 900 });
+  await page.evaluate(() => window.FreshWayCustomerMessages.load());
+  await expect(page.locator('#customerMessagesContent [data-customer-message-id]')).toContainText('Customer support');
+  await capture('desktop-messages-populated');
+
+  await page.evaluate(() => window.setView('contact'));
+  const contactForm = page.locator('#contactContent [data-customer-message-form]');
+  await expect(contactForm).toBeVisible();
+  await contactForm.locator('input[name="subject"]').fill('Delivery question');
+  await contactForm.locator('textarea[name="message"]').fill('Please confirm my delivery date.');
+  await contactForm.locator('[data-compose-submit]').click();
+  await expect(page.locator('#contactContent [data-compose-status]')).toContainText('Message sent. We will reply in Profile → Messages.');
+  await expect(page.locator('#contactContent [data-compose-submit]')).toBeEnabled();
+  await page.locator('#contactContent [data-compose-status]').scrollIntoViewIfNeeded();
+  await expect(page.locator('#toast')).not.toHaveClass(/show/);
+  await capture('desktop-contact-message-sent');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('#contactContent [data-compose-status]').scrollIntoViewIfNeeded();
+  await capture('mobile-contact-message-sent');
+});
+
+test('captures populated orders, delivery rescheduling, order help, invoice download and confirmation', async ({ page }) => {
+  const orderId = 'FW-QA-1001';
+  const scheduledDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const sentRequests = [];
+  const sampleOrder = () => ({
+    id: orderId,
+    status: 'Confirmed',
+    payment: 'Not Collected',
+    deliveryPlan: 'Tomorrow',
+    createdAt: '2026-10-28T10:00:00.000Z',
+    updatedAt: '2026-10-28T10:00:00.000Z',
+    total: 150,
+    pricingBreakdownKnown: true,
+    itemsSubtotal: 120,
+    deliveryFee: 30,
+    couponCode: null,
+    couponDiscount: 0,
+    items: [{ id: 'p1', name: 'Basmati Rice', unit: 'kg', qty: 1, price: 120, lineTotal: 120 }],
+    address: { house: '12', area: 'Test Colony', city: 'Hyderabad', pincode: '500001', landmark: 'Test market', note: 'Call before delivery' },
+    scheduledDelivery: { date: scheduledDate, startTime: '10:00', endTime: '12:00', status: 'scheduled' },
+    invoice: { number: 'INV-QA-1001' }
+  });
+
+  await page.route('**/api/orders**', async route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const method = request.method();
+    if (url.pathname === '/api/orders/' + orderId + '/invoice' && method === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/pdf',
+        headers: { 'content-disposition': 'attachment; filename="FreshWay-invoice-FW-QA-1001.pdf"' },
+        body: '%PDF-1.4\n% FreshWay test invoice\n%%EOF'
+      });
+    }
+    if (url.pathname === '/api/orders/' + orderId + '/request' && method === 'POST') {
+      sentRequests.push(JSON.parse(request.postData() || '{}'));
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, request: { id: 'REQ-QA-1' } }) });
+    }
+    if (url.pathname === '/api/orders/' + orderId + '/reschedule' && method === 'POST') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, message: 'Delivery date updated.' }) });
+    }
+    if (url.pathname === '/api/orders/' + orderId + '/cancel' && method === 'POST') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, status: 'Cancelled' }) });
+    }
+    if (url.pathname === '/api/orders' && method === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ orders: [sampleOrder()] }) });
+    }
+    return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'Unexpected test order endpoint.' }) });
+  });
+
+  const capture = async name => {
+    await expect(page.locator('#toast')).not.toHaveClass(/show/);
+    await page.screenshot({
+      path: 'test-results/visual-review/' + name + '.png',
+      fullPage: false,
+      animations: 'disabled'
+    });
+  };
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.evaluate(() => window.FreshWayNotifications.setCustomerId('e2e-customer-1'));
+  await page.evaluate(() => window.setView('orders'));
+  const orderCard = page.locator('[data-order-id="' + orderId + '"]');
+  await expect(orderCard).toBeVisible();
+  await expect(orderCard).toContainText('INV-QA-1001');
+  await expect(orderCard).toContainText('Delivery fee');
+  await expect(orderCard).toContainText('Test Colony');
+  await capture('mobile-orders-populated');
+
+  await orderCard.locator('[data-customer-order-open-request="issue"]').click();
+  const requestPanel = orderCard.locator('[data-customer-order-request-panel]');
+  await expect(requestPanel).toBeVisible();
+  await expect(requestPanel).toContainText('Contact FreshWay about this order');
+  await requestPanel.scrollIntoViewIfNeeded();
+  await capture('mobile-order-help');
+  await requestPanel.locator('textarea').fill('Please confirm the delivery.');
+  await requestPanel.locator('[data-customer-order-submit-request]').click();
+  await expect.poll(() => sentRequests.length).toBe(1);
+  expect(sentRequests[0].reason).toBe('Please confirm the delivery.');
+  expect(sentRequests[0].requestType).toBe('issue');
+
+  await page.evaluate(() => window.setView('orders'));
+  const refreshedCard = page.locator('[data-order-id="' + orderId + '"]');
+  await expect(refreshedCard).toBeVisible();
+  await refreshedCard.locator('[data-customer-order-reschedule]').click();
+  const picker = refreshedCard.locator('[data-customer-reschedule-picker]');
+  await expect(picker).toBeVisible();
+  await picker.locator('[data-fw-date-choice="custom"]').click();
+  await expect(picker.locator('[data-fw-delivery-date]')).toBeVisible();
+  await picker.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, 140));
+  const pickerLayout = await picker.locator('[data-fw-delivery-confirm]').evaluate(element => ({
+    buttonBottom: element.getBoundingClientRect().bottom,
+    navTop: document.querySelector('.bottom-nav').getBoundingClientRect().top
+  }));
+  expect(pickerLayout.buttonBottom, 'reschedule save action should remain above the fixed bottom navigation').toBeLessThan(pickerLayout.navTop);
+  await capture('mobile-order-reschedule');
+
+  const downloadPromise = page.waitForEvent('download');
+  await refreshedCard.locator('[data-download-invoice]').click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('FreshWay-invoice-FW-QA-1001.pdf');
+
+  // Desktop review for a populated order and the actual confirmation presentation.
+  await page.setViewportSize({ width: 1365, height: 900 });
+  await page.evaluate(() => window.setView('orders'));
+  const desktopCard = page.locator('[data-order-id="' + orderId + '"]');
+  await expect(desktopCard).toBeVisible();
+  await capture('desktop-orders-populated');
+  await desktopCard.locator('[data-customer-order-open-request="issue"]').click();
+  const desktopRequestPanel = desktopCard.locator('[data-customer-order-request-panel]');
+  await expect(desktopRequestPanel).toBeVisible();
+  await desktopRequestPanel.scrollIntoViewIfNeeded();
+  await capture('desktop-order-help');
+  await page.evaluate(() => window.setView('orders'));
+  const desktopRescheduleCard = page.locator('[data-order-id="' + orderId + '"]');
+  await desktopRescheduleCard.locator('[data-customer-order-reschedule]').click();
+  const desktopPicker = desktopRescheduleCard.locator('[data-customer-reschedule-picker]');
+  await expect(desktopPicker).toBeVisible();
+  await desktopPicker.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, 350));
+  const desktopPickerLayout = await desktopPicker.locator('[data-fw-delivery-confirm]').evaluate(element => ({
+    buttonBottom: element.getBoundingClientRect().bottom,
+    navTop: document.querySelector('.bottom-nav').getBoundingClientRect().top
+  }));
+  expect(desktopPickerLayout.buttonBottom, 'desktop reschedule save action should remain above the fixed bottom navigation').toBeLessThan(desktopPickerLayout.navTop);
+  await capture('desktop-order-reschedule');
+
+  const confirmation = {
+    id: 'FW-QA-CONFIRM-1001',
+    total: 150,
+    pricingBreakdownKnown: true,
+    itemsSubtotal: 120,
+    deliveryFee: 30,
+    couponCode: null,
+    couponDiscount: 0,
+    payment: 'Not Collected',
+    status: 'New',
+    deliveryPlan: 'Tomorrow'
+  };
+  await page.evaluate(order => window.showConfirmation(order), confirmation);
+  await expect(page.locator('#confirmationView')).toBeVisible();
+  await expect(page.locator('#confirmationView')).toContainText('FW-QA-CONFIRM-1001');
+  await capture('desktop-order-confirmation');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await capture('mobile-order-confirmation');
+  await page.locator('#confirmationOrders').click();
+  await expect(page.locator('#ordersView')).toHaveClass(/active-view/);
+  await page.evaluate(order => window.showConfirmation(order), confirmation);
+  await page.locator('#confirmationHome').click();
+  await expect(page.locator('#homeView')).toHaveClass(/active-view/);
+});
+
+test('checks the standalone account-deletion request flow on mobile and desktop', async ({ page }) => {
+  let startCalls = 0;
+  let verifyCalls = 0;
+  await page.route('**/api/account-deletion/**', async route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname === '/api/account-deletion/start' && request.method() === 'POST') {
+      startCalls += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, message: 'If an account matches, a verification code has been sent.' })
+      });
+    }
+    if (url.pathname === '/api/account-deletion/verify' && request.method() === 'POST') {
+      verifyCalls += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true, message: 'Your deletion request has been submitted.', requestId: 'E2E-DELETE-001' })
+      });
+    }
+    return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'Unexpected test deletion endpoint.' }) });
+  });
+
+  const capture = async name => {
+    await page.screenshot({
+      path: 'test-results/visual-review/' + name + '.png',
+      fullPage: true,
+      animations: 'disabled'
+    });
+  };
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/delete-account.html');
+  await expect(page.locator('h1')).toHaveText('Request account deletion');
+  await expect(page.locator('#startForm')).toBeVisible();
+  await capture('mobile-account-deletion-start');
+
+  await page.locator('#phone').fill('123');
+  await page.locator('#startForm button[type="submit"]').click();
+  await expect(page.locator('#message')).toContainText('valid 10-digit');
+  await capture('mobile-account-deletion-invalid-phone');
+
+  await page.locator('#phone').fill('9876543210');
+  await page.locator('#startForm button[type="submit"]').click();
+  await expect(page.locator('#verifyForm')).toBeVisible();
+  await expect(page.locator('#verifyForm')).toContainText('SMS verification code');
+  await capture('mobile-account-deletion-verify');
+
+  await page.locator('#code').fill('654321');
+  await page.locator('#verifyForm button[type="submit"]').click();
+  await expect(page.locator('#message')).toContainText('request has been submitted');
+  await expect(page.locator('body')).toContainText('E2E-DELETE-001');
+  await expect.poll(() => startCalls).toBe(1);
+  await expect.poll(() => verifyCalls).toBe(1);
+  await capture('mobile-account-deletion-success');
+
+  await page.setViewportSize({ width: 1365, height: 900 });
+  await page.reload();
+  await expect(page.locator('#startForm')).toBeVisible();
+  await capture('desktop-account-deletion-start');
+  await page.locator('#phone').fill('9876543210');
+  await page.locator('#startForm button[type="submit"]').click();
+  await expect(page.locator('#verifyForm')).toBeVisible();
+  await capture('desktop-account-deletion-verify');
 });

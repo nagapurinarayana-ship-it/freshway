@@ -9,6 +9,14 @@ const dateTimeText=value=>{
   if(Number.isNaN(d.getTime()))return safe(value);
   return d.toLocaleString('en-GB',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).replace(',','');
 };
+export function normalizeInvoicePaymentStatus(value){
+  const status=String(value??'').trim().toLowerCase();
+  if(status==='collected')return 'Collected';
+  if(status==='refunded')return 'Refunded';
+  if(status==='cancelled')return 'Cancelled';
+  return 'Not Collected';
+}
+
 export function formatInvoicePhone(value){
   const digits=String(value??'').replace(/\D/g,'');
   return digits.length===12&&digits.startsWith('91')?digits.slice(2):digits;
@@ -86,114 +94,192 @@ function drawRupee(page,x,baseline,size,color){
 async function createReceiptPdf(invoice){
   const doc=await PDFDocument.create();
   doc.setTitle('FreshWay '+invoice.documentType.replaceAll('_',' ')+' '+invoice.invoiceNumber);
-  doc.setAuthor(safe(invoice.seller.legalName||invoice.seller.storeName||''));
+  doc.setAuthor(safe(invoice.seller.legalName||invoice.seller.storeName||'FreshWay'));
   doc.setSubject('Order '+invoice.orderId);
   const regular=await doc.embedFont(StandardFonts.Helvetica),bold=await doc.embedFont(StandardFonts.HelveticaBold);
   const contentWidth=PAGE_W-MARGIN*2;
   const drawText=(page,text,x,y,size=9,font=regular,color=INK)=>page.drawText(safe(text),{x,y,size,font,color});
-  const drawAmountRight=(page,paise,right,y,size=9,font=regular,color=INK)=>{
+  const drawRight=(page,text,right,y,size=9,font=regular,color=INK)=>{
+    const value=safe(text);
+    drawText(page,value,right-font.widthOfTextAtSize(value,size),y,size,font,color);
+  };
+  const line=(page,x1,y1,x2,y2,color=LINE,thickness=0.8)=>page.drawLine({start:{x:x1,y:y1},end:{x:x2,y:y2},color,thickness});
+  const rect=(page,x,y,width,height,color)=>page.drawRectangle({x,y,width,height,color});
+  const drawAmountRight=(targetPage,paise,right,baseline,size=9,font=regular,color=INK)=>{
     const text=money(paise),textWidth=font.widthOfTextAtSize(text,size),symbolWidth=size*0.98,gap=2.5;
     const x=right-symbolWidth-gap-textWidth;
-    drawRupee(page,x,y,size*0.98,color);
-    drawText(page,text,x+symbolWidth+gap,y,size,font,color);
+    drawRupee(targetPage,x,baseline,size*0.98,color);
+    drawText(targetPage,text,x+symbolWidth+gap,baseline,size,font,color);
   };
-  const drawAmountAt=(page,paise,x,y,size=9,font=regular,color=INK)=>{
+  const drawAmountLeft=(targetPage,paise,x,baseline,size=9,font=regular,color=INK)=>{
     const symbolWidth=size*0.98,gap=2.5;
-    drawRupee(page,x,y,size*0.98,color);
-    drawText(page,money(paise),x+symbolWidth+gap,y,size,font,color);
+    drawRupee(targetPage,x,baseline,size*0.98,color);
+    drawText(targetPage,money(paise),x+symbolWidth+gap,baseline,size,font,color);
   };
-  const drawDiscountRight=(page,paise,right,y,size=9,font=regular,color=INK)=>{
+  const drawDiscountRight=(targetPage,paise,right,baseline,size=9,font=regular,color=INK)=>{
     const amount=money(Math.abs(Number(paise||0))),sign='-';
     const signWidth=font.widthOfTextAtSize(sign,size),textWidth=font.widthOfTextAtSize(amount,size);
     const symbolWidth=size*0.98,gap=2.5,x=right-signWidth-symbolWidth-gap-textWidth;
-    drawText(page,sign,x,y,size,font,color);
-    drawRupee(page,x+signWidth,y,size*0.98,color);
-    drawText(page,amount,x+signWidth+symbolWidth+gap,y,size,font,color);
-  };
-  let page,y;
-  const separator=()=>{
-    drawText(page,'------------------------------------------------------------',MARGIN,y,8,regular,MUTED);
-    y-=14;
+    drawText(targetPage,sign,x,baseline,size,font,color);
+    drawRupee(targetPage,x+signWidth,baseline,size*0.98,color);
+    drawText(targetPage,amount,x+signWidth+symbolWidth+gap,baseline,size,font,color);
   };
   const dateValue=invoice.buyer.orderCreatedAt||invoice.issueDate;
   const customerName=invoice.buyer.name||'Customer';
   const customerPhone=formatInvoicePhone(invoice.buyer.phone);
   const totalPaise=Number(invoice.totals.totalPaise??invoice.totals.grossPaise??0);
-  const collected=String(invoice.buyer.paymentStatus||'').toLowerCase()==='collected';
-  const cashReceivedPaise=collected?totalPaise:0;
+  const paymentStatusLabel=normalizeInvoicePaymentStatus(invoice.buyer.paymentStatus);
+  const balanceDuePaise=paymentStatusLabel==='Not Collected'?totalPaise:0;
   const totalItems=(invoice.items||[]).reduce((sum,item)=>sum+Math.max(0,Number(item.qty)||0),0);
-  const wrapText=(text,x,fontSize=8.5,font=regular,color=INK,leading=11)=>{
-    const lines=wrap(text,font,fontSize,contentWidth);
-    for(const lineText of lines){drawText(page,lineText,x,y,fontSize,font,color);y-=leading;}
+  const sellerName=invoice.seller.legalName||invoice.seller.storeName||'FreshWay';
+  const sellerPhone=formatSellerPhone(invoice.seller.phone);
+  const title='COMMERCIAL INVOICE';
+  let page,y,pageNo=0;
+
+  const footer=()=>{
+    line(page,MARGIN,43,PAGE_W-MARGIN,43,LINE,0.7);
+    drawText(page,'FreshWay | Commercial invoice - order record',MARGIN,29,7,regular,MUTED);
+    drawRight(page,'Page '+pageNo,PAGE_W-MARGIN,29,7,regular,MUTED);
   };
   const newPage=(continued=false)=>{
+    if(page)footer();
     page=doc.addPage([PAGE_W,PAGE_H]);
-    y=PAGE_H-42;
+    pageNo++;
+    rect(page,0,PAGE_H-86,PAGE_W,86,GREEN);
+    drawText(page,'FreshWay',MARGIN,PAGE_H-40,22,bold,WHITE);
+    drawText(page,'Eat Fresh, Stay Healthy',MARGIN,PAGE_H-59,8.5,regular,WHITE);
+    drawRight(page,title,PAGE_W-MARGIN,PAGE_H-39,12.5,bold,WHITE);
+    drawRight(page,invoice.invoiceNumber,PAGE_W-MARGIN,PAGE_H-58,8.5,regular,WHITE);
+    y=PAGE_H-107;
     if(continued){
-      drawText(page,invoice.invoiceNumber,MARGIN,y,9,bold,INK);y-=14;
-      drawText(page,'Date: '+dateTimeText(dateValue),MARGIN,y,8.5,regular,INK);y-=17;
-      separator();
-    }else{
-      drawText(page,'Hi '+customerName,MARGIN,y,10,bold,INK);y-=19;
-      const totalLabel='Total Bill Amount is';
-      drawText(page,totalLabel,MARGIN,y,10,bold,INK);
-      drawAmountAt(page,totalPaise,MARGIN+bold.widthOfTextAtSize(totalLabel,10)+5,y,10,bold,INK);
-      y-=17;
-      if(customerPhone){drawText(page,'Customer Phone: '+customerPhone,MARGIN,y,9,regular,INK);y-=17;}
-      else y-=2;
-      y-=4;
-      drawText(page,invoice.invoiceNumber,MARGIN,y,9,bold,INK);y-=14;
-      drawText(page,'Date: '+dateTimeText(dateValue),MARGIN,y,9,regular,INK);y-=17;
-      separator();
+      drawText(page,'INVOICE DETAILS CONTINUED',MARGIN,y,8,bold,GREEN);
+      drawRight(page,'Order '+invoice.orderId,PAGE_W-MARGIN,y,8,regular,MUTED);
+      y-=22;
+      return;
     }
+
+    const cardGap=10,cardWidth=(contentWidth-cardGap*2)/3,cardHeight=45,top=y;
+    const meta=[
+      ['INVOICE DATE',dateTimeText(invoice.issueDate)],
+      ['ORDER REFERENCE',invoice.orderId],
+      ['ITEM COUNT',String(totalItems)+' item'+(totalItems===1?'':'s')]
+    ];
+    meta.forEach((entry,index)=>{
+      const x=MARGIN+index*(cardWidth+cardGap);
+      rect(page,x,top-cardHeight,cardWidth,cardHeight,PALE);
+      drawText(page,entry[0],x+10,top-13,6.8,bold,GREEN);
+      const valueLines=wrap(entry[1],bold,8.3,cardWidth-20).slice(0,2);
+      valueLines.forEach((value,i)=>drawText(page,value,x+10,top-28-i*10,8.3,bold,INK));
+    });
+    y-=58;
+
+    const gap=12,colWidth=(contentWidth-gap)/2,boxTop=y;
+    const leftX=MARGIN,rightX=MARGIN+colWidth+gap;
+    const sellerLines=[
+      sellerName,
+      invoice.seller.address?'Address: '+invoice.seller.address:'',
+      invoice.seller.gstin?'Tax Number: '+invoice.seller.gstin:'',
+      sellerPhone?'Contact Us: '+sellerPhone:''
+    ].filter(Boolean).flatMap(value=>wrap(value,regular,8,colWidth-22)).slice(0,12);
+
+    const buyer=invoice.buyer||{},address=buyer.address||{};
+    const addressText=[address.house,address.building,address.floor,address.street,address.area,address.locality,address.city,address.district,address.state,address.pincode,address.landmark].filter(Boolean).join(', ');
+    const deliveryPhone=formatInvoicePhone(address.deliveryPhone||buyer.deliveryPhone);
+    const contactText=[
+      buyer.name||customerName,
+      customerPhone?'Customer Phone: '+customerPhone:'',
+      address.recipientName&&address.recipientName!==customerName?'Recipient: '+address.recipientName:'',
+      deliveryPhone&&deliveryPhone!==customerPhone?'Delivery: '+deliveryPhone:'',
+      addressText
+    ].filter(Boolean);
+    const buyerLines=contactText.flatMap(value=>wrap(value,regular,8,colWidth-22)).slice(0,12);
+
+    // Give billing/delivery details enough space for longer Indian addresses instead
+    // of squeezing them into a small fixed-height box or silently dropping lines.
+    const boxHeight=Math.max(118,Math.min(168,42+Math.max(sellerLines.length,buyerLines.length)*10.5));
+    rect(page,leftX,boxTop-boxHeight,colWidth,boxHeight,PALE);
+    rect(page,rightX,boxTop-boxHeight,colWidth,boxHeight,PALE);
+    drawText(page,'ISSUED BY',leftX+11,boxTop-15,7,bold,GREEN);
+    drawText(page,'BILL TO / DELIVER TO',rightX+11,boxTop-15,7,bold,GREEN);
+    let sy=boxTop-31;
+    for(const value of sellerLines){if(sy<boxTop-boxHeight+10)break;drawText(page,value,leftX+11,sy,8,regular,INK);sy-=10.5;}
+    let by=boxTop-31;
+    for(const value of buyerLines){if(by<boxTop-boxHeight+10)break;drawText(page,value,rightX+11,by,8,regular,INK);by-=10.5;}
+    y-=boxHeight+13;
+  };
+
+  const drawItemsHeader=()=>{
+    rect(page,MARGIN,y-24,contentWidth,24,PALE);
+    drawText(page,'ITEM DESCRIPTION',MARGIN+9,y-15,7,bold,GREEN);
+    drawRight(page,'QTY',MARGIN+300,y-15,7,bold,GREEN);
+    drawRight(page,'UNIT PRICE',MARGIN+405,y-15,7,bold,GREEN);
+    drawRight(page,'AMOUNT',PAGE_W-MARGIN-8,y-15,7,bold,GREEN);
+    y-=31;
   };
   newPage(false);
+  drawItemsHeader();
+
   for(const item of (invoice.items||[])){
-    const labelLines=wrap(productLabel(item.name,item.unit),regular,9,contentWidth);
-    const rowHeight=labelLines.length*11+34;
-    if(y-rowHeight<110)newPage(true);
-    for(const lineText of labelLines){drawText(page,lineText,MARGIN,y,9,regular,INK);y-=11;}
-    drawText(page,'MRP',MARGIN+8,y,8.5,regular,INK);
-    drawAmountRight(page,item.unitPricePaise,PAGE_W-MARGIN,y,8.5,regular,INK);
-    y-=12;
-    drawText(page,'x '+String(item.qty),MARGIN+8,y,8.5,regular,INK);
-    drawAmountRight(page,item.grossPaise,PAGE_W-MARGIN,y,8.5,regular,INK);
-    y-=19;
-  }
-  if(y<250)newPage(true);
-  if(invoice.totals.pricingBreakdownKnown===true){
-    drawText(page,'Items subtotal',MARGIN,y,9,regular,INK);
-    drawAmountRight(page,invoice.totals.itemsSubtotalPaise??invoice.totals.grossPaise??totalPaise,PAGE_W-MARGIN,y,9,regular,INK);y-=16;
-    if(Number(invoice.totals.couponDiscountPaise||0)>0){
-      drawText(page,'Coupon '+String(invoice.totals.couponCode||'').slice(0,32),MARGIN,y,9,regular,INK);
-      drawDiscountRight(page,invoice.totals.couponDiscountPaise,PAGE_W-MARGIN,y,9,regular,INK);y-=16;
+    const description=productLabel(item.name,item.unit);
+    const nameLines=wrap(description,regular,8.5,235);
+    const rowHeight=Math.max(29,nameLines.length*10+15);
+    if(y-rowHeight<300){
+      newPage(true);
+      drawItemsHeader();
     }
-    drawText(page,'Delivery fee',MARGIN,y,9,regular,INK);
-    if(Number(invoice.totals.deliveryFeePaise||0)>0)drawAmountRight(page,invoice.totals.deliveryFeePaise,PAGE_W-MARGIN,y,9,regular,INK);
-    else drawText(page,'Free',PAGE_W-MARGIN-23,y,9,regular,INK);
-    y-=16;
-  }else{
-    drawText(page,'Order total',MARGIN,y,9,regular,INK);
-    drawAmountRight(page,totalPaise,PAGE_W-MARGIN,y,9,regular,INK);y-=16;
+    nameLines.forEach((value,index)=>drawText(page,value,MARGIN+9,y-12-index*10,8.5,regular,INK));
+    drawRight(page,String(item.qty??0),MARGIN+300,y-12,8.5,regular,INK);
+    drawAmountRight(page,item.unitPricePaise,MARGIN+405,y-12,8.5,regular,INK);
+    drawAmountRight(page,item.grossPaise,PAGE_W-MARGIN-8,y-12,8.5,bold,INK);
+    line(page,MARGIN,y-rowHeight,PAGE_W-MARGIN,y-rowHeight,LINE,0.45);
+    y-=rowHeight;
   }
-  separator();
-  drawText(page,'TOTAL',MARGIN,y,10,bold,INK);
-  drawAmountRight(page,totalPaise,PAGE_W-MARGIN,y,10,bold,INK);y-=17;
-  separator();
-  drawText(page,'Total Items: '+totalItems,MARGIN,y,9,regular,INK);y-=17;
-  separator();
-  drawText(page,'Payment Type: Cash',MARGIN,y,9,regular,INK);y-=14;
-  drawText(page,'Cash Received:',MARGIN,y,9,regular,INK);
-  drawAmountRight(page,cashReceivedPaise,PAGE_W-MARGIN,y,9,regular,INK);y-=14;
-  drawText(page,'Change Amount:',MARGIN,y,9,regular,INK);
-  drawAmountRight(page,0,PAGE_W-MARGIN,y,9,regular,INK);y-=20;
-  const sellerName=invoice.seller.legalName||invoice.seller.storeName||'';
-  if(sellerName){wrapText(sellerName,MARGIN,9.5,bold,INK,12);y-=1;}
-  if(String(invoice.seller.address||'').trim())wrapText('Address: '+invoice.seller.address,MARGIN,8.5,regular,INK,11);
-  if(String(invoice.seller.gstin||'').trim())wrapText('Tax Number: '+invoice.seller.gstin,MARGIN,8.5,regular,INK,11);
-  const sellerPhone=formatSellerPhone(invoice.seller.phone);
-  if(sellerPhone)wrapText('Contact Us: '+sellerPhone,MARGIN,8.5,regular,INK,11);
-  if(String(invoice.seller.footer||'').trim()){y-=5;wrapText(invoice.seller.footer,MARGIN,8.5,regular,INK,11);}
+
+  // Keep the entire order summary, payment information and seller footer together.
+  if(y<360)newPage(true);
+  line(page,MARGIN,y,PAGE_W-MARGIN,y,LINE,0.8);
+  y-=17;
+  drawText(page,'ORDER SUMMARY',MARGIN,y,7.5,bold,GREEN);
+  y-=18;
+  const summaryRows=invoice.totals.pricingBreakdownKnown===true
+    ?[
+      ['Items subtotal',invoice.totals.itemsSubtotalPaise??invoice.totals.grossPaise??totalPaise,'amount'],
+      ...(Number(invoice.totals.couponDiscountPaise||0)>0?[['Coupon '+String(invoice.totals.couponCode||'').slice(0,32),invoice.totals.couponDiscountPaise,'discount']]:[]),
+      ['Delivery fee',invoice.totals.deliveryFeePaise||0,'delivery']
+    ]
+    :[['Order total',totalPaise,'amount']];
+  for(const [label,value,kind] of summaryRows){
+    drawText(page,label,MARGIN,y,9,regular,MUTED);
+    if(kind==='discount')drawDiscountRight(page,value,PAGE_W-MARGIN,y,9,regular,GREEN);
+    else if(kind==='delivery'&&Number(value)===0)drawRight(page,'Free',PAGE_W-MARGIN,y,9,regular,GREEN);
+    else drawAmountRight(page,value,PAGE_W-MARGIN,y,9,regular,INK);
+    y-=17;
+  }
+
+  const totalBoxWidth=244,totalBoxHeight=33,totalBoxX=PAGE_W-MARGIN-totalBoxWidth;
+  rect(page,totalBoxX,y-totalBoxHeight+4,totalBoxWidth,totalBoxHeight,GREEN);
+  drawText(page,'TOTAL PAYABLE',totalBoxX+12,y-16,8.5,bold,WHITE);
+  drawAmountRight(page,totalPaise,PAGE_W-MARGIN-12,y-16,10.5,bold,WHITE);
+  y-=47;
+
+  const paymentBoxHeight=57;
+  rect(page,MARGIN,y-paymentBoxHeight,contentWidth,paymentBoxHeight,PALE);
+  const paymentCol2=MARGIN+contentWidth*0.53;
+  drawText(page,'PAYMENT',MARGIN+12,y-14,6.8,bold,GREEN);
+  drawText(page,'Payment Type: Cash on delivery',MARGIN+12,y-30,8.2,regular,INK);
+  drawText(page,'Payment status: '+paymentStatusLabel,MARGIN+12,y-44,8,regular,MUTED);
+  drawText(page,'Balance due:',paymentCol2,y-25,8,regular,MUTED);
+  drawAmountRight(page,balanceDuePaise,PAGE_W-MARGIN-12,y-25,8.4,bold,INK);
+  drawText(page,paymentStatusLabel==='Not Collected'?'Collect on delivery':'No balance due',paymentCol2,y-42,7.4,regular,MUTED);
+  y-=paymentBoxHeight+13;
+
+  const noteText='Commercial invoice / order record. '+(invoice.seller.footer||'Thank you for shopping with FreshWay.');
+  const noteLines=wrap(noteText,regular,7.6,contentWidth-22).slice(0,2);
+  const noteHeight=23+noteLines.length*10;
+  rect(page,MARGIN,y-noteHeight,contentWidth,noteHeight,PALE);
+  drawText(page,'DOCUMENT NOTE',MARGIN+10,y-13,6.8,bold,GREEN);
+  noteLines.forEach((value,index)=>drawText(page,value,MARGIN+10,y-26-index*10,7.6,regular,INK));
+  y-=noteHeight+8;
   return await doc.save();
 }
 

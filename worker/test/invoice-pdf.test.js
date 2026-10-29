@@ -1,10 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
-import { createInvoicePdf, formatInvoicePhone, formatSellerPhone } from '../src/invoice-pdf.js';
+import { createInvoicePdf, formatInvoicePhone, formatSellerPhone, normalizeInvoicePaymentStatus } from '../src/invoice-pdf.js';
 
 const invoicePdfSource = readFileSync(new URL('../src/invoice-pdf.js', import.meta.url), 'utf8');
+
+function saveVisualSample(name, bytes) {
+  if (process.env.FRESHWAY_VISUAL_ARTIFACTS !== '1') return;
+  mkdirSync('test-results/visual-review', { recursive: true });
+  writeFileSync('test-results/visual-review/' + name, bytes);
+}
 
 function fixture(overrides={}){
   const item={
@@ -32,43 +38,91 @@ test('renders the saved customer phone in domestic format',()=>{
   assert.ok(invoicePdfSource.includes("'Customer Phone: '+customerPhone"),'receipt must show the buyer phone');
 });
 
+test('normalizes invoice collection states without mislabeling uncollected COD as pending',()=>{
+  assert.equal(normalizeInvoicePaymentStatus('Collected'),'Collected');
+  assert.equal(normalizeInvoicePaymentStatus('collected'),'Collected');
+  assert.equal(normalizeInvoicePaymentStatus('Refunded'),'Refunded');
+  assert.equal(normalizeInvoicePaymentStatus('Cancelled'),'Cancelled');
+  assert.equal(normalizeInvoicePaymentStatus('Not Collected'),'Not Collected');
+  assert.equal(normalizeInvoicePaymentStatus('Pending'),'Not Collected');
+  assert.equal(normalizeInvoicePaymentStatus(''),'Not Collected');
+});
+
 test('prints seller contact numbers with the India country code and a visible vector rupee mark',()=>{
   assert.equal(formatSellerPhone('7396805280'),'+917396805280');
   assert.equal(formatSellerPhone('+91 73968 05280'),'+917396805280');
   assert.equal(formatSellerPhone(''), '');
   assert.match(invoicePdfSource,/function drawRupee\(page,x,baseline,size,color\)/);
   assert.match(invoicePdfSource,/const stroke=Math\.max\(0\.72,size\*0\.09\)/);
-  assert.ok(invoicePdfSource.includes('drawRupee(page,x,y,size*0.98,color)'), 'each monetary amount must draw the ₹ mark before the numeric amount');
+  assert.ok(invoicePdfSource.includes('drawRupee(targetPage,x,baseline,size*0.98,color)'), 'each monetary amount must draw the ₹ mark before the numeric amount');
   assert.match(invoicePdfSource,/Parallel headline bars/,'rupee mark must have the two recognizable horizontal bars');
   assert.match(invoicePdfSource,/Diagonal foot/,'rupee mark must have the lower diagonal leg');
   assert.match(invoicePdfSource,/x\+0\.24\*s,baseline\+0\.91\*s,x\+0\.24\*s,baseline\+0\.39\*s/,'rupee stem must stop above the lower diagonal foot');
 });
 
-test('uses receipt labels and conditionally prints the saved tax number',()=>{
+test('uses a branded invoice hierarchy and preserves payment and seller details',()=>{
+  assert.match(invoicePdfSource,/COMMERCIAL INVOICE/);
+  assert.match(invoicePdfSource,/ORDER SUMMARY/);
+  assert.match(invoicePdfSource,/TOTAL PAYABLE/);
+  assert.match(invoicePdfSource,/ISSUED BY/);
+  assert.match(invoicePdfSource,/BILL TO \/ DELIVER TO/);
   assert.match(invoicePdfSource,/Tax Number:/);
-  assert.ok(invoicePdfSource.includes("if(String(invoice.seller.gstin||'').trim())"),'tax number line must be omitted when no tax number is present');
-  assert.match(invoicePdfSource,/Total Bill Amount is/);
-  assert.match(invoicePdfSource,/Cash Received:/);
-  assert.match(invoicePdfSource,/Change Amount:/);
-  assert.match(invoicePdfSource,/Payment Type: Cash/);
+  assert.ok(invoicePdfSource.includes('wrap(value,regular,8,colWidth-22)).slice(0,12)'), 'seller and delivery details use readable 8pt text and retain up to 12 wrapped lines');
+  assert.ok(invoicePdfSource.includes('Math.max(118,Math.min(168,42+Math.max(sellerLines.length,buyerLines.length)*10.5))'), 'billing panels grow for longer addresses instead of clipping them into a fixed-height box');
+  assert.match(invoicePdfSource,/invoice\.seller\.gstin\?'Tax Number: '\+invoice\.seller\.gstin:''/);
+  assert.match(invoicePdfSource,/Payment Type: Cash on delivery/);
+  assert.match(invoicePdfSource,/Payment status: '\+paymentStatusLabel/);
+  assert.match(invoicePdfSource,/Balance due:/);
+  assert.match(invoicePdfSource,/balanceDuePaise=paymentStatusLabel==='Not Collected'\?totalPaise:0/);
+  assert.doesNotMatch(invoicePdfSource,/Cash Received:/,'do not claim actual cash tender when it is not stored');
+  assert.doesNotMatch(invoicePdfSource,/Change Amount:/,'do not claim change given when it is not stored');
+  assert.match(invoicePdfSource,/Commercial invoice \/ order record\./);
 });
 
-test('commercial receipts show only verified pricing breakdowns and keep historical details unknown',()=>{
-  assert.match(invoicePdfSource,/if\(invoice\.totals\.pricingBreakdownKnown===true\)/);
-  assert.match(invoicePdfSource,/drawText\(page,'Items subtotal'/);
-  assert.match(invoicePdfSource,/drawDiscountRight\(page,invoice\.totals\.couponDiscountPaise/);
-  assert.match(invoicePdfSource,/drawText\(page,'Delivery fee'/);
-  assert.match(invoicePdfSource,/drawText\(page,'Order total'/);
+test('commercial invoices show only verified pricing breakdowns and keep historical details unknown',()=>{
+  assert.match(invoicePdfSource,/invoice\.totals\.pricingBreakdownKnown===true/);
+  assert.match(invoicePdfSource,/\['Items subtotal',invoice\.totals\.itemsSubtotalPaise/);
+  assert.match(invoicePdfSource,/couponDiscountPaise/);
+  assert.match(invoicePdfSource,/if\(kind==='discount'\)drawDiscountRight\(page,value/);
+  assert.match(invoicePdfSource,/\['Delivery fee',invoice\.totals\.deliveryFeePaise/);
+  assert.match(invoicePdfSource,/\['Order total',totalPaise/);
 });
 
 test('creates a valid one-page commercial invoice PDF',async()=>{
   const bytes=await createInvoicePdf(fixture());
+  saveVisualSample('commercial-invoice.pdf', bytes);
   assert.ok(bytes instanceof Uint8Array);
   assert.ok(bytes.length>500);
   assert.equal(new TextDecoder().decode(bytes.slice(0,5)),'%PDF-');
   const pdf=await PDFDocument.load(bytes);
   assert.equal(pdf.getPageCount(),1);
   assert.equal(pdf.getTitle(),'FreshWay commercial invoice FW/26-27/000001');
+  const size=pdf.getPage(0).getSize();
+  assert.ok(Math.abs(size.width-595.28)<1,'commercial invoice uses A4 width');
+  assert.ok(Math.abs(size.height-841.89)<1,'commercial invoice uses A4 height');
+});
+
+test('creates a realistic commercial invoice visual sample with long addresses, fixed coupon, delivery fee and collected payment',async()=>{
+  const base=fixture();
+  const invoice=fixture({
+    seller:{...base.seller,address:'Shop No. 12, Sri Sai Commercial Complex, Old Market Road, Main Bazaar, Nennel Mandal, Mancherial District, Telangana 504204'},
+    buyer:{...base.buyer,name:'Sample Customer',phone:'919876543210',deliveryPhone:'9876543210',paymentStatus:'collected',address:{
+      house:'Plot 21, Flat 403',building:'Lakshmi Residency',floor:'Fourth Floor',street:'Road No. 4',
+      area:'Green Valley Layout',locality:'Near Government School',city:'Hyderabad',district:'Medchal-Malkajgiri',
+      state:'Telangana',pincode:'500081',landmark:'Opposite the community health centre, beside the water tank',
+      recipientName:'Delivery Recipient'
+    }},
+    items:[
+      {...base.items[0],productId:'oil-5l',name:'Groundnut Oil',unit:'5 litre can',qty:1,unitPricePaise:165000,grossPaise:165000,taxablePaise:165000},
+      {...base.items[0],productId:'rice-1kg',name:'Basmati Rice',unit:'1 kg bag',qty:2,unitPricePaise:10000,grossPaise:20000,taxablePaise:20000}
+    ],
+    totals:{grossPaise:185000,itemsSubtotalPaise:185000,couponDiscountPaise:5000,couponCode:'FIXED50',deliveryFeePaise:3000,totalPaise:183000,taxablePaise:185000,cgstPaise:0,sgstPaise:0,igstPaise:0,currency:'INR',pricesIncludeTax:true,pricingBreakdownKnown:true}
+  });
+  const bytes=await createInvoicePdf(invoice);
+  saveVisualSample('commercial-invoice-pricing-payment.pdf',bytes);
+  const pdf=await PDFDocument.load(bytes);
+  assert.equal(pdf.getPageCount(),1,'the normal multi-item invoice with longer Indian addresses should fit on one A4 page');
+  assert.ok(bytes.length>1000);
 });
 
 test('splits long item lists across pages without losing the total',async()=>{
@@ -80,9 +134,10 @@ test('splits long item lists across pages without losing the total',async()=>{
   const gross=items.reduce((sum,item)=>sum+item.grossPaise,0);
   const invoice=fixture({
     items,
-    totals:{grossPaise:gross,taxablePaise:gross,cgstPaise:0,sgstPaise:0,igstPaise:0,totalPaise:gross,currency:'INR',pricesIncludeTax:true}
+    totals:{grossPaise:gross,itemsSubtotalPaise:gross,couponDiscountPaise:0,deliveryFeePaise:3000,taxablePaise:gross,cgstPaise:0,sgstPaise:0,igstPaise:0,totalPaise:gross+3000,currency:'INR',pricesIncludeTax:true,pricingBreakdownKnown:true}
   });
   const bytes=await createInvoicePdf(invoice);
+  saveVisualSample('commercial-invoice-multipage.pdf',bytes);
   const pdf=await PDFDocument.load(bytes);
   assert.ok(pdf.getPageCount()>1);
   assert.ok(bytes.length>1500);

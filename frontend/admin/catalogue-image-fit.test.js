@@ -13,7 +13,7 @@ assert.match(source, /\.fw-cat-icon img,.fw-product-icon img\{[^}]*object-fit:co
 assert.match(source, /\.fw-image-preview img\{width:100%;height:100%;object-fit:contain/);
 assert.match(source, /drawImage\(bitmap,0,0,canvas\.width,canvas\.height\)/);
 assert.match(customerStyles, /\.product-image img\{[^}]*object-fit:contain/);
-assert.ok(html.includes('frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1'), 'Owner must load the updated catalogue image-fit module');
-assert.ok(sw.includes('/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1'), 'Owner service worker must cache the updated catalogue image-fit module');
+assert.ok(html.includes('frontend/admin/catalogue.js?v=20261029-promo-alttext-v1'), 'Owner must load the updated catalogue image-fit module');
+assert.ok(sw.includes('/frontend/admin/catalogue.js?v=20261029-promo-alttext-v1'), 'Owner service worker must cache the updated catalogue image-fit module');
 
 console.log('Owner upload, banner preview, catalogue image-fit, and cache-version contract OK');

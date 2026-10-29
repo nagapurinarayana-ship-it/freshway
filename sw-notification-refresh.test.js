@@ -89,7 +89,7 @@ async function dispatchPush(payload) {
   assert.match(index, /frontend\/customer\/orders-data\.js\?v=orders3/);
   assert.match(index, /frontend\/customer\/messages\.js\?v=msg1/);
   assert.match(index, /frontend\/customer\/store-info\.js\?v=msg1/);
-  assert.match(index, /frontend\/customer\/cart-bar\.js\?v=20261029-checkout-total-owner-v1/);
+  assert.match(index, /frontend\/customer\/cart-bar\.js\?v=20261029-cartbar-v2/);
   const assetUrl = 'https://fwcoldpressed.in/frontend/customer/navigation.js?v=20261028-nav-restore-v2';
   const oldResponse = { ok: true, body: 'legacy', clone() { return { ...this }; } };
   const freshResponse = { ok: true, body: 'current', clone() { return { ...this }; } };
