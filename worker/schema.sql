@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS addresses (
   place_id TEXT,
   location_updated_at TEXT,
   is_default INTEGER NOT NULL DEFAULT 0,
+  is_saved_address INTEGER NOT NULL DEFAULT 1 CHECK(is_saved_address IN (0,1)),
   deleted_at TEXT,
   FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE CASCADE
 );
@@ -305,6 +306,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_client_order_id ON orders(client_order_id)
 CREATE INDEX IF NOT EXISTS idx_orders_test_created ON orders(is_test_order, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_addresses_customer ON addresses(customer_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_addresses_customer_default ON addresses(customer_id,is_default DESC,id DESC);
+CREATE INDEX IF NOT EXISTS idx_addresses_customer_saved_default ON addresses(customer_id,is_saved_address,is_default DESC,id DESC);
 CREATE INDEX IF NOT EXISTS idx_addresses_customer_label ON addresses(customer_id,label);
 CREATE INDEX IF NOT EXISTS idx_order_address_snapshots_customer ON order_address_snapshots(customer_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_order_address_snapshots_location ON order_address_snapshots(latitude,longitude);
