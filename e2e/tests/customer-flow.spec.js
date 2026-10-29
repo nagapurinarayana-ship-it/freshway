@@ -997,4 +997,11 @@ test('captures responsive customer visual review snapshots', async ({ page }) =>
   await page.evaluate(() => window.setView('checkout'));
   await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
   await capture('desktop-checkout');
+
+  // The Profile entry must actually open the public privacy page, not just render a static URL in isolation.
+  await page.evaluate(() => window.setView('profile'));
+  await page.locator('#privacyPolicyBtn').click();
+  await expect(page).toHaveURL(/\/privacy\.html$/);
+  await expect(page.locator('h1')).toHaveText('Privacy Policy');
+  await expect(page.locator('#privacyContact')).toContainText('privacy@example.test');
 });
