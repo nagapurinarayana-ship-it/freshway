@@ -36,13 +36,13 @@ self.addEventListener('fetch', event => {
 if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
 const url = new URL(event.request.url);
 if (url.pathname === '/admin.html' || url.pathname.startsWith('/admin/')) return;
-const destination = event.request.destination;
-const isNavigation = event.request.mode === 'navigate' || destination === 'document';
-const isStaticAsset = ['script','style','image','font','manifest'].includes(destination);
-if (!isNavigation && !isStaticAsset) return;
+const destination=event.request.destination;
+const isNavigation=event.request.mode==='navigate'||destination==='document';
+const isStaticAsset=['script','style','image','font','manifest'].includes(destination);
+if(!isNavigation&&!isStaticAsset)return;
 event.respondWith((async () => {
-const isLogo = url.pathname === '/freshway-logo-clean.svg';
-const isVersionedCode=['script','style'].includes(destination)&&url.searchParams.has('v');
+const isLogo=url.pathname==='/freshway-logo-clean.svg';
+const isVersionedCode = ['script','style'].includes(destination) && url.searchParams.has('v');
 const request=isLogo?new Request(event.request,{cache:'reload'}):new Request(event.request,{cache:'no-store'});
 const cache = await caches.open(CACHE);
 if (isNavigation && ['/', '/index.html'].includes(url.pathname)) {
