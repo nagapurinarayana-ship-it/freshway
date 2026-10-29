@@ -6,12 +6,13 @@ vm.runInNewContext(fs.readFileSync('frontend/customer/cart-bar.js','utf8'),conte
 const api=context.window.FreshWayCustomerCartBar;
 assert.equal(typeof api.update,'function');
 const nodes={};
+const homeView={classList:{active:true,contains(name){return name==='active-view'&&this.active}}};
 const ordersView={classList:{active:false,contains(name){return name==='active-view'&&this.active}}};
 const checkoutView={classList:{active:false,contains(name){return name==='active-view'&&this.active}}};
 const cartView={classList:{active:false,contains(name){return name==='active-view'&&this.active}}};
 for(const id of ['cartCount','cartTotal','cartBadge','cartBar','checkoutTotal'])nodes[id]={textContent:'',classList:{hidden:false,toggle(name,value){this[name]=value}}};
 nodes.checkoutTotal.textContent='₹849'; // authoritative server quote: subtotal ₹799 + fee ₹100 - coupon ₹50
-const document={documentElement:{classList:{toggle(name,value){this[name]=value}}},querySelector(selector){if(selector==='#ordersView.active-view')return ordersView.classList.active?ordersView:null;if(selector==='#checkoutView.active-view')return checkoutView.classList.active?checkoutView:null;if(selector==='#cartView.active-view')return cartView.classList.active?cartView:null;return nodes[selector.slice(1)]||null}};
+const document={documentElement:{classList:{toggle(name,value){this[name]=value}}},querySelector(selector){if(selector==='#homeView.active-view')return homeView.classList.active?homeView:null;if(selector==='#ordersView.active-view')return ordersView.classList.active?ordersView:null;if(selector==='#checkoutView.active-view')return checkoutView.classList.active?checkoutView:null;if(selector==='#cartView.active-view')return cartView.classList.active?cartView:null;return nodes[selector.slice(1)]||null}};
 api.update(document,{count:2,total:240,money:n=>`₹${n}`});
 assert.equal(nodes.cartCount.textContent,'2 items');
 assert.equal(nodes.cartTotal.textContent,'₹240');
@@ -35,6 +36,11 @@ api.update(document,{count:2,total:240,money:n=>`₹${n}`});
 assert.equal(nodes.cartBar.classList.hidden,true,'floating cart bar must be hidden on the cart to avoid covering coupon offers');
 assert.equal(document.documentElement.classList['fw-cart-bar-visible'],false,'cart screen must not reserve or overlay space for the floating cart bar');
 cartView.classList.active=false;
+homeView.classList.active=false;
+api.update(document,{count:2,total:240,money:n=>`₹${n}`});
+assert.equal(nodes.cartBar.classList.hidden,true,'floating cart bar must stay hidden on About, Contact, Profile and Messages');
+assert.equal(document.documentElement.classList['fw-cart-bar-visible'],false,'informational/account pages must not reserve or overlay cart-bar space');
+homeView.classList.active=true;
 api.update(document,{count:2,total:240,money:n=>`₹${n}`});
 assert.equal(nodes.cartBar.classList.hidden,false,'cart bar returns on the catalogue/home view');
 api.update(document,{count:0,total:0,money:n=>`₹${n}`});
