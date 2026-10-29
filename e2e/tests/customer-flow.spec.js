@@ -1317,6 +1317,12 @@ test('captures populated orders, delivery rescheduling, order help, invoice down
   const desktopPicker = desktopRescheduleCard.locator('[data-customer-reschedule-picker]');
   await expect(desktopPicker).toBeVisible();
   await desktopPicker.scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, 350));
+  const desktopPickerLayout = await desktopPicker.locator('[data-fw-delivery-confirm]').evaluate(element => ({
+    buttonBottom: element.getBoundingClientRect().bottom,
+    navTop: document.querySelector('.bottom-nav').getBoundingClientRect().top
+  }));
+  expect(desktopPickerLayout.buttonBottom, 'desktop reschedule save action should remain above the fixed bottom navigation').toBeLessThan(desktopPickerLayout.navTop);
   await capture('desktop-order-reschedule');
 
   const confirmation = {
