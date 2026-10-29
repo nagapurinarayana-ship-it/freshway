@@ -408,6 +408,132 @@ test('checkout button shows the final payable total, not the item subtotal', asy
   await expect(placeOrder).not.toContainText('₹799');
 });
 
+test('₹1,850 cart item persists through checkout navigation and page refresh', async ({ page }) => {
+  const quotePayloads = [];
+  await page.route('**/api/products', async route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ products: [{
+      id: 42,
+      name: 'Groundnut oil/5ltrs',
+      unit: 'kg',
+      price: 1850,
+      emoji: '🛢️',
+      active: 1,
+      category_id: 'cat-rice',
+      category_name: 'Rice',
+      category_slug: 'rice'
+    }] })
+  }));
+  await page.route('**/api/checkout/quote', async route => {
+    const payload = JSON.parse(route.request().postData() || '{}');
+    quotePayloads.push(payload);
+    const item = payload.items?.[0] || {};
+    if (String(item.id) !== '42') {
+      return route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: 'Cart item changed unexpectedly.' }) });
+    }
+    const qty = Number(item.qty || 1);
+    const itemsSubtotal = 1850 * qty;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ pricing: {
+        itemsSubtotal,
+        freeDeliveryEnabled: true,
+        freeDeliveryThreshold: 800,
+        qualifiesForFreeDelivery: true,
+        amountToFreeDelivery: 0,
+        standardDeliveryFee: 100,
+        deliveryFee: 0,
+        couponDiscount: 0,
+        finalTotal: itemsSubtotal,
+        coupon: null,
+        items: [{ id: 42, name: 'Groundnut oil/5ltrs', unit: 'kg', qty, price: 1850, lineTotal: itemsSubtotal }]
+      } })
+    });
+  });
+
+  await page.goto('/');
+  await expect(page.locator('[data-fw-category="cat-rice"]')).toContainText('Rice');
+  await page.locator('[data-fw-category="cat-rice"]').click();
+  await expect(page.locator('#productGrid .product-card')).toContainText('Groundnut oil/5ltrs');
+  await page.locator('#productGrid .add-btn').click();
+  await expect(page.locator('#cartTotal')).toHaveText('₹1,850');
+  await page.locator('#viewCartBtn').click();
+  await expect(page.locator('#cartItems')).toContainText('Groundnut oil/5ltrs');
+  await expect(page.locator('#fwDeliveryPricing')).toContainText('₹1,850');
+  await page.locator('#checkoutBtn').click();
+  await expect(page.locator('#fwCheckoutPricing')).toContainText('₹1,850');
+  await expect(page.locator('#checkoutForm button[type="submit"]')).toContainText('₹1,850');
+
+  const savedBeforeReload = await page.evaluate(() => JSON.parse(localStorage.getItem('freshway-state-v2') || '{}'));
+  expect(savedBeforeReload.cart['42']).toBe(1);
+  expect(savedBeforeReload.cartProducts['42'].price).toBe(1850);
+  await page.reload();
+  await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
+  await expect(page.locator('#fwCheckoutPricing')).toContainText('₹1,850');
+  await expect(page.locator('#checkoutForm button[type="submit"]')).toContainText('₹1,850');
+  const savedAfterReload = await page.evaluate(() => JSON.parse(localStorage.getItem('freshway-state-v2') || '{}'));
+  expect(savedAfterReload.cart['42']).toBe(1);
+  expect(savedAfterReload.cartProducts['42'].name).toBe('Groundnut oil/5ltrs');
+  expect(quotePayloads.length).toBeGreaterThanOrEqual(2);
+  expect(quotePayloads.every(payload => String(payload.items?.[0]?.id) === '42')).toBe(true);
+});
+
+test('checkout refuses a quote for a different cart item instead of showing a mismatched price', async ({ page }) => {
+  await page.route('**/api/products', async route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ products: [{
+      id: 42,
+      name: 'Groundnut oil/5ltrs',
+      unit: 'kg',
+      price: 1850,
+      emoji: '🛢️',
+      active: 1,
+      category_id: 'cat-rice',
+      category_name: 'Rice',
+      category_slug: 'rice'
+    }] })
+  }));
+  await page.route('**/api/checkout/quote', async route => {
+    const payload = JSON.parse(route.request().postData() || '{}');
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ pricing: {
+        itemsSubtotal: 799,
+        freeDeliveryEnabled: true,
+        freeDeliveryThreshold: 800,
+        qualifiesForFreeDelivery: false,
+        amountToFreeDelivery: 1,
+        standardDeliveryFee: 100,
+        deliveryFee: 100,
+        couponDiscount: 0,
+        finalTotal: 899,
+        coupon: null,
+        items: [{ id: 'p1', name: 'Different item', unit: 'kg', qty: Number(payload.items?.[0]?.qty || 1), price: 799, lineTotal: 799 }]
+      } })
+    });
+  });
+
+  await page.goto('/');
+  await page.locator('[data-fw-category="cat-rice"]').click();
+  await page.locator('#productGrid .add-btn').click();
+  await page.locator('#viewCartBtn').click();
+  await expect(page.locator('#fwDeliveryPricing')).toContainText('We could not verify every cart item');
+  await page.locator('#checkoutBtn').click();
+  const placeOrder = page.locator('#checkoutForm button[type="submit"]');
+  await expect(placeOrder).toBeDisabled();
+  await expect(placeOrder).toContainText('Total unavailable');
+  await expect(page.locator('#fwCheckoutPricing')).toContainText('Could not refresh your order total');
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('freshway-state-v2') || '{}'));
+  expect(saved.cart['42']).toBe(1);
+  expect(saved.cartProducts['42'].name).toBe('Groundnut oil/5ltrs');
+  await expect(placeOrder).not.toContainText('₹799');
+  await expect(placeOrder).not.toContainText('₹0');
+});
+
 test('new address defaults to registered name/mobile but lets the customer edit both', async ({ page }) => {
   let sessionCalls = 0;
   let registrationDetailsAvailable = false;
