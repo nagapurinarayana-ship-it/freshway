@@ -13,7 +13,7 @@ const INTERMEDIATE_CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261029-registration-prefill-v1';
 const EXPECTED_CUSTOMER_CACHE = 'freshway-v112';
-const LEGACY_CUSTOMER_CACHES = ['freshway-v110', 'freshway-v109'];
+const LEGACY_CUSTOMER_CACHES = ['freshway-v111', 'freshway-v110'];
 const SUPPORTED_CUSTOMER_CACHES = [EXPECTED_CUSTOMER_CACHE, ...LEGACY_CUSTOMER_CACHES];
 const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261029-nonintrusive-install-v2';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
