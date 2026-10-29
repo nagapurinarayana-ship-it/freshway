@@ -48,7 +48,17 @@ jobs:
         run: npm install
       - name: Run all Worker tests
         working-directory: source/worker
+        env:
+          FRESHWAY_VISUAL_ARTIFACTS: '1'
         run: npm test
+      - name: Upload invoice visual review sample
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: freshway-invoice-visual-review
+          path: source/worker/test-results/visual-review/commercial-invoice.pdf
+          if-no-files-found: warn
+          retention-days: 7
       - name: Test preview isolation guards
         run: node --test tooling/.github/preview-worker/test/preview-config.test.js
       - name: Verify preview config refuses production D1
