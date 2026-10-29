@@ -904,12 +904,72 @@ test('captures responsive customer visual review snapshots', async ({ page }) =>
   await expect(page.locator('#ordersView')).toHaveClass(/active-view/);
   await capture('mobile-orders');
 
+  // About and Contact are real customer-facing pages and need their own visual review.
+  await page.evaluate(() => window.setView('about'));
+  await expect(page.locator('#aboutView')).toHaveClass(/active-view/);
+  await expect(page.locator('#aboutContent .store-about-hero')).toBeVisible();
+  await expect(page.locator('#aboutContent .store-info-about')).toContainText('Fresh groceries and everyday essentials');
+  await expect(page.locator('#aboutContent .store-contact-cta')).toBeVisible();
+  await capture('mobile-about');
+
+  await page.evaluate(() => window.setView('contact'));
+  await expect(page.locator('#contactView')).toHaveClass(/active-view/);
+  await expect(page.locator('#contactContent .store-page-intro')).toContainText('Reach FreshWay');
+  await expect(page.locator('#contactContent [data-customer-message-form]')).toBeVisible();
+  await expect(page.locator('#contactContent input[name="subject"]')).toBeVisible();
+  await expect(page.locator('#contactContent textarea[name="message"]')).toBeVisible();
+  await expect(page.locator('#contactContent .store-contact-actions')).toContainText('WhatsApp');
+  await capture('mobile-contact');
+
+  // Privacy Policy is a separate public page, so test the direct URL as well as its responsive content.
+  const privacyPage = await page.context().newPage();
+  await privacyPage.route('**/api/store-profile', async route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ storeProfile: {
+      storeName: 'FreshWay Test Store',
+      address: '12 Example Market, Test Colony, Hyderabad, Telangana 500001',
+      phone: '9000000000',
+      whatsapp: '9000000000',
+      email: 'privacy@example.test'
+    } })
+  }));
+  await privacyPage.setViewportSize({ width: 390, height: 844 });
+  await privacyPage.goto('/privacy.html');
+  await expect(privacyPage.locator('h1')).toHaveText('Privacy Policy');
+  await expect(privacyPage.locator('#privacyContact')).toHaveAttribute('aria-busy', 'false');
+  await expect(privacyPage.locator('#privacyContact')).toContainText('privacy@example.test');
+  await expect(privacyPage.locator('.note')).toContainText('Operator review required');
+  await privacyPage.screenshot({
+    path: 'test-results/visual-review/mobile-privacy-policy.png',
+    fullPage: true,
+    animations: 'disabled'
+  });
+
   // Desktop-width snapshots verify that responsive layouts do not become stretched.
   await page.setViewportSize({ width: 1365, height: 900 });
   await page.evaluate(() => window.setView('home'));
   await expect(page.locator('#homeView')).toHaveClass(/active-view/);
   await capture('desktop-home');
 
+  await page.evaluate(() => window.setView('about'));
+  await expect(page.locator('#aboutContent .store-about-hero')).toBeVisible();
+  await capture('desktop-about');
+
+  await page.evaluate(() => window.setView('contact'));
+  await expect(page.locator('#contactContent [data-customer-message-form]')).toBeVisible();
+  await capture('desktop-contact');
+
+  await privacyPage.setViewportSize({ width: 1365, height: 900 });
+  await privacyPage.screenshot({
+    path: 'test-results/visual-review/desktop-privacy-policy.png',
+    fullPage: true,
+    animations: 'disabled'
+  });
+  await privacyPage.close();
+
+  await page.evaluate(() => window.setView('home'));
+  await expect(page.locator('#homeView')).toHaveClass(/active-view/);
   await page.locator('[data-fw-category="cat-rice"]').click();
   await expect(page.locator('#productGrid .product-card')).toContainText('Basmati Rice');
   const desktopCardLayout = await page.locator('#productGrid .product-card').first().evaluate(card => {
