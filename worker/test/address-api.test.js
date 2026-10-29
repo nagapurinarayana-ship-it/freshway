@@ -36,10 +36,13 @@ class MockD1 {
   ownedRows(customerId) {
     return this.rows.filter(row => String(row.customer_id) === String(customerId) && !row.deleted_at);
   }
+  savedRows(customerId) {
+    return this.ownedRows(customerId).filter(row => Number(row.is_saved_address ?? 1) === 1);
+  }
   async first(sql, p) {
     if (sql.includes('LOWER(TRIM(label))')) {
       const normalize = value => String(value ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
-      return this.ownedRows(p[0]).filter(row =>
+      return this.savedRows(p[0]).filter(row =>
         normalize(row.label) === normalize(p[1]) &&
         normalize(row.recipient_name) === normalize(p[2]) &&
         row.delivery_phone === p[3] &&
@@ -57,23 +60,22 @@ class MockD1 {
        .map(row => ({ id: row.id }))[0] || null;
     }
     if (sql.includes('SELECT id FROM addresses WHERE id=? AND customer_id=? AND deleted_at IS NULL')) {
-      return this.rows.find(row => row.id === Number(p[0]) && String(row.customer_id) === String(p[1]) && !row.deleted_at)
-        ? { id: Number(p[0]) } : null;
+      return this.savedRows(p[1]).find(row => row.id === Number(p[0])) ? { id: Number(p[0]) } : null;
     }
     if (sql.includes('SELECT * FROM addresses WHERE id=? AND customer_id=?')) {
-      return this.rows.find(row => row.id === Number(p[0]) && String(row.customer_id) === String(p[1]) && !row.deleted_at) || null;
+      return this.savedRows(p[1]).find(row => row.id === Number(p[0])) || null;
     }
     if (sql.includes('is_default=1 ORDER BY id DESC LIMIT 1')) {
-      return this.ownedRows(p[0]).filter(row => Number(row.is_default) === 1).sort((a, b) => b.id - a.id).map(row => ({ id: row.id }))[0] || null;
+      return this.savedRows(p[0]).filter(row => Number(row.is_default) === 1).sort((a, b) => b.id - a.id).map(row => ({ id: row.id }))[0] || null;
     }
     if (sql.includes('SELECT id FROM addresses WHERE customer_id=?')) {
-      return this.ownedRows(p[0]).sort((a, b) => b.id - a.id).map(row => ({ id: row.id }))[0] || null;
+      return this.savedRows(p[0]).sort((a, b) => b.id - a.id).map(row => ({ id: row.id }))[0] || null;
     }
     throw new Error('Unhandled first() query: ' + sql);
   }
   async all(sql, p) {
     if (sql.includes('SELECT * FROM addresses WHERE customer_id=?')) {
-      return { results: this.ownedRows(p[0]).sort((a, b) => Number(b.is_default) - Number(a.is_default) || b.id - a.id) };
+      return { results: this.savedRows(p[0]).sort((a, b) => Number(b.is_default) - Number(a.is_default) || b.id - a.id) };
     }
     throw new Error('Unhandled all() query: ' + sql);
   }
@@ -84,7 +86,7 @@ class MockD1 {
       const defaultCustomer = String(p[2]);
       const fallbackCustomer = String(p[3]);
       const whereCustomer = String(p[4]);
-      const rows = this.ownedRows(whereCustomer).sort((a, b) => b.id - a.id);
+      const rows = this.savedRows(whereCustomer).sort((a, b) => b.id - a.id);
       let chosen = preferredId == null ? null : rows.find(row =>
         row.id === preferredId && String(row.customer_id) === preferredCustomer
       );
@@ -101,7 +103,7 @@ class MockD1 {
         pincode: p[4], landmark: p[5], note: p[6], label: p[7], recipient_name: p[8],
         delivery_phone: p[9], building: p[10], floor: p[11], street: p[12], locality: p[13],
         district: p[14], state: p[15], latitude: p[16], longitude: p[17], accuracy_meters: p[18],
-        location_source: p[19], place_id: p[20], location_updated_at: p[21], is_default: p[22], deleted_at: null
+        location_source: p[19], place_id: p[20], location_updated_at: p[21], is_default: p[22], is_saved_address: p[23] ?? 1, deleted_at: null
       };
       this.rows.push(row);
       return { meta: { last_row_id: row.id, changes: 1 } };
@@ -111,7 +113,7 @@ class MockD1 {
       return { meta: { changes: 1 } };
     }
     if (sql.includes('SET is_default=0,deleted_at=CURRENT_TIMESTAMP')) {
-      const row = this.rows.find(item => item.id === Number(p[0]) && String(item.customer_id) === String(p[1]) && !item.deleted_at);
+      const row = this.savedRows(p[1]).find(item => item.id === Number(p[0]));
       if (row) { row.is_default = 0; row.deleted_at = 'deleted'; }
       return { meta: { changes: row ? 1 : 0 } };
     }
@@ -120,13 +122,13 @@ class MockD1 {
       return { meta: { changes: 1 } };
     }
     if (sql.includes('SET is_default=1 WHERE id=? AND customer_id=?')) {
-      const row = this.rows.find(item => item.id === Number(p[0]) && String(item.customer_id) === String(p[1]) && !item.deleted_at);
+      const row = this.savedRows(p[1]).find(item => item.id === Number(p[0]));
       if (row) row.is_default = 1;
       return { meta: { changes: row ? 1 : 0 } };
     }
     if (sql.startsWith('UPDATE addresses SET label=?')) {
       const id = Number(p[22]), customerId = String(p[23]);
-      const row = this.rows.find(item => item.id === id && String(item.customer_id) === customerId && !item.deleted_at);
+      const row = this.savedRows(customerId).find(item => item.id === id);
       if (!row) return { meta: { changes: 0 } };
       Object.assign(row, {
         label:p[0], recipient_name:p[1], delivery_phone:p[2], house:p[3], building:p[4],
@@ -210,6 +212,48 @@ test('address lists never expose another customer account address', async () => 
   const list = await result(await handleAddress(request('/api/addresses', 'GET'), environment, 'customer-a', 'list'));
   assert.equal(list.body.addresses.length, 1);
   assert.equal(list.body.addresses[0].recipientName, 'Test Customer');
+});
+
+
+test('checkout-only and legacy incomplete addresses stay out of the reusable address book', async () => {
+  const environment = env();
+  environment.DB.rows.push({
+    id: environment.DB.nextId++, customer_id: 'customer-a',
+    house: '1-1', area: 'Checkout address', city: 'Hyderabad', pincode: '500001',
+    label: 'Other', recipient_name: null, delivery_phone: null,
+    is_default: 0, is_saved_address: 0, deleted_at: null
+  });
+
+  const saved = await result(await handleAddress(
+    request('/api/addresses', 'POST', address()),
+    environment, 'customer-a', 'create'
+  ));
+  assert.equal(saved.status, 201);
+  assert.equal(saved.body.addresses.length, 1);
+  assert.equal(saved.body.addresses[0].id, 2);
+  assert.equal(saved.body.addresses[0].isDefault, true);
+
+  const listed = await result(await handleAddress(
+    request('/api/addresses', 'GET'),
+    environment, 'customer-a', 'list'
+  ));
+  assert.deepEqual(listed.body.addresses.map(item => item.id), [2]);
+
+  const editHiddenRow = await result(await handleAddress(
+    request('/api/addresses/1', 'PATCH', address({ houseFlat: 'Changed address' })),
+    environment, 'customer-a', 'update'
+  ));
+  assert.equal(editHiddenRow.status, 404);
+  assert.equal(environment.DB.rows.find(row => row.id === 1).is_saved_address, 0);
+
+  const deleted = await result(await handleAddress(
+    request('/api/addresses/2', 'DELETE'),
+    environment, 'customer-a', 'delete'
+  ));
+  assert.equal(deleted.status, 200);
+  assert.equal(deleted.body.addresses.length, 0);
+  assert.equal(environment.DB.rows.find(row => row.id === 1).deleted_at, null);
+  assert.equal(environment.DB.rows.find(row => row.id === 1).is_default, 0);
 });
 
 test('failed create transaction rolls back the new address and keeps default state intact', async () => {
