@@ -88,11 +88,12 @@ async function publicCatalogueImage(request, env, type, entityId) {
     : await env.DB.prepare("SELECT c.image_data,c.image_mime_type FROM categories c WHERE c.id=? AND c.active=1 AND EXISTS (SELECT 1 FROM products p WHERE p.category_id=c.id AND p.active=1)").bind(entityId).first();
   const mime = String(row && row.image_mime_type || '').toLowerCase();
   const base64 = String(row && row.image_data || '');
-  if (!row || !base64 || base64.length > MAX_IMAGE_DATA || base64.length % 4 !== 0 ||
+  if (!row || !base64 || base64.length > MAX_IMAGE_DATA ||
       !/^[A-Za-z0-9+/]+={0,2}$/.test(base64) || !/^image\/(?:png|jpe?g|webp)$/.test(mime)) {
     return imageNotFound();
   }
-  const binary = atob(base64);
+  let binary;
+  try { binary = atob(base64); } catch (_) { return imageNotFound(); }
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));

@@ -165,3 +165,19 @@ test('public category catalogue returns image URLs and avoids grouping on Base64
   assert.equal(Object.hasOwn(body.categories[0], 'image_mime_type'), false);
   assert.doesNotMatch(fixture.lastSql, /GROUP BY[^;]*c\.image_data/i);
 });
+
+
+test('public image endpoint accepts valid unpadded Base64 data', async () => {
+  const bytes = Uint8Array.from([1, 2, 3, 4, 5]);
+  const { env } = imageEnv({ image_data: Buffer.from(bytes).toString('base64').replace(/=+$/, ''), image_mime_type: 'image/png' });
+  const response = await handleCatalogueRequest(new Request('https://api.example.test/api/catalogue/images/products/p-1?v=v1'), env);
+  assert.equal(response.status, 200);
+  assert.deepEqual(Array.from(new Uint8Array(await response.arrayBuffer())), Array.from(bytes));
+});
+
+test('malformed Base64 image returns 404 instead of an API exception response', async () => {
+  const { env } = imageEnv({ image_data: 'not-valid-base64!', image_mime_type: 'image/png' });
+  const response = await handleCatalogueRequest(new Request('https://api.example.test/api/catalogue/images/products/p-1?v=v1'), env);
+  assert.equal(response.status, 404);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+});
