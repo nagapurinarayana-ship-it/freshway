@@ -87,3 +87,81 @@ test('category status changes still honor explicit true and false values', async
   assert.equal(response.status, 200);
   assert.equal(active.stored.active, 0);
 });
+
+
+function imageEnv(row) {
+  let lastSql = '';
+  const env = {
+    DB: {
+      prepare(sql) {
+        lastSql = sql;
+        return {
+          args: [],
+          bind(...args) { this.args = args; return this; },
+          async first() { return row; },
+          async all() { return { results: [row] }; }
+        };
+      }
+    }
+  };
+  return { env, get lastSql() { return lastSql; } };
+}
+
+test('public custom catalogue images are served as cacheable binary responses with ETags', async () => {
+  const bytes = Uint8Array.from([0x52, 0x49, 0x46, 0x46, 0x08, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50]);
+  const stored = { image_data: Buffer.from(bytes).toString('base64'), image_mime_type: 'image/webp' };
+  const fixture = imageEnv(stored);
+  const url = 'https://api.example.test/api/catalogue/images/products/p-1?v=v1';
+  const response = await handleCatalogueRequest(new Request(url), fixture.env);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('content-type'), 'image/webp');
+  assert.match(response.headers.get('cache-control') || '', /public, max-age=31536000, immutable/);
+  assert.match(response.headers.get('etag') || '', /^"[a-f0-9]{64}"$/);
+  assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+  assert.deepEqual(Array.from(new Uint8Array(await response.arrayBuffer())), Array.from(bytes));
+  const etag = response.headers.get('etag');
+  const notModified = await handleCatalogueRequest(new Request(url, { headers: { 'if-none-match': etag } }), fixture.env);
+  assert.equal(notModified.status, 304, 'matching ETag should avoid retransmitting image bytes');
+  assert.equal(notModified.headers.get('etag'), etag);
+});
+
+test('public image endpoint does not expose hidden or missing catalogue images', async () => {
+  const fixture = imageEnv(null);
+  const response = await handleCatalogueRequest(new Request('https://api.example.test/api/catalogue/images/products/hidden?v=v1'), fixture.env);
+  assert.equal(response.status, 404);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+});
+
+test('public product catalogue returns image URLs without embedding Base64 image payloads', async () => {
+  const row = {
+    id: 'p-1', name: 'Test oil', unit: 'litre', price: 500, emoji: '🫙', active: 1,
+    category_id: 'cat-1', display_order: 1, has_custom_image: 1, image_length: 36,
+    image_head: 'aGVsbG8=', image_tail: 'd29ybGQ=', updated_at: '2026-10-29 12:00:00',
+    stock_managed: 0, stock_quantity: 0, low_stock_threshold: 5,
+    category_name: 'Oils', category_slug: 'oils'
+  };
+  const fixture = imageEnv(row);
+  const response = await handleCatalogueRequest(new Request('https://api.example.test/api/products'), fixture.env);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.match(body.products[0].image_url, /^\/api\/catalogue\/images\/products\/p-1\?v=/);
+  assert.equal(Object.hasOwn(body.products[0], 'image_data'), false);
+  assert.equal(Object.hasOwn(body.products[0], 'image_mime_type'), false);
+  assert.doesNotMatch(fixture.lastSql, /p\.image_data\s*,\s*p\.image_mime_type/);
+});
+
+test('public category catalogue returns image URLs and avoids grouping on Base64 values', async () => {
+  const row = {
+    id: 'cat-1', name: 'Oils', slug: 'oils', icon: '🫙', description: '',
+    display_order: 1, updated_at: '2026-10-29 12:00:00', has_custom_image: 1,
+    image_length: 40, image_head: 'aGVsbG8=', image_tail: 'd29ybGQ=', product_count: 2
+  };
+  const fixture = imageEnv(row);
+  const response = await handleCatalogueRequest(new Request('https://api.example.test/api/categories'), fixture.env);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.match(body.categories[0].image_url, /^\/api\/catalogue\/images\/categories\/cat-1\?v=/);
+  assert.equal(Object.hasOwn(body.categories[0], 'image_data'), false);
+  assert.equal(Object.hasOwn(body.categories[0], 'image_mime_type'), false);
+  assert.doesNotMatch(fixture.lastSql, /GROUP BY[^;]*c\.image_data/i);
+});

@@ -4,7 +4,7 @@
   const snapshot=(p,unavailable=false)=>({
     id:String(p?.id??''),name:String(p?.name||'Saved cart item'),
     unit:String(p?.unit||''),price:Math.max(0,Number(p?.price)||0),
-    emoji:String(p?.emoji||'🛒'),unavailable:!!unavailable
+    emoji:String(p?.emoji||'🛒'),image_url:String(p?.image_url||''),unavailable:!!unavailable
   });
   const create=({state,getProducts,setProducts,save,renderProducts,renderCart,updateCartBar,isCartActive})=>{
     const persistView=()=>{
