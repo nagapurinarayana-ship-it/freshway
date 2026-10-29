@@ -12,7 +12,7 @@ assert.ok(index.includes('frontend/customer/delivery-offers.js?v=102'),
   'HTML must load the updated delivery-offers module');
 assert.ok(worker.includes('/frontend/customer/delivery-offers.js?v=102'),
   'service worker must cache the updated delivery-offers module');
-assert.match(worker,/const CACHE = 'freshway-v106'/,
+assert.match(worker,/const CACHE = 'freshway-v107'/,
   'the service-worker cache version must match the current customer shell');
 assert.ok(worker.includes('/frontend/customer/delivery-booking.js?v=20261029-date-persistence-v1'),
   'service worker must cache the persistent delivery-day picker');
