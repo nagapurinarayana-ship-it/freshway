@@ -262,7 +262,13 @@ async function protectedOrders(request, env, ctx) {
   }
   // Identity always comes from the signed-in account. The delivery contact is an
   // order-specific field and is stored only in the immutable address snapshot.
-  const address = { ...(payload.address || {}), deliveryPhone: `91${deliveryPhone}` };
+  const address = {
+    ...(payload.address || {}),
+    // Checkout may collect the recipient name in the customer form rather than
+    // duplicating it inside the address object. Persist that name in the immutable snapshot.
+    recipientName: String(payload.address?.recipientName || payload.address?.recipient_name || payload.customer?.name || '').trim(),
+    deliveryPhone: `91${deliveryPhone}`
+  };
   // The legacy order writer validates customer.phone as ten local digits. Keep the account identity canonical in D1 and restore its canonical value on the order row below.
   // Preview-only E2E orders are clearly classified in D1 and do not send customer/Owner push alerts.
   // This flag is server-derived from the approved Preview origin, never trusted directly from the payload.
