@@ -90,11 +90,11 @@ export async function onRequest(context) {
     }
   });
 
-  const isOwnerAdminApi = targetPath.startsWith('/api/admin/') || targetPath === '/api/notifications/broadcast';
-  if (isOwnerReadOnlyPreview && isOwnerAdminApi) {
+  const isPreviewApiRequest = targetPath.startsWith('/api/');
+  if (isOwnerReadOnlyPreview && isPreviewApiRequest) {
     const previewApiUrl = new URL(targetUrl.toString());
     previewApiUrl.hostname = ownerPreviewWorkerHost;
-    // The branch Preview Worker accepts this exact Pages Preview origin and enforces GET-only access.
+    // Route customer and Owner APIs through the branch Preview Worker, never the production service binding.
     headers.set('Origin', incoming.origin);
     try {
       return await fetch(buildRequest(previewApiUrl.toString()));
