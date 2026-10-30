@@ -85,6 +85,7 @@ async function createOrder(env, payload, ctx) {
   const customerId = String(payload.customerId || '').slice(0, 100), customer = payload.customer || {}, address = payload.address || {};
   const rawItems = Array.isArray(payload.items) ? payload.items : [];
   const clientOrderId = String(payload.clientOrderId || '').trim().slice(0, 100);
+  const previewTestOrder = payload.__freshwayPreviewTestOrder === true;
   if (clientOrderId && !/^[A-Za-z0-9_-]{8,100}$/.test(clientOrderId)) throw new Error('Invalid checkout order id.');
   if (!customerId || !customer.name || !customer.phone) throw new Error('Customer details are required.');
   if (!address.house || !address.area || !address.city || !address.pincode) throw new Error('Complete delivery address is required.');
@@ -114,7 +115,7 @@ async function createOrder(env, payload, ctx) {
   const stockUpdates=items.filter(item=>item.stockReservedQty>0).map(item=>env.DB.prepare('UPDATE products SET stock_quantity=stock_quantity-? WHERE id=? AND stock_managed=1').bind(item.stockReservedQty,item.id));
   const deliveryPlan=deliverySelection?.deliveryPlan||'Tomorrow';
   const redemptionStatements=await orderRedemptionStatements(env,id,customerId,pricing);
-  const statements=[...stockUpdates,env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,items_subtotal,delivery_fee,coupon_id,coupon_code,coupon_discount,pricing_breakdown_known,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at,scheduled_delivery_date,scheduled_slot_id,assigned_store_id,scheduled_start_minute,scheduled_end_minute,schedule_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'Not Collected','New',?,?,?,?,?,?,?,?,?,?)`).bind(id,customerId,addressId,customerName,phone,total,pricing.itemsSubtotal,pricing.deliveryFee,pricing.couponId,pricing.couponCode,pricing.couponDiscount,1,deliveryPlan,clientOrderId||null,createdAt,createdAt,deliverySelection?.date||null,null,null,null,null,deliverySelection?'requested':'unscheduled'),...redemptionStatements,...items.map(item=>env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total,stock_reserved_qty,hsn_code,gst_rate_bps,gst_rate_confirmed) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).bind(id,item.id,item.name,item.unit,item.qty,item.price,item.lineTotal,item.stockReservedQty,item.hsn_code||'',Number(item.gst_rate_bps||0),Number(item.gst_rate_confirmed||0))),...checkoutDeliveryStatements(env,id,deliverySelection,items)];
+  const statements=[...stockUpdates,env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,items_subtotal,delivery_fee,coupon_id,coupon_code,coupon_discount,pricing_breakdown_known,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at,scheduled_delivery_date,scheduled_slot_id,assigned_store_id,scheduled_start_minute,scheduled_end_minute,schedule_status,is_test_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'Not Collected','New',?,?,?,?,?,?,?,?,?,?,?)`).bind(id,customerId,addressId,customerName,phone,total,pricing.itemsSubtotal,pricing.deliveryFee,pricing.couponId,pricing.couponCode,pricing.couponDiscount,1,deliveryPlan,clientOrderId||null,createdAt,createdAt,deliverySelection?.date||null,null,null,null,null,deliverySelection?'requested':'unscheduled',previewTestOrder?1:0),...redemptionStatements,...items.map(item=>env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total,stock_reserved_qty,hsn_code,gst_rate_bps,gst_rate_confirmed) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).bind(id,item.id,item.name,item.unit,item.qty,item.price,item.lineTotal,item.stockReservedQty,item.hsn_code||'',Number(item.gst_rate_bps||0),Number(item.gst_rate_confirmed||0))),...checkoutDeliveryStatements(env,id,deliverySelection,items)];
   try { await env.DB.batch(statements); } catch (error) {
     await env.DB.prepare('DELETE FROM addresses WHERE id=?').bind(addressId).run();
     if (clientOrderId && /unique|constraint/i.test(error?.message || '')) {
@@ -130,10 +131,10 @@ async function createOrder(env, payload, ctx) {
     if (/stock_quantity/i.test(error?.message || '')) throw new Error('Stock changed while you were checking out. Please refresh your cart and try again.');
     throw error;
   }
-  const placedAlerts = buildOrderPlacedAlerts({ id, customerId, customerName, total, items });
+  const placedAlerts = previewTestOrder ? [] : buildOrderPlacedAlerts({ id, customerId, customerName, total, items });
   const alertWork = scheduleOrderAlerts(ctx, env, placedAlerts);
   if (alertWork) await alertWork;
-  return { id, customerId, total, itemsSubtotal:pricing.itemsSubtotal, deliveryFee:pricing.deliveryFee, couponCode:pricing.couponCode, couponDiscount:pricing.couponDiscount, pricingBreakdownKnown:true, payment: 'Not Collected', status: 'New', deliveryPlan, scheduledDelivery: deliverySelection ? { date: deliverySelection.date } : null, createdAt, updatedAt: createdAt, address: { ...address, pincode: String(address.pincode) }, items };
+  return { id, customerId, total, itemsSubtotal:pricing.itemsSubtotal, deliveryFee:pricing.deliveryFee, couponCode:pricing.couponCode, couponDiscount:pricing.couponDiscount, pricingBreakdownKnown:true, payment: 'Not Collected', status: 'New', isTestOrder: previewTestOrder, deliveryPlan, scheduledDelivery: deliverySelection ? { date: deliverySelection.date } : null, createdAt, updatedAt: createdAt, address: { ...address, pincode: String(address.pincode) }, items };
 }
 
 async function customerOrders(env, customerId) {
