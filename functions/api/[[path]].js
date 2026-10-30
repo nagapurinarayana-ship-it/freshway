@@ -104,6 +104,10 @@ export async function onRequest(context) {
     }
   });
 
+  if (isOwnerPreviewHost && environment === 'development' && !String(context.env.PREVIEW_ADMIN_TOKEN || '').trim()) {
+    return jsonError('The isolated Owner Preview is not configured with its Preview-only service credential.', 503);
+  }
+
   // Preview and local deployments must explicitly opt into the development environment.
   // Never infer a production API target from a missing service binding.
   if (!isProductionHost && environment !== 'development') {
