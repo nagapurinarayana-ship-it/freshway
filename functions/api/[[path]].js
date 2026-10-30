@@ -10,8 +10,7 @@ export async function onRequest(context) {
   // fail with "Unexpected token '<'" while parsing the response as JSON.
   const incoming = new URL(context.request.url);
   const ownerPreviewHost = 'test-expand-playwright-cover.freshway-f32.pages.dev';
-  const ownerPreviewWorkerHost = 'test-expand-playwright-coverage-freshway-api.all-in-one-all.workers.dev';
-  const isOwnerReadOnlyPreview = incoming.protocol === 'https:' && (incoming.hostname.toLowerCase() === ownerPreviewHost || /^[a-f0-9]{8}\.freshway-f32\.pages\.dev$/i.test(incoming.hostname));
+  const isOwnerPreviewHost = incoming.protocol === 'https:' && incoming.hostname.toLowerCase() === ownerPreviewHost;
   const isProductionHost = productionHosts.has(incoming.hostname.toLowerCase());
   const environment = String(context.env.FRESHWAY_ENVIRONMENT || '').trim().toLowerCase();
   const configuredApiOrigins = [...new Set([context.env.APP_ORIGIN, context.env.APP_ORIGINS]
@@ -61,9 +60,15 @@ export async function onRequest(context) {
     ? (typeof body === 'string' ? new TextEncoder().encode(body).buffer : await context.request.clone().arrayBuffer())
     : null;
   const headers = new Headers(context.request.headers);
-  // The Owner Preview Admin API is routed to the matching branch Preview Worker below.
-  // Other Preview API traffic keeps using the existing binding and its normal environment guard.
-  if (environment && !isOwnerReadOnlyPreview) headers.set('X-Freshway-Environment', environment);
+  // All customer and Owner Preview APIs must use the configured isolated Preview Worker binding.
+  // Never send Preview requests directly to the production Worker or a generic workers.dev URL.
+  headers.delete('X-FreshWay-Preview-Service-Key');
+  if (environment) headers.set('X-Freshway-Environment', environment);
+  if (isOwnerPreviewHost && environment === 'development' && context.env.PREVIEW_ADMIN_TOKEN) {
+    // Server-only credential: this is injected by Pages Functions and never reaches browser JavaScript.
+    headers.set('X-FreshWay-Preview-Service-Key', String(context.env.PREVIEW_ADMIN_TOKEN));
+    headers.set('Origin', incoming.origin);
+  }
   if (isAddressApi) headers.set('Accept', 'application/json');
 
   const buildRequest = target => new Request(target, {
@@ -90,22 +95,9 @@ export async function onRequest(context) {
     }
   });
 
-  const isPreviewApiRequest = targetPath.startsWith('/api/');
-  if (isOwnerReadOnlyPreview && isPreviewApiRequest) {
-    const previewApiUrl = new URL(targetUrl.toString());
-    previewApiUrl.hostname = ownerPreviewWorkerHost;
-    // Route customer and Owner APIs through the branch Preview Worker, never the production service binding.
-    headers.set('Origin', incoming.origin);
-    try {
-      return await fetch(buildRequest(previewApiUrl.toString()));
-    } catch (_) {
-      return jsonError('The Owner Preview API is unavailable. The branch Preview Worker did not respond.', 503);
-    }
-  }
-
   // Preview and local deployments must explicitly opt into the development environment.
   // Never infer a production API target from a missing service binding.
-  if (!isProductionHost && !isOwnerReadOnlyPreview && environment !== 'development') {
+  if (!isProductionHost && environment !== 'development') {
     return jsonError('This preview environment is not configured for development API access.', 503);
   }
   if (!isProductionHost && (!binding || typeof binding.fetch !== 'function')) {
