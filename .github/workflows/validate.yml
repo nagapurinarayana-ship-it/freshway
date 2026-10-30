@@ -443,6 +443,7 @@ jobs:
           if (prod.vars?.APP_ORIGIN_SUFFIXES) fail('Production Worker must not permit preview origin suffixes.');
           const proxy = fs.readFileSync('functions/api/[[path]].js', 'utf8');
           if (!proxy.includes("const ownerPreviewHost = 'test-expand-playwright-cover.freshway-f32.pages.dev'")) fail('Owner Preview exception must be limited to the exact Pages branch alias.');
+          if (!proxy.includes('/^[a-f0-9]{8}\\\\.freshway-f32\\\\.pages\\\\.dev$/i.test(incoming.hostname)')) fail('Owner Preview exception must support only generated 8-hex commit Pages hostnames.');
           if (!proxy.includes("const ownerPreviewWorkerHost = 'test-expand-playwright-coverage-freshway-api.all-in-one-all.workers.dev'")) fail('Owner Preview Admin API must target the matching branch Preview Worker.');
           if (!proxy.includes('!isProductionHost && !isOwnerReadOnlyPreview && environment !== \'development\'')) fail('All other Preview environments must still opt into development explicitly.');
           if (!proxy.includes('if (!isProductionHost && (!binding || typeof binding.fetch !== \'function\'))')) fail('Other Preview API traffic must fail closed when its service binding is missing.');
@@ -450,7 +451,8 @@ jobs:
           if (!proxy.includes('if (isOwnerReadOnlyPreview && isOwnerAdminApi)')) fail('Owner Preview Admin API must use its branch Preview Worker only.');
           if (!proxy.includes("headers.set('X-Freshway-Environment', environment)")) fail('Pages environment marker must still be forwarded for normal Preview traffic.');
           const adminUi = fs.readFileSync('admin.js', 'utf8');
-          if (!adminUi.includes("const OWNER_PREVIEW_HOST='test-expand-playwright-cover.freshway-f32.pages.dev'")) fail('Owner UI bypass must use the exact Preview hostname.');
+          if (!adminUi.includes("const OWNER_PREVIEW_HOST='test-expand-playwright-cover.freshway-f32.pages.dev'")) fail('Owner UI bypass must use the exact branch Preview hostname.');
+          if (!adminUi.includes('/^[a-f0-9]{8}\\\\.freshway-f32\\\\.pages\\\\.dev$/i.test(location.hostname)')) fail('Owner UI bypass must support only generated 8-hex commit Preview hostnames.');
           if (!adminUi.includes("if(OWNER_PREVIEW_READONLY)return'preview-read-only'")) fail('Owner Preview must open directly without a stored login hint.');
           if (!adminUi.includes("'Preview · read-only'")) fail('Owner Preview must visibly identify its read-only state.');
           const adminAuth = fs.readFileSync('worker/src/admin-auth.js', 'utf8');
