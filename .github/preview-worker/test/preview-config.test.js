@@ -33,6 +33,7 @@ test('preview config uses a dedicated Worker and an explicitly separate D1 datab
   assert.equal(config.d1_databases[0].database_id, previewId);
   assert.notEqual(config.d1_databases[0].database_id, productionId);
   assert.equal(config.vars.FRESHWAY_ENVIRONMENT, 'development');
+  assert.equal(config.vars.FRESHWAY_PREVIEW_TEST_MODE, '1', 'Owner test mode must exist only on the isolated Preview Worker config');
   assert.equal(config.vars.APP_ORIGIN, valid.appOrigin);
   assert.equal(config.vars.APP_ORIGINS, valid.appOrigins);
   assert.equal('PRODUCTION_ONLY_MARKER' in config.vars, false, 'production-only variables must not leak into preview');
