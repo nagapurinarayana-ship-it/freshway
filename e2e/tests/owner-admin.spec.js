@@ -147,3 +147,108 @@ test('Owner can browse orders and catalogue screens using read-only API fixtures
   expect(writes, 'Owner browser coverage must not write to any API').toEqual([]);
   expect(pageErrors, 'Owner screens should not throw uncaught browser errors').toEqual([]);
 });
+
+
+test('Owner can move a synthetic order through processing and dispatch statuses', async ({ page }) => {
+  const writes = [];
+  let order = {
+    id: 'FW-QA-ORDER-1',
+    status: 'New',
+    payment: 'Not Collected',
+    deliveryPlan: 'Tomorrow',
+    total: 200,
+    createdAt: '2026-10-30T08:00:00.000Z',
+    customer: { name: 'Browser QA Customer', phone: '9876543210' },
+    address: {
+      recipientName: 'Browser QA Customer',
+      deliveryPhone: '9876543210',
+      house: '1-1',
+      area: 'Test Road',
+      city: 'Test City',
+      pincode: '500001'
+    },
+    items: [{ name: 'QA Rice', unit: 'kg', qty: 2, lineTotal: 200 }],
+    scheduledDelivery: { date: '2099-01-01' },
+    isTestOrder: false
+  };
+
+  await page.route('**/api/**', async route => {
+    const request = route.request();
+    const method = request.method().toUpperCase();
+    const url = new URL(request.url());
+    const path = url.pathname;
+
+    if (method === 'PATCH' && path === '/api/admin/orders/FW-QA-ORDER-1') {
+      const body = request.postDataJSON();
+      writes.push({ method, path, body });
+      order = { ...order, ...body };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: order.status, payment: order.payment, isTestOrder: order.isTestOrder ? 1 : 0 })
+      });
+      return;
+    }
+
+    if (method !== 'GET') {
+      writes.push({ method, path });
+      await route.fulfill({
+        status: 405,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Unexpected mutation in synthetic Owner test.' })
+      });
+      return;
+    }
+
+    let data = {};
+    if (path === '/api/admin/summary') {
+      data = { newOrders: 1, processing: 0, deliveryToday: 0, cashPending: 200 };
+    } else if (path === '/api/admin/reports') {
+      data = {
+        sales: 200, orders: 1, cashPending: 200, cashPendingOrders: 1,
+        delivered: 0, deliveredSales: 0, customers: 1, newCustomers: 1,
+        aov: 200, eligibleOrders: 1, cashCollected: 0, cashCollectedOrders: 0,
+        cancelled: 0, cancelledValue: 0, repeatOrders: 0,
+        topProducts: [], topCustomers: []
+      };
+    } else if (path === '/api/admin/orders') {
+      data = { orders: [{ ...order }], pagination: { total: 1, page: 1, limit: 50 } };
+    } else if (path === '/api/admin/customers') {
+      data = { customers: [], pagination: { total: 0, page: 1, limit: 25 } };
+    } else if (path === '/api/admin/products') {
+      data = { products: [] };
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(data)
+    });
+  });
+
+  await page.addInitScript(() => localStorage.setItem('freshway-admin-auth', '1'));
+  await page.setViewportSize({ width: 1365, height: 900 });
+  await page.goto('/admin.html');
+  await page.locator('.side [data-screen="orders"]').click();
+  await expect(page.locator('[data-order="FW-QA-ORDER-1"]')).toBeVisible();
+
+  await page.locator('[data-order="FW-QA-ORDER-1"]').click();
+  await expect(page.locator('#fwLifeStatus')).toBeVisible();
+
+  for (const status of ['Confirmed', 'Processing', 'Ready', 'Out for Delivery']) {
+    const patchResponse = page.waitForResponse(response =>
+      response.request().method() === 'PATCH' &&
+      response.url().includes('/api/admin/orders/FW-QA-ORDER-1')
+    );
+    await page.locator('#fwLifeStatus').selectOption(status);
+    const response = await patchResponse;
+    expect(response.status()).toBe(200);
+    expect(await response.json()).toMatchObject({ status });
+    await expect(page.locator('#fwLifeStatus')).toHaveValue(status);
+    await expect(page.locator('#fwLifeSave')).toHaveText('Saved');
+  }
+
+  expect(order.status).toBe('Out for Delivery');
+  expect(writes.map(item => item.body?.status)).toEqual(['Confirmed', 'Processing', 'Ready', 'Out for Delivery']);
+  expect(writes.every(item => item.method === 'PATCH' && item.path === '/api/admin/orders/FW-QA-ORDER-1')).toBe(true);
+});
