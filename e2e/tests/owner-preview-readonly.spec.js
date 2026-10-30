@@ -44,7 +44,7 @@ test('Owner Preview opens directly to Home, loads live Admin data, and blocks un
     await expect(page.locator('#appView')).not.toHaveClass(/hidden/);
     await expect(page.locator('#overview')).toHaveClass(/active/);
     await expect(page.locator('#overview h1')).toContainText('Good day');
-    await expect(page.locator('#authState')).toContainText('Preview · QA data');
+    await expect(page.locator('#authState')).toContainText('Preview · test data');
 
     await expect.poll(
       () => adminApiResponses.some(item => item.path === '/api/admin/summary' && item.status === 200),
