@@ -24,4 +24,8 @@ assert.ok(ownerCatalogue.includes('const duplicate=data.promotions.find'), 'Owne
 assert.ok(ownerCatalogue.includes('if(nextActive&&!isUsefulPromoAlt(alt))'), 'Owner must not activate a legacy promotion with a missing or generic description');
 assert.ok(ownerCatalogue.includes('if(nextActive&&alt)payload.altText=alt'), 'hiding a legacy banner must not force an immediate description rewrite');
 assert.ok(customerPromotions.includes("p.alt_text||'FreshWay promotion'"), 'customer carousel must still provide a text alternative if a legacy record has no description');
+assert.match(api,/api\/promotions\/images/);
+assert.match(api,/cache-control/);
+assert.match(customerPromotions,/data-src=/);
+assert.doesNotMatch(customerPromotions,/data:'\+esc\(p\.image_mime_type\)/,'public carousel must not embed Base64 artwork');
 console.log('home promotions API, Owner accessibility, and customer fallback contracts OK');

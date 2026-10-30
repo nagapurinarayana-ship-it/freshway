@@ -11,11 +11,14 @@ const categoryFoldStyles=fs.readFileSync('frontend/customer/category-fold-fit.cs
 const adminCss=fs.readFileSync('admin.css','utf8');
 const sw=fs.readFileSync('sw.js','utf8');
 const index=fs.readFileSync('index.html','utf8');
-assert.ok(index.includes('styles.css?v=20261027-delivery-offers-v1'),'HTML loads the current mobile viewport stylesheet');
+const messages=fs.readFileSync('frontend/customer/messages.js','utf8');
+assert.ok(index.includes('styles.css?v=20261030-aa-contrast-v1'),'HTML loads the current mobile viewport stylesheet');
 assert.ok(index.includes('frontend/customer/design-system.css?v=ds3'),'customer screens load the shared production design system');
+assert.doesNotMatch(messages,/button\.setAttribute\('aria-label'/,'Messages button must derive its accessible name from its visible heading and status text');
+assert.ok(index.includes('<span aria-hidden="true">✉️</span>')&&index.includes('<b aria-hidden="true">›</b>'),'Messages navigation decorative icon and chevron must be hidden from screen readers');
 assert.ok(index.includes('frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'customer app loads the fixed floating cart behavior');
 assert.ok(sw.includes('/frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'service worker caches the fixed floating cart behavior');
-assert.ok(sw.includes("const CACHE = 'freshway-v112'"),'service worker refreshes the app shell after the cart-bar update');
+assert.ok(sw.includes("const CACHE = 'freshway-v113'"),'service worker refreshes the app shell after the cart-bar update');
 assert.match(privacyPage,/grid-template-columns: minmax\(145px, \.36fr\) minmax\(0, 1fr\)/,'privacy contact details use a clear desktop label/value layout');
 assert.match(privacyPage,/@media \(max-width: 600px\)[\s\S]*?\.contact-line \{ grid-template-columns: minmax\(0, 1fr\)/,'privacy contact details stack cleanly on mobile');
 assert.match(privacyPage,/This policy remains a working draft/,'privacy policy clearly retains the operator-review status');
@@ -30,7 +33,7 @@ assert.ok(index.includes('frontend/customer/delivery-offers.css?v=20261028-cart-
 assert.ok(sw.includes('/frontend/customer/delivery-offers.css?v=20261028-cart-offers-stable-v1'),'service worker caches delivery/coupon UI styles');
 assert.ok(index.includes('frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2'),'HTML loads the selected-category fold-fit stylesheet');
 assert.ok(categoryFoldStyles.includes('height:100%!important;aspect-ratio:1/1'),'product artwork uses a square contained image box so the complete illustration is visible');
-assert.ok(sw.includes('/styles.css?v=20261027-delivery-offers-v1'),'service worker caches the current mobile viewport stylesheet');
+assert.ok(sw.includes('/styles.css?v=20261030-aa-contrast-v1'),'service worker caches the current mobile viewport stylesheet');
 assert.ok(sw.includes('/frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2'),'service worker caches the selected-category fold-fit stylesheet');
 assert.ok(index.includes('frontend/customer/catalogue.js?v=img1'),'HTML loads the current category navigation asset');
 assert.ok(sw.includes('/frontend/customer/catalogue.js?v=img1'),'service worker caches the current category navigation asset');
@@ -63,3 +66,8 @@ assert.match(lifecycle,/openOwnerOverlay\(\$\('#modal'\)\)/);
 assert.match(adminHtml,/openOwnerOverlay\(m\)/);
 assert.match(adminHtml,/closeOwnerOverlay\(m\)/);
 console.log('mobile visual and PWA freshness contract OK');
+
+const baseStyles=fs.readFileSync('styles.css','utf8');
+const installStyles=fs.readFileSync('frontend/customer/pwa-install.css','utf8');
+assert.ok(baseStyles.includes('.signout-row small{color:#745d5d}'),'profile sign-out helper text must meet WCAG AA contrast');
+assert.ok(installStyles.includes('color:#657269'),'PWA installation helper text must meet WCAG AA contrast');

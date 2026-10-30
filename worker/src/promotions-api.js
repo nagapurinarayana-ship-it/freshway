@@ -50,6 +50,25 @@ async function assertUniqueAltText(env,altText,excludeId=''){
   if(duplicate)throw new Error('Each banner needs a unique image description. Change the wording so screen-reader users can distinguish this offer.');
 }
 
+function decodeImageData(value){
+  const input=String(value||'');
+  if(!input||input.length>MAX_IMAGE_DATA||!/^[A-Za-z0-9+/]+={0,2}$/.test(input))return null;
+  const unpadded=input.replace(/=+$/,'');
+  if(unpadded.length%4===1)return null;
+  const padded=unpadded+'='.repeat((4-unpadded.length%4)%4);
+  try{
+    const binary=atob(padded);
+    const bytes=new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+    return bytes;
+  }catch(_){return null;}
+}
+
+async function sha256(bytes){
+  const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
+  return Array.from(digest,value=>value.toString(16).padStart(2,'0')).join('');
+}
+
 async function promotions(env,includeHidden=false){
   const where=includeHidden?'':' WHERE active=1';
   const {results}=await env.DB.prepare(
@@ -58,7 +77,45 @@ async function promotions(env,includeHidden=false){
      ORDER BY display_order ASC,id ASC
      LIMIT ${includeHidden?20:8}`
   ).all();
-  return{promotions:results||[]};
+  const rows=results||[];
+  if(includeHidden)return{promotions:rows};
+  return{promotions:await Promise.all(rows.map(async row=>{
+    const {image_data,image_mime_type,...metadata}=row;
+    const bytes=decodeImageData(image_data);
+    const validMime=ALLOWED_IMAGE_MIME.has(String(image_mime_type||'').toLowerCase());
+    return{
+      ...metadata,
+      image_url:bytes&&validMime?'/api/promotions/images/'+encodeURIComponent(row.id)+'?v='+await sha256(bytes):null
+    };
+  }))};
+}
+
+function promotionImageNotFound(){
+  return new Response('Image not found.',{status:404,headers:{
+    'content-type':'text/plain; charset=utf-8',
+    'cache-control':'no-store',
+    'x-content-type-options':'nosniff'
+  }});
+}
+
+async function publicPromotionImage(request,env,promotionId){
+  const row=await env.DB.prepare(
+    'SELECT image_data,image_mime_type FROM home_promotions WHERE id=? AND active=1'
+  ).bind(promotionId).first();
+  const mime=String(row?.image_mime_type||'').toLowerCase();
+  const bytes=decodeImageData(row?.image_data);
+  if(!row||!bytes||!ALLOWED_IMAGE_MIME.has(mime))return promotionImageNotFound();
+  const etag='"'+await sha256(bytes)+'"';
+  const headers=new Headers({
+    'content-type':mime,
+    'content-length':String(bytes.byteLength),
+    'cache-control':'public, max-age=31536000, immutable',
+    etag,
+    'x-content-type-options':'nosniff'
+  });
+  const supplied=String(request.headers.get('if-none-match')||'').split(',').map(value=>value.trim());
+  if(supplied.some(value=>value==='*'||value.replace(/^W\//,'')===etag))return new Response(null,{status:304,headers});
+  return new Response(request.method==='HEAD'?null:bytes,{status:200,headers});
 }
 
 async function createPromotion(env,payload){
@@ -97,6 +154,12 @@ async function deletePromotion(env,promotionId){
 export async function handlePromotionRequest(request,env){
   const url=new URL(request.url),path=url.pathname;
   try{
+    const imageMatch=path.match(/^\/api\/promotions\/images\/([^/]+)$/);
+    if(imageMatch&&(request.method==='GET'||request.method==='HEAD')){
+      let promotionId;
+      try{promotionId=decodeURIComponent(imageMatch[1]);}catch(_){return promotionImageNotFound();}
+      return publicPromotionImage(request,env,promotionId);
+    }
     if(path==='/api/promotions'&&request.method==='GET')return json(await promotions(env,false));
     if(path==='/api/admin/promotions'&&request.method==='GET')return json(await promotions(env,true));
     if(path==='/api/admin/promotions'&&request.method==='POST')return json(await createPromotion(env,await request.json()),201);

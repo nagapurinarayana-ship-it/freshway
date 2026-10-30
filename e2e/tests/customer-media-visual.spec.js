@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 // This is a deterministic visual fixture. Catalogue art comes from the real
 // checked-in asset map; promotion data is synthetic and does not represent a
@@ -16,23 +18,16 @@ const categories = [
   { id: 'cat-rice', name: 'Rice', slug: 'rice', icon: '🍚', description: 'Rice and rice varieties', product_count: 2, display_order: 2 }
 ];
 
-const promoSvg = (headline, accent) => Buffer.from(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="525" viewBox="0 0 1200 525">' +
-  '<rect width="1200" height="525" fill="#f1f7f3"/>' +
-  '<circle cx="1010" cy="95" r="220" fill="' + accent + '" opacity=".18"/>' +
-  '<circle cx="1080" cy="470" r="210" fill="' + accent + '" opacity=".13"/>' +
-  '<rect x="62" y="65" width="7" height="395" rx="3" fill="' + accent + '"/>' +
-  '<text x="105" y="135" font-family="Arial,sans-serif" font-size="32" font-weight="700" fill="#147447">FRESHWAY · VISUAL TEST FIXTURE</text>' +
-  '<text x="105" y="245" font-family="Arial,sans-serif" font-size="68" font-weight="700" fill="#18372a">' + headline + '</text>' +
-  '<text x="105" y="315" font-family="Arial,sans-serif" font-size="30" fill="#496556">Synthetic E2E artwork — not a live promotion</text>' +
-  '<rect x="105" y="365" width="250" height="60" rx="18" fill="' + accent + '"/>' +
-  '<text x="230" y="404" text-anchor="middle" font-family="Arial,sans-serif" font-size="24" font-weight="700" fill="#ffffff">IMAGE LOAD CHECK</text>' +
-  '</svg>'
-).toString('base64');
-
+const promoFixtureFiles = [
+  'fixtures/promotion-visual-fixture-1.png',
+  'fixtures/promotion-visual-fixture-2.png'
+];
+const promotionImages = promoFixtureFiles.map(file =>
+  readFileSync(resolve(process.cwd(), file))
+);
 const promotions = [
-  { id: 'visual-promo-1', title: 'Fresh picks for every day', alt_text: 'E2E promotion image fixture — not a live offer', image_mime_type: 'image/svg+xml', image_data: promoSvg('Fresh picks for every day', '#147447'), display_order: 1, active: 1 },
-  { id: 'visual-promo-2', title: 'Everyday essentials', alt_text: 'E2E promotion image fixture — not a live offer', image_mime_type: 'image/svg+xml', image_data: promoSvg('Everyday essentials', '#b47b24'), display_order: 2, active: 1 }
+  { id: 'visual-promo-1', alt_text: 'E2E promotion image fixture — not a live offer', image_url: '/api/promotions/images/visual-promo-1?v=fixture-1', display_order: 1, active: 1 },
+  { id: 'visual-promo-2', alt_text: 'E2E promotion image fixture — not a live offer', image_url: '/api/promotions/images/visual-promo-2?v=fixture-2', display_order: 2, active: 1 }
 ];
 
 test('customer visual review: bundled category and product art plus decoded promotion images', async ({ page }) => {
@@ -56,6 +51,16 @@ test('customer visual review: bundled category and product art plus decoded prom
     }
     if (method === 'GET' && url.pathname === '/api/promotions') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ promotions }) });
+    }
+    const promotionImage = url.pathname.match(/^\/api\/promotions\/images\/(visual-promo-[12])$/);
+    if (method === 'GET' && promotionImage) {
+      const index = promotionImage[1] === 'visual-promo-1' ? 0 : 1;
+      return route.fulfill({
+        status: 200,
+        contentType: 'image/png',
+        headers: { 'cache-control': 'public, max-age=31536000, immutable', etag: '"visual-fixture-' + (index + 1) + '"', 'x-content-type-options': 'nosniff' },
+        body: promotionImages[index]
+      });
     }
     if (method === 'GET' && url.pathname === '/api/auth/session') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ customerId: 'visual-review-customer' }) });
@@ -101,8 +106,13 @@ test('customer visual review: bundled category and product art plus decoded prom
     sonaWithChangedId: 'frontend/media/catalogue/sona-masuri.svg',
     unknownProduct: ''
   });
-  await expect.poll(() => page.locator('.hero-banner .fw-promo-slide img').count()).toBe(2);
-  await decoded(page.locator('.hero-banner .fw-promo-slide img'));
+  const promotionSlides = page.locator('.hero-banner .fw-promo-slide img');
+  await expect.poll(() => promotionSlides.count()).toBe(2);
+  const activePromotion = page.locator('.hero-banner .fw-promo-slide[aria-hidden="false"] img');
+  await decoded(activePromotion);
+  await expect(promotionSlides.nth(1)).not.toHaveAttribute('src', /.+/);
+  await page.locator('[data-fw-promo-dot="1"]').click();
+  await decoded(activePromotion);
 
   const mobileCategoryImages = page.locator('#fwCategoryCatalogue .fw-category-image img');
   await expect(mobileCategoryImages).toHaveCount(2);
@@ -122,8 +132,9 @@ test('customer visual review: bundled category and product art plus decoded prom
   await page.setViewportSize({ width: 1365, height: 900 });
   // Reload at the new viewport so session category selection cannot leak into the desktop capture.
   await page.reload();
-  await expect(page.locator('.hero-banner .fw-promo-slide img')).toHaveCount(2);
-  await decoded(page.locator('.hero-banner .fw-promo-slide img'));
+  const desktopPromotionSlides = page.locator('.hero-banner .fw-promo-slide img');
+  await expect(desktopPromotionSlides).toHaveCount(2);
+  await decoded(page.locator('.hero-banner .fw-promo-slide[aria-hidden="false"] img'));
   const desktopCategoryImages = page.locator('#fwCategoryCatalogue .fw-category-image img');
   await expect(desktopCategoryImages).toHaveCount(2);
   await desktopCategoryImages.first().scrollIntoViewIfNeeded();
