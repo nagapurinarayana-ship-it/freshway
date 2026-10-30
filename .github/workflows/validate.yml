@@ -448,6 +448,7 @@ jobs:
           if (!proxy.includes("if (!isProductionHost && (!binding || typeof binding.fetch !== 'function'))")) fail('All Preview API requests must fail closed without the dedicated service binding.');
           if (!proxy.includes("headers.delete('X-FreshWay-Preview-Service-Key')")) fail('Client-supplied Preview service credentials must always be stripped.');
           if (!proxy.includes("headers.set('X-FreshWay-Preview-Service-Key', String(context.env.PREVIEW_ADMIN_TOKEN))")) fail('Pages must inject the Preview service key server-side only.');
+          if (!proxy.includes("if (isOwnerPreviewHost && environment === 'development' && !String(context.env.PREVIEW_ADMIN_TOKEN || '').trim())")) fail('Owner Preview must fail closed when the Preview-only service secret is missing.');
           if (!proxy.includes("headers.set('X-Freshway-Environment', environment)")) fail('Pages must forward the development environment marker.');
           if (!proxy.includes('previewTestOrder: true')) fail('All storefront orders placed on the isolated Preview must be tagged server-side as QA orders.');
           if (proxy.includes('ownerPreviewWorkerHost') || proxy.includes('previewApiUrl')) fail('Preview APIs must not be sent to a generic workers.dev URL.');
