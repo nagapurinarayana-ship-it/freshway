@@ -1,8 +1,11 @@
 import { test, expect } from '@playwright/test';
 
-const PREVIEW_BASE_URL = 'https://test-expand-playwright-cover.freshway-f32.pages.dev';
+const PREVIEW_BASE_URL = String(process.env.FRESHWAY_PREVIEW_BASE_URL || '').replace(/\\/$/, '');
+const PREVIEW_WORKER_URL = String(process.env.FRESHWAY_PREVIEW_WORKER_URL || '').replace(/\\/$/, '');
 
-test('Owner Preview opens directly to Home, loads live Admin data, and blocks unapproved writes', async ({ page }) => {
+test.skip(!PREVIEW_BASE_URL || !PREVIEW_WORKER_URL, 'Run only after the isolated Preview Worker and Pages binding are configured.');
+
+test('Owner Preview opens directly to Home, loads real D1 reads, and keeps the service key server-side', async ({ page }) => {
   test.setTimeout(90000);
 
   const pageErrors = [];
@@ -63,18 +66,17 @@ test('Owner Preview opens directly to Home, loads live Admin data, and blocks un
       .toBeLessThanOrEqual(layout.viewportWidth + 1);
   }
 
-  // This synthetic ID does not exist. The Preview Worker must reject the request
-  // before any order handler or database mutation can run.
-  const writeProbe = await page.evaluate(async () => {
-    const response = await fetch('/api/admin/orders/__owner_preview_readonly_probe__', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'Delivered' })
+  // Pages injects the Preview-only service credential server-side. A browser
+  // request made directly to workers.dev must not possess that credential.
+  const directWorkerProbe = await page.evaluate(async workerUrl => {
+    const response = await fetch(workerUrl + '/api/admin/summary', {
+      method: 'GET',
+      credentials: 'omit'
     });
     return { status: response.status, body: await response.json().catch(() => ({})) };
-  });
-  expect(writeProbe.status, 'Preview Admin writes must be blocked by the Worker').toBe(405);
-  expect(writeProbe.body.error).toContain('limited to records created by the FreshWay QA test run');
+  }, PREVIEW_WORKER_URL);
+  expect(directWorkerProbe.status, 'Direct browser requests to the Preview Worker must not bypass Owner authentication').toBe(401);
+  expect(directWorkerProbe.body.error).toBe('Unauthorized');
 
   expect(unexpectedWrites, 'Owner home must not issue API writes during page load').toEqual([]);
   expect(pageErrors, 'Owner Preview must not throw uncaught browser errors').toEqual([]);
