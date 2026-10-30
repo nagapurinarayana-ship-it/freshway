@@ -9,7 +9,7 @@
     const label=document.querySelector('#customerMessagesStatus');
     if(label)label.textContent=count>0?count+' new repl'+(count===1?'y':'ies')+' from FreshWay':'View messages and replies';
     const button=document.querySelector('[data-nav="messages"]');
-    if(button){button.classList.toggle('has-unread-messages',count>0);button.setAttribute('aria-label',count>0?'Messages, '+count+' unread replies':'Messages');}
+    if(button)button.classList.toggle('has-unread-messages',count>0);
   }
   async function refreshBadge(){
     if(!auth()?.customerId?.()){setBadge(0);return 0;}

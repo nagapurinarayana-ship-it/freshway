@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 const BASE_URL = process.env.BASE_URL || 'https://freshway-f32.pages.dev';
-const VIEWPORT_STYLES_PATH = '/styles.css?v=20261027-delivery-offers-v1';
+const VIEWPORT_STYLES_PATH = '/styles.css?v=20261030-aa-contrast-v1';
 const CUSTOMER_APP_PATH = '/app.js?v=102';
 const INTERMEDIATE_CUSTOMER_APP_PATH = '/app.js?v=20261027-customer-messages-v1';
 const LEGACY_CUSTOMER_APP_PATH = '/app.js?v=20261027-cancel-refresh-v1';
@@ -12,8 +12,8 @@ const CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?v=msg1';
 const INTERMEDIATE_CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?v=20261027-customer-messages-v1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261029-registration-prefill-v1';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v112';
-const LEGACY_CUSTOMER_CACHES = ['freshway-v111', 'freshway-v110'];
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v113';
+const LEGACY_CUSTOMER_CACHES = ['freshway-v112', 'freshway-v111'];
 const SUPPORTED_CUSTOMER_CACHES = [EXPECTED_CUSTOMER_CACHE, ...LEGACY_CUSTOMER_CACHES];
 const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261029-nonintrusive-install-v2';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -91,7 +91,7 @@ function assertNativeInstallFlow(source, label) {
 async function waitForFullImageFitAssets(base) {
   const viewportStylesPath = VIEWPORT_STYLES_PATH;
   let appPath = CUSTOMER_APP_PATH;
-  const promotionPath = '/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4';
+  const promotionPath = '/frontend/customer/promotions.js?v=20261030-lazy-promo-images-v1';
   const customerCataloguePath = '/frontend/customer/catalogue.js?v=img1';
   const addressGeocodePath = ADDRESS_GEOCODE_PATH;
   const addressSystemPath = ADDRESS_SYSTEM_PATH;
@@ -346,14 +346,14 @@ async function verifyCustomDomain() {
     assertCurrentScriptReference(homeHtml, homeResponse.url, customStoreInfoPath, 'custom-domain home');
   }
   assertCurrentScriptReference(homeHtml, homeResponse.url, PWA_INSTALL_SCRIPT_PATH, 'custom-domain home');
-  assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4', 'custom-domain home');
+  assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/promotions.js?v=20261030-lazy-promo-images-v1', 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/catalogue.js?v=img1', 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, ADDRESS_GEOCODE_PATH, 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, ADDRESS_SYSTEM_PATH, 'custom-domain home');
   assertCurrentScriptReference(adminHtml, adminResponse.url, '/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1', 'custom-domain Owner');
   assert.ok(sw.includes(customAppPath), 'custom-domain service worker must cache the current app navigation script');
   assert.ok(sw.includes(PWA_INSTALL_SCRIPT_PATH), 'custom-domain service worker must cache the current native install script');
-  assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261021-promo-natural-fit-v4'), 'custom-domain service worker must cache the current promotion script');
+  assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261030-lazy-promo-images-v1'), 'custom-domain service worker must cache the current promotion script');
   assert.ok(sw.includes('/frontend/customer/catalogue.js?v=img1'), 'custom-domain service worker must cache the current customer catalogue script');
   assert.ok(sw.includes(ADDRESS_GEOCODE_PATH), 'custom-domain service worker must cache the current address geocode mapper');
   assert.ok(sw.includes(ADDRESS_SYSTEM_PATH), 'custom-domain service worker must cache the current address editor');

@@ -8,8 +8,8 @@
 .fw-delivery-slot-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
 .fw-delivery-slot{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0;min-height:90px;padding:12px;border:1px solid #d5e2d9;border-radius:12px;background:#fff;color:#1f3b2c;text-align:left;cursor:pointer}
 .fw-delivery-slot strong{font-size:14px;font-weight:900;line-height:1.25}
-.fw-delivery-slot span{font-size:11px;color:#66766c}
-.fw-delivery-slot small{font-size:10px;color:#66766c;overflow-wrap:anywhere}
+.fw-delivery-slot span{font-size:11px;color:#5f6e65}
+.fw-delivery-slot small{font-size:10px;color:#5f6e65;overflow-wrap:anywhere}
 .fw-delivery-slot.selected{border-color:#0f7a4b;background:#eaf7ef;box-shadow:0 0 0 2px rgba(15,122,75,.12)}
 .fw-delivery-slot:focus-visible,.fw-delivery-date-label input:focus-visible{outline:2px solid #0f7a4b;outline-offset:2px}
 .fw-delivery-empty{grid-column:1/-1;padding:14px;border:1px dashed #c4d6ca;border-radius:10px;background:#fff;color:#5b6c61;font-size:12px;line-height:1.5}
@@ -31,7 +31,7 @@
 .fw-delivery-date-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
 .fw-delivery-date-option{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:5px;min-width:0;min-height:70px;padding:10px;border:1px solid #d5e2d9;border-radius:12px;text-align:left;white-space:normal}
 .fw-delivery-date-option strong{font-size:13px}
-.fw-delivery-date-option span{font-size:11px;color:#66766c}
+.fw-delivery-date-option span{font-size:11px;color:#5f6e65}
 .fw-delivery-date-option.selected{border-color:#0f7a4b;background:#eaf7ef;box-shadow:0 0 0 2px rgba(15,122,75,.12)}
 .fw-delivery-date-summary{margin:10px 0 0;font-size:13px;color:#173d2c}
 @media(max-width:380px){.fw-delivery-date-options{grid-template-columns:1fr}.fw-delivery-date-option{min-height:54px}}

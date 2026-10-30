@@ -47,7 +47,7 @@ test('LIVE production media audit: real catalogue, category artwork and configur
 
   const sourceAudit = await page.evaluate(({ categories, products, promotions }) => {
     const media = window.FreshWayCatalogueMedia;
-    const hasUploadedImage = item => Boolean(item?.image_data && item?.image_mime_type);
+    const hasUploadedImage = item => Boolean(item?.image_url || (item?.image_data && item?.image_mime_type));
     const categoryRows = categories.map(item => {
       const uploaded = hasUploadedImage(item);
       const mapped = !uploaded && Boolean(media?.image('categories', item.id, item));
@@ -66,14 +66,28 @@ test('LIVE production media audit: real catalogue, category artwork and configur
     const promotionRows = promotions.map(item => ({
       id: String(item.id),
       alt: String(item.alt_text || ''),
-      hasImageData: Boolean(item.image_data),
+      usesImageUrl: Boolean(item.image_url),
+      hasEmbeddedImageData: Boolean(item.image_data),
       mime: String(item.image_mime_type || '')
     }));
     return { categoryRows, productRows, promotionRows };
   }, { categories, products, promotions });
 
-  const validPromotions = promotions.filter(item => item?.image_data && item?.image_mime_type);
-  const badPromotionRows = promotions.filter(item => !item?.image_data || !item?.image_mime_type);
+  const validPromotions = promotions.filter(item => item?.image_url || (item?.image_data && item?.image_mime_type));
+  const badPromotionRows = promotions.filter(item => !item?.image_url && !(item?.image_data && item?.image_mime_type));
+  const promotionImageChecks = [];
+  for (const promotion of validPromotions.filter(item => item?.image_url)) {
+    const imageUrl = new URL(promotion.image_url, LIVE_BASE_URL).toString();
+    const imageResponse = await request.get(imageUrl, { timeout: 20000 });
+    expect(imageResponse.status(), 'promotion image must be served as a binary asset').toBe(200);
+    expect((imageResponse.headers()['content-type'] || '').toLowerCase()).toMatch(/^image\/(png|jpeg|webp)(;|$)/);
+    expect(imageResponse.headers()['cache-control'] || '').toContain('immutable');
+    expect(imageResponse.headers().etag || '').not.toBe('');
+    expect((await imageResponse.body()).byteLength).toBeGreaterThan(0);
+    const conditional = await request.get(imageUrl, { headers: { 'if-none-match': imageResponse.headers().etag }, timeout: 20000 });
+    expect(conditional.status(), 'unchanged promotion images must support 304').toBe(304);
+    promotionImageChecks.push({ id: String(promotion.id), status: imageResponse.status(), conditionalStatus: conditional.status(), bytes: Number(imageResponse.headers()['content-length'] || 0) });
+  }
   const fallbackCategories = sourceAudit.categoryRows.filter(item => item.source === 'emoji-fallback');
   const fallbackProducts = sourceAudit.productRows.filter(item => item.source === 'emoji-fallback');
 
@@ -82,7 +96,6 @@ test('LIVE production media audit: real catalogue, category artwork and configur
   const promotionImages = page.locator('.hero-banner .fw-promo-slide img');
   if (validPromotions.length) {
     await expect.poll(() => promotionImages.count(), { timeout: 20000 }).toBe(validPromotions.length);
-    await expectDecodedImages(promotionImages, 'production promotion images');
     await expect.poll(() => page.locator('[data-fw-promo-dot]').count(), { timeout: 10000 }).toBe(validPromotions.length);
     for (let i = 0; i < validPromotions.length; i++) {
       await page.locator('[data-fw-promo-dot]').nth(i).click();
@@ -132,7 +145,11 @@ test('LIVE production media audit: real catalogue, category artwork and configur
   const desktopPromotions = page.locator('.hero-banner .fw-promo-slide img');
   if (validPromotions.length) {
     await expect.poll(() => desktopPromotions.count(), { timeout: 20000 }).toBe(validPromotions.length);
-    await expectDecodedImages(desktopPromotions, 'desktop production promotion images');
+    for (let i = 0; i < validPromotions.length; i++) {
+      await page.locator('[data-fw-promo-dot]').nth(i).click();
+      const active = page.locator('.hero-banner .fw-promo-slide[aria-hidden="false"] img');
+      await expect.poll(() => active.evaluate(img => img.complete && img.naturalWidth > 0 && img.naturalHeight > 0), { timeout: 10000 }).toBe(true);
+    }
   } else {
     await expect(page.locator('.hero-banner h1')).toBeVisible();
   }
@@ -158,6 +175,7 @@ test('LIVE production media audit: real catalogue, category artwork and configur
     activeProducts: products.length,
     activePromotionRows: promotions.length,
     usablePromotionImages: validPromotions.length,
+    promotionImageChecks,
     promotionsMissingImageFields: badPromotionRows.map(item => String(item.id || 'unknown')),
     categoryArtwork: {
       ownerUploaded: sourceAudit.categoryRows.filter(item => item.source === 'owner-uploaded').length,
@@ -169,7 +187,7 @@ test('LIVE production media audit: real catalogue, category artwork and configur
       bundled: sourceAudit.productRows.filter(item => item.source === 'bundled-art').length,
       emojiFallback: fallbackProducts
     },
-    promotionArtwork: sourceAudit.promotionRows.map(({ id, alt, hasImageData, mime }) => ({ id, alt, hasImageData, mime })),
+    promotionArtwork: sourceAudit.promotionRows.map(({ id, alt, usesImageUrl, hasEmbeddedImageData, mime }) => ({ id, alt, usesImageUrl, hasEmbeddedImageData, mime })),
     missingPromotionAltText: sourceAudit.promotionRows.filter(item => !item.alt.trim()).map(item => item.id),
     repeatedPromotionAltText: [...new Set(sourceAudit.promotionRows.map(item => item.alt.trim()).filter(Boolean).filter((alt, i, all) => all.indexOf(alt) !== i))],
     pageErrors
@@ -177,6 +195,6 @@ test('LIVE production media audit: real catalogue, category artwork and configur
   await writeFile(OUTPUT_DIR + '/live-production-media-audit.json', JSON.stringify(report, null, 2) + '\n');
   console.log('FRESHWAY_LIVE_MEDIA_AUDIT ' + JSON.stringify(report));
 
-  expect(badPromotionRows, 'active promotions should never be published without image data and a MIME type').toEqual([]);
+  expect(badPromotionRows, 'active promotions should always expose an image URL or a legacy image payload').toEqual([]);
   expect(pageErrors, 'live customer page should not produce uncaught JavaScript errors').toEqual([]);
 });
