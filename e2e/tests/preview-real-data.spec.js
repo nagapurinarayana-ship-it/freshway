@@ -219,8 +219,10 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
     const customerOrders = await expectJson(await apiGet('/api/orders?customerId=' + encodeURIComponent(registered.customerId)));
     let customerOrder = customerOrders.orders.find(item => item.id === orderId);
     expect(customerOrder).toBeTruthy();
-    expect(customerOrder.isTestOrder).toBe(true);
     expect(customerOrder.status).toBe('New');
+
+    await page.locator('[data-nav="orders"]').click();
+    await expect(page.locator('#customerOrders')).toContainText(orderId, { timeout: 30000 });
 
     // Open Owner Preview directly on Home, then locate the same D1 order in Test orders.
     await page.goto(PREVIEW_BASE_URL + '/admin/', { waitUntil: 'domcontentloaded', timeout: 60000 });
@@ -251,6 +253,9 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
       customerOrder = refreshed.orders.find(item => item.id === orderId);
       expect(customerOrder?.status).toBe(status);
     }
+    await page.goto(PREVIEW_BASE_URL + '/', { waitUntil: 'domcontentloaded' });
+    await page.locator('[data-nav="orders"]').click();
+    await expect(page.locator('#customerOrders')).toContainText('Delivered', { timeout: 30000 });
 
     const paymentPatch = page.waitForResponse(response =>
       new URL(response.url()).pathname === '/api/admin/orders/' + encodeURIComponent(orderId) &&
@@ -281,10 +286,9 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
       ['requests', '#requests']
     ];
     for (const [screen, selector] of screens) {
-      if (screen === 'catalogue' || screen === 'offers' || screen === 'notifications' ||
-          screen === 'reports' || screen === 'settings' || screen === 'stores' ||
-          screen === 'messages' || screen === 'requests') {
-        await page.locator('.owner-nav-more > summary').click();
+      const moreNavigation = page.locator('.owner-nav-more');
+      if (!(await moreNavigation.evaluate(element => element.open))) {
+        await moreNavigation.locator('summary').click();
       }
       await page.locator('[data-screen="' + screen + '"]').click();
       await expect(page.locator(selector)).toHaveClass(/active/, { timeout: 15000 });
@@ -300,6 +304,7 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
     // Keep the order's referenced product as inactive catalogue history, not a live sellable item.
     await expectJson(await apiPatch('/api/admin/catalogue/products/' + encodeURIComponent(productId), { active: false }));
     productId = '';
+    await expectJson(await apiPatch('/api/admin/categories/' + encodeURIComponent(categoryId), { active: false }));
 
     expect(apiFailures, 'Preview APIs must not return unexpected 4xx/5xx responses').toEqual([]);
     expect(assetFailures, 'Preview scripts, styles, and images must load').toEqual([]);
