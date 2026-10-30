@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
-import { createProduct, updateProduct } from '../src/catalogue-api.js';
+import { createProduct, updateProduct, deleteProduct as deleteCatalogueProduct } from '../src/catalogue-api.js';
+import { deleteProduct as deleteAdminProduct } from '../src/admin-products.js';
 import { addProduct as addLegacyProduct, updateProduct as updateLegacyProduct } from '../src/index.js';
 
 class SQLiteD1 {
@@ -23,11 +24,19 @@ class SQLiteD1 {
         id TEXT PRIMARY KEY, is_active INTEGER NOT NULL DEFAULT 1
       );
       CREATE TABLE delivery_store_inventory (
-        store_id TEXT NOT NULL REFERENCES delivery_stores(id),
-        product_id TEXT NOT NULL REFERENCES products(id),
+        store_id TEXT NOT NULL REFERENCES delivery_stores(id) ON DELETE RESTRICT,
+        product_id TEXT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
         stock_quantity INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (store_id,product_id)
+      );
+      CREATE TABLE order_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_id TEXT NOT NULL REFERENCES products(id) ON DELETE RESTRICT
+      );
+      CREATE TABLE delivery_store_inventory_reservations (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL REFERENCES products(id) ON DELETE RESTRICT
       );
       INSERT INTO categories (id,name,active) VALUES ('cat-1','Pantry',1);
     `);
@@ -182,5 +191,71 @@ test('legacy product endpoint also seeds store inventory and keeps tracked stock
     assert.equal(result.stockQuantity,9);
     assert.equal(db.product('legacy-product').stock_quantity,9);
     assert.equal(db.inventory('legacy-product').find(row=>row.store_id==='store-a').stock_quantity,9);
+  } finally { db.close(); }
+});
+
+
+test('catalogue product deletion removes only unreserved store inventory atomically', async () => {
+  const db = new SQLiteD1();
+  try {
+    db.seedStore('store-active', 1);
+    db.seedStore('store-paused', 0);
+    const created = await createProduct({ DB: db }, newProduct({ stockQuantity: 8 }));
+    const productId = created.product.id;
+    assert.equal(db.inventory(productId).length, 2);
+
+    const result = await deleteCatalogueProduct({ DB: db }, productId);
+
+    assert.deepEqual(result, { ok: true });
+    assert.equal(db.product(productId), undefined);
+    assert.deepEqual(db.inventory(productId), []);
+  } finally { db.close(); }
+});
+
+test('legacy Owner product deletion also removes unreserved store inventory atomically', async () => {
+  const db = new SQLiteD1();
+  try {
+    db.seedStore('store-active', 1);
+    const created = await createProduct({ DB: db }, newProduct({ stockQuantity: 4 }));
+    const productId = created.product.id;
+
+    const result = await deleteAdminProduct({ DB: db }, productId);
+
+    assert.deepEqual(result, { ok: true });
+    assert.equal(db.product(productId), undefined);
+    assert.deepEqual(db.inventory(productId), []);
+  } finally { db.close(); }
+});
+
+test('product deletion is refused when a delivery reservation still references the product', async () => {
+  const db = new SQLiteD1();
+  try {
+    db.seedStore('store-active', 1);
+    const created = await createProduct({ DB: db }, newProduct({ stockQuantity: 6 }));
+    const productId = created.product.id;
+    db.db.prepare('INSERT INTO delivery_store_inventory_reservations (id,product_id) VALUES (?,?)')
+      .run('reservation-1', productId);
+
+    await assert.rejects(
+      () => deleteCatalogueProduct({ DB: db }, productId),
+      /delivery reservation history/i
+    );
+    assert.ok(db.product(productId), 'the product must remain when reservation history references it');
+    assert.equal(db.inventory(productId).length, 1, 'inventory must remain unchanged on a refused deletion');
+  } finally { db.close(); }
+});
+
+test('product deletion is refused when an order item references the product', async () => {
+  const db = new SQLiteD1();
+  try {
+    const created = await createProduct({ DB: db }, newProduct({ stockManaged: false, stockQuantity: 0 }));
+    const productId = created.product.id;
+    db.db.prepare('INSERT INTO order_items (product_id) VALUES (?)').run(productId);
+
+    await assert.rejects(
+      () => deleteAdminProduct({ DB: db }, productId),
+      /part of existing orders/i
+    );
+    assert.ok(db.product(productId));
   } finally { db.close(); }
 });
