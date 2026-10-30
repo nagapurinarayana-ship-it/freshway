@@ -223,6 +223,8 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
     let customerOrder = customerOrders.orders.find(item => item.id === orderId);
     expect(customerOrder).toBeTruthy();
     expect(customerOrder.status).toBe('New');
+    expect(customerOrder.address.recipientName).toBe(customerName);
+    expect(customerOrder.address.deliveryPhone).toBe('91' + phone);
 
     await page.locator('[data-nav="orders"]').click();
     await expect(page.locator('#customerOrders')).toContainText(orderId, { timeout: 30000 });
