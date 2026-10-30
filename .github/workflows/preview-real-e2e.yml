@@ -47,15 +47,22 @@ jobs:
         working-directory: source/e2e
         env:
           FRESHWAY_PREVIEW_BASE_URL: ${{ vars.FRESHWAY_PREVIEW_APP_ORIGIN }}
+          FRESHWAY_PREVIEW_WORKER_URL: ${{ vars.FRESHWAY_PREVIEW_WORKER_URL }}
         run: |
           node --input-type=module <<'NODE'
-          const value = String(process.env.FRESHWAY_PREVIEW_BASE_URL || '').trim();
-          if (!value) throw new Error('Set preview environment variable FRESHWAY_PREVIEW_APP_ORIGIN before running real-D1 tests.');
-          const url = new URL(value);
-          if (url.protocol !== 'https:' || url.hostname !== 'test-expand-playwright-cover.freshway-f32.pages.dev' || url.origin !== value) {
+          const appValue = String(process.env.FRESHWAY_PREVIEW_BASE_URL || '').trim();
+          const workerValue = String(process.env.FRESHWAY_PREVIEW_WORKER_URL || '').trim();
+          if (!appValue) throw new Error('Set preview variable FRESHWAY_PREVIEW_APP_ORIGIN before running real-D1 tests.');
+          if (!workerValue) throw new Error('Set preview variable FRESHWAY_PREVIEW_WORKER_URL before running real-D1 tests.');
+          const app = new URL(appValue);
+          if (app.protocol !== 'https:' || app.hostname !== 'test-expand-playwright-cover.freshway-f32.pages.dev' || app.origin !== appValue) {
             throw new Error('Refusing to run write tests outside the exact isolated FreshWay Pages Preview origin.');
           }
-          console.log('Confirmed isolated Preview target:', url.origin);
+          const worker = new URL(workerValue);
+          if (worker.protocol !== 'https:' || !worker.hostname.startsWith('freshway-api-preview.') || !worker.hostname.endsWith('.workers.dev') || worker.origin !== workerValue) {
+            throw new Error('Refusing to probe a Worker URL other than the isolated freshway-api-preview workers.dev origin.');
+          }
+          console.log('Confirmed isolated Preview targets:', app.origin, worker.origin);
           NODE
 
       - name: Run live customer-to-Owner tests against real Preview D1
@@ -63,7 +70,8 @@ jobs:
         env:
           CI: '1'
           FRESHWAY_PREVIEW_BASE_URL: ${{ vars.FRESHWAY_PREVIEW_APP_ORIGIN }}
-        run: npx playwright test tests/preview-real-data.spec.js --reporter=line
+          FRESHWAY_PREVIEW_WORKER_URL: ${{ vars.FRESHWAY_PREVIEW_WORKER_URL }}
+        run: npx playwright test tests/owner-preview-readonly.spec.js tests/preview-real-data.spec.js --reporter=line
 
       - name: Upload real Preview test evidence
         if: always()
