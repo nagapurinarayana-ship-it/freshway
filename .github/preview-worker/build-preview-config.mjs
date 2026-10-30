@@ -60,6 +60,7 @@ export function buildPreviewConfig(productionConfig, {
     }],
     vars: {
       FRESHWAY_ENVIRONMENT: 'development',
+      FRESHWAY_PREVIEW_TEST_MODE: '1',
       APP_ORIGIN: primaryOrigin,
       APP_ORIGINS: origins.join(',')
     },
