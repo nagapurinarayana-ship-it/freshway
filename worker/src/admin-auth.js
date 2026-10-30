@@ -33,7 +33,7 @@ async function allowPreviewQaMutation(request,url,env){
       const p=await request.clone().json().catch(()=>({}));
       return String(p.name||'').startsWith(PREVIEW_QA_CUSTOMER_PREFIX)&&String(p.slug||'').startsWith(PREVIEW_QA_SLUG_PREFIX)&&(p.active===false||p.active===0||p.active==='0');
     }
-    const categoryMatch=path.match(/^\\/api\\/admin\\/categories\\/([A-Za-z0-9_-]+)$/);
+    const categoryMatch=path.match(/^\/api\/admin\/categories\/([A-Za-z0-9_-]+)$/);
     if(categoryMatch&&['PATCH','DELETE'].includes(method)){
       const row=await env.DB.prepare('SELECT slug FROM categories WHERE id=? LIMIT 1').bind(categoryMatch[1]).first();
       if(!String(row?.slug||'').startsWith(PREVIEW_QA_SLUG_PREFIX))return false;
@@ -47,20 +47,20 @@ async function allowPreviewQaMutation(request,url,env){
       const row=categoryId?await env.DB.prepare('SELECT slug FROM categories WHERE id=? LIMIT 1').bind(categoryId).first():null;
       return String(row?.slug||'').startsWith(PREVIEW_QA_SLUG_PREFIX);
     }
-    const productMatch=path.match(/^\\/api\\/admin\\/catalogue\\/products\\/([A-Za-z0-9_-]+)$/);
+    const productMatch=path.match(/^\/api\/admin\/catalogue\/products\/([A-Za-z0-9_-]+)$/);
     if(productMatch&&['PATCH','DELETE'].includes(method)){
       const row=await env.DB.prepare('SELECT c.slug FROM products p JOIN categories c ON c.id=p.category_id WHERE p.id=? LIMIT 1').bind(productMatch[1]).first();
       return String(row?.slug||'').startsWith(PREVIEW_QA_SLUG_PREFIX);
     }
-    const orderMatch=path.match(/^\\/api\\/admin\\/orders\\/([^/]+)$/);
+    const orderMatch=path.match(/^\/api\/admin\/orders\/([^/]+)$/);
     if(method==='PATCH'&&orderMatch){
       const id=decodeURIComponent(orderMatch[1]);
       const row=await env.DB.prepare('SELECT o.is_test_order,o.customer_name,c.name registered_name FROM orders o LEFT JOIN customers c ON c.id=o.customer_id WHERE o.id=? LIMIT 1').bind(id).first();
       return Number(row?.is_test_order||0)===1&&String(row?.customer_name||row?.registered_name||'').startsWith(PREVIEW_QA_CUSTOMER_PREFIX);
     }
-    if(method==='PATCH'&&/^\\/api\\/admin\\/account-deletion-requests\\/[a-f0-9-]+$/i.test(path)){
+    if(method==='PATCH'&&/^\/api\/admin\/account-deletion-requests\/[a-f0-9-]+$/i.test(path)){
       const p=await request.clone().json().catch(()=>({}));
-      if(p.status!=='completed')return false;
+      if(!['in_review','completed'].includes(p.status))return false;
       const id=path.split('/').pop();
       const row=await env.DB.prepare("SELECT c.name FROM account_deletion_requests r JOIN customers c ON c.id=r.customer_id WHERE r.id=? AND r.status IN ('pending','in_review') LIMIT 1").bind(id).first();
       return String(row?.name||'').startsWith(PREVIEW_QA_CUSTOMER_PREFIX);
@@ -69,7 +69,7 @@ async function allowPreviewQaMutation(request,url,env){
       const p=await request.clone().json().catch(()=>({}));
       return String(p.code||'').toUpperCase().startsWith(PREVIEW_QA_COUPON_PREFIX);
     }
-    const couponMatch=path.match(/^\\/api\\/admin\\/coupons\\/([A-Za-z0-9-]+)$/);
+    const couponMatch=path.match(/^\/api\/admin\/coupons\/([A-Za-z0-9-]+)$/);
     if(couponMatch&&method==='PATCH'){
       const row=await env.DB.prepare('SELECT code FROM coupons WHERE id=? LIMIT 1').bind(couponMatch[1]).first();
       const p=await request.clone().json().catch(()=>({}));
