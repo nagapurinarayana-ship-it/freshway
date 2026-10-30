@@ -51,6 +51,7 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
   const assetFailures = [];
 
   page.on('pageerror', error => jsErrors.push(error.message));
+  page.on('dialog', dialog => dialog.accept());
   page.on('response', response => {
     const request = response.request();
     const url = new URL(response.url());
@@ -175,9 +176,11 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
 
     // Use the real customer storefront and real D1-backed catalogue/cart/quote/checkout APIs.
     await page.goto(PREVIEW_BASE_URL + '/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await expect(page.locator('[data-fw-category="' + categoryId + '"]')).toContainText(customerName + ' oils', { timeout: 30000 });
+    await page.locator('[data-fw-category="' + categoryId + '"]').click();
     await expect(page.locator('#productGrid .product-card')).toContainText('QA Groundnut Oil ' + runId, { timeout: 30000 });
     await page.locator('#productGrid .product-card').filter({ hasText: 'QA Groundnut Oil ' + runId }).locator('.add-btn').click();
-    await expect(page.locator('#cartCount')).toContainText('1');
+    await expect(page.locator('#cartCount')).toHaveText('1 item');
     await expect(page.locator('#cartTotal')).toContainText('₹137');
 
     await page.locator('#viewCartBtn').click();
@@ -321,5 +324,6 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
     if (crudCategoryId) await apiDelete('/api/admin/categories/' + encodeURIComponent(crudCategoryId)).catch(() => {});
     if (addressId) await apiDelete('/api/addresses/' + encodeURIComponent(addressId)).catch(() => {});
     if (productId) await apiPatch('/api/admin/catalogue/products/' + encodeURIComponent(productId), { active: false }).catch(() => {});
+    if (categoryId) await apiPatch('/api/admin/categories/' + encodeURIComponent(categoryId), { active: false }).catch(() => {});
   }
 });
