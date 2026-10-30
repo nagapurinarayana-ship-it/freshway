@@ -77,19 +77,6 @@ export async function onRequest(context) {
     return type.split(';', 1)[0].trim() === 'application/json';
   };
 
-  const isOwnerAdminApi = targetPath.startsWith('/api/admin/') || targetPath === '/api/notifications/broadcast';
-  if (isOwnerReadOnlyPreview && isOwnerAdminApi) {
-    const previewApiUrl = new URL(targetUrl.toString());
-    previewApiUrl.hostname = ownerPreviewWorkerHost;
-    // The branch Preview Worker accepts this exact Pages Preview origin and enforces GET-only access.
-    headers.set('Origin', incoming.origin);
-    try {
-      return await fetch(buildRequest(previewApiUrl.toString()));
-    } catch (_) {
-      return jsonError('The Owner Preview API is unavailable. The branch Preview Worker did not respond.', 503);
-    }
-  }
-
   const jsonError = (message, status = 502) => new Response(JSON.stringify({ error: message }), {
     status,
     headers: {
@@ -102,6 +89,19 @@ export async function onRequest(context) {
       } : {})
     }
   });
+
+  const isOwnerAdminApi = targetPath.startsWith('/api/admin/') || targetPath === '/api/notifications/broadcast';
+  if (isOwnerReadOnlyPreview && isOwnerAdminApi) {
+    const previewApiUrl = new URL(targetUrl.toString());
+    previewApiUrl.hostname = ownerPreviewWorkerHost;
+    // The branch Preview Worker accepts this exact Pages Preview origin and enforces GET-only access.
+    headers.set('Origin', incoming.origin);
+    try {
+      return await fetch(buildRequest(previewApiUrl.toString()));
+    } catch (_) {
+      return jsonError('The Owner Preview API is unavailable. The branch Preview Worker did not respond.', 503);
+    }
+  }
 
   // Preview and local deployments must explicitly opt into the development environment.
   // Never infer a production API target from a missing service binding.
