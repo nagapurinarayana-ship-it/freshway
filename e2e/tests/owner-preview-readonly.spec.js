@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 
-const PREVIEW_BASE_URL = String(process.env.FRESHWAY_PREVIEW_BASE_URL || '').replace(/\\/$/, '');
-const PREVIEW_WORKER_URL = String(process.env.FRESHWAY_PREVIEW_WORKER_URL || '').replace(/\\/$/, '');
+const withoutTrailingSlash = value => value.endsWith('/') ? value.slice(0, -1) : value;
+const PREVIEW_BASE_URL = withoutTrailingSlash(String(process.env.FRESHWAY_PREVIEW_BASE_URL || ''));
+const PREVIEW_WORKER_URL = withoutTrailingSlash(String(process.env.FRESHWAY_PREVIEW_WORKER_URL || ''));
 
 test.skip(!PREVIEW_BASE_URL || !PREVIEW_WORKER_URL, 'Run only after the isolated Preview Worker and Pages binding are configured.');
 
