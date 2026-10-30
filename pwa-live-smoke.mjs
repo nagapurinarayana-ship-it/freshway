@@ -297,7 +297,7 @@ assert.equal(adminResponse.status, 200);
 assert.match(swResponse.headers.get('content-type') || '', /javascript/i, 'service worker must be JavaScript');
 assert.equal(swResponse.headers.get('service-worker-allowed'), '/', 'service worker must explicitly allow root scope');
 assert.match(sw, /const CACHE = 'freshway-v\d+'/);
-assert.match(sw, /const REQUIRED_SHELL = \[\s*'\/',\s*'\/index\.html'\s*\]/);
+assert.match(sw, /const REQUIRED_SHELL\s*=\s*\[\s*['"]\/['"]\s*,\s*['"]\/index\.html['"]\s*\]/);
 
 
 async function verifyCustomDomain() {
