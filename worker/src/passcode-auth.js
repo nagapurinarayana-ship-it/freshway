@@ -14,8 +14,13 @@ const hex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('
 const bytesFromHex = value => { const out = new Uint8Array(value.length / 2); for (let i = 0; i < out.length; i++) out[i] = parseInt(value.slice(i * 2, i * 2 + 2), 16); return out; };
 const corsOrigins = env => [...new Set([env.APP_ORIGINS, env.APP_ORIGIN].flatMap(value => String(value || '').split(',').map(origin => origin.trim())).filter(value => value && value !== 'https://YOUR-FRESHWAY-DOMAIN' && value !== 'null'))];
 const allowedOriginSuffixes = env => String(env.APP_ORIGIN_SUFFIXES || '').split(',').map(value => value.trim().toLowerCase()).filter(value => /^\.[a-z0-9.-]+$/.test(value));
+const isOwnerPreviewOrigin = origin => {
+  if (origin === 'https://test-expand-playwright-cover.freshway-f32.pages.dev') return true;
+  try { const url = new URL(origin); return url.protocol === 'https:' && url.origin === origin && /^[a-f0-9]{8}\\.freshway-f32\\.pages\\.dev$/i.test(url.hostname); }
+  catch (_) { return false; }
+};
 const isAllowedOrigin = (env, origin) => {
-  if (corsOrigins(env).includes(origin)) return true;
+  if (isOwnerPreviewOrigin(origin) || corsOrigins(env).includes(origin)) return true;
   try {
     const url = new URL(origin);
     return url.protocol === 'https:' && url.origin === origin && allowedOriginSuffixes(env).some(suffix => url.hostname.length > suffix.length && url.hostname.endsWith(suffix));
@@ -243,7 +248,10 @@ async function protectedOrders(request, env, ctx) {
   // order-specific field and is stored only in the immutable address snapshot.
   const address = { ...(payload.address || {}), deliveryPhone: `91${deliveryPhone}` };
   // The legacy order writer validates customer.phone as ten local digits. Keep the account identity canonical in D1 and restore its canonical value on the order row below.
-  const forwarded = { ...payload, customer: { ...(payload.customer || {}), phone: registeredPhone.slice(2) }, address };
+  // Preview-only E2E orders are clearly classified in D1 and do not send customer/Owner push alerts.
+  // This flag is server-derived from the approved Preview origin, never trusted directly from the payload.
+  const previewTestOrder = isOwnerPreviewOrigin(String(request.headers.get('Origin') || '').trim()) && payload.previewTestOrder === true;
+  const forwarded = { ...payload, __freshwayPreviewTestOrder: previewTestOrder, customer: { ...(payload.customer || {}), phone: registeredPhone.slice(2) }, address };
   const responseFromOriginal = await original.fetch(new Request(request, {
     method: 'POST', body: JSON.stringify(forwarded)
   }), env, ctx || {});
