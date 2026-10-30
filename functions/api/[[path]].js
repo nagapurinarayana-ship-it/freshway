@@ -11,7 +11,7 @@ export async function onRequest(context) {
   const incoming = new URL(context.request.url);
   const ownerPreviewHost = 'test-expand-playwright-cover.freshway-f32.pages.dev';
   const ownerPreviewWorkerHost = 'test-expand-playwright-coverage-freshway-api.all-in-one-all.workers.dev';
-  const isOwnerReadOnlyPreview = incoming.protocol === 'https:' && incoming.hostname.toLowerCase() === ownerPreviewHost;
+  const isOwnerReadOnlyPreview = incoming.protocol === 'https:' && (incoming.hostname.toLowerCase() === ownerPreviewHost || /^[a-f0-9]{8}\.freshway-f32\.pages\.dev$/i.test(incoming.hostname));
   const isProductionHost = productionHosts.has(incoming.hostname.toLowerCase());
   const environment = String(context.env.FRESHWAY_ENVIRONMENT || '').trim().toLowerCase();
   const configuredApiOrigins = [...new Set([context.env.APP_ORIGIN, context.env.APP_ORIGINS]
