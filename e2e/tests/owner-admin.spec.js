@@ -230,9 +230,9 @@ test('Owner can move a synthetic order through processing and dispatch statuses'
   await page.setViewportSize({ width: 1365, height: 900 });
   await page.goto('/admin.html');
   await page.locator('.side [data-screen="orders"]').click();
-  await expect(page.locator('[data-order="FW-QA-ORDER-1"]')).toBeVisible();
+  await expect(page.locator('#ordersList [data-order="FW-QA-ORDER-1"]')).toBeVisible();
 
-  await page.locator('[data-order="FW-QA-ORDER-1"]').click();
+  await page.locator('#ordersList [data-order="FW-QA-ORDER-1"]').click();
   await expect(page.locator('#fwLifeStatus')).toBeVisible();
 
   for (const status of ['Confirmed', 'Processing', 'Ready', 'Out for Delivery']) {
