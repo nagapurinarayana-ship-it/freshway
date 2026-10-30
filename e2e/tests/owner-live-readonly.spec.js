@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 
-const LIVE_BASE_URL = (process.env.FRESHWAY_LIVE_BASE_URL || 'https://fwcoldpressed.in').replace(/\\/$/, '');
+const LIVE_BASE_URL_RAW = process.env.FRESHWAY_LIVE_BASE_URL || 'https://fwcoldpressed.in';
+const LIVE_BASE_URL = LIVE_BASE_URL_RAW.endsWith('/') ? LIVE_BASE_URL_RAW.slice(0, -1) : LIVE_BASE_URL_RAW;
 
 test('LIVE Owner entry is usable on mobile and desktop without performing mutations', async ({ page }) => {
   test.setTimeout(90000);
