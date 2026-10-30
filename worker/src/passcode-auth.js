@@ -190,6 +190,7 @@ async function completePasscodeReset(request, env) {
 }
 async function updateCustomer(request, env) { const sessionId = await sessionCustomerId(request, env); if (!sessionId) return response({ error: 'Customer authentication required.' }, 401, env); let payload = {}; try { payload = await request.json(); } catch (_) {} if (String(payload.id || '').trim() !== sessionId) return response({ error: 'Customer identity does not match the signed-in account.' }, 409, env); await env.DB.prepare('UPDATE customers SET whatsapp_opt_in=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(payload.whatsappOptIn ? 1 : 0, sessionId).run(); return response({ ok: true, customerId: sessionId }, 200, env); }
 export async function customerOrdersFromSnapshots(request, env, customerId) {
+  const previewQaAccess = await isOwnerPreviewServiceRequest(request, env);
   const { results } = await env.DB.prepare(`SELECT o.id,o.customer_name,o.customer_phone,o.total,o.items_subtotal,o.delivery_fee,o.coupon_code,o.coupon_discount,o.pricing_breakdown_known,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.delivered_at,o.payment_collected_at,o.scheduled_delivery_date,o.scheduled_slot_id,o.assigned_store_id,o.scheduled_start_minute,o.scheduled_end_minute,o.schedule_status,ds.name assigned_store_name,
     c.name registered_name,c.phone registered_phone,
     COALESCE(s.recipient_name,a.recipient_name,o.customer_name) recipient_name,
@@ -208,8 +209,8 @@ export async function customerOrdersFromSnapshots(request, env, customerId) {
     LEFT JOIN addresses a ON a.id=o.address_id
     LEFT JOIN order_items oi ON oi.order_id=o.id
     LEFT JOIN invoices i ON i.order_id=o.id
-    WHERE o.customer_id=? AND COALESCE(o.is_test_order,0)=0
-    ORDER BY o.created_at DESC,oi.id ASC`).bind(customerId).all();
+    WHERE o.customer_id=? AND (COALESCE(o.is_test_order,0)=0 OR ?=1)
+    ORDER BY o.created_at DESC,oi.id ASC`).bind(customerId, previewQaAccess ? 1 : 0).all();
   const map = new Map();
   for (const row of results || []) {
     if (!map.has(row.id)) map.set(row.id, {
