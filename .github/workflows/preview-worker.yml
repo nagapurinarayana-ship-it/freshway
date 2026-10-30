@@ -48,17 +48,7 @@ jobs:
         run: npm install
       - name: Run all Worker tests
         working-directory: source/worker
-        env:
-          FRESHWAY_VISUAL_ARTIFACTS: '1'
         run: npm test
-      - name: Upload invoice visual review sample
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: freshway-invoice-visual-review
-          path: source/worker/test-results/visual-review/*.pdf
-          if-no-files-found: warn
-          retention-days: 7
       - name: Test preview isolation guards
         run: node --test tooling/.github/preview-worker/test/preview-config.test.js
       - name: Verify preview config refuses production D1
@@ -182,7 +172,7 @@ jobs:
           delete source.secrets;
           fs.writeFileSync(process.argv[3], JSON.stringify(source, null, 2) + '\n', { mode: 0o600 });
           NODE
-      - name: Initialize the isolated preview D1 schema and apply feature migrations
+      - name: Initialize isolated preview D1 baseline and apply feature migration 0043
         working-directory: tooling/worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -192,73 +182,114 @@ jobs:
         run: |
           set -euo pipefail
           config="../../source/worker/wrangler.preview.generated.jsonc"
-          marker_result="$RUNNER_TEMP/freshway-preview-marker.json"
-          npx wrangler d1 execute freshway-preview --remote --json --command "SELECT name FROM sqlite_master WHERE type='table' AND name='freshway_preview_metadata'" --config "$config" > "$marker_result"
-          marker_state="$(node --input-type=module - "$marker_result" <<'NODE'
+          result="$RUNNER_TEMP/freshway-preview-schema.json"
+
+          # A fresh preview starts from the latest pre-feature schema on main. That schema
+          # already includes historical delivery migrations 0037–0040; replaying them
+          # would duplicate columns and can fail before migration 0043 is reached.
+          npx wrangler d1 execute freshway-preview --remote --json --command "SELECT name FROM sqlite_master WHERE type='table' AND name='freshway_preview_metadata'" --config "$config" > "$result"
+          marker_state="$(node --input-type=module - "$result" <<'NODE'
           import fs from 'node:fs';
           const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
           const rows = (Array.isArray(payload) ? payload[0] : payload)?.results;
-          if (!Array.isArray(rows)) throw new Error('Unexpected D1 marker query response.');
+          if (!Array.isArray(rows)) throw new Error('Unexpected preview metadata query response.');
           process.stdout.write(rows.length ? 'present' : 'missing');
           NODE
           )"
+
           if [ "$marker_state" = present ]; then
-            npx wrangler d1 execute freshway-preview --remote --json --command "SELECT database_id FROM freshway_preview_metadata WHERE id=1" --config "$config" > "$marker_result"
-            node --input-type=module - "$marker_result" "$FRESHWAY_PREVIEW_D1_DATABASE_ID" <<'NODE'
+            npx wrangler d1 execute freshway-preview --remote --json --command "SELECT database_id FROM freshway_preview_metadata WHERE id=1" --config "$config" > "$result"
+            node --input-type=module - "$result" "$FRESHWAY_PREVIEW_D1_DATABASE_ID" <<'NODE'
           import fs from 'node:fs';
           const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
           const rows = (Array.isArray(payload) ? payload[0] : payload)?.results;
-          if (!Array.isArray(rows) || rows.length !== 1 || String(rows[0].database_id).toLowerCase() !== String(process.argv[3]).toLowerCase()) {
+          if (!Array.isArray(rows) || rows.length !== 1 ||
+              String(rows[0].database_id).toLowerCase() !== String(process.argv[3]).toLowerCase()) {
             throw new Error('Preview database marker does not match the configured D1 UUID. Refusing to touch this database.');
           }
           NODE
-            echo "Preview D1 is already initialized for this UUID; skipping schema and migrations."
+            echo "Verified the existing isolated preview D1 UUID."
           else
-            npx wrangler d1 execute freshway-preview --remote --json --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' LIMIT 1" --config "$config" > "$marker_result"
-            node --input-type=module - "$marker_result" <<'NODE'
+            npx wrangler d1 execute freshway-preview --remote --json --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' LIMIT 1" --config "$config" > "$result"
+            node --input-type=module - "$result" <<'NODE'
           import fs from 'node:fs';
           const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
           const rows = (Array.isArray(payload) ? payload[0] : payload)?.results;
           if (!Array.isArray(rows)) throw new Error('Unexpected D1 emptiness query response.');
-          if (rows.length) throw new Error('Unmarked preview D1 is not empty. Refusing to initialize or use an existing database; create a new empty freshway-preview database.');
+          if (rows.length) throw new Error('Unmarked preview D1 is not empty. Refusing to initialize an unknown database; create a new empty preview D1 or recover it manually.');
           NODE
-            # Start from the actual production baseline schema, then apply the feature's
-            # incremental migrations. This verifies ALTER TABLE/rebuilds against a real
-            # pre-feature schema instead of bypassing migration behavior with feature schema.sql.
             npx wrangler d1 execute freshway-preview --remote --file ../../baseline/worker/schema.sql --config "$config"
-            npx wrangler d1 execute freshway-preview --remote --file ../../source/worker/migrations/0037_order_delivery_scheduling.sql --config "$config"
-            # Seed one isolated fixture before the request-table rebuild so the preview
-            # verifies that migration 0038 preserves real rows and recreates its indexes.
-            npx wrangler d1 execute freshway-preview --remote --command "INSERT INTO customers (id,name,phone) VALUES ('preview-migration-customer','Preview migration test','9999999999'); INSERT INTO addresses (customer_id,house,area,city,pincode) VALUES ('preview-migration-customer','Test house','Test area','Test city','500001'); INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,is_test_order) VALUES ('preview-migration-order','preview-migration-customer',(SELECT id FROM addresses WHERE customer_id='preview-migration-customer'),'Preview migration test','9999999999',100,1); INSERT INTO order_action_requests (id,order_id,customer_id,request_type,reason,status) VALUES ('preview-migration-request','preview-migration-order','preview-migration-customer','issue','migration-preservation-check','pending')" --config "$config"
-            npx wrangler d1 execute freshway-preview --remote --file ../../source/worker/migrations/0038_anonymize_delivery_requests.sql --config "$config"
-            npx wrangler d1 execute freshway-preview --remote --json --command "SELECT id,order_id,customer_id,reason,status FROM order_action_requests WHERE id='preview-migration-request'" --config "$config" > "$marker_result"
-            node --input-type=module - "$marker_result" <<'NODE'
+            npx wrangler d1 execute freshway-preview --remote --command "CREATE TABLE IF NOT EXISTS freshway_preview_metadata (id INTEGER PRIMARY KEY CHECK(id=1), database_id TEXT NOT NULL, initialized_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP); INSERT OR IGNORE INTO freshway_preview_metadata (id,database_id) VALUES (1,'$FRESHWAY_PREVIEW_D1_DATABASE_ID')" --config "$config"
+            echo "Initialized the empty preview D1 from the current main baseline schema."
+          fi
+
+          feature_sql="SELECT
+            (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('delivery_offer_settings','coupons','coupon_redemptions','first_order_coupon_claims')) +
+            (SELECT COUNT(*) FROM pragma_table_info('orders') WHERE name IN ('items_subtotal','delivery_fee','coupon_id','coupon_code','coupon_discount','pricing_breakdown_known')) +
+            (SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name='coupon_redemption_guard_before_insert') +
+            (SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name IN ('idx_coupons_active_dates','idx_coupons_created','idx_coupon_redemptions_coupon_status','idx_coupon_redemptions_customer_coupon')) AS markers"
+          npx wrangler d1 execute freshway-preview --remote --json --command "$feature_sql" --config "$config" > "$result"
+          feature_markers="$(node --input-type=module - "$result" <<'NODE'
+          import fs from 'node:fs';
+          const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const rows = (Array.isArray(payload) ? payload[0] : payload)?.results;
+          if (!Array.isArray(rows) || rows.length !== 1 || !Number.isInteger(Number(rows[0].markers))) {
+            throw new Error('Could not determine whether migration 0043 is fully applied.');
+          }
+          process.stdout.write(String(Number(rows[0].markers)));
+          NODE
+          )"
+
+          if [ "$feature_markers" = "0" ]; then
+            # Preserve a pre-feature order and stock quantity across the actual remote
+            # migration. The fixture is synthetic and removed after the assertions.
+            suffix="$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+            customer_id="preview-migration-customer-$suffix"
+            product_id="preview-migration-product-$suffix"
+            order_id="preview-migration-order-$suffix"
+            customer_phone="preview-migration-phone-$suffix"
+            cleanup_migration_fixture() {
+              npx wrangler d1 execute freshway-preview --remote --command "DELETE FROM orders WHERE id='$order_id'; DELETE FROM addresses WHERE customer_id='$customer_id'; DELETE FROM customers WHERE id='$customer_id'; DELETE FROM products WHERE id='$product_id'" --config "$config" >/dev/null 2>&1 || true
+            }
+            trap cleanup_migration_fixture EXIT
+            npx wrangler d1 execute freshway-preview --remote --command "INSERT INTO customers (id,name,phone) VALUES ('$customer_id','Preview migration test','$customer_phone'); INSERT INTO addresses (customer_id,house,area,city,pincode) VALUES ('$customer_id','Test house','Test area','Test city','500001'); INSERT INTO products (id,name,unit,price,stock_managed,stock_quantity) VALUES ('$product_id','Preview migration test','unit',100,1,7); INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,is_test_order) VALUES ('$order_id','$customer_id',(SELECT id FROM addresses WHERE customer_id='$customer_id'),'Preview migration test','$customer_phone',100,1)" --config "$config"
+
+            npx wrangler d1 execute freshway-preview --remote --file ../../source/worker/migrations/0043_delivery_offers_fixed_coupons.sql --config "$config"
+
+            npx wrangler d1 execute freshway-preview --remote --json --command "SELECT o.total AS total,p.stock_quantity AS stock_quantity,o.pricing_breakdown_known AS breakdown_known,o.items_subtotal AS items_subtotal,o.delivery_fee AS delivery_fee FROM orders o JOIN products p ON p.id='$product_id' WHERE o.id='$order_id'" --config "$config" > "$result"
+            node --input-type=module - "$result" <<'NODE'
           import fs from 'node:fs';
           const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
           const rows = (Array.isArray(payload) ? payload[0] : payload)?.results;
           const row = Array.isArray(rows) ? rows[0] : null;
-          if (!row || row.id !== 'preview-migration-request' || row.order_id !== 'preview-migration-order' ||
-              row.customer_id !== 'preview-migration-customer' || row.reason !== 'migration-preservation-check' || row.status !== 'pending') {
-            throw new Error('Migration 0038 did not preserve the existing order-action request row.');
+          if (!row || Number(row.total) !== 100 || Number(row.stock_quantity) !== 7 ||
+              Number(row.breakdown_known) !== 0 || Number(row.items_subtotal) !== 0 || Number(row.delivery_fee) !== 0) {
+            throw new Error('Migration 0043 did not preserve the historical order total and stock, or marked a legacy pricing breakdown as known.');
           }
           NODE
-            npx wrangler d1 execute freshway-preview --remote --json --command "SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_order_action_one_pending_type','idx_order_action_queue')" --config "$config" > "$marker_result"
-            node --input-type=module - "$marker_result" <<'NODE'
+
+            npx wrangler d1 execute freshway-preview --remote --command "DELETE FROM orders WHERE id='$order_id'; DELETE FROM addresses WHERE customer_id='$customer_id'; DELETE FROM customers WHERE id='$customer_id'; DELETE FROM products WHERE id='$product_id'" --config "$config"
+            echo "Applied migration 0043 remotely; historical order total, unknown pricing breakdown, and product stock were preserved."
+          elif [ "$feature_markers" = "15" ]; then
+            echo "Migration 0043 is already fully present; verifying schema and deployed API next."
+          else
+            echo "Migration 0043 is only partially present ($feature_markers of 15 schema markers). Refusing to replay a non-idempotent migration; provision a clean isolated preview D1 and rerun."
+            exit 1
+          fi
+
+          npx wrangler d1 execute freshway-preview --remote --json --command "$feature_sql" --config "$config" > "$result"
+          node --input-type=module - "$result" <<'NODE'
           import fs from 'node:fs';
           const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
           const rows = (Array.isArray(payload) ? payload[0] : payload)?.results;
-          const names = new Set((Array.isArray(rows) ? rows : []).map(row => row.name));
-          if (!names.has('idx_order_action_one_pending_type') || !names.has('idx_order_action_queue')) {
-            throw new Error('Migration 0038 did not recreate the order-action indexes.');
+          if (!Array.isArray(rows) || rows.length !== 1 || Number(rows[0].markers) !== 15) {
+            throw new Error('Migration 0043 is incomplete: expected 4 tables, 6 order columns, 1 trigger, and 4 indexes.');
           }
           NODE
-            npx wrangler d1 execute freshway-preview --remote --file ../../source/worker/migrations/0039_customer_preferred_delivery_date.sql --config "$config"
-            npx wrangler d1 execute freshway-preview --remote --file ../../source/worker/migrations/0040_order_delivered_at.sql --config "$config"
-            # Remove only the synthetic fixture; no real customer/order data is touched.
-            npx wrangler d1 execute freshway-preview --remote --command "DELETE FROM order_action_requests WHERE id='preview-migration-request'; DELETE FROM orders WHERE id='preview-migration-order'; DELETE FROM addresses WHERE customer_id='preview-migration-customer'; DELETE FROM customers WHERE id='preview-migration-customer'" --config "$config"
-            npx wrangler d1 execute freshway-preview --remote --command "CREATE TABLE IF NOT EXISTS freshway_preview_metadata (id INTEGER PRIMARY KEY CHECK(id=1), database_id TEXT NOT NULL, initialized_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP); INSERT OR IGNORE INTO freshway_preview_metadata (id,database_id) VALUES (1,'$FRESHWAY_PREVIEW_D1_DATABASE_ID')" --config "$config"
-          fi
-          npx wrangler d1 execute freshway-preview --remote --json --command "SELECT delivered_at, scheduled_delivery_date, scheduled_start_minute FROM orders LIMIT 0; SELECT requested_delivery_date FROM order_action_requests LIMIT 0; SELECT status FROM delivery_slot_reservations LIMIT 0; SELECT status FROM delivery_store_inventory_reservations LIMIT 0" --config "$config" > /dev/null
+
+          # Fail if the baseline delivery schema or any newly-added schema is missing.
+          npx wrangler d1 execute freshway-preview --remote --command "SELECT delivered_at,scheduled_delivery_date,scheduled_start_minute,items_subtotal,delivery_fee,coupon_id,coupon_code,coupon_discount,pricing_breakdown_known FROM orders LIMIT 0; SELECT requested_delivery_date FROM order_action_requests LIMIT 0; SELECT status FROM delivery_slot_reservations LIMIT 0; SELECT status FROM delivery_store_inventory_reservations LIMIT 0; SELECT code,discount_amount FROM coupons LIMIT 0; SELECT order_id,discount_amount,status FROM coupon_redemptions LIMIT 0" --config "$config" > /dev/null
+          echo "Isolated preview D1 schema verification passed."
       - name: Bootstrap the preview Worker without attaching production routes
         working-directory: tooling/worker
         env:
@@ -285,17 +316,198 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy --config ../../source/worker/wrangler.preview.generated.jsonc
-      - name: Smoke-test the deployed preview Worker
+      - name: Smoke-test authenticated Delivery & Offers APIs, checkout, redemption limits, and idempotency
+        working-directory: tooling/worker
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIEW_ADMIN_TOKEN: ${{ secrets.PREVIEW_ADMIN_TOKEN }}
           FRESHWAY_PREVIEW_WORKER_URL: ${{ vars.FRESHWAY_PREVIEW_WORKER_URL }}
+        shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 30 "$FRESHWAY_PREVIEW_WORKER_URL/api/admin/status" > "$RUNNER_TEMP/freshway-preview-status.json"
-          node --input-type=module - "$RUNNER_TEMP/freshway-preview-status.json" <<'NODE'
-          import fs from 'node:fs';
-          const status = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-          if (status.ok !== true || typeof status.version !== 'string' || !status.version) {
-            throw new Error('Preview Worker status endpoint did not return the expected healthy response.');
+          config="../../source/worker/wrangler.preview.generated.jsonc"
+          base_url="$FRESHWAY_PREVIEW_WORKER_URL"
+          suffix="$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          product_id="preview-quote-product-$suffix"
+          coupon_code="PREVIEW$(printf '%08d' "$((GITHUB_RUN_ID % 100000000))")$(printf '%02d' "$GITHUB_RUN_ATTEMPT")"
+          first_order_code="FIRSTONLY$(printf '%08d' "$((GITHUB_RUN_ID % 100000000))")$(printf '%02d' "$GITHUB_RUN_ATTEMPT")"
+          customer_phone="8$(printf '%09d' "$(((GITHUB_RUN_ID * 100 + GITHUB_RUN_ATTEMPT) % 1000000000))")"
+          owner_cookie="$RUNNER_TEMP/freshway-owner-cookie.txt"
+          customer_cookie="$RUNNER_TEMP/freshway-customer-cookie.txt"
+          customer_id=""
+          today="$(TZ=Asia/Kolkata date +%F)"
+          delivery_date="$(TZ=Asia/Kolkata date -d "$today +1 day" +%F)"
+
+          cleanup_preview_integration() {
+            npx wrangler d1 execute freshway-preview --remote --command "DELETE FROM notification_events WHERE order_id IN (SELECT id FROM orders WHERE customer_id IN (SELECT id FROM customers WHERE phone='91$customer_phone')); DELETE FROM order_action_requests WHERE order_id IN (SELECT id FROM orders WHERE customer_id IN (SELECT id FROM customers WHERE phone='91$customer_phone')); DELETE FROM order_audit_events WHERE order_id IN (SELECT id FROM orders WHERE customer_id IN (SELECT id FROM customers WHERE phone='91$customer_phone')); DELETE FROM order_operational_flags WHERE order_id IN (SELECT id FROM orders WHERE customer_id IN (SELECT id FROM customers WHERE phone='91$customer_phone')); DELETE FROM delivery_slot_reservations WHERE order_id IN (SELECT id FROM orders WHERE customer_id IN (SELECT id FROM customers WHERE phone='91$customer_phone')); DELETE FROM delivery_store_inventory_reservations WHERE order_id IN (SELECT id FROM orders WHERE customer_id IN (SELECT id FROM customers WHERE phone='91$customer_phone')); DELETE FROM first_order_coupon_claims WHERE customer_id IN (SELECT id FROM customers WHERE phone='91$customer_phone'); DELETE FROM coupon_redemptions WHERE customer_id IN (SELECT id FROM customers WHERE phone='91$customer_phone'); DELETE FROM orders WHERE customer_id IN (SELECT id FROM customers WHERE phone='91$customer_phone'); DELETE FROM addresses WHERE customer_id IN (SELECT id FROM customers WHERE phone='91$customer_phone'); DELETE FROM customers WHERE phone='91$customer_phone'; DELETE FROM coupons WHERE code COLLATE NOCASE IN ('$coupon_code','$first_order_code'); DELETE FROM products WHERE id='$product_id'; DELETE FROM auth_rate_limits WHERE key='auth:register:phone:91$customer_phone'" --config "$config" >/dev/null 2>&1 || true
           }
-          console.log('Preview Worker is responding:', status.version);
+          trap cleanup_preview_integration EXIT
+
+          # A unique temporary product makes the quote and checkout deterministic.
+          npx wrangler d1 execute freshway-preview --remote --command "INSERT INTO products (id,name,unit,price,active,stock_managed,stock_quantity) VALUES ('$product_id','Preview quote fixture','unit',100,1,0,0)" --config "$config"
+
+          curl --fail --silent --show-error --max-time 30 "$base_url/api/admin/status" > "$RUNNER_TEMP/freshway-preview-status.json"
+          curl --fail --silent --show-error --max-time 30 "$base_url/api/delivery-offers" > "$RUNNER_TEMP/freshway-preview-offers.json"
+          curl --fail --silent --show-error --max-time 30 "$base_url/api/coupons/available" > "$RUNNER_TEMP/freshway-preview-coupons.json"
+
+          # Exercise the actual Owner login and coupon-management routes.
+          curl --fail --silent --show-error --max-time 30 \
+            --cookie-jar "$owner_cookie" -H "Content-Type: application/json" \
+            -d "{\"token\":\"$PREVIEW_ADMIN_TOKEN\"}" \
+            "$base_url/api/admin/login" > "$RUNNER_TEMP/freshway-owner-login.json"
+          curl --fail --silent --show-error --max-time 30 \
+            --cookie "$owner_cookie" -H "Content-Type: application/json" \
+            -d "{\"code\":\"$coupon_code\",\"title\":\"Preview fixed coupon\",\"discountAmount\":25,\"startsOn\":\"$today\",\"endsOn\":null,\"maxRedemptions\":10,\"perCustomerLimit\":1,\"firstOrderOnly\":true,\"active\":true}" \
+            "$base_url/api/admin/coupons" > "$RUNNER_TEMP/freshway-owner-create-coupon.json"
+          curl --fail --silent --show-error --max-time 30 \
+            --cookie "$owner_cookie" -H "Content-Type: application/json" \
+            -d "{\"code\":\"$first_order_code\",\"title\":\"Preview first-order coupon\",\"discountAmount\":10,\"startsOn\":\"$today\",\"endsOn\":null,\"maxRedemptions\":null,\"perCustomerLimit\":null,\"firstOrderOnly\":true,\"active\":true}" \
+            "$base_url/api/admin/coupons" > "$RUNNER_TEMP/freshway-owner-create-first-order-coupon.json"
+          curl --fail --silent --show-error --max-time 30 \
+            --cookie "$owner_cookie" "$base_url/api/admin/coupons" > "$RUNNER_TEMP/freshway-owner-coupons.json"
+
+          # Register a throwaway customer through the actual customer API. Registration
+          # returns a signed cookie, which the subsequent checkout endpoints must accept.
+          curl --fail --silent --show-error --max-time 30 \
+            --cookie-jar "$customer_cookie" -H "Content-Type: application/json" \
+            -d "{\"name\":\"FreshWay Preview Customer\",\"phone\":\"$customer_phone\",\"passcode\":\"654321\"}" \
+            "$base_url/api/auth/register" > "$RUNNER_TEMP/freshway-customer-register.json"
+          customer_id="$(node --input-type=module - "$RUNNER_TEMP/freshway-customer-register.json" <<'NODE'
+          import fs from 'node:fs';
+          const data = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (!data.customerId) throw new Error('Preview customer registration did not return a customer ID.');
+          process.stdout.write(String(data.customerId));
+          NODE
+          )"
+          curl --fail --silent --show-error --max-time 30 \
+            --cookie "$customer_cookie" "$base_url/api/auth/session" > "$RUNNER_TEMP/freshway-customer-session.json"
+
+          checkout_items="{\"items\":[{\"id\":\"$product_id\",\"qty\":2}],\"couponCode\":\"$coupon_code\"}"
+          curl --fail --silent --show-error --max-time 30 \
+            --cookie "$customer_cookie" -H "Content-Type: application/json" \
+            -d "$checkout_items" "$base_url/api/checkout/quote" > "$RUNNER_TEMP/freshway-preview-quote.json"
+          expected_total="$(node --input-type=module - "$RUNNER_TEMP/freshway-preview-quote.json" "$coupon_code" <<'NODE'
+          import fs from 'node:fs';
+          const data = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const p = data.pricing;
+          if (!p || Number(p.itemsSubtotal) !== 200 || Number(p.couponDiscount) !== 25 ||
+              !Number.isSafeInteger(Number(p.deliveryFee)) || Number(p.deliveryFee) < 0 ||
+              Number(p.finalTotal) !== 200 - 25 + Number(p.deliveryFee)) {
+            throw new Error('Authenticated checkout quote did not calculate the expected fixed-rupee coupon total.');
+          }
+          process.stdout.write(String(Number(p.finalTotal)));
+          NODE
+          )"
+
+          checkout_payload="{\"customerId\":\"$customer_id\",\"customer\":{\"name\":\"FreshWay Preview Customer\",\"phone\":\"$customer_phone\"},\"address\":{\"house\":\"Preview test house\",\"area\":\"Preview test area\",\"city\":\"Hyderabad\",\"pincode\":\"500001\",\"deliveryPhone\":\"$customer_phone\"},\"items\":[{\"id\":\"$product_id\",\"qty\":2}],\"couponCode\":\"$coupon_code\",\"expectedTotal\":$expected_total,\"preferredDeliveryDate\":\"$delivery_date\",\"clientOrderId\":\"preview-checkout-$suffix\"}"
+          printf '%s' "$checkout_payload" > "$RUNNER_TEMP/freshway-checkout-payload.json"
+
+          # Place the order through the protected Worker API and retry the same client
+          # order ID. The second request must return the same order, not redeem twice.
+          curl --fail --silent --show-error --max-time 30 \
+            --cookie "$customer_cookie" -H "Content-Type: application/json" \
+            -d "$checkout_payload" "$base_url/api/orders" > "$RUNNER_TEMP/freshway-preview-order.json"
+          curl --fail --silent --show-error --max-time 30 \
+            --cookie "$customer_cookie" -H "Content-Type: application/json" \
+            -d "$checkout_payload" "$base_url/api/orders" > "$RUNNER_TEMP/freshway-preview-order-retry.json"
+          node --input-type=module - "$RUNNER_TEMP/freshway-preview-order.json" "$RUNNER_TEMP/freshway-preview-order-retry.json" "$expected_total" <<'NODE'
+          import fs from 'node:fs';
+          const first = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const retry = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+          const expected = Number(process.argv[4]);
+          if (!first.id || retry.id !== first.id || Number(first.total) !== expected || Number(retry.total) !== expected) {
+            throw new Error('Checkout retry did not recover the original order and saved total.');
+          }
+          process.stdout.write(String(first.id));
+          NODE
+
+          # A new client-order ID must not bypass the per-customer redemption limit.
+          second_payload="$(node --input-type=module - "$RUNNER_TEMP/freshway-checkout-payload.json" <<'NODE'
+          import fs from 'node:fs';
+          const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          payload.clientOrderId += '-second';
+          process.stdout.write(JSON.stringify(payload));
+          NODE
+          )"
+          second_status="$(curl --silent --show-error --max-time 30 \
+            --cookie "$customer_cookie" -H "Content-Type: application/json" \
+            -o "$RUNNER_TEMP/freshway-preview-second-order.json" -w '%{http_code}' \
+            -d "$second_payload" "$base_url/api/orders")"
+          if [ "$second_status" != "400" ]; then
+            cat "$RUNNER_TEMP/freshway-preview-second-order.json"
+            echo "Expected the second redemption to be rejected with HTTP 400; got $second_status."
+            exit 1
+          fi
+          node --input-type=module - "$RUNNER_TEMP/freshway-preview-second-order.json" <<'NODE'
+          import fs from 'node:fs';
+          const error = JSON.parse(fs.readFileSync(process.argv[2], 'utf8')).error || '';
+          if (!/already used this coupon/i.test(error)) {
+            throw new Error('Second checkout did not enforce the per-customer coupon limit: ' + error);
+          }
+          NODE
+
+          # This separate coupon has no redemption cap. It must be rejected specifically
+          # because the customer already has an order, proving the first-order rule.
+          first_order_quote="{\"items\":[{\"id\":\"$product_id\",\"qty\":2}],\"couponCode\":\"$first_order_code\"}"
+          first_order_status="$(curl --silent --show-error --max-time 30 \\
+            --cookie "$customer_cookie" -H "Content-Type: application/json" \\
+            -o "$RUNNER_TEMP/freshway-preview-first-order-quote.json" -w '%{http_code}' \\
+            -d "$first_order_quote" "$base_url/api/checkout/quote")"
+          if [ "$first_order_status" != "400" ]; then
+            cat "$RUNNER_TEMP/freshway-preview-first-order-quote.json"
+            echo "Expected first-order-only coupon rejection with HTTP 400; got $first_order_status."
+            exit 1
+          fi
+          node --input-type=module - "$RUNNER_TEMP/freshway-preview-first-order-quote.json" <<'NODE'
+          import fs from 'node:fs';
+          const error = JSON.parse(fs.readFileSync(process.argv[2], 'utf8')).error || '';
+          if (!/first orders only/i.test(error)) {
+            throw new Error('Checkout quote did not enforce first-order eligibility: ' + error);
+          }
+          NODE
+
+          # Inspect the actual D1 rows, including the saved pricing snapshot and both
+          # redemption/first-order claim uniqueness guards.
+          npx wrangler d1 execute freshway-preview --remote --json --command "SELECT o.id,o.total,o.items_subtotal,o.delivery_fee,o.coupon_code,o.coupon_discount,o.pricing_breakdown_known,(SELECT COUNT(*) FROM coupon_redemptions r WHERE r.order_id=o.id AND r.status='redeemed') AS redemption_count,(SELECT COUNT(*) FROM first_order_coupon_claims f WHERE f.customer_id=o.customer_id AND f.order_id=o.id) AS first_order_claim_count,(SELECT COUNT(*) FROM orders o2 WHERE o2.customer_id=o.customer_id AND o2.is_test_order=0) AS customer_order_count,(SELECT COALESCE(SUM(oi.qty),0) FROM order_items oi WHERE oi.order_id=o.id AND oi.product_id='$product_id') AS item_qty FROM orders o WHERE o.client_order_id='preview-checkout-$suffix'" --config "$config" > "$RUNNER_TEMP/freshway-preview-order-d1.json"
+          node --input-type=module - "$RUNNER_TEMP/freshway-preview-order-d1.json" "$expected_total" "$coupon_code" <<'NODE'
+          import fs from 'node:fs';
+          const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const rows = (Array.isArray(payload) ? payload[0] : payload)?.results;
+          const row = Array.isArray(rows) ? rows[0] : null;
+          if (!row ||
+              Number(row.total) !== Number(process.argv[3]) ||
+              Number(row.items_subtotal) !== 200 ||
+              Number(row.delivery_fee) < 0 ||
+              row.coupon_code !== process.argv[4] ||
+              Number(row.coupon_discount) !== 25 ||
+              Number(row.pricing_breakdown_known) !== 1 ||
+              Number(row.redemption_count) !== 1 ||
+              Number(row.first_order_claim_count) !== 1 ||
+              Number(row.customer_order_count) !== 1 ||
+              Number(row.item_qty) !== 2) {
+            throw new Error('D1 order/pricing/redemption records were not persisted exactly once with the expected totals.');
+          }
+          NODE
+
+          node --input-type=module - "$RUNNER_TEMP/freshway-preview-status.json" "$RUNNER_TEMP/freshway-preview-offers.json" "$RUNNER_TEMP/freshway-preview-coupons.json" "$RUNNER_TEMP/freshway-owner-create-coupon.json" "$RUNNER_TEMP/freshway-owner-create-first-order-coupon.json" "$RUNNER_TEMP/freshway-owner-coupons.json" "$RUNNER_TEMP/freshway-customer-session.json" "$coupon_code" "$first_order_code" <<'NODE'
+          import fs from 'node:fs';
+          const read = path => JSON.parse(fs.readFileSync(path, 'utf8'));
+          const status = read(process.argv[2]);
+          const offers = read(process.argv[3]);
+          const available = read(process.argv[4]);
+          const created = read(process.argv[5]);
+          const firstOrderCreated = read(process.argv[6]);
+          const adminCoupons = read(process.argv[7]);
+          const session = read(process.argv[8]);
+          const mainCode = process.argv[9];
+          const firstOrderCode = process.argv[10];
+          const couponList = adminCoupons.coupons || [];
+          if (status.ok !== true || !status.version) throw new Error('Preview Worker status endpoint is unhealthy.');
+          if (!offers.settings || typeof offers.settings.freeDeliveryEnabled !== 'boolean') throw new Error('Delivery settings API did not read from D1.');
+          if (!Array.isArray(available.coupons)) throw new Error('Available coupon API returned an invalid payload.');
+          if (created.coupon?.code !== mainCode || firstOrderCreated.coupon?.code !== firstOrderCode) throw new Error('Owner coupon creation returned an unexpected code.');
+          if (!couponList.some(item => item.code === mainCode) || !couponList.some(item => item.code === firstOrderCode)) throw new Error('Owner coupon list did not reflect both saved coupons.');
+          if (session.ok !== true || !session.customerId) throw new Error('Customer session could not be re-read after registration.');
+          console.log('Passed: Owner login/coupon management, customer auth, quote, checkout, idempotent retry, per-customer and first-order safeguards, and D1 pricing/redemption audit.');
           NODE
