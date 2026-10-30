@@ -7,13 +7,18 @@ const PREVIEW_WORKER_URL = String(process.env.FRESHWAY_PREVIEW_WORKER_URL || '')
 
 test.skip(!PREVIEW_BASE_URL, 'Set FRESHWAY_PREVIEW_BASE_URL to the isolated FreshWay Pages Preview before running real-D1 E2E tests.');
 
-function tomorrowInIndia() {
+function todayInIndia() {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
   }).formatToParts(new Date());
   const date = {};
   for (const part of parts) date[part.type] = part.value;
-  const value = new Date(Date.UTC(Number(date.year), Number(date.month) - 1, Number(date.day) + 1));
+  return date.year + '-' + date.month + '-' + date.day;
+}
+
+function tomorrowInIndia() {
+  const [year, month, day] = todayInIndia().split('-').map(Number);
+  const value = new Date(Date.UTC(year, month - 1, day + 1));
   return value.getUTCFullYear() + '-' +
     String(value.getUTCMonth() + 1).padStart(2, '0') + '-' +
     String(value.getUTCDate()).padStart(2, '0');
@@ -53,6 +58,9 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
   let crudProductId = '';
   let addressId = '';
   let orderId = '';
+  let couponId = '';
+  let couponCode = '';
+  let previewStoreId = '';
   const apiFailures = [];
   const jsErrors = [];
   const assetFailures = [];
@@ -117,6 +125,30 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
     const adminCatalogue = await expectJson(await apiGet('/api/admin/catalogue'));
     expect(adminCatalogue.categories.some(item => item.id === categoryId)).toBe(true);
     expect(adminCatalogue.products.some(item => item.id === productId)).toBe(true);
+
+    // Exercise real D1 coupon create/read/update and the customer-facing availability API.
+    couponCode = ('FWPREVIEW-' + runId.replace(/[^A-Za-z0-9]/g, '')).toUpperCase().slice(0, 40);
+    const createdCoupon = await expectJson(await apiPost('/api/admin/coupons', {
+      code: couponCode,
+      title: 'Preview QA coupon ' + runId,
+      discountAmount: 10,
+      firstOrderOnly: false,
+      startsOn: todayInIndia(),
+      endsOn: tomorrowInIndia(),
+      maxRedemptions: 1,
+      perCustomerLimit: 1,
+      active: true
+    }), 201);
+    couponId = createdCoupon.coupon.id;
+    expect(createdCoupon.coupon.code).toBe(couponCode);
+    expect(Number(createdCoupon.coupon.discountAmount)).toBe(10);
+    const couponList = await expectJson(await apiGet('/api/admin/coupons'));
+    expect(couponList.coupons.some(item => item.id === couponId)).toBe(true);
+    const updatedCoupon = await expectJson(await apiPatch('/api/admin/coupons/' + encodeURIComponent(couponId), {
+      title: 'Preview QA coupon updated ' + runId,
+      discountAmount: 10
+    }));
+    expect(updatedCoupon.coupon.title).toContain('updated');
 
     // Exercise category update and product create/update/delete using disposable D1 rows.
     const crudCategory = await expectJson(await apiPost('/api/admin/categories', {
@@ -195,6 +227,11 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
 
     await page.locator('#viewCartBtn').click();
     await expect(page.locator('#checkoutBtn')).toBeVisible();
+    await expect(page.locator('#fwAvailableCoupons')).toContainText(couponCode);
+    await page.locator('#fwCouponCode').fill(couponCode);
+    await page.locator('[data-fw-apply-coupon]').click();
+    await expect(page.locator('#fwCouponStatus')).toContainText('Coupon applied');
+    await expect(page.locator('#fwDeliveryPricing')).toContainText('Coupon ' + couponCode);
     await page.locator('#checkoutBtn').click();
     await expect(page.locator('#checkoutForm')).toBeVisible();
 
@@ -226,6 +263,8 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
     expect(order.scheduledDelivery?.date).toBe(tomorrowInIndia());
     expect(order.deliveryPlan).toBe('Tomorrow');
     expect(Number(order.total)).toBeGreaterThanOrEqual(137);
+    expect(order.couponCode).toBe(couponCode);
+    expect(Number(order.couponDiscount)).toBe(10);
 
     await expect(page.locator('#confirmationView')).toBeVisible();
     await expect(page.locator('#confirmationView')).toContainText(orderId);
@@ -237,6 +276,14 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
     expect(customerOrder.status).toBe('New');
     expect(customerOrder.address.recipientName).toBe(customerName);
     expect(customerOrder.address.deliveryPhone).toBe('91' + phone);
+
+    // Verify the real coupon redemption history references this test order, then deactivate the fixture.
+    const redemptions = await expectJson(await apiGet('/api/admin/coupons/' + encodeURIComponent(couponId) + '/redemptions'));
+    expect(redemptions.redemptions.some(item => item.orderId === orderId && item.status === 'redeemed')).toBe(true);
+    await expectJson(await apiPatch('/api/admin/coupons/' + encodeURIComponent(couponId), {
+      active: false,
+      title: 'Inactive Preview QA coupon ' + runId
+    }));
 
     await page.locator('[data-nav="orders"]').click();
     await expect(page.locator('#customerOrders')).toContainText(orderId, { timeout: 30000 });
@@ -317,6 +364,35 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
       await expect(page.locator(selector)).toHaveClass(/active/, { timeout: 15000 });
     }
 
+    // Exercise real D1 store create/read/update/inventory routes after checkout has completed.
+    const createdStore = await expectJson(await apiPost('/api/admin/delivery/stores', {
+      name: 'Preview QA Store ' + runId,
+      address: 'Preview Test Street, Hyderabad',
+      latitude: 17.385044,
+      longitude: 78.486671,
+      serviceRadiusKm: 5
+    }), 201);
+    previewStoreId = createdStore.store.id;
+    const stores = await expectJson(await apiGet('/api/admin/delivery/stores'));
+    expect(stores.stores.some(item => item.id === previewStoreId)).toBe(true);
+    const storeInventory = await expectJson(await apiGet('/api/admin/delivery/stores/' + encodeURIComponent(previewStoreId) + '/inventory'));
+    expect(storeInventory.store.id).toBe(previewStoreId);
+    const managedInventory = storeInventory.inventory
+      .filter(item => Number(item.stock_managed) === 1)
+      .map(item => ({ productId: item.id, stockQuantity: Number(item.on_hand) }));
+    if (managedInventory.length) {
+      const inventoryUpdate = await expectJson(await apiPatch('/api/admin/delivery/stores/' + encodeURIComponent(previewStoreId) + '/inventory', {
+        items: managedInventory
+      }));
+      expect(Array.isArray(inventoryUpdate.inventory)).toBe(true);
+    }
+    const updatedStore = await expectJson(await apiPatch('/api/admin/delivery/stores/' + encodeURIComponent(previewStoreId), {
+      name: 'Inactive Preview QA Store ' + runId,
+      isActive: false
+    }));
+    expect(Number(updatedStore.store.is_active)).toBe(0);
+    previewStoreId = '';
+
     // Delete the disposable product and category, then soft-delete the test customer's saved address.
     await expectJson(await apiDelete('/api/admin/catalogue/products/' + encodeURIComponent(crudProductId)));
     crudProductId = '';
@@ -337,6 +413,8 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
     if (crudProductId) await apiDelete('/api/admin/catalogue/products/' + encodeURIComponent(crudProductId)).catch(() => {});
     if (crudCategoryId) await apiDelete('/api/admin/categories/' + encodeURIComponent(crudCategoryId)).catch(() => {});
     if (addressId) await apiDelete('/api/addresses/' + encodeURIComponent(addressId)).catch(() => {});
+    if (previewStoreId) await apiPatch('/api/admin/delivery/stores/' + encodeURIComponent(previewStoreId), { isActive: false }).catch(() => {});
+    if (couponId) await apiPatch('/api/admin/coupons/' + encodeURIComponent(couponId), { active: false }).catch(() => {});
     if (productId) await apiPatch('/api/admin/catalogue/products/' + encodeURIComponent(productId), { active: false }).catch(() => {});
     if (categoryId) await apiPatch('/api/admin/categories/' + encodeURIComponent(categoryId), { active: false }).catch(() => {});
   }
