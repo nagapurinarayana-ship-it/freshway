@@ -201,7 +201,7 @@ test('LIVE production media audit: real catalogue, category artwork and configur
     'every active promotion must have a meaningful image description'
   ).toEqual([]);
   const normalizedPromotionAltTexts = sourceAudit.promotionRows.map(item =>
-    item.alt.normalize('NFKC').trim().replace(/\\s+/g, ' ').toLocaleLowerCase('en')
+    item.alt.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('en')
   );
   expect(
     new Set(normalizedPromotionAltTexts).size,
