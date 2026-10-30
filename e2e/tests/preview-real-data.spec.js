@@ -33,7 +33,7 @@ async function expectJson(response, expectedStatus = 200) {
   return data;
 }
 
-test('real Preview D1: customer checkout → Owner lifecycle → customer order refresh → catalogue CRUD', async ({ page }) => {
+test('real Preview D1: customer checkout, Owner lifecycle, coupons, catalogue CRUD and store inventory', async ({ page }) => {
   test.setTimeout(240000);
 
   expect(new URL(PREVIEW_BASE_URL).protocol).toBe('https:');
