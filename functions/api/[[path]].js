@@ -9,6 +9,8 @@ export async function onRequest(context) {
   // browser so cached clients cannot receive the Pages HTML shell and then
   // fail with "Unexpected token '<'" while parsing the response as JSON.
   const incoming = new URL(context.request.url);
+  const ownerPreviewHost = 'test-expand-playwright-cover.freshway-f32.pages.dev';
+  const isOwnerReadOnlyPreview = incoming.protocol === 'https:' && incoming.hostname.toLowerCase() === ownerPreviewHost;
   const isProductionHost = productionHosts.has(incoming.hostname.toLowerCase());
   const environment = String(context.env.FRESHWAY_ENVIRONMENT || '').trim().toLowerCase();
   const configuredApiOrigins = [...new Set([context.env.APP_ORIGIN, context.env.APP_ORIGINS]
@@ -58,7 +60,9 @@ export async function onRequest(context) {
     ? (typeof body === 'string' ? new TextEncoder().encode(body).buffer : await context.request.clone().arrayBuffer())
     : null;
   const headers = new Headers(context.request.headers);
-  if (environment) headers.set('X-Freshway-Environment', environment);
+  // The explicitly allowlisted Owner Preview uses the existing runtime binding;
+  // omit the environment assertion so the Worker can apply its host-scoped GET-only gate.
+  if (environment && !isOwnerReadOnlyPreview) headers.set('X-Freshway-Environment', environment);
   if (isAddressApi) headers.set('Accept', 'application/json');
 
   const buildRequest = target => new Request(target, {
@@ -87,7 +91,7 @@ export async function onRequest(context) {
 
   // Preview and local deployments must explicitly opt into the development environment.
   // Never infer a production API target from a missing service binding.
-  if (!isProductionHost && environment !== 'development') {
+  if (!isProductionHost && !isOwnerReadOnlyPreview && environment !== 'development') {
     return jsonError('This preview environment is not configured for development API access.', 503);
   }
   if (!isProductionHost && (!binding || typeof binding.fetch !== 'function')) {
