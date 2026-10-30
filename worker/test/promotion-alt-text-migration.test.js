@@ -75,7 +75,7 @@ test('0045 assigns distinct image-specific descriptions to the three observed ac
       'FreshWay wishes you a happy Dasara, with a festive diya, flowers and groundnut oil.',
       'An unrelated future promotion'
     ]);
-    assert.equal(new Set(rows.map(row => row.alt_text.normalize('NFKC').trim().replace(/\\s+/g, ' ').toLocaleLowerCase('en'))).size, 4);
+    assert.equal(new Set(rows.map(row => row.alt_text.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('en'))).size, 4);
     assert.deepEqual(rows.map(row => row.image_data), [
       'banner-one-base64', 'banner-two-base64', 'banner-three-base64', 'unrelated-base64'
     ]);
