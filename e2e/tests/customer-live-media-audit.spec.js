@@ -196,5 +196,16 @@ test('LIVE production media audit: real catalogue, category artwork and configur
   console.log('FRESHWAY_LIVE_MEDIA_AUDIT ' + JSON.stringify(report));
 
   expect(badPromotionRows, 'active promotions should always expose an image URL or a legacy image payload').toEqual([]);
+  expect(
+    sourceAudit.promotionRows.filter(item => !item.alt.trim()).map(item => item.id),
+    'every active promotion must have a meaningful image description'
+  ).toEqual([]);
+  const normalizedPromotionAltTexts = sourceAudit.promotionRows.map(item =>
+    item.alt.normalize('NFKC').trim().replace(/\\s+/g, ' ').toLocaleLowerCase('en')
+  );
+  expect(
+    new Set(normalizedPromotionAltTexts).size,
+    'every active promotion must have a unique image description'
+  ).toBe(sourceAudit.promotionRows.length);
   expect(pageErrors, 'live customer page should not produce uncaught JavaScript errors').toEqual([]);
 });
