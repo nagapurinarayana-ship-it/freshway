@@ -17,7 +17,7 @@ const COOKIE='__Host-freshway-admin-session';const LEGACY_COOKIE='freshway-admin
 const enc=v=>new TextEncoder().encode(v);const hex=b=>[...b].map(x=>x.toString(16).padStart(2,'0')).join('');
 const OWNER_PREVIEW_ORIGIN='https://test-expand-playwright-cover.freshway-f32.pages.dev';
 const corsOrigins=env=>[...new Set([env.APP_ORIGINS,env.APP_ORIGIN].flatMap(value=>String(value||'').split(',').map(origin=>origin.trim())).filter(value=>value&&value!=='https://YOUR-FRESHWAY-DOMAIN'&&value!=='null'))];
-const allowedOriginSuffixes=env=>String(env.APP_ORIGIN_SUFFIXES||'').split(',').map(value=>value.trim().toLowerCase()).filter(value=>/^\\.[a-z0-9.-]+$/.test(value));
+const allowedOriginSuffixes=env=>String(env.APP_ORIGIN_SUFFIXES||'').split(',').map(value=>value.trim().toLowerCase()).filter(value=>/^\.[a-z0-9.-]+$/.test(value));
 const isAllowedOrigin=(env,origin)=>{if(String(env.FRESHWAY_ENVIRONMENT||'').toLowerCase()==='development'&&String(env.FRESHWAY_PREVIEW_TEST_MODE||'')==='1'&&origin===OWNER_PREVIEW_ORIGIN)return true;if(corsOrigins(env).includes(origin))return true;try{const url=new URL(origin);return url.protocol==='https:'&&url.origin===origin&&allowedOriginSuffixes(env).some(suffix=>url.hostname.length>suffix.length&&url.hostname.endsWith(suffix))}catch(_){return false}};
 const corsOrigin=(env,requested='')=>{const origins=corsOrigins(env),origin=String(requested||'').trim();return origin&&isAllowedOrigin(env,origin)?origin:origins[0]||'null'};
 async function isOwnerPreviewServiceRequest(request,env){
