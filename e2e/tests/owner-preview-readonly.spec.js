@@ -13,7 +13,8 @@ test('Owner Preview opens directly to Home, loads read-only Admin data, and bloc
   page.on('request', request => {
     const url = new URL(request.url());
     if (url.origin !== PREVIEW_BASE_URL || !url.pathname.startsWith('/api/')) return;
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method().toUpperCase())) {
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method().toUpperCase()) &&
+        url.pathname !== '/api/admin/orders/__owner_preview_readonly_probe__') {
       unexpectedWrites.push({ method: request.method(), path: url.pathname });
     }
   });
