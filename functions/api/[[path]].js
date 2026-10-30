@@ -42,6 +42,16 @@ export async function onRequest(context) {
     body = JSON.stringify({ id: Number(deleteAlias[1]) });
   }
 
+  // Orders created through the isolated Preview storefront are automatically
+  // marked as QA orders. This marker is added server-side, not trusted from the browser.
+  const isOwnerPreviewHost = incoming.protocol === 'https:' && incoming.hostname.toLowerCase() === 'test-expand-playwright-cover.freshway-f32.pages.dev';
+  const isIsolatedPreview = isOwnerPreviewHost && String(context.env.FRESHWAY_ENVIRONMENT || '').trim().toLowerCase() === 'development' && Boolean(context.env.PREVIEW_ADMIN_TOKEN);
+  if (isIsolatedPreview && targetPath === '/api/orders' && method === 'POST') {
+    let payload = {};
+    try { payload = await context.request.clone().json(); } catch (_) {}
+    body = JSON.stringify({ ...payload, previewTestOrder: true });
+  }
+
   if (defaultMatch && (method === 'POST' || method === 'PATCH')) {
     targetPath = `/api/addresses/${defaultMatch[1]}`;
     method = 'PATCH';
