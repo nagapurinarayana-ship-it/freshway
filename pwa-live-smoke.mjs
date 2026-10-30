@@ -95,7 +95,7 @@ async function waitForFullImageFitAssets(base) {
   const customerCataloguePath = '/frontend/customer/catalogue.js?v=img1';
   const addressGeocodePath = ADDRESS_GEOCODE_PATH;
   const addressSystemPath = ADDRESS_SYSTEM_PATH;
-  const cataloguePath = '/frontend/admin/catalogue.js?v=20261022-invoice-tax-fields-v1';
+  const cataloguePath = '/frontend/admin/catalogue.js?v=20261029-promo-alttext-v1';
   let lastError;
 
   // Static deployments can lag the main-branch push; retry stale 200 responses too.
