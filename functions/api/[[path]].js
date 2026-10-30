@@ -10,6 +10,7 @@ export async function onRequest(context) {
   // fail with "Unexpected token '<'" while parsing the response as JSON.
   const incoming = new URL(context.request.url);
   const ownerPreviewHost = 'test-expand-playwright-cover.freshway-f32.pages.dev';
+  const ownerPreviewWorkerHost = 'test-expand-playwright-coverage-freshway-api.all-in-one-all.workers.dev';
   const isOwnerReadOnlyPreview = incoming.protocol === 'https:' && incoming.hostname.toLowerCase() === ownerPreviewHost;
   const isProductionHost = productionHosts.has(incoming.hostname.toLowerCase());
   const environment = String(context.env.FRESHWAY_ENVIRONMENT || '').trim().toLowerCase();
@@ -60,8 +61,8 @@ export async function onRequest(context) {
     ? (typeof body === 'string' ? new TextEncoder().encode(body).buffer : await context.request.clone().arrayBuffer())
     : null;
   const headers = new Headers(context.request.headers);
-  // The explicitly allowlisted Owner Preview uses the existing runtime binding;
-  // omit the environment assertion so the Worker can apply its host-scoped GET-only gate.
+  // The Owner Preview Admin API is routed to the matching branch Preview Worker below.
+  // Other Preview API traffic keeps using the existing binding and its normal environment guard.
   if (environment && !isOwnerReadOnlyPreview) headers.set('X-Freshway-Environment', environment);
   if (isAddressApi) headers.set('Accept', 'application/json');
 
@@ -75,6 +76,19 @@ export async function onRequest(context) {
     const type = String(response?.headers?.get('content-type') || '').toLowerCase();
     return type.split(';', 1)[0].trim() === 'application/json';
   };
+
+  const isOwnerAdminApi = targetPath.startsWith('/api/admin/') || targetPath === '/api/notifications/broadcast';
+  if (isOwnerReadOnlyPreview && isOwnerAdminApi) {
+    const previewApiUrl = new URL(targetUrl.toString());
+    previewApiUrl.hostname = ownerPreviewWorkerHost;
+    // The branch Preview Worker accepts this exact Pages Preview origin and enforces GET-only access.
+    headers.set('Origin', incoming.origin);
+    try {
+      return await fetch(buildRequest(previewApiUrl.toString()));
+    } catch (_) {
+      return jsonError('The Owner Preview API is unavailable. The branch Preview Worker did not respond.', 503);
+    }
+  }
 
   const jsonError = (message, status = 502) => new Response(JSON.stringify({ error: message }), {
     status,
