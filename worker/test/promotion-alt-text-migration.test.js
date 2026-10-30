@@ -86,7 +86,7 @@ test('0045 assigns distinct image-specific descriptions to the three observed ac
     // Re-applying the SQL cannot rewrite already corrected descriptions.
     const beforeRerun = rows.map(row => ({ id: row.id, alt_text: row.alt_text, image_data: row.image_data }));
     db.exec(migration);
-    const afterRerun = db.prepare('SELECT id, alt_text, image_data FROM home_promotions ORDER BY display_order').all();
+    const afterRerun = db.prepare('SELECT id, alt_text, image_data FROM home_promotions ORDER BY display_order').all().map(row => ({ ...row }));
     assert.deepEqual(afterRerun, beforeRerun);
   } finally {
     db.close();
