@@ -213,6 +213,8 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
     expect(orderId).toBeTruthy();
     expect(order.isTestOrder).toBe(true);
     expect(order.status).toBe('New');
+    expect(order.scheduledDelivery?.date).toBe(tomorrowInIndia());
+    expect(order.deliveryPlan).toBe('Tomorrow');
     expect(Number(order.total)).toBeGreaterThanOrEqual(137);
 
     await expect(page.locator('#confirmationView')).toBeVisible();
