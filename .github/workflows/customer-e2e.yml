@@ -74,6 +74,9 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run customer browser E2E
+        env:
+          FRESHWAY_LIVE_BASE_URL: https://fwcoldpressed.in
+          FRESHWAY_OWNER_AUDIT_TOKEN: ${{ secrets.FRESHWAY_OWNER_AUDIT_TOKEN }}
         run: npm test
 
       - name: Upload responsive visual review screenshots
