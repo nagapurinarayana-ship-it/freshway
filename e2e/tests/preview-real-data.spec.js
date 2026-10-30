@@ -253,10 +253,6 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
       customerOrder = refreshed.orders.find(item => item.id === orderId);
       expect(customerOrder?.status).toBe(status);
     }
-    await page.goto(PREVIEW_BASE_URL + '/', { waitUntil: 'domcontentloaded' });
-    await page.locator('[data-nav="orders"]').click();
-    await expect(page.locator('#customerOrders')).toContainText('Delivered', { timeout: 30000 });
-
     const paymentPatch = page.waitForResponse(response =>
       new URL(response.url()).pathname === '/api/admin/orders/' + encodeURIComponent(orderId) &&
       response.request().method() === 'PATCH'
@@ -270,6 +266,16 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
     expect(customerOrder.status).toBe('Delivered');
     expect(customerOrder.payment).toBe('Collected');
     expect(customerOrder.deliveredAt).toBeTruthy();
+
+    // Verify the customer-facing Orders screen after all Owner updates have committed.
+    await page.goto(PREVIEW_BASE_URL + '/', { waitUntil: 'domcontentloaded' });
+    await page.locator('[data-nav="orders"]').click();
+    await expect(page.locator('#customerOrders')).toContainText(orderId, { timeout: 30000 });
+    await expect(page.locator('#customerOrders')).toContainText('Delivered');
+
+    // Return to Owner before validating the remaining operational screens.
+    await page.goto(PREVIEW_BASE_URL + '/admin/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await expect(page.locator('#appView')).not.toHaveClass(/hidden/);
 
     // Exercise real Owner reads across all existing operational sections.
     const screens = [
