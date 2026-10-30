@@ -15,7 +15,7 @@ assert.ok(index.includes('styles.css?v=20261027-delivery-offers-v1'),'HTML loads
 assert.ok(index.includes('frontend/customer/design-system.css?v=ds3'),'customer screens load the shared production design system');
 assert.ok(index.includes('frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'customer app loads the fixed floating cart behavior');
 assert.ok(sw.includes('/frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'service worker caches the fixed floating cart behavior');
-assert.ok(sw.includes("const CACHE = 'freshway-v111'"),'service worker refreshes the app shell after the cart-bar update');
+assert.ok(sw.includes("const CACHE = 'freshway-v112'"),'service worker refreshes the app shell after the cart-bar update');
 assert.match(privacyPage,/grid-template-columns: minmax\(145px, \.36fr\) minmax\(0, 1fr\)/,'privacy contact details use a clear desktop label/value layout');
 assert.match(privacyPage,/@media \(max-width: 600px\)[\s\S]*?\.contact-line \{ grid-template-columns: minmax\(0, 1fr\)/,'privacy contact details stack cleanly on mobile');
 assert.match(privacyPage,/This policy remains a working draft/,'privacy policy clearly retains the operator-review status');
@@ -32,8 +32,8 @@ assert.ok(index.includes('frontend/customer/category-fold-fit.css?v=20261021-ful
 assert.ok(categoryFoldStyles.includes('height:100%!important;aspect-ratio:1/1'),'product artwork uses a square contained image box so the complete illustration is visible');
 assert.ok(sw.includes('/styles.css?v=20261027-delivery-offers-v1'),'service worker caches the current mobile viewport stylesheet');
 assert.ok(sw.includes('/frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2'),'service worker caches the selected-category fold-fit stylesheet');
-assert.ok(index.includes('frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2'),'HTML loads the current category navigation asset');
-assert.ok(sw.includes('/frontend/customer/catalogue.js?v=20261021-full-images-refresh-v2'),'service worker caches the current category navigation asset');
+assert.ok(index.includes('frontend/customer/catalogue.js?v=img1'),'HTML loads the current category navigation asset');
+assert.ok(sw.includes('/frontend/customer/catalogue.js?v=img1'),'service worker caches the current category navigation asset');
 assert.ok(css.includes('body{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}'),'body reserves Android safe-area space');
 assert.ok(css.includes('main{padding:14px 16px calc(98px + env(safe-area-inset-bottom,0px))}'),'main reserves scroll space below fixed navigation');
 assert.ok(css.includes('.bottom-nav{height:calc(68px + env(safe-area-inset-bottom,0px))}'),'bottom navigation includes device safe area');

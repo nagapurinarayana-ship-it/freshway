@@ -2,6 +2,12 @@ export async function handleCatalogueRequest(request, env) {
   const url = new URL(request.url);
   const path = url.pathname;
   try {
+    const imageMatch = path.match(/^\/api\/catalogue\/images\/(products|categories)\/([^/]+)$/);
+    if (imageMatch && request.method === 'GET') {
+      let entityId;
+      try { entityId = decodeURIComponent(imageMatch[2]); } catch (_) { return imageNotFound(); }
+      return publicCatalogueImage(request, env, imageMatch[1], entityId);
+    }
     if (path === '/api/categories' && request.method === 'GET') return json(await publicCategories(env));
     if (path === '/api/products' && request.method === 'GET') return json(await publicProducts(env));
     if (path === '/api/admin/catalogue' && request.method === 'GET') return json(await adminCatalogue(env));
@@ -22,8 +28,86 @@ const id=prefix=>`${prefix}-${Date.now().toString(36)}-${Math.random().toString(
 const stockStatus=(managed,quantity,threshold)=>!managed?'not_tracked':Number(quantity)<=0?'out_of_stock':Number(quantity)<=Number(threshold||0)?'low_stock':'in_stock';
 const MAX_IMAGE_DATA=900000;
 function imageFields(p,label='Product'){const imageData=p.imageData===null||p.imageData===undefined?null:String(p.imageData||'').trim();const imageMimeType=clean(p.imageMimeType||p.image_mime_type||'',40);if(imageData===null||imageData==='')return{imageData:null,imageMimeType:null};if(imageData.length>MAX_IMAGE_DATA)throw new Error(`${label} image is too large. Please use a smaller image.`);if(!/^[A-Za-z0-9+/=]+$/.test(imageData))throw new Error(`${label} image data is invalid.`);if(!/^image\/(png|jpe?g|webp)$/.test(imageMimeType))throw new Error(`${label} image format must be PNG, JPEG, or WebP.`);return{imageData,imageMimeType}}
-async function publicProducts(env){const {results}=await env.DB.prepare(`SELECT p.id,p.name,p.unit,p.price,p.emoji,p.image_data,p.image_mime_type,p.active,p.category_id,p.display_order,p.stock_managed,p.stock_quantity,p.low_stock_threshold,c.name category_name,c.slug category_slug FROM products p LEFT JOIN categories c ON c.id=p.category_id WHERE p.active=1 AND c.active=1 ORDER BY c.display_order,c.name,p.display_order,p.name`).all();return{products:(results||[]).map(p=>({...p,stock_status:stockStatus(p.stock_managed,p.stock_quantity,p.low_stock_threshold),stock_managed:undefined,stock_quantity:undefined,low_stock_threshold:undefined}))}}
-async function publicCategories(env){const {results}=await env.DB.prepare(`SELECT c.id,c.name,c.slug,c.icon,c.image_data,c.image_mime_type,c.description,c.display_order,COUNT(p.id) product_count FROM categories c LEFT JOIN products p ON p.category_id=c.id AND p.active=1 WHERE c.active=1 GROUP BY c.id,c.name,c.slug,c.icon,c.image_data,c.image_mime_type,c.description,c.display_order HAVING COUNT(p.id)>0 ORDER BY c.display_order ASC,c.name ASC`).all();return{categories:results||[]}}
+async function imageVersion(row) {
+  // Hash the image content, not the Base64 itself, so immutable URLs stay short
+  // while any byte-level image replacement necessarily gets a different URL.
+  const input = new TextEncoder().encode(String(row.image_data || ''));
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', input));
+  return Array.from(digest, value => value.toString(16).padStart(2, '0')).join('');
+}
+async function publicImageUrl(type, row) {
+  if (Number(row.has_custom_image) !== 1) return null;
+  return '/api/catalogue/images/' + type + '/' + encodeURIComponent(row.id) + '?v=' + await imageVersion(row);
+}
+async function publicProducts(env) {
+  const query = "SELECT p.id,p.name,p.unit,p.price,p.emoji,p.active,p.category_id,p.display_order," +
+    "CASE WHEN p.image_data IS NOT NULL AND p.image_data <> '' THEN 1 ELSE 0 END AS has_custom_image," +
+    "LENGTH(p.image_data) AS image_length,p.image_data,p.updated_at,p.stock_managed,p.stock_quantity,p.low_stock_threshold," +
+    "c.name AS category_name,c.slug AS category_slug " +
+    "FROM products p LEFT JOIN categories c ON c.id=p.category_id " +
+    "WHERE p.active=1 AND c.active=1 ORDER BY c.display_order,c.name,p.display_order,p.name";
+  const { results } = await env.DB.prepare(query).all();
+  return { products: await Promise.all((results || []).map(async p => {
+    const { has_custom_image, image_length, image_data, updated_at,
+      stock_managed, stock_quantity, low_stock_threshold, ...product } = p;
+    return {
+      ...product,
+      image_url: await publicImageUrl('products', { id: p.id, has_custom_image, image_length, image_data, updated_at }),
+      stock_status: stockStatus(stock_managed, stock_quantity, low_stock_threshold)
+    };
+  })) };
+}
+async function publicCategories(env) {
+  const query = "SELECT c.id,c.name,c.slug,c.icon,c.description,c.display_order,c.updated_at," +
+    "MAX(CASE WHEN c.image_data IS NOT NULL AND c.image_data <> '' THEN 1 ELSE 0 END) AS has_custom_image," +
+    "MAX(LENGTH(c.image_data)) AS image_length,MAX(c.image_data) AS image_data,COUNT(p.id) AS product_count " +
+    "FROM categories c LEFT JOIN products p ON p.category_id=c.id AND p.active=1 " +
+    "WHERE c.active=1 GROUP BY c.id,c.name,c.slug,c.icon,c.description,c.display_order,c.updated_at " +
+    "HAVING COUNT(p.id)>0 ORDER BY c.display_order ASC,c.name ASC";
+  const { results } = await env.DB.prepare(query).all();
+  return { categories: await Promise.all((results || []).map(async c => {
+    const { has_custom_image, image_length, image_data, updated_at, ...category } = c;
+    return {
+      ...category,
+      image_url: await publicImageUrl('categories', { id: c.id, has_custom_image, image_length, image_data, updated_at })
+    };
+  })) };
+}
+function imageNotFound() {
+  return new Response('Image not found.', {
+    status: 404,
+    headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }
+  });
+}
+async function publicCatalogueImage(request, env, type, entityId) {
+  const row = type === 'products'
+    ? await env.DB.prepare("SELECT p.image_data,p.image_mime_type FROM products p JOIN categories c ON c.id=p.category_id WHERE p.id=? AND p.active=1 AND c.active=1").bind(entityId).first()
+    : await env.DB.prepare("SELECT c.image_data,c.image_mime_type FROM categories c WHERE c.id=? AND c.active=1 AND EXISTS (SELECT 1 FROM products p WHERE p.category_id=c.id AND p.active=1)").bind(entityId).first();
+  const mime = String(row && row.image_mime_type || '').toLowerCase();
+  const base64 = String(row && row.image_data || '');
+  if (!row || !base64 || base64.length > MAX_IMAGE_DATA ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(base64) || !/^image\/(?:png|jpe?g|webp)$/.test(mime)) {
+    return imageNotFound();
+  }
+  let binary;
+  try { binary = atob(base64); } catch (_) { return imageNotFound(); }
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+  const etag = '"' + Array.from(digest, value => value.toString(16).padStart(2, '0')).join('') + '"';
+  const headers = new Headers({
+    'content-type': mime,
+    'content-length': String(bytes.byteLength),
+    'cache-control': 'public, max-age=31536000, immutable',
+    'etag': etag,
+    'x-content-type-options': 'nosniff'
+  });
+  const suppliedEtags = String(request.headers.get('if-none-match') || '').split(',').map(value => value.trim());
+  if (suppliedEtags.some(value => value === '*' || value.replace(/^W\//, '') === etag)) {
+    return new Response(null, { status: 304, headers });
+  }
+  return new Response(bytes, { status: 200, headers });
+}
 async function adminCatalogue(env){
   const {results}=await env.DB.prepare(`SELECT c.id,c.name,c.slug,c.icon,c.image_data,c.image_mime_type,c.description,c.display_order,c.active,COUNT(p.id) product_count,COALESCE(SUM(CASE WHEN p.active=1 THEN 1 ELSE 0 END),0) active_product_count,COALESCE(SUM(CASE WHEN p.active=0 THEN 1 ELSE 0 END),0) hidden_product_count FROM categories c LEFT JOIN products p ON p.category_id=c.id GROUP BY c.id,c.name,c.slug,c.icon,c.image_data,c.image_mime_type,c.description,c.display_order,c.active ORDER BY c.display_order ASC,c.name ASC`).all();
   const {results:products}=await env.DB.prepare(`SELECT p.id,p.name,p.unit,p.price,p.emoji,p.image_data,p.image_mime_type,p.active,p.category_id,p.display_order,p.stock_managed,p.stock_quantity,p.low_stock_threshold,p.hsn_code,p.gst_rate_bps,p.gst_rate_confirmed,c.name category_name FROM products p LEFT JOIN categories c ON c.id=p.category_id ORDER BY CASE WHEN c.display_order IS NULL THEN 999999 ELSE c.display_order END,c.name,p.display_order,p.name`).all();

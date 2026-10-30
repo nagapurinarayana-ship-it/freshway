@@ -43,8 +43,8 @@ assert.doesNotMatch(source,/productOk\)window\.FreshWayCustomerCatalogue\?\.clea
 assert.match(source,/window\.FreshWayCustomerCatalogue\?\.clear/);
 assert.match(source,/role="alert"/);
 assert.match(source,/fwCatalogueRetry/);
-assert.match(source,/image_data&&x\.image_mime_type/);
-assert.match(source,/'data:'\+x\.image_mime_type/);
+assert.match(source,/x\.image_url\|\|media\?\.image\('categories'/);
+assert.doesNotMatch(source,/data:'\+x\.image_mime_type/,'the public category list must not inline image payloads');
 assert.doesNotMatch(app,/FALLBACK_PRODUCTS/);
 assert.match(app,/window\.FreshWayCustomerCatalogue/);
 assert.match(app,/FreshWayCustomerStateFreshness/);
@@ -111,7 +111,9 @@ const catalogueApi=fs.readFileSync('worker/src/catalogue-api.js','utf8');
 assert.match(catalogueApi,/MAX_IMAGE_DATA/);
 assert.match(catalogueApi,/image_data/);
 assert.match(catalogueApi,/imageFields\(p,'Category'\)/);
-assert.match(catalogueApi,/image_data,c\.image_mime_type/);
+assert.match(catalogueApi,/async function publicCatalogueImage/);
+assert.match(catalogueApi,/image_url/);
+assert.match(catalogueApi,/cache-control/);
 console.log('catalogue UI-only media mapping OK');
 
 const navigation=fs.readFileSync('frontend/customer/navigation.js','utf8');
