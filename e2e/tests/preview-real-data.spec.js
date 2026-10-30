@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { randomInt } from 'node:crypto';
 
 const PREVIEW_BASE_URL = String(process.env.FRESHWAY_PREVIEW_BASE_URL || '').replace(/\/$/, '');
 const PREVIEW_ORIGIN = PREVIEW_BASE_URL ? new URL(PREVIEW_BASE_URL).origin : '';
+const PREVIEW_WORKER_URL = String(process.env.FRESHWAY_PREVIEW_WORKER_URL || '').replace(/\/$/, '');
 
 test.skip(!PREVIEW_BASE_URL, 'Set FRESHWAY_PREVIEW_BASE_URL to the isolated FreshWay Pages Preview before running real-D1 E2E tests.');
 
@@ -31,10 +33,15 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
 
   expect(new URL(PREVIEW_BASE_URL).protocol).toBe('https:');
   expect(new URL(PREVIEW_BASE_URL).hostname).toBe('test-expand-playwright-cover.freshway-f32.pages.dev');
+  expect(PREVIEW_WORKER_URL, 'The manual real-D1 workflow must provide the isolated Preview Worker URL').not.toBe('');
+  const workerUrl = new URL(PREVIEW_WORKER_URL);
+  expect(workerUrl.protocol).toBe('https:');
+  expect(workerUrl.hostname.startsWith('freshway-api-preview.')).toBe(true);
+  expect(workerUrl.hostname.endsWith('.workers.dev')).toBe(true);
 
   const originHeaders = { Origin: PREVIEW_ORIGIN };
   const runId = `e2e-${Date.now().toString(36)}`;
-  const randomDigits = String(Date.now()).slice(-9).padStart(9, '0');
+  const randomDigits = String(randomInt(100000000, 1000000000));
   const phone = '9' + randomDigits;
   const customerName = 'FW Preview QA ' + runId;
   const passcode = String(100000 + Math.floor(Math.random() * 900000));
@@ -63,10 +70,13 @@ test('real Preview D1: customer checkout → Owner lifecycle → customer order 
     }
   });
 
-  const apiGet = async path => page.request.get(PREVIEW_BASE_URL + path, { headers: originHeaders });
-  const apiPost = async (path, data) => page.request.post(PREVIEW_BASE_URL + path, { headers: originHeaders, data });
-  const apiPatch = async (path, data) => page.request.patch(PREVIEW_BASE_URL + path, { headers: originHeaders, data });
-  const apiDelete = async path => page.request.delete(PREVIEW_BASE_URL + path, { headers: originHeaders });
+  const apiGet = async path => page.context().request.get(PREVIEW_BASE_URL + path, { headers: originHeaders });
+  const apiPost = async (path, data) => page.context().request.post(PREVIEW_BASE_URL + path, { headers: originHeaders, data });
+  const apiPatch = async (path, data) => page.context().request.patch(PREVIEW_BASE_URL + path, { headers: originHeaders, data });
+  const apiDelete = async path => page.context().request.delete(PREVIEW_BASE_URL + path, { headers: originHeaders });
+
+  const directWorkerAdmin = await page.context().request.get(PREVIEW_WORKER_URL + '/api/admin/orders', { headers: originHeaders });
+  expect(directWorkerAdmin.status(), 'Direct access must not receive the Pages-injected Preview service credential').toBe(401);
 
   try {
     // The Admin status, Preview binding, and D1-backed catalogue must be real responses.
