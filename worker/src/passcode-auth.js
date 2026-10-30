@@ -16,7 +16,7 @@ const corsOrigins = env => [...new Set([env.APP_ORIGINS, env.APP_ORIGIN].flatMap
 const allowedOriginSuffixes = env => String(env.APP_ORIGIN_SUFFIXES || '').split(',').map(value => value.trim().toLowerCase()).filter(value => /^\.[a-z0-9.-]+$/.test(value));
 const isOwnerPreviewOrigin = origin => {
   if (origin === 'https://test-expand-playwright-cover.freshway-f32.pages.dev') return true;
-  try { const url = new URL(origin); return url.protocol === 'https:' && url.origin === origin && /^[a-f0-9]{8}\\.freshway-f32\\.pages\\.dev$/i.test(url.hostname); }
+  try { const url = new URL(origin); return url.protocol === 'https:' && url.origin === origin && /^[a-f0-9]{8}\.freshway-f32\.pages\.dev$/i.test(url.hostname); }
   catch (_) { return false; }
 };
 const isAllowedOrigin = (env, origin) => {
