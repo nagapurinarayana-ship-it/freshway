@@ -197,7 +197,7 @@ test('immutable image URL version changes when image content changes but its out
   const beforeUrl = (await beforeResponse.json()).products[0].image_url;
   const afterUrl = (await afterResponse.json()).products[0].image_url;
   assert.notEqual(beforeUrl, afterUrl, 'different image bytes must never share an immutable URL version');
-  assert.match(beforeUrl, /\\?v=[a-f0-9]{64}$/);
+  assert.match(beforeUrl, /\?v=[a-f0-9]{64}$/);
   assert.ok(beforeUrl.length < 150, 'immutable image URL should remain compact, not embed Base64 data');
   assert.equal(makeRow('AAAA-middle-BBBB').image_length, makeRow('AAAA-middlx-BBBB').image_length);
 });
