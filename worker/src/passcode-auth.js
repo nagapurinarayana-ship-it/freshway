@@ -14,13 +14,13 @@ const hex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('
 const bytesFromHex = value => { const out = new Uint8Array(value.length / 2); for (let i = 0; i < out.length; i++) out[i] = parseInt(value.slice(i * 2, i * 2 + 2), 16); return out; };
 const corsOrigins = env => [...new Set([env.APP_ORIGINS, env.APP_ORIGIN].flatMap(value => String(value || '').split(',').map(origin => origin.trim())).filter(value => value && value !== 'https://YOUR-FRESHWAY-DOMAIN' && value !== 'null'))];
 const allowedOriginSuffixes = env => String(env.APP_ORIGIN_SUFFIXES || '').split(',').map(value => value.trim().toLowerCase()).filter(value => /^\.[a-z0-9.-]+$/.test(value));
-const isOwnerPreviewOrigin = origin => {
-  if (origin === 'https://test-expand-playwright-cover.freshway-f32.pages.dev') return true;
-  try { const url = new URL(origin); return url.protocol === 'https:' && url.origin === origin && /^[a-f0-9]{8}\.freshway-f32\.pages\.dev$/i.test(url.hostname); }
-  catch (_) { return false; }
-};
+const OWNER_PREVIEW_ORIGIN = 'https://test-expand-playwright-cover.freshway-f32.pages.dev';
+const isOwnerPreviewOrigin = (env, origin) =>
+  String(env.FRESHWAY_ENVIRONMENT || '').toLowerCase() === 'development' &&
+  String(env.FRESHWAY_PREVIEW_TEST_MODE || '') === '1' &&
+  String(origin || '').trim() === OWNER_PREVIEW_ORIGIN;
 const isAllowedOrigin = (env, origin) => {
-  if (isOwnerPreviewOrigin(origin) || corsOrigins(env).includes(origin)) return true;
+  if (isOwnerPreviewOrigin(env, origin) || corsOrigins(env).includes(origin)) return true;
   try {
     const url = new URL(origin);
     return url.protocol === 'https:' && url.origin === origin && allowedOriginSuffixes(env).some(suffix => url.hostname.length > suffix.length && url.hostname.endsWith(suffix));
@@ -30,6 +30,21 @@ const corsOrigin = (env, requested = '') => { const origins = corsOrigins(env), 
 const cleanPhone = value => { const digits = String(value || '').replace(/\D/g, ''); if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2); return digits.length === 10 ? digits : ''; };
 const normalizedPhone = value => { const phone = cleanPhone(value); return phone ? `91${phone}` : ''; };
 const clientIp = request => String(request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown').split(',')[0].trim().slice(0, 80) || 'unknown';
+async function isOwnerPreviewServiceRequest(request, env) {
+  if (!isOwnerPreviewOrigin(env, request.headers.get('Origin') || '')) return false;
+  const supplied = String(request.headers.get('X-FreshWay-Preview-Service-Key') || '');
+  const expected = String(env.ADMIN_TOKEN || '');
+  if (!supplied || !expected) return false;
+  const encode = value => new TextEncoder().encode(value);
+  const [suppliedHash, expectedHash] = await Promise.all([
+    crypto.subtle.digest('SHA-256', encode(supplied)),
+    crypto.subtle.digest('SHA-256', encode(expected))
+  ]);
+  const a = new Uint8Array(suppliedHash), b = new Uint8Array(expectedHash);
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
 function response(data, status, env, extra = {}) { return new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env), 'access-control-allow-credentials': 'true', 'cache-control': 'private, no-store', ...extra } }); }
 async function sessionKey(env) { const secret = String(env.CUSTOMER_SESSION_SECRET || '').trim(); if (!secret) throw new Error('Customer session signing is not configured.'); return crypto.subtle.importKey('raw', enc(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']); }
 async function signSession(env, customerId) {
@@ -250,7 +265,7 @@ async function protectedOrders(request, env, ctx) {
   // The legacy order writer validates customer.phone as ten local digits. Keep the account identity canonical in D1 and restore its canonical value on the order row below.
   // Preview-only E2E orders are clearly classified in D1 and do not send customer/Owner push alerts.
   // This flag is server-derived from the approved Preview origin, never trusted directly from the payload.
-  const previewTestOrder = isOwnerPreviewOrigin(String(request.headers.get('Origin') || '').trim()) && payload.previewTestOrder === true;
+  const previewTestOrder = await isOwnerPreviewServiceRequest(request, env) && payload.previewTestOrder === true;
   const forwarded = { ...payload, __freshwayPreviewTestOrder: previewTestOrder, customer: { ...(payload.customer || {}), phone: registeredPhone.slice(2) }, address };
   const responseFromOriginal = await original.fetch(new Request(request, {
     method: 'POST', body: JSON.stringify(forwarded)
