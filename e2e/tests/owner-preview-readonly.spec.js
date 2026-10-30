@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 const PREVIEW_BASE_URL = 'https://test-expand-playwright-cover.freshway-f32.pages.dev';
 
-test('Owner Preview opens directly to Home, loads read-only Admin data, and blocks writes', async ({ page }) => {
+test('Owner Preview opens directly to Home, loads live Admin data, and blocks unapproved writes', async ({ page }) => {
   test.setTimeout(90000);
 
   const pageErrors = [];
@@ -44,7 +44,7 @@ test('Owner Preview opens directly to Home, loads read-only Admin data, and bloc
     await expect(page.locator('#appView')).not.toHaveClass(/hidden/);
     await expect(page.locator('#overview')).toHaveClass(/active/);
     await expect(page.locator('#overview h1')).toContainText('Good day');
-    await expect(page.locator('#authState')).toContainText('Preview · read-only');
+    await expect(page.locator('#authState')).toContainText('Preview · QA data');
 
     await expect.poll(
       () => adminApiResponses.some(item => item.path === '/api/admin/summary' && item.status === 200),
@@ -74,7 +74,7 @@ test('Owner Preview opens directly to Home, loads read-only Admin data, and bloc
     return { status: response.status, body: await response.json().catch(() => ({})) };
   });
   expect(writeProbe.status, 'Preview Admin writes must be blocked by the Worker').toBe(405);
-  expect(writeProbe.body.error).toContain('read-only');
+  expect(writeProbe.body.error).toContain('limited to records created by the FreshWay QA test run');
 
   expect(unexpectedWrites, 'Owner home must not issue API writes during page load').toEqual([]);
   expect(pageErrors, 'Owner Preview must not throw uncaught browser errors').toEqual([]);
