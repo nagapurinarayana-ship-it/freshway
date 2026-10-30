@@ -318,3 +318,122 @@ test('saved-address API maps the persisted house column to checkout houseFlat', 
   assert.equal(data.addresses[0].houseFlat, '1-12/23/c');
   assert.equal(data.addresses[0].isDefault, true);
 });
+
+
+const OWNER_PREVIEW_ORIGIN = 'https://test-expand-playwright-cover.freshway-f32.pages.dev';
+function ownerPreviewEnv({ enabled = true, database = null } = {}) {
+  let touched = false;
+  const DB = database || {
+    prepare() {
+      touched = true;
+      throw new Error('Preview D1 reached after Owner Preview authorization.');
+    }
+  };
+  return {
+    env: {
+      ...adminEnv,
+      FRESHWAY_ENVIRONMENT: 'development',
+      FRESHWAY_PREVIEW_TEST_MODE: enabled ? '1' : '0',
+      DB
+    },
+    wasDatabaseTouched: () => touched
+  };
+}
+
+test('Owner Preview Admin GET rejects direct browser requests without the server-injected service key before D1 access', async () => {
+  const fixture = ownerPreviewEnv();
+  const response = await request('/api/admin/orders', {
+    headers: { Origin: OWNER_PREVIEW_ORIGIN }
+  }, adminHandler, fixture.env);
+  assert.equal(response.status, 401);
+  assert.equal((await jsonResponse(response)).error, 'Unauthorized');
+  assert.equal(fixture.wasDatabaseTouched(), false);
+});
+
+test('Owner Preview Admin GET rejects a forged service key and a non-allowlisted origin', async () => {
+  const fixture = ownerPreviewEnv();
+  const forged = await request('/api/admin/orders', {
+    headers: {
+      Origin: OWNER_PREVIEW_ORIGIN,
+      'X-FreshWay-Preview-Service-Key': 'not-the-preview-admin-token'
+    }
+  }, adminHandler, fixture.env);
+  assert.equal(forged.status, 401);
+  assert.equal((await jsonResponse(forged)).error, 'Unauthorized');
+
+  const wrongOrigin = await request('/api/admin/orders', {
+    headers: {
+      Origin: 'https://attacker.freshway-f32.pages.dev',
+      'X-FreshWay-Preview-Service-Key': 'fixture-admin'
+    }
+  }, adminHandler, fixture.env);
+  assert.equal(wrongOrigin.status, 403);
+  assert.match((await jsonResponse(wrongOrigin)).error, /origin not allowed/i);
+  assert.equal(fixture.wasDatabaseTouched(), false);
+});
+
+test('Owner Preview service key is accepted only when the isolated Worker test-mode flag is enabled', async () => {
+  const fixture = ownerPreviewEnv({ enabled: false });
+  const response = await request('/api/admin/orders', {
+    headers: {
+      Origin: OWNER_PREVIEW_ORIGIN,
+      'X-FreshWay-Preview-Service-Key': 'fixture-admin'
+    }
+  }, adminHandler, fixture.env);
+  assert.equal(response.status, 401);
+  assert.equal((await jsonResponse(response)).error, 'Unauthorized');
+  assert.equal(fixture.wasDatabaseTouched(), false);
+});
+
+test('matching server-injected Owner Preview service key passes authentication and reaches the isolated D1 handler', async () => {
+  const fixture = ownerPreviewEnv();
+  const response = await request('/api/admin/orders', {
+    headers: {
+      Origin: OWNER_PREVIEW_ORIGIN,
+      'X-FreshWay-Preview-Service-Key': 'fixture-admin'
+    }
+  }, adminHandler, fixture.env);
+  // The D1 stub deliberately throws after authorization; the Worker catches it
+  // as an application error. It must not return the pre-authentication 401.
+  assert.equal(response.status, 500);
+  assert.notEqual((await jsonResponse(response)).error, 'Unauthorized');
+  assert.equal(fixture.wasDatabaseTouched(), true);
+});
+
+test('Owner Preview service key never authenticates customer checkout or replaces the customer session', async () => {
+  const fixture = ownerPreviewEnv();
+  const response = await request('/api/orders', {
+    method: 'POST',
+    headers: {
+      Origin: OWNER_PREVIEW_ORIGIN,
+      'X-FreshWay-Preview-Service-Key': 'fixture-admin',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      customerId: 'customer-qa',
+      customer: { name: 'QA Customer', phone: '9876543210' },
+      address: { house: '1', area: 'QA Road', city: 'Hyderabad', pincode: '500001' },
+      items: [{ id: 'qa-product', qty: 1 }],
+      previewTestOrder: true
+    })
+  }, passcodeHandler, fixture.env);
+  assert.equal(response.status, 401);
+  assert.match((await jsonResponse(response)).error, /authentication required/i);
+  assert.equal(fixture.wasDatabaseTouched(), false);
+});
+
+test('production Worker rejects the Preview service credential and Preview origin', async () => {
+  const fixture = {
+    ...adminEnv,
+    FRESHWAY_ENVIRONMENT: 'production',
+    DB: { prepare() { throw new Error('Production D1 must not be touched by Preview auth validation.'); } }
+  };
+  const response = await request('/api/admin/orders', {
+    headers: {
+      Origin: OWNER_PREVIEW_ORIGIN,
+      'X-FreshWay-Preview-Service-Key': 'fixture-admin'
+    }
+  }, adminHandler, fixture);
+  assert.equal(response.status, 403);
+  assert.match((await jsonResponse(response)).error, /origin not allowed/i);
+});
