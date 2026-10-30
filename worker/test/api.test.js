@@ -380,8 +380,10 @@ test('Owner Preview service key is accepted only when the isolated Worker test-m
       'X-FreshWay-Preview-Service-Key': 'fixture-admin'
     }
   }, adminHandler, fixture.env);
-  assert.equal(response.status, 401);
-  assert.equal((await jsonResponse(response)).error, 'Unauthorized');
+  // With Preview test mode disabled the Pages origin itself is not allowlisted,
+  // so the request must fail at the origin boundary before authentication or D1.
+  assert.equal(response.status, 403);
+  assert.match((await jsonResponse(response)).error, /origin not allowed/i);
   assert.equal(fixture.wasDatabaseTouched(), false);
 });
 
