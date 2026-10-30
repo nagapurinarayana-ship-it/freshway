@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
 
+// This spec handles a production admin credential; never retain traces, screenshots or video.
+test.use({ trace: 'off', screenshot: 'off', video: 'off' });
+
 const LIVE_BASE_URL_RAW = process.env.FRESHWAY_LIVE_BASE_URL || 'https://fwcoldpressed.in';
 const LIVE_BASE_URL = LIVE_BASE_URL_RAW.endsWith('/') ? LIVE_BASE_URL_RAW.slice(0, -1) : LIVE_BASE_URL_RAW;
 const OWNER_AUDIT_TOKEN = String(process.env.FRESHWAY_OWNER_AUDIT_TOKEN || '').trim();
