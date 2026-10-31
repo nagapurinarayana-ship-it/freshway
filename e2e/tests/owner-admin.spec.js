@@ -252,3 +252,27 @@ test('Owner can move a synthetic order through processing and dispatch statuses'
   expect(writes.map(item => item.body?.status)).toEqual(['Confirmed', 'Processing', 'Ready', 'Out for Delivery']);
   expect(writes.every(item => item.method === 'PATCH' && item.path === '/api/admin/orders/FW-QA-ORDER-1')).toBe(true);
 });
+
+test('Owner shell loads install and order-alert assets without 404 responses', async ({ page }) => {
+  const expectedAssets = [
+    '/owner-pwa-install.css',
+    '/owner-pwa-install.js',
+    '/frontend/admin/order-alerts.js'
+  ];
+  const responses = new Map();
+
+  page.on('response', response => {
+    const pathname = new URL(response.url()).pathname;
+    if (expectedAssets.includes(pathname)) responses.set(pathname, response.status());
+  });
+
+  await page.goto('/admin.html', { waitUntil: 'load' });
+  await expect.poll(() => responses.size, {
+    message: 'All Owner install and order-alert assets should be requested',
+    timeout: 10000
+  }).toBe(expectedAssets.length);
+
+  for (const asset of expectedAssets) {
+    expect(responses.get(asset), asset + ' must be served successfully').toBe(200);
+  }
+});
