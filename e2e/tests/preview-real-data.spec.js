@@ -403,13 +403,17 @@ test('real Preview D1: customer checkout, Owner lifecycle, coupons, catalogue CR
     expect(storeInventory.store.id).toBe(previewStoreId);
     const managedInventory = storeInventory.inventory
       .filter(item => Number(item.stock_managed) === 1)
-      .map(item => ({ productId: item.id, stockQuantity: Number(item.on_hand) }));
-    if (managedInventory.length) {
-      const inventoryUpdate = await expectJson(await apiPatch('/api/admin/delivery/stores/' + encodeURIComponent(previewStoreId) + '/inventory', {
-        items: managedInventory
+      .map(item => ({
+        productId: item.id,
+        stockQuantity: Number(item.on_hand) + (item.id === inventoryProductId ? 1 : 0)
       }));
-      expect(Array.isArray(inventoryUpdate.inventory)).toBe(true);
-    }
+    expect(managedInventory.some(item => item.productId === inventoryProductId)).toBe(true);
+    const expectedInventoryQuantity = managedInventory.find(item => item.productId === inventoryProductId).stockQuantity;
+    const inventoryUpdate = await expectJson(await apiPatch('/api/admin/delivery/stores/' + encodeURIComponent(previewStoreId) + '/inventory', {
+      items: managedInventory
+    }));
+    const persistedInventoryItem = inventoryUpdate.inventory.find(item => item.id === inventoryProductId);
+    expect(Number(persistedInventoryItem?.on_hand)).toBe(expectedInventoryQuantity);
     const updatedStore = await expectJson(await apiPatch('/api/admin/delivery/stores/' + encodeURIComponent(previewStoreId), {
       name: 'Inactive Preview QA Store ' + runId,
       isActive: false
