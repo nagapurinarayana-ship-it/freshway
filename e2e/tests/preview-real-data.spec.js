@@ -198,6 +198,12 @@ test('real Preview D1: customer checkout, Owner lifecycle, coupons, catalogue CR
 
     const session = await expectJson(await apiGet('/api/auth/session'));
     expect(session.customerId).toBe(registered.customerId);
+    const checkoutQuote = await expectJson(await apiPost('/api/checkout/quote', {
+      items: [{ id: productId, qty: 1 }],
+      couponCode
+    }));
+    expect(Number(checkoutQuote.pricing.itemsSubtotal)).toBe(137);
+    expect(Number(checkoutQuote.pricing.couponDiscount)).toBe(10);
 
     const savedAddress = await expectJson(await apiPost('/api/addresses', {
       label: 'Home',
