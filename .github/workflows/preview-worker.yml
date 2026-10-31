@@ -450,9 +450,9 @@ jobs:
           # This separate coupon has no redemption cap. It must be rejected specifically
           # because the customer already has an order, proving the first-order rule.
           first_order_quote="{\"items\":[{\"id\":\"$product_id\",\"qty\":2}],\"couponCode\":\"$first_order_code\"}"
-          first_order_status="$(curl --silent --show-error --max-time 30 \\
-            --cookie "$customer_cookie" -H "Content-Type: application/json" \\
-            -o "$RUNNER_TEMP/freshway-preview-first-order-quote.json" -w '%{http_code}' \\
+          first_order_status="$(curl --silent --show-error --max-time 30 \
+            --cookie "$customer_cookie" -H "Content-Type: application/json" \
+            -o "$RUNNER_TEMP/freshway-preview-first-order-quote.json" -w '%{http_code}' \
             -d "$first_order_quote" "$base_url/api/checkout/quote")"
           if [ "$first_order_status" != "400" ]; then
             cat "$RUNNER_TEMP/freshway-preview-first-order-quote.json"
