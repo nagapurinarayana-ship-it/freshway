@@ -81,6 +81,8 @@ test('isolated preview workflow applies the current offers migration and exercis
   }
   assert.match(workflow, /only partially present/);
   assert.match(workflow, /freshway_preview_metadata/);
+  assert.match(workflow, /name != '_cf_KV'/,
+    'fresh D1 initialization must ignore Cloudflare\'s reserved internal _cf_KV table');
   assert.match(workflow, /api\/delivery-offers/);
   assert.match(workflow, /api\/coupons\/available/);
   assert.match(workflow, /api\/checkout\/quote/);
