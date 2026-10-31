@@ -419,6 +419,8 @@ test('real Preview D1: customer checkout, Owner lifecycle, coupons, catalogue CR
       isActive: false
     }));
     expect(Number(updatedStore.store.is_active)).toBe(0);
+    await expectJson(await apiDelete('/api/admin/catalogue/products/' + encodeURIComponent(inventoryProductId)));
+    inventoryProductId = '';
     previewStoreId = '';
 
     // Delete the disposable product and category, then soft-delete the test customer's saved address.
