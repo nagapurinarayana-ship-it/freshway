@@ -262,7 +262,9 @@ test('real Preview D1: customer checkout, Owner lifecycle, coupons, catalogue CR
     expect(order.status).toBe('New');
     expect(order.scheduledDelivery?.date).toBe(tomorrowInIndia());
     expect(order.deliveryPlan).toBe('Tomorrow');
-    expect(Number(order.total)).toBeGreaterThanOrEqual(137);
+    expect(Number(order.total)).toBe(Number(checkoutQuote.pricing.finalTotal));
+    expect(Number(order.itemsSubtotal)).toBe(Number(checkoutQuote.pricing.itemsSubtotal));
+    expect(Number(order.deliveryFee)).toBe(Number(checkoutQuote.pricing.deliveryFee));
     expect(order.couponCode).toBe(couponCode);
     expect(Number(order.couponDiscount)).toBe(10);
 
