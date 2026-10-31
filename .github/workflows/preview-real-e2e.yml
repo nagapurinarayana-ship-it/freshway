@@ -1,0 +1,85 @@
+name: FreshWay real Preview D1 E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Feature branch or commit to test against the isolated Preview runtime
+        required: true
+        default: test/expand-playwright-coverage
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freshway-preview-real-e2e
+  cancel-in-progress: false
+
+jobs:
+  preview-e2e:
+    name: Customer → Owner real-D1 journey
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: preview
+    steps:
+      - name: Checkout selected application source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.source_ref }}
+          path: source
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install Playwright dependencies
+        working-directory: source/e2e
+        run: npm install
+
+      - name: Install Chromium
+        working-directory: source/e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify exact isolated Preview target
+        working-directory: source/e2e
+        env:
+          FRESHWAY_PREVIEW_BASE_URL: ${{ vars.FRESHWAY_PREVIEW_APP_ORIGIN }}
+          FRESHWAY_PREVIEW_WORKER_URL: ${{ vars.FRESHWAY_PREVIEW_WORKER_URL }}
+        run: |
+          node --input-type=module <<'NODE'
+          const appValue = String(process.env.FRESHWAY_PREVIEW_BASE_URL || '').trim();
+          const workerValue = String(process.env.FRESHWAY_PREVIEW_WORKER_URL || '').trim();
+          if (!appValue) throw new Error('Set preview variable FRESHWAY_PREVIEW_APP_ORIGIN before running real-D1 tests.');
+          if (!workerValue) throw new Error('Set preview variable FRESHWAY_PREVIEW_WORKER_URL before running real-D1 tests.');
+          const app = new URL(appValue);
+          if (app.protocol !== 'https:' || app.hostname !== 'test-expand-playwright-cover.freshway-f32.pages.dev' || app.origin !== appValue) {
+            throw new Error('Refusing to run write tests outside the exact isolated FreshWay Pages Preview origin.');
+          }
+          const worker = new URL(workerValue);
+          if (worker.protocol !== 'https:' || !worker.hostname.startsWith('freshway-api-preview.') || !worker.hostname.endsWith('.workers.dev') || worker.origin !== workerValue) {
+            throw new Error('Refusing to probe a Worker URL other than the isolated freshway-api-preview workers.dev origin.');
+          }
+          console.log('Confirmed isolated Preview targets:', app.origin, worker.origin);
+          NODE
+
+      - name: Run live customer-to-Owner tests against real Preview D1
+        working-directory: source/e2e
+        env:
+          CI: '1'
+          FRESHWAY_PREVIEW_BASE_URL: ${{ vars.FRESHWAY_PREVIEW_APP_ORIGIN }}
+          FRESHWAY_PREVIEW_WORKER_URL: ${{ vars.FRESHWAY_PREVIEW_WORKER_URL }}
+        run: npx playwright test tests/owner-preview-readonly.spec.js tests/preview-real-data.spec.js --reporter=line
+
+      - name: Upload real Preview test evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: freshway-preview-real-d1-e2e
+          path: |
+            source/e2e/test-results/**
+            source/e2e/playwright-report/**
+          if-no-files-found: warn
+          retention-days: 14
