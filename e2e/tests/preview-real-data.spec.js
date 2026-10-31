@@ -54,6 +54,7 @@ test('real Preview D1: customer checkout, Owner lifecycle, coupons, catalogue CR
   const crudSlug = 'fw-preview-e2e-crud-' + runId;
   let categoryId = '';
   let productId = '';
+  let inventoryProductId = '';
   let crudCategoryId = '';
   let crudProductId = '';
   let addressId = '';
