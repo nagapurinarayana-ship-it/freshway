@@ -27,6 +27,7 @@ on:
   push:
     branches:
       - main
+      - test/expand-playwright-coverage
     paths:
       - 'index.html'
       - 'app.js'
@@ -74,6 +75,9 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run customer browser E2E
+        env:
+          FRESHWAY_LIVE_BASE_URL: https://fwcoldpressed.in
+          FRESHWAY_OWNER_AUDIT_TOKEN: ${{ secrets.ADMIN_TOKEN || secrets.ADMIN_TTOKEN }}
         run: npm test
 
       - name: Upload responsive visual review screenshots

@@ -1,0 +1,63 @@
+name: FreshWay cross-browser compatibility
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'app.js'
+      - 'styles.css'
+      - 'frontend/customer/**'
+      - 'frontend/catalogue-media.js'
+      - 'manifest.webmanifest'
+      - 'sw.js'
+      - 'e2e/**'
+      - '.github/workflows/customer-browser-compat.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'index.html'
+      - 'app.js'
+      - 'styles.css'
+      - 'frontend/customer/**'
+      - 'frontend/catalogue-media.js'
+      - 'manifest.webmanifest'
+      - 'sw.js'
+      - 'e2e/**'
+      - '.github/workflows/customer-browser-compat.yml'
+
+jobs:
+  browser-compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: e2e
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install E2E dependencies
+        run: npm ci
+
+      - name: Install Chromium, Firefox and WebKit
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: Run cross-browser storefront checks
+        run: npx playwright test --config playwright.compat.config.js
+
+      - name: Upload browser compatibility traces
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: freshway-cross-browser-traces
+          path: e2e/test-results
+          if-no-files-found: ignore
+          retention-days: 7

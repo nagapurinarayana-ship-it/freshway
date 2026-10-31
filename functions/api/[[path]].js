@@ -9,6 +9,8 @@ export async function onRequest(context) {
   // browser so cached clients cannot receive the Pages HTML shell and then
   // fail with "Unexpected token '<'" while parsing the response as JSON.
   const incoming = new URL(context.request.url);
+  const ownerPreviewHost = 'test-expand-playwright-cover.freshway-f32.pages.dev';
+  const isOwnerPreviewHost = incoming.protocol === 'https:' && incoming.hostname.toLowerCase() === ownerPreviewHost;
   const isProductionHost = productionHosts.has(incoming.hostname.toLowerCase());
   const environment = String(context.env.FRESHWAY_ENVIRONMENT || '').trim().toLowerCase();
   const configuredApiOrigins = [...new Set([context.env.APP_ORIGIN, context.env.APP_ORIGINS]
@@ -40,6 +42,15 @@ export async function onRequest(context) {
     body = JSON.stringify({ id: Number(deleteAlias[1]) });
   }
 
+  // Orders created through the isolated Preview storefront are automatically
+  // marked as QA orders. This marker is added server-side, not trusted from the browser.
+  const isIsolatedPreview = isOwnerPreviewHost && String(context.env.FRESHWAY_ENVIRONMENT || '').trim().toLowerCase() === 'development' && Boolean(context.env.PREVIEW_ADMIN_TOKEN);
+  if (isIsolatedPreview && targetPath === '/api/orders' && method === 'POST') {
+    let payload = {};
+    try { payload = await context.request.clone().json(); } catch (_) {}
+    body = JSON.stringify({ ...payload, previewTestOrder: true });
+  }
+
   if (defaultMatch && (method === 'POST' || method === 'PATCH')) {
     targetPath = `/api/addresses/${defaultMatch[1]}`;
     method = 'PATCH';
@@ -58,7 +69,15 @@ export async function onRequest(context) {
     ? (typeof body === 'string' ? new TextEncoder().encode(body).buffer : await context.request.clone().arrayBuffer())
     : null;
   const headers = new Headers(context.request.headers);
+  // All customer and Owner Preview APIs must use the configured isolated Preview Worker binding.
+  // Never send Preview requests directly to the production Worker or a generic workers.dev URL.
+  headers.delete('X-FreshWay-Preview-Service-Key');
   if (environment) headers.set('X-Freshway-Environment', environment);
+  if (isOwnerPreviewHost && environment === 'development' && context.env.PREVIEW_ADMIN_TOKEN) {
+    // Server-only credential: this is injected by Pages Functions and never reaches browser JavaScript.
+    headers.set('X-FreshWay-Preview-Service-Key', String(context.env.PREVIEW_ADMIN_TOKEN));
+    headers.set('Origin', incoming.origin);
+  }
   if (isAddressApi) headers.set('Accept', 'application/json');
 
   const buildRequest = target => new Request(target, {
@@ -84,6 +103,10 @@ export async function onRequest(context) {
       } : {})
     }
   });
+
+  if (isOwnerPreviewHost && environment === 'development' && !String(context.env.PREVIEW_ADMIN_TOKEN || '').trim()) {
+    return jsonError('The isolated Owner Preview is not configured with its Preview-only service credential.', 503);
+  }
 
   // Preview and local deployments must explicitly opt into the development environment.
   // Never infer a production API target from a missing service binding.

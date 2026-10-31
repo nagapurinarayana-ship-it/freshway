@@ -14,8 +14,13 @@ const hex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('
 const bytesFromHex = value => { const out = new Uint8Array(value.length / 2); for (let i = 0; i < out.length; i++) out[i] = parseInt(value.slice(i * 2, i * 2 + 2), 16); return out; };
 const corsOrigins = env => [...new Set([env.APP_ORIGINS, env.APP_ORIGIN].flatMap(value => String(value || '').split(',').map(origin => origin.trim())).filter(value => value && value !== 'https://YOUR-FRESHWAY-DOMAIN' && value !== 'null'))];
 const allowedOriginSuffixes = env => String(env.APP_ORIGIN_SUFFIXES || '').split(',').map(value => value.trim().toLowerCase()).filter(value => /^\.[a-z0-9.-]+$/.test(value));
+const OWNER_PREVIEW_ORIGIN = 'https://test-expand-playwright-cover.freshway-f32.pages.dev';
+const isOwnerPreviewOrigin = (env, origin) =>
+  String(env.FRESHWAY_ENVIRONMENT || '').toLowerCase() === 'development' &&
+  String(env.FRESHWAY_PREVIEW_TEST_MODE || '') === '1' &&
+  String(origin || '').trim() === OWNER_PREVIEW_ORIGIN;
 const isAllowedOrigin = (env, origin) => {
-  if (corsOrigins(env).includes(origin)) return true;
+  if (isOwnerPreviewOrigin(env, origin) || corsOrigins(env).includes(origin)) return true;
   try {
     const url = new URL(origin);
     return url.protocol === 'https:' && url.origin === origin && allowedOriginSuffixes(env).some(suffix => url.hostname.length > suffix.length && url.hostname.endsWith(suffix));
@@ -25,6 +30,21 @@ const corsOrigin = (env, requested = '') => { const origins = corsOrigins(env), 
 const cleanPhone = value => { const digits = String(value || '').replace(/\D/g, ''); if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2); return digits.length === 10 ? digits : ''; };
 const normalizedPhone = value => { const phone = cleanPhone(value); return phone ? `91${phone}` : ''; };
 const clientIp = request => String(request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown').split(',')[0].trim().slice(0, 80) || 'unknown';
+async function isOwnerPreviewServiceRequest(request, env) {
+  if (!isOwnerPreviewOrigin(env, request.headers.get('Origin') || '')) return false;
+  const supplied = String(request.headers.get('X-FreshWay-Preview-Service-Key') || '');
+  const expected = String(env.ADMIN_TOKEN || '');
+  if (!supplied || !expected) return false;
+  const encode = value => new TextEncoder().encode(value);
+  const [suppliedHash, expectedHash] = await Promise.all([
+    crypto.subtle.digest('SHA-256', encode(supplied)),
+    crypto.subtle.digest('SHA-256', encode(expected))
+  ]);
+  const a = new Uint8Array(suppliedHash), b = new Uint8Array(expectedHash);
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
 function response(data, status, env, extra = {}) { return new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': corsOrigin(env), 'access-control-allow-credentials': 'true', 'cache-control': 'private, no-store', ...extra } }); }
 async function sessionKey(env) { const secret = String(env.CUSTOMER_SESSION_SECRET || '').trim(); if (!secret) throw new Error('Customer session signing is not configured.'); return crypto.subtle.importKey('raw', enc(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']); }
 async function signSession(env, customerId) {
@@ -170,6 +190,7 @@ async function completePasscodeReset(request, env) {
 }
 async function updateCustomer(request, env) { const sessionId = await sessionCustomerId(request, env); if (!sessionId) return response({ error: 'Customer authentication required.' }, 401, env); let payload = {}; try { payload = await request.json(); } catch (_) {} if (String(payload.id || '').trim() !== sessionId) return response({ error: 'Customer identity does not match the signed-in account.' }, 409, env); await env.DB.prepare('UPDATE customers SET whatsapp_opt_in=?, updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(payload.whatsappOptIn ? 1 : 0, sessionId).run(); return response({ ok: true, customerId: sessionId }, 200, env); }
 export async function customerOrdersFromSnapshots(request, env, customerId) {
+  const previewQaAccess = await isOwnerPreviewServiceRequest(request, env);
   const { results } = await env.DB.prepare(`SELECT o.id,o.customer_name,o.customer_phone,o.total,o.items_subtotal,o.delivery_fee,o.coupon_code,o.coupon_discount,o.pricing_breakdown_known,o.payment_status,o.delivery_status,o.delivery_plan,o.created_at,o.updated_at,o.delivered_at,o.payment_collected_at,o.scheduled_delivery_date,o.scheduled_slot_id,o.assigned_store_id,o.scheduled_start_minute,o.scheduled_end_minute,o.schedule_status,ds.name assigned_store_name,
     c.name registered_name,c.phone registered_phone,
     COALESCE(s.recipient_name,a.recipient_name,o.customer_name) recipient_name,
@@ -188,8 +209,8 @@ export async function customerOrdersFromSnapshots(request, env, customerId) {
     LEFT JOIN addresses a ON a.id=o.address_id
     LEFT JOIN order_items oi ON oi.order_id=o.id
     LEFT JOIN invoices i ON i.order_id=o.id
-    WHERE o.customer_id=? AND COALESCE(o.is_test_order,0)=0
-    ORDER BY o.created_at DESC,oi.id ASC`).bind(customerId).all();
+    WHERE o.customer_id=? AND (COALESCE(o.is_test_order,0)=0 OR ?=1)
+    ORDER BY o.created_at DESC,oi.id ASC`).bind(customerId, previewQaAccess ? 1 : 0).all();
   const map = new Map();
   for (const row of results || []) {
     if (!map.has(row.id)) map.set(row.id, {
@@ -241,9 +262,18 @@ async function protectedOrders(request, env, ctx) {
   }
   // Identity always comes from the signed-in account. The delivery contact is an
   // order-specific field and is stored only in the immutable address snapshot.
-  const address = { ...(payload.address || {}), deliveryPhone: `91${deliveryPhone}` };
+  const address = {
+    ...(payload.address || {}),
+    // Checkout may collect the recipient name in the customer form rather than
+    // duplicating it inside the address object. Persist that name in the immutable snapshot.
+    recipientName: String(payload.address?.recipientName || payload.address?.recipient_name || payload.customer?.name || '').trim(),
+    deliveryPhone: `91${deliveryPhone}`
+  };
   // The legacy order writer validates customer.phone as ten local digits. Keep the account identity canonical in D1 and restore its canonical value on the order row below.
-  const forwarded = { ...payload, customer: { ...(payload.customer || {}), phone: registeredPhone.slice(2) }, address };
+  // Preview-only E2E orders are clearly classified in D1 and do not send customer/Owner push alerts.
+  // This flag is server-derived from the approved Preview origin, never trusted directly from the payload.
+  const previewTestOrder = await isOwnerPreviewServiceRequest(request, env) && payload.previewTestOrder === true;
+  const forwarded = { ...payload, __freshwayPreviewTestOrder: previewTestOrder, customer: { ...(payload.customer || {}), phone: registeredPhone.slice(2) }, address };
   const responseFromOriginal = await original.fetch(new Request(request, {
     method: 'POST', body: JSON.stringify(forwarded)
   }), env, ctx || {});

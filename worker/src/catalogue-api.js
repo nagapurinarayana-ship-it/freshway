@@ -211,6 +211,21 @@ async function updateProduct(env,productId,p){
   return{ok:true,stockAllocationRequired,stock_managed:stockManaged?1:0,stock_quantity:stockQuantity,
     low_stock_threshold:lowStockThreshold,hsn_code:hsnCode,gst_rate_bps:gstRateBps,gst_rate_confirmed:gstRateConfirmed};
 }
-async function deleteProduct(env,productId){const used=Number((await env.DB.prepare('SELECT COUNT(*) count FROM order_items WHERE product_id=?').bind(productId).first())?.count||0);if(used)throw new Error('This product is part of existing orders. Hide it instead of deleting it.');const result=await env.DB.prepare('DELETE FROM products WHERE id=?').bind(productId).run();if(!result.meta?.changes)throw new Error('Product not found.');return{ok:true}}
+async function deleteProduct(env,productId){
+  const current=await env.DB.prepare('SELECT id FROM products WHERE id=? LIMIT 1').bind(productId).first();
+  if(!current)throw new Error('Product not found.');
+  const used=Number((await env.DB.prepare('SELECT COUNT(*) count FROM order_items WHERE product_id=?').bind(productId).first())?.count||0);
+  if(used)throw new Error('This product is part of existing orders. Hide it instead of deleting it.');
+  const reservations=Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_store_inventory_reservations WHERE product_id=?').bind(productId).first())?.count||0);
+  if(reservations)throw new Error('This product has delivery reservation history. Hide the product instead of deleting it.');
+  // Store inventory rows have an ON DELETE RESTRICT foreign key to products.
+  // Remove only this unreserved product's allocation rows and its catalogue row atomically.
+  const results=await env.DB.batch([
+    env.DB.prepare('DELETE FROM delivery_store_inventory WHERE product_id=?').bind(productId),
+    env.DB.prepare('DELETE FROM products WHERE id=?').bind(productId)
+  ]);
+  if(!results?.[1]?.meta?.changes)throw new Error('Product not found.');
+  return{ok:true};
+}
 
-export { createProduct, updateProduct };
+export { createProduct, updateProduct, deleteProduct };
