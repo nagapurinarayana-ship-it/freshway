@@ -90,6 +90,8 @@ test('isolated preview workflow applies the current offers migration and exercis
 test('isolated preview workflow Bash blocks are syntactically valid', () => {
   const workflow = readFileSync(new URL('../../workflows/preview-worker.yml', import.meta.url), 'utf8');
   const lines = workflow.split(/\r?\n/);
+  assert.equal(lines.filter(line => line.endsWith('\\\\')).length, 0,
+    'shell line continuations must contain exactly one trailing backslash');
   const stepNames = [
     'Initialize isolated preview D1 baseline and apply feature migration 0043',
     'Smoke-test authenticated Delivery & Offers APIs, checkout, redemption limits, and idempotency'
