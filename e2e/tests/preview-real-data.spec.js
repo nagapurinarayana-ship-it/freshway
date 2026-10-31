@@ -441,6 +441,7 @@ test('real Preview D1: customer checkout, Owner lifecycle, coupons, catalogue CR
   } finally {
     // Best-effort cleanup only for disposable records created by this test.
     if (crudProductId) await apiDelete('/api/admin/catalogue/products/' + encodeURIComponent(crudProductId)).catch(() => {});
+    if (inventoryProductId) await apiDelete('/api/admin/catalogue/products/' + encodeURIComponent(inventoryProductId)).catch(() => {});
     if (crudCategoryId) await apiDelete('/api/admin/categories/' + encodeURIComponent(crudCategoryId)).catch(() => {});
     if (addressId) await apiDelete('/api/addresses/' + encodeURIComponent(addressId)).catch(() => {});
     if (previewStoreId) await apiPatch('/api/admin/delivery/stores/' + encodeURIComponent(previewStoreId), { isActive: false }).catch(() => {});
