@@ -164,6 +164,10 @@ function relativeAssetReferences(html) {
   assert.match(body, /data-owner-install/, "Owner app must expose install controls");
   assert.match(body, /class="primary owner-install-hero"[^>]*data-owner-install/, "Owner install action must be visible in the mobile dashboard when installable");
   assert.ok(body.includes('src="/admin/owner-pwa-install.js?v=20261019-install-prompt-v2'));
+  assert.ok(body.includes('href="/admin/owner-pwa-install.css?v=20261019-install-prompt-v2'), 'Owner install CSS must remain under the service-worker scope');
+  assert.ok(body.includes('src="/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1'), 'Owner order alerts must remain under the service-worker scope');
+  assert.ok(requiredOwnerAssets.includes('owner-pwa-install.css'), 'Owner install CSS must be included in the Pages asset allowlist');
+  assert.ok(requiredOwnerAssets.includes('frontend/admin/order-alerts.js'), 'Owner order alerts must be included in the Pages asset allowlist');
   assert.ok(ownerInstallSource.includes("register('/admin/sw.js', { scope: '/admin/'"));
   assert.match(ownerInstallSource, /beforeinstallprompt/, "Owner install control must use the native install prompt when available");
   assert.match(ownerInstallSource, /appinstalled/, "Owner install control must react when installation completes");
