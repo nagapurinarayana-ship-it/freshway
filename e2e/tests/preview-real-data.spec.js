@@ -373,6 +373,21 @@ test('real Preview D1: customer checkout, Owner lifecycle, coupons, catalogue CR
       await expect(page.locator(selector)).toHaveClass(/active/, { timeout: 15000 });
     }
 
+    // Create a stock-managed fixture so the new store receives a real D1 inventory row.
+    const inventoryProduct = await expectJson(await apiPost('/api/admin/catalogue/products', {
+      name: 'QA Store Inventory ' + runId,
+      unit: 'kg',
+      price: 55,
+      emoji: '🧪',
+      categoryId,
+      displayOrder: 902,
+      stockManaged: true,
+      stockQuantity: 7,
+      lowStockThreshold: 2
+    }), 201);
+    inventoryProductId = inventoryProduct.product.id;
+    expect(inventoryProductId).toBeTruthy();
+
     // Exercise real D1 store create/read/update/inventory routes after checkout has completed.
     const createdStore = await expectJson(await apiPost('/api/admin/delivery/stores', {
       name: 'Preview QA Store ' + runId,
