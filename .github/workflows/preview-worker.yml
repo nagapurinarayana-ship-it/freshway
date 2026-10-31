@@ -210,7 +210,10 @@ jobs:
           NODE
             echo "Verified the existing isolated preview D1 UUID."
           else
-            npx wrangler d1 execute freshway-preview --remote --json --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' LIMIT 1" --config "$config" > "$result"
+            # D1 creates a protected internal _cf_KV table in every database. It is not
+            # an application table and cannot be queried or modified; ignore it when
+            # deciding whether a fresh Preview database contains user data.
+            npx wrangler d1 execute freshway-preview --remote --json --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name != '_cf_KV' LIMIT 1" --config "$config" > "$result"
             node --input-type=module - "$result" <<'NODE'
           import fs from 'node:fs';
           const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
