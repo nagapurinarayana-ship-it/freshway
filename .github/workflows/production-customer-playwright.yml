@@ -99,6 +99,18 @@ jobs:
           }
           if(!baseline) throw new Error('No active store has a live product with unreserved stock inside any valid active-store radius.');
 
+          // Derive a valid map pin that is definitely outside every active store's
+          // configured radius. The API returns AREA_UNAVAILABLE before its inventory
+          // backfill step when no store is in range, so this production probe is read-only.
+          const candidates=[];
+          for(const lat of [-75,-45,-15,15,45,75]){
+            for(const lng of [-165,-105,-45,15,75,135]) candidates.push({latitude:lat,longitude:lng});
+          }
+          const outside=candidates.find(point=>stores.every(store=>
+            distanceKm(point.latitude,point.longitude,store.lat,store.lng)>store.radius+0.1
+          ));
+          if(!outside) throw new Error('Could not derive a safe outside-radius production test pin; no outside-area API request will be sent.');
+
           // Find a point where the closest active store is out of stock and the next
           // stock-capable store is the expected fallback. Keep at least 50m radius margin.
           let fallback=null;
@@ -141,12 +153,15 @@ jobs:
             FRESHWAY_TEST_FALLBACK_LONGITUDE:fallback?.longitude??'',
             FRESHWAY_TEST_NEAREST_STORE_ID:fallback?.nearestStoreId??'',
             FRESHWAY_TEST_FALLBACK_STORE_ID:fallback?.fallbackStoreId??'',
-            FRESHWAY_TEST_FALLBACK_PRODUCT_ID:fallback?.productId??''
+            FRESHWAY_TEST_FALLBACK_PRODUCT_ID:fallback?.productId??'',
+            FRESHWAY_TEST_OUTSIDE_LATITUDE:outside.latitude,
+            FRESHWAY_TEST_OUTSIDE_LONGITUDE:outside.longitude
           };
           for(const [key,value] of Object.entries(values)) fs.appendFileSync(process.env.GITHUB_ENV,key+'='+String(value).replace(/[\r\n]/g,'')+'\n');
           console.log('Read-only production fixture: inventory matrix complete; baseline active store/product selected.');
           if(fallback) console.log('Read-only two-store fallback fixture found: nearest store '+fallback.nearestStoreId+' lacks stock; next stock-capable store is '+fallback.fallbackStoreId+'.');
           else console.log('No safe overlapping two-store fallback fixture exists in current production data; the dedicated Playwright case will be explicitly skipped.');
+          console.log('Derived read-only outside-radius customer test pin from active store radii.');
           NODE
 
       - name: Install Playwright dependencies
