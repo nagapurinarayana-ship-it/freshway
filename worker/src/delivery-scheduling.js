@@ -694,32 +694,57 @@ export async function handleAdminDeliveryRequest(request, env) {
     if(['delivered','cancelled'].includes(String(order.delivery_status||'').trim().toLowerCase()))throw new Error('A delivered or cancelled order cannot be reassigned.');
     const storeId=clean(body.storeId);
     if(!storeId)throw new Error('Choose an active store.');
-    if(storeId===order.assigned_store_id)return response({ok:true,unchanged:true,orderId,store:await env.DB.prepare('SELECT id,name,is_active FROM delivery_stores WHERE id=?').bind(storeId).first()});
     const store=await env.DB.prepare('SELECT id,name,latitude,longitude,service_radius_km,is_active FROM delivery_stores WHERE id=?').bind(storeId).first();
-    if(!store||Number(store.is_active)!==1)throw new Error('Choose an active store. Inactive stores cannot receive new orders.');
-    const orderAddress=await env.DB.prepare('SELECT a.latitude,a.longitude FROM orders o JOIN addresses a ON a.id=o.address_id WHERE o.id=?').bind(orderId).first();
-    if(!hasCoordinates(orderAddress||{})||distanceFor(orderAddress,store)===Infinity)throw new Error('This store does not cover the customer delivery location.');
+    if(!store)throw new Error('Choose an active store.');
+    const sameStore=storeId===order.assigned_store_id;
+    // Existing orders remain attached to a deactivated store. They cannot be
+    // newly assigned or have stock re-reserved there until the store is active.
+    if(Number(store.is_active)!==1){
+      if(sameStore)return response({ok:true,unchanged:true,orderId,store:{id:store.id,name:store.name,is_active:store.is_active},warning:'This store is inactive. The existing order remains assigned and its reservations are preserved.'});
+      throw new Error('Choose an active store. Inactive stores cannot receive new orders.');
+    }
+    if(!sameStore){
+      const orderAddress=await env.DB.prepare('SELECT a.latitude,a.longitude FROM orders o JOIN addresses a ON a.id=o.address_id WHERE o.id=?').bind(orderId).first();
+      if(!hasCoordinates(orderAddress||{})||distanceFor(orderAddress,store)===Infinity)throw new Error('This store does not cover the customer delivery location.');
+    }
     await ensureStoreInventoryRows(env);
     const lines=(await env.DB.prepare('SELECT oi.product_id id,oi.qty,oi.stock_reserved_qty stockReservedQty,p.stock_managed FROM order_items oi JOIN products p ON p.id=oi.product_id WHERE oi.order_id=?').bind(orderId).all()).results||[];
     if(!inventoryFits(storeId,lines,await inventoryMap(env,orderId)))throw new Error('This store cannot fulfil the complete order. Choose another active store with enough stock.');
-    const before={...order},scheduleStatus=order.scheduled_delivery_date?'confirmed':'unscheduled';
-    const statements=[
-      env.DB.prepare("UPDATE orders SET assigned_store_id=?,scheduled_slot_id=NULL,scheduled_start_minute=NULL,scheduled_end_minute=NULL,schedule_status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(storeId,scheduleStatus,orderId),
-      env.DB.prepare("UPDATE delivery_store_inventory_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(orderId),
-      env.DB.prepare("UPDATE delivery_slot_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(orderId)
-    ];
-    for(const line of lines.filter(itemNeedsStock))statements.push(env.DB.prepare("INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status,owner_override,override_reason) VALUES (?,?,?,?,?,'reserved',0,'')").bind(id('stockres'),orderId,storeId,line.id,Number(line.qty)));
-    statements.push(env.DB.prepare("INSERT INTO order_audit_events (id,order_id,actor_type,actor_id,action,reason,before_json,after_json) VALUES (?,?,'owner',?,'fulfilment_store_reassigned',?,?,?)").bind(id('audit'),orderId,clean(request.headers.get('X-Freshway-Owner-Id'))||'owner',clean(body.reason).slice(0,500)||'Owner reassigned fulfilment store',enc(before),enc({storeId,storeName:store.name})));
+    const before={...order};
+    const statements=[];
+    if(sameStore){
+      // Re-confirming the current active store is also the Owner's recovery path
+      // for reopened orders: replace conflict/missing reservations with a normal
+      // reservation after checking this store's stock excluding the order itself.
+      statements.push(env.DB.prepare("UPDATE delivery_store_inventory_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(orderId));
+      for(const line of lines.filter(itemNeedsStock)){
+        statements.push(env.DB.prepare("INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status,owner_override,override_reason) VALUES (?,?,?,?,?,'reserved',0,'')").bind(id('stockres'),orderId,storeId,line.id,Number(line.qty)));
+        statements.push(env.DB.prepare('UPDATE order_items SET stock_reserved_qty=qty WHERE order_id=? AND product_id=?').bind(orderId,line.id));
+      }
+      const scheduleStatus=order.scheduled_slot_id?(order.schedule_status||'conflict'):(order.scheduled_delivery_date?'confirmed':'unscheduled');
+      statements.push(env.DB.prepare('UPDATE orders SET schedule_status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(scheduleStatus,orderId));
+      statements.push(env.DB.prepare("UPDATE order_operational_flags SET status='resolved',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND flag_type='reopen_stock_shortfall' AND status='open'").bind(orderId));
+      if(!order.scheduled_slot_id)statements.push(env.DB.prepare("UPDATE order_operational_flags SET status='resolved',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND flag_type='reopened_order_needs_schedule_confirmation' AND status='open'").bind(orderId));
+    }else{
+      const scheduleStatus=order.scheduled_delivery_date?'confirmed':'unscheduled';
+      statements.push(env.DB.prepare("UPDATE orders SET assigned_store_id=?,scheduled_slot_id=NULL,scheduled_start_minute=NULL,scheduled_end_minute=NULL,schedule_status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(storeId,scheduleStatus,orderId));
+      statements.push(env.DB.prepare("UPDATE delivery_store_inventory_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(orderId));
+      statements.push(env.DB.prepare("UPDATE delivery_slot_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(orderId));
+      for(const line of lines.filter(itemNeedsStock))statements.push(env.DB.prepare("INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status,owner_override,override_reason) VALUES (?,?,?,?,?,'reserved',0,'')").bind(id('stockres'),orderId,storeId,line.id,Number(line.qty)));
+    }
+    const action=sameStore?'fulfilment_store_stock_reconfirmed':'fulfilment_store_reassigned';
+    const reason=clean(body.reason).slice(0,500)||(sameStore?'Owner re-confirmed stock at the current fulfilment store':'Owner reassigned fulfilment store');
+    statements.push(env.DB.prepare("INSERT INTO order_audit_events (id,order_id,actor_type,actor_id,action,reason,before_json,after_json) VALUES (?,?,'owner',?,?,?,?,?)").bind(id('audit'),orderId,clean(request.headers.get('X-Freshway-Owner-Id'))||'owner',action,reason,enc(before),enc({storeId,storeName:store.name,reconfirmed:sameStore})));
     try{await env.DB.batch(statements);}catch(error){
       if(/DELIVERY_STORE_INACTIVE/i.test(String(error?.message||'')))throw new Error('Choose an active store. Store availability changed; refresh and try again.');
-      if(/DELIVERY_ORDER_CLOSED/i.test(String(error?.message||'')))throw new Error('This order was completed or cancelled while you were reassigning it. Refresh the order.');
+      if(/DELIVERY_ORDER_CLOSED/i.test(String(error?.message||'')))throw new Error('This order was completed or cancelled while you were updating its store. Refresh the order.');
       if(/DELIVERY_STORE_STOCK_LOW/i.test(String(error?.message||'')))throw new Error('Store stock changed. Refresh inventory and try again.');
       throw error;
     }
     await refreshProductAvailability(env);
     const updated=await getOrderForAction(env,orderId);
-    await notifyCustomerAndOwner(env,orderId,{customer_id:order.customer_id,delivery_status:order.delivery_status,payment_status:order.payment_status,delivery_plan:order.delivery_plan,is_test_order:order.is_test_order},'delivery_store_reassigned','Your order is now assigned to '+store.name+'.',{customer_id:order.customer_id,delivery_status:order.delivery_status,payment_status:order.payment_status,delivery_plan:updated?.delivery_plan,is_test_order:order.is_test_order});
-    return response({ok:true,orderId,store:{id:store.id,name:store.name},scheduledDelivery:updated?.scheduled_delivery_date||null});
+    await notifyCustomerAndOwner(env,orderId,{customer_id:order.customer_id,delivery_status:order.delivery_status,payment_status:order.payment_status,delivery_plan:order.delivery_plan,is_test_order:order.is_test_order},action,sameStore?'Stock reservation reconfirmed at '+store.name+'.':'Your order is now assigned to '+store.name+'.',{customer_id:order.customer_id,delivery_status:order.delivery_status,payment_status:order.payment_status,delivery_plan:updated?.delivery_plan,is_test_order:order.is_test_order});
+    return response({ok:true,orderId,store:{id:store.id,name:store.name},reconfirmed:sameStore,scheduledDelivery:updated?.scheduled_delivery_date||null});
   }
   const scheduleMatch = path.match(new RegExp('^/api/admin/delivery/orders/([^/]+)/schedule$'));
   if (scheduleMatch && request.method === 'PATCH') {
