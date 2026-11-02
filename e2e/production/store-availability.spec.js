@@ -12,6 +12,8 @@ const multiBasketLongitude=Number(process.env.FRESHWAY_TEST_MULTI_BASKET_LONGITU
 const multiBasketProductId=process.env.FRESHWAY_TEST_MULTI_BASKET_PRODUCT_ID;
 const multiBasketSecondProductId=process.env.FRESHWAY_TEST_MULTI_BASKET_SECOND_PRODUCT_ID;
 const multiBasketCategoryId=process.env.FRESHWAY_TEST_MULTI_BASKET_CATEGORY_ID;
+const uiCategoryId=multiBasketReady?multiBasketCategoryId:categoryId;
+const uiPrimaryProductId=multiBasketReady?multiBasketProductId:productId;
 
 test.beforeAll(() => {
   expect(storeId,'production must have an active store').toBeTruthy();
@@ -129,10 +131,10 @@ test('real customer app browses live products and preserves cart without creatin
   expect(Array.isArray(payload.products)).toBe(true);
   expect(payload.products.length).toBeGreaterThan(0);
 
-  const category=page.locator('[data-fw-category="'+categoryId+'"]').first();
+  const category=page.locator('[data-fw-category="'+uiCategoryId+'"]').first();
   await expect(category).toBeVisible({timeout:20000});
   await category.click();
-  const addButton=page.locator('#productGrid [data-add="'+productId+'"]').first();
+  const addButton=page.locator('#productGrid [data-add="'+uiPrimaryProductId+'"]').first();
   await expect(addButton).toBeVisible({timeout:20000});
   await expect(addButton).toBeEnabled();
   await addButton.click();
@@ -151,7 +153,7 @@ test('real customer app browses live products and preserves cart without creatin
   await expect(page.locator('#checkoutBtn')).toBeVisible();
   await expect(page.locator('#cartItems [data-fw-cart-product]')).toHaveCount(multiBasketReady?2:1);
   if(multiBasketReady){
-    await expect(page.locator('#cartItems [data-fw-cart-product="'+productId+'"]')).toHaveCount(1);
+    await expect(page.locator('#cartItems [data-fw-cart-product="'+uiPrimaryProductId+'"]')).toHaveCount(1);
     await expect(page.locator('#cartItems [data-fw-cart-product="'+multiBasketSecondProductId+'"]')).toHaveCount(1);
   }
   const availabilityRequests=[];
@@ -172,7 +174,7 @@ test('real customer app browses live products and preserves cart without creatin
   expect(quote.pricing?.items).toHaveLength(multiBasketReady?2:1);
   if(multiBasketReady){
     const quotedIds=quote.pricing.items.map(item=>String(item.id)).sort();
-    expect(quotedIds).toEqual([productId,multiBasketSecondProductId].map(String).sort());
+    expect(quotedIds).toEqual([uiPrimaryProductId,multiBasketSecondProductId].map(String).sort());
   }
   let response=await availabilityResponse;
   if(!response){
