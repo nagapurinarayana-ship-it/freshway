@@ -143,3 +143,24 @@ test('production availability falls back to the next-nearest active store with s
   expect(result.store?.id).not.toBe(nearestStoreId);
   expect(result.store?.name).toBeTruthy();
 });
+
+
+test('isolated basket is not split across two stores that each have only part of the basket', async ({ request }) => {
+  const response=await request.post('/api/delivery/availability',{
+    data:{address:{latitude:17.386,longitude:78.487},items:[{id:'test-oil',qty:1},{id:'test-rice',qty:1}]}
+  });
+  expect(response.status()).toBe(200);
+  const result=await response.json();
+  expect(result.available).toBe(false);
+  expect(result.code).toBe('OUT_OF_STOCK');
+});
+
+test('isolated inactive store stock is excluded from new delivery availability', async ({ request }) => {
+  const response=await request.post('/api/delivery/availability',{
+    data:{address:{latitude:17.386,longitude:78.487},items:[{id:'test-inactive-only',qty:1}]}
+  });
+  expect(response.status()).toBe(200);
+  const result=await response.json();
+  expect(result.available).toBe(false);
+  expect(result.code).toBe('OUT_OF_STOCK');
+});
