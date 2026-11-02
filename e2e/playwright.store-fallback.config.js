@@ -10,7 +10,7 @@ export default defineConfig({
   use: { baseURL: 'http://127.0.0.1:4178' },
   webServer: {
     command: 'node ./isolated/store-fallback-server.js',
-    url: 'http://127.0.0.1:4178/api/delivery/availability',
+    url: 'http://127.0.0.1:4178/health',
     reuseExistingServer: false,
     timeout: 30000
   }
