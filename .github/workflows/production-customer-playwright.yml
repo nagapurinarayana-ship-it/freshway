@@ -107,6 +107,44 @@ jobs:
           }
           if(!baseline) throw new Error('No active store has a live product with unreserved stock inside any valid active-store radius.');
 
+          // A second fixture exercises a real whole-basket decision. Both live products
+          // must have unreserved stock at the same eligible store; no stock is changed.
+          const productEntries=[...byProduct.entries()].map(([id,productRows])=>({
+            id,categoryId:String(productRows[0]?.category_id||''),
+            stockByStore:new Map(productRows.map(row=>[String(row.store_id),numeric(row.available)]))
+          }));
+          let multiBasket=null;
+          for(const origin of stores){
+            for(let i=0;i<productEntries.length&&!multiBasket;i++){
+              const first=productEntries[i];
+              if(!first.categoryId) continue;
+              for(let j=i+1;j<productEntries.length;j++){
+                const second=productEntries[j];
+                if(second.categoryId!==first.categoryId) continue;
+                const eligible=stores.map(store=>({
+                  store,
+                  distance:distanceKm(origin.lat,origin.lng,store.lat,store.lng)
+                })).filter(candidate=>
+                  candidate.distance<=candidate.store.radius&&
+                  (first.stockByStore.get(candidate.store.id)??0)>=1&&
+                  (second.stockByStore.get(candidate.store.id)??0)>=1
+                ).sort((a,b)=>a.distance-b.distance||a.store.name.localeCompare(b.store.name));
+                if(eligible.length){
+                  multiBasket={
+                    store_id:eligible[0].store.id,
+                    latitude:origin.lat,
+                    longitude:origin.lng,
+                    product_id:first.id,
+                    second_product_id:second.id,
+                    category_id:first.categoryId
+                  };
+                  break;
+                }
+              }
+            }
+            if(multiBasket)break;
+          }
+
           // Derive a valid map pin that is definitely outside every active store's
           // configured radius. The API returns AREA_UNAVAILABLE before its inventory
           // backfill step when no store is in range, so this production probe is read-only.
@@ -156,6 +194,13 @@ jobs:
             FRESHWAY_TEST_LONGITUDE:baseline.longitude,
             FRESHWAY_TEST_PRODUCT_ID:baseline.product_id,
             FRESHWAY_TEST_CATEGORY_ID:baseline.category_id,
+            FRESHWAY_TEST_MULTI_BASKET_READY:multiBasket?'true':'false',
+            FRESHWAY_TEST_MULTI_BASKET_STORE_ID:multiBasket?.store_id??'',
+            FRESHWAY_TEST_MULTI_BASKET_LATITUDE:multiBasket?.latitude??'',
+            FRESHWAY_TEST_MULTI_BASKET_LONGITUDE:multiBasket?.longitude??'',
+            FRESHWAY_TEST_MULTI_BASKET_PRODUCT_ID:multiBasket?.product_id??'',
+            FRESHWAY_TEST_MULTI_BASKET_SECOND_PRODUCT_ID:multiBasket?.second_product_id??'',
+            FRESHWAY_TEST_MULTI_BASKET_CATEGORY_ID:multiBasket?.category_id??'',
             FRESHWAY_TEST_FALLBACK_READY:fallback?'true':'false',
             FRESHWAY_TEST_FALLBACK_LATITUDE:fallback?.latitude??'',
             FRESHWAY_TEST_FALLBACK_LONGITUDE:fallback?.longitude??'',
@@ -170,6 +215,8 @@ jobs:
           if(fallback) console.log('Read-only two-store fallback fixture found: nearest store '+fallback.nearestStoreId+' lacks stock; next stock-capable store is '+fallback.fallbackStoreId+'.');
           else console.log('No safe overlapping two-store fallback fixture exists in current production data; the dedicated Playwright case will be explicitly skipped.');
           console.log('Derived read-only outside-radius customer test pin from active store radii.');
+          if(multiBasket) console.log('Read-only multi-item fixture: two active products share unreserved stock at one eligible store '+multiBasket.store_id+'.');
+          else console.log('No safe same-store two-product fixture exists; multi-item production test will be explicitly skipped.');
           NODE
 
       - name: Install Playwright dependencies

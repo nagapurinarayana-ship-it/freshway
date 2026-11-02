@@ -5,6 +5,15 @@ const latitude=Number(process.env.FRESHWAY_TEST_LATITUDE);
 const longitude=Number(process.env.FRESHWAY_TEST_LONGITUDE);
 const productId=process.env.FRESHWAY_TEST_PRODUCT_ID;
 const categoryId=process.env.FRESHWAY_TEST_CATEGORY_ID;
+const multiBasketReady=process.env.FRESHWAY_TEST_MULTI_BASKET_READY==='true';
+const multiBasketStoreId=process.env.FRESHWAY_TEST_MULTI_BASKET_STORE_ID;
+const multiBasketLatitude=Number(process.env.FRESHWAY_TEST_MULTI_BASKET_LATITUDE);
+const multiBasketLongitude=Number(process.env.FRESHWAY_TEST_MULTI_BASKET_LONGITUDE);
+const multiBasketProductId=process.env.FRESHWAY_TEST_MULTI_BASKET_PRODUCT_ID;
+const multiBasketSecondProductId=process.env.FRESHWAY_TEST_MULTI_BASKET_SECOND_PRODUCT_ID;
+const multiBasketCategoryId=process.env.FRESHWAY_TEST_MULTI_BASKET_CATEGORY_ID;
+const uiCategoryId=multiBasketReady?multiBasketCategoryId:categoryId;
+const uiPrimaryProductId=multiBasketReady?multiBasketProductId:productId;
 
 test.beforeAll(() => {
   expect(storeId,'production must have an active store').toBeTruthy();
@@ -25,6 +34,27 @@ test('production availability selects the active store with real unreserved stoc
   expect(result.available).toBe(true);
   expect(result.code).toBe('AVAILABLE');
   expect(result.store?.id).toBe(storeId);
+  expect(result.store?.name).toBeTruthy();
+});
+
+test('production availability fulfils a real two-product basket from one eligible active store', async ({ request }) => {
+  test.skip(!multiBasketReady,'Read-only production D1 inspection did not find two live products with unreserved stock at one eligible store.');
+  expect(multiBasketStoreId).toBeTruthy();
+  expect(Number.isFinite(multiBasketLatitude)&&Number.isFinite(multiBasketLongitude)).toBe(true);
+  expect(multiBasketProductId).toBeTruthy();
+  expect(multiBasketSecondProductId).toBeTruthy();
+  expect(multiBasketSecondProductId).not.toBe(multiBasketProductId);
+  const response=await request.post('/api/delivery/availability',{
+    data:{
+      address:{latitude:multiBasketLatitude,longitude:multiBasketLongitude},
+      items:[{id:multiBasketProductId,qty:1},{id:multiBasketSecondProductId,qty:1}]
+    }
+  });
+  expect(response.status()).toBe(200);
+  const result=await response.json();
+  expect(result.available).toBe(true);
+  expect(result.code).toBe('AVAILABLE');
+  expect(result.store?.id).toBe(multiBasketStoreId);
   expect(result.store?.name).toBeTruthy();
 });
 
@@ -101,23 +131,38 @@ test('real customer app browses live products and preserves cart without creatin
   expect(Array.isArray(payload.products)).toBe(true);
   expect(payload.products.length).toBeGreaterThan(0);
 
-  const category=page.locator('[data-fw-category="'+categoryId+'"]').first();
+  const category=page.locator('[data-fw-category="'+uiCategoryId+'"]').first();
   await expect(category).toBeVisible({timeout:20000});
   await category.click();
-  const addButton=page.locator('#productGrid [data-add="'+productId+'"]').first();
+  const addButton=page.locator('#productGrid [data-add="'+uiPrimaryProductId+'"]').first();
   await expect(addButton).toBeVisible({timeout:20000});
   await expect(addButton).toBeEnabled();
   await addButton.click();
+  if(multiBasketReady){
+    expect(multiBasketCategoryId).toBe(categoryId);
+    const secondAddButton=page.locator('#productGrid [data-add="'+multiBasketSecondProductId+'"]').first();
+    await expect(secondAddButton).toBeVisible({timeout:20000});
+    await expect(secondAddButton).toBeEnabled();
+    await secondAddButton.click();
+  }
   await expect(page.locator('#cartCount')).not.toHaveText('0 items');
 
   await page.reload();
   await expect(page.locator('#cartCount')).not.toHaveText('0 items');
   await page.locator('#viewCartBtn').click();
   await expect(page.locator('#checkoutBtn')).toBeVisible();
+  await expect(page.locator('#cartItems [data-fw-cart-product]')).toHaveCount(multiBasketReady?2:1);
+  if(multiBasketReady){
+    await expect(page.locator('#cartItems [data-fw-cart-product="'+uiPrimaryProductId+'"]')).toHaveCount(1);
+    await expect(page.locator('#cartItems [data-fw-cart-product="'+multiBasketSecondProductId+'"]')).toHaveCount(1);
+  }
   const availabilityRequests=[];
   page.on('request',request=>{
     if(new URL(request.url()).pathname==='/api/delivery/availability'&&request.method()==='POST')availabilityRequests.push(request);
   });
+  const quoteResponse=page.waitForResponse(response=>
+    new URL(response.url()).pathname==='/api/checkout/quote'&&response.request().method()==='POST'
+  );
   const availabilityResponse=page.waitForResponse(response=>
     new URL(response.url()).pathname==='/api/delivery/availability'&&response.request().method()==='POST',
     {timeout:5000}
@@ -125,6 +170,12 @@ test('real customer app browses live products and preserves cart without creatin
   await page.locator('#checkoutBtn').click();
   await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
   await expect(page.locator('#fwCheckoutPricing')).toContainText('₹');
+  const quote=await (await quoteResponse).json();
+  expect(quote.pricing?.items).toHaveLength(multiBasketReady?2:1);
+  if(multiBasketReady){
+    const quotedIds=quote.pricing.items.map(item=>String(item.id)).sort();
+    expect(quotedIds).toEqual([uiPrimaryProductId,multiBasketSecondProductId].map(String).sort());
+  }
   let response=await availabilityResponse;
   if(!response){
     const diagnostic=await page.evaluate(async()=>{
@@ -138,6 +189,7 @@ test('real customer app browses live products and preserves cart without creatin
     throw new Error('Checkout entry did not automatically request delivery availability; manual diagnostic: '+JSON.stringify(diagnostic));
   }
   const availability=await response.json();
+  expect(availabilityRequests[0]?.postDataJSON()?.items).toHaveLength(multiBasketReady?2:1);
   expect(availability.available).toBe(false);
   expect(availability.code).toBe('LOCATION_REQUIRED');
   await expect(page.locator('[data-fw-delivery-availability]')).toContainText('confirm your delivery location');
