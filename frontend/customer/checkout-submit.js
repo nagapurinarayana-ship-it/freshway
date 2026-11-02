@@ -84,7 +84,7 @@
           if(!preferredDeliveryDate)throw new Error('Choose a preferred delivery day before placing your order.');
           orderPayload.preferredDeliveryDate=preferredDeliveryDate;
         }
-        const availability=await deliveryBooking?.checkAvailability?.();
+        const availability=await window.FreshWayCustomerDeliveryBookingInstance?.checkAvailability?.();
         if(availability&&availability.status!=='available')throw new Error(availability.message||'Delivery is not available for this address and basket.');
         const result=await api('/api/orders',{method:'POST',body:JSON.stringify(orderPayload)});
         const registeredPhone=customerAuth.registeredPhone?.()||'';
