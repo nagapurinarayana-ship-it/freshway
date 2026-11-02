@@ -892,7 +892,6 @@ export async function handleAdminDeliveryRequest(request, env) {
   }
   return null;
 }
-));
   if (scheduleMatch && request.method === 'PATCH') {
     let body = {}; try { body = await request.json(); } catch (_) {}
     const orderId = decodeURIComponent(scheduleMatch[1]);
