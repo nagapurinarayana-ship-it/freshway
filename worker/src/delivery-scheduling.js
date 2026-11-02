@@ -749,7 +749,8 @@ export async function handleAdminDeliveryRequest(request, env) {
     await notifyCustomerAndOwner(env,orderId,{customer_id:order.customer_id,delivery_status:order.delivery_status,payment_status:order.payment_status,delivery_plan:order.delivery_plan,is_test_order:order.is_test_order},'delivery_store_reassigned','Your order is now assigned to '+store.name+'.',{customer_id:order.customer_id,delivery_status:order.delivery_status,payment_status:order.payment_status,delivery_plan:updated?.delivery_plan,is_test_order:order.is_test_order});
     return response({ok:true,orderId,store:{id:store.id,name:store.name},scheduledDelivery:updated?.scheduled_delivery_date||null});
   }
-  const scheduleMatch = path.match(new RegExp('^/api/admin/delivery/orders/([^/]+)/schedule
+  const schedulePrefix='/api/admin/delivery/orders/';
+  const scheduleMatch=path.startsWith(schedulePrefix)&&path.endsWith('/schedule')?[null,decodeURIComponent(path.slice(schedulePrefix.length,-9))]:null;
   if (scheduleMatch && request.method === 'PATCH') {
     let body = {}; try { body = await request.json(); } catch (_) {}
     const orderId = decodeURIComponent(scheduleMatch[1]);
