@@ -512,6 +512,43 @@ BEGIN
 END;
 
 
+CREATE TRIGGER IF NOT EXISTS delivery_order_store_active_before_insert
+BEFORE INSERT ON orders
+WHEN NEW.assigned_store_id IS NOT NULL
+BEGIN
+  SELECT CASE WHEN COALESCE(
+    (SELECT is_active FROM delivery_stores WHERE id=NEW.assigned_store_id),0
+  )<>1 THEN RAISE(ABORT,'DELIVERY_STORE_INACTIVE') END;
+END;
+
+CREATE TRIGGER IF NOT EXISTS delivery_order_store_active_before_update
+BEFORE UPDATE OF assigned_store_id ON orders
+WHEN NEW.assigned_store_id IS NOT NULL AND NEW.assigned_store_id IS NOT OLD.assigned_store_id
+BEGIN
+  SELECT CASE WHEN COALESCE(
+    (SELECT is_active FROM delivery_stores WHERE id=NEW.assigned_store_id),0
+  )<>1 THEN RAISE(ABORT,'DELIVERY_STORE_INACTIVE') END;
+END;
+
+CREATE TRIGGER IF NOT EXISTS delivery_store_active_before_insert
+BEFORE INSERT ON delivery_store_inventory_reservations
+WHEN NEW.status='reserved'
+BEGIN
+  SELECT CASE WHEN COALESCE(
+    (SELECT is_active FROM delivery_stores WHERE id=NEW.store_id),0
+  )<>1 THEN RAISE(ABORT,'DELIVERY_STORE_INACTIVE') END;
+END;
+
+CREATE TRIGGER IF NOT EXISTS delivery_store_active_before_update
+BEFORE UPDATE OF store_id,status ON delivery_store_inventory_reservations
+WHEN NEW.status='reserved'
+BEGIN
+  SELECT CASE WHEN COALESCE(
+    (SELECT is_active FROM delivery_stores WHERE id=NEW.store_id),0
+  )<>1 THEN RAISE(ABORT,'DELIVERY_STORE_INACTIVE') END;
+END;
+
+
 -- Delivery offers baseline schema (kept aligned with migration 0043).
 -- Delivery pricing and fixed-amount coupon support.
 -- Existing order totals are preserved; historical fee/discount details remain unknown and are recorded as zero.
