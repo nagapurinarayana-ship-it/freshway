@@ -86,8 +86,20 @@ test('0037 then 0038 migrate a legacy D1-like database without losing requests o
       /DELIVERY_STORE_INACTIVE/
     );
     db.prepare("UPDATE orders SET assigned_store_id='store-1' WHERE id='order-1'").run();
-    assert.equal(db.prepare("SELECT assigned_store_id FROM orders WHERE id='order-1'").get().assigned_store_id,'store-1');
-    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='trigger' AND name IN ('delivery_slot_capacity_before_insert','delivery_slot_capacity_before_update','delivery_store_stock_before_insert','delivery_store_stock_before_update','delivery_order_store_active_before_insert','delivery_order_store_active_before_update','delivery_store_active_before_insert','delivery_store_active_before_update')").get().count, 8);
+    db.prepare("INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status) VALUES ('existing-res','order-1','store-1','product-1',1,'reserved')").run();
+    db.prepare("UPDATE delivery_stores SET is_active=0 WHERE id='store-1'").run();
+    assert.equal(db.prepare("SELECT assigned_store_id FROM orders WHERE id='order-1'").get().assigned_store_id,'store-1','deactivation must not move existing orders');
+    assert.equal(db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE id='existing-res'").get().status,'reserved','deactivation must preserve existing reservations');
+    db.prepare("UPDATE orders SET delivery_status='Delivered' WHERE id='order-2'").run();
+    assert.throws(
+      () => db.prepare("UPDATE orders SET assigned_store_id='store-1' WHERE id='order-2'").run(),
+      /DELIVERY_ORDER_CLOSED/
+    );
+    assert.throws(
+      () => db.prepare("INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status) VALUES ('closed-res','order-2','store-1','product-1',1,'reserved')").run(),
+      /DELIVERY_ORDER_CLOSED/
+    );
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='trigger' AND name IN ('delivery_slot_capacity_before_insert','delivery_slot_capacity_before_update','delivery_store_stock_before_insert','delivery_store_stock_before_update','delivery_order_store_active_before_insert','delivery_order_store_active_before_update','delivery_store_active_before_insert','delivery_store_active_before_update','delivery_order_store_open_before_update','delivery_store_reservation_order_open_before_insert')").get().count, 10);
   } finally {
     db.close();
   }
