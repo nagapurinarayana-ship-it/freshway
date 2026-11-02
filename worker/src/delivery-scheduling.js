@@ -56,13 +56,14 @@ function istNowParts() {
 }
 function hasCoordinates(address = {}) {
   const lat = Number(address.latitude ?? address.lat), lng = Number(address.longitude ?? address.lng);
-  return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 &&
+    !(lat === 0 && lng === 0);
 }
 function addressCoordinates(address = {}) {
   return { latitude: Number(address.latitude ?? address.lat), longitude: Number(address.longitude ?? address.lng) };
 }
-function distanceFor(address, store, storeCount) {
-  if (!hasCoordinates(address)) return storeCount === 1 ? null : Infinity;
+function distanceFor(address, store) {
+  if (!hasCoordinates(address)) return Infinity;
   const point = addressCoordinates(address);
   const distance = distanceKm(point.latitude, point.longitude, store.latitude, store.longitude);
   return distance !== null && distance <= Number(store.service_radius_km) ? distance : Infinity;
@@ -180,13 +181,52 @@ async function resolveAvailableSlots(env, payload, requestedDate = '', excludeOr
     }))
   };
 }
+async function resolveStoreAvailability(env, payload = {}) {
+  const items = await cleanItems(env, payload.items);
+  if (!items.length) return { available: false, code: 'EMPTY_BASKET', message: 'Add products to your cart to check delivery availability.' };
+  const stores = (await env.DB.prepare(
+    'SELECT id,name,latitude,longitude,service_radius_km FROM delivery_stores WHERE is_active=1'
+  ).all()).results || [];
+  if (!stores.length) return { available: false, code: 'NO_ACTIVE_STORE', message: 'We are not taking delivery orders in your area right now.' };
+  if (!hasCoordinates(payload.address || {})) {
+    return { available: false, code: 'LOCATION_REQUIRED', message: 'Please confirm your delivery location on the map to check delivery.' };
+  }
+  const nearby = stores.map(store => ({
+    ...store,
+    distance_km: distanceFor(payload.address || {}, store)
+  })).filter(store => store.distance_km !== Infinity);
+  if (!nearby.length) return { available: false, code: 'AREA_UNAVAILABLE', message: 'Sorry, we do not deliver to this address yet.' };
+  await ensureStoreInventoryRows(env);
+  const stock = await inventoryMap(env);
+  nearby.sort((a, b) => a.distance_km - b.distance_km || String(a.name).localeCompare(String(b.name)));
+  const selected = nearby.find(store => inventoryFits(store.id, items, stock));
+  if (!selected) {
+    return { available: false, code: 'OUT_OF_STOCK', message: 'Some items in your basket are not available from nearby stores. Please adjust your cart or try again.' };
+  }
+  return {
+    available: true,
+    code: 'AVAILABLE',
+    message: 'Good news! We deliver to your area.',
+    store: { id: selected.id, name: selected.name, distanceKm: Math.round(selected.distance_km * 10) / 10 }
+  };
+}
+
 export async function prepareCheckoutDelivery(env, payload, items) {
   const raw = clean(payload.preferredDeliveryDate || payload.deliveryDate || payload.scheduledDeliveryDate);
   if (!raw) throw new Error('Choose a preferred delivery date before placing your order.');
   if (!dateValid(raw)) throw new Error('Choose a valid preferred delivery date.');
   const now = istNowParts();
   if (raw < now.date || raw > addDays(now.date, 60)) throw new Error('Choose a delivery date between today and the next 60 days.');
-  return { date: raw, deliveryPlan: raw === now.date ? 'Today' : raw === addDays(now.date, 1) ? 'Tomorrow' : 'Later', status: 'requested' };
+  const availability = await resolveStoreAvailability(env, { address: payload.address || {}, items });
+  if (!availability.available) throw new Error(availability.message);
+  return {
+    date: raw,
+    deliveryPlan: raw === now.date ? 'Today' : raw === addDays(now.date, 1) ? 'Tomorrow' : 'Later',
+    status: 'requested',
+    storeId: availability.store.id,
+    storeName: availability.store.name,
+    distanceKm: availability.store.distanceKm
+  };
 }
 export function checkoutDeliveryStatements(env, orderId, delivery, items) {
   if (!delivery) return [];
@@ -440,6 +480,19 @@ async function customerAction(request, env, customerId, orderId, action) {
 
 export async function handleCustomerDeliveryRequest(request, env, customerId) {
   const url = new URL(request.url);
+  if (url.pathname === '/api/delivery/availability' && request.method === 'POST') {
+    let body = {};
+    try { body = await request.json(); } catch (_) {}
+    try { return response(await resolveStoreAvailability(env, body)); }
+    catch (error) {
+      if (deliverySchemaMissing(error)) {
+        console.error('FreshWay delivery availability is unavailable because a required database schema table is missing:', error?.message || error);
+        return response({ available: false, code: 'DELIVERY_SCHEMA_UNAVAILABLE', message: 'Delivery availability is temporarily unavailable. Please try again later.' }, 503);
+      }
+      console.error('FreshWay store availability check failed:', error?.message || error);
+      return response({ available: false, code: 'DELIVERY_AVAILABILITY_ERROR', message: 'We could not check delivery availability. Please try again.' }, 503);
+    }
+  }
   if (url.pathname === '/api/delivery/slots' && request.method === 'POST') {
     let body = {};
     try { body = await request.json(); } catch (_) {}
@@ -464,6 +517,15 @@ export async function handleCustomerDeliveryRequest(request, env, customerId) {
     }
   }
   return null;
+}
+
+async function refreshProductAvailability(env) {
+  const rows = (await env.DB.prepare('SELECT id FROM products WHERE stock_managed=1').all()).results || [];
+  const statements = rows.map(row => env.DB.prepare(
+    'UPDATE products SET stock_quantity=MAX(0,(SELECT COALESCE(SUM(i.stock_quantity),0) FROM delivery_store_inventory i JOIN delivery_stores s ON s.id=i.store_id AND s.is_active=1 WHERE i.product_id=?)-' +
+    " (SELECT COALESCE(SUM(r.qty),0) FROM delivery_store_inventory_reservations r JOIN delivery_stores s ON s.id=r.store_id AND s.is_active=1 WHERE r.product_id=? AND r.status IN ('reserved','conflict'))),updated_at=CURRENT_TIMESTAMP WHERE id=?"
+  ).bind(row.id, row.id, row.id));
+  if (statements.length) await env.DB.batch(statements);
 }
 
 async function inventoryAvailabilityForStore(env, storeId) {
@@ -500,28 +562,32 @@ export async function handleAdminDeliveryRequest(request, env) {
   }
   if (path === '/api/admin/delivery/stores' && request.method === 'GET') {
     const stores = (await env.DB.prepare(
-      'SELECT id,name,address,latitude,longitude,service_radius_km,is_active,created_at,updated_at FROM delivery_stores ORDER BY created_at,id'
+      'SELECT d.id,d.name,d.address,d.latitude,d.longitude,d.service_radius_km,d.is_active,d.created_at,d.updated_at,' +
+      "(SELECT COUNT(*) FROM orders o WHERE o.assigned_store_id=d.id AND o.delivery_status NOT IN ('Delivered','Cancelled')) pending_order_count " +
+      'FROM delivery_stores d ORDER BY d.created_at,d.id'
     ).all()).results || [];
     return response({ stores });
   }
   if (path === '/api/admin/delivery/stores' && request.method === 'POST') {
     let body = {}; try { body = await request.json(); } catch (_) {}
     const name = clean(body.name).slice(0, 120), address = clean(body.address).slice(0, 300);
-    const latitude = Number(body.latitude), longitude = Number(body.longitude), radius = Number(body.serviceRadiusKm ?? 10);
+    const latitude = Number(body.latitude), longitude = Number(body.longitude), radius = Number(body.serviceRadiusKm ?? 5);
     if (!name) throw new Error('Enter the store name.');
     if (!Number.isFinite(latitude) || Math.abs(latitude) > 90 || !Number.isFinite(longitude) || Math.abs(longitude) > 180) throw new Error('Enter valid store map coordinates.');
     if (!Number.isFinite(radius) || radius < 0.1 || radius > 100) throw new Error('Invalid store delivery radius.');
     const storeId = id('store');
-    const count = Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores WHERE is_active=1').first())?.count || 0);
-    const statements = [env.DB.prepare('INSERT INTO delivery_stores (id,name,address,latitude,longitude,service_radius_km,is_active) VALUES (?,?,?,?,?,?,1)').bind(storeId, name, address, latitude, longitude, radius)];
-    const inventorySeed = count ? 0 : null;
-    if (inventorySeed === null) {
-      statements.push(env.DB.prepare('INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) SELECT ?,id,stock_quantity FROM products WHERE stock_managed=1').bind(storeId));
-    } else {
-      statements.push(env.DB.prepare('INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) SELECT ?,id,0 FROM products WHERE stock_managed=1').bind(storeId));
-    }
+    const existingStores = Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores').first())?.count || 0);
+    const inventorySeed = existingStores === 0 ? 'copied-current-available-stock' : 'zero-stock-requires-setup';
+    const statements = [
+      env.DB.prepare('INSERT INTO delivery_stores (id,name,address,latitude,longitude,service_radius_km,is_active) VALUES (?,?,?,?,?,?,0)')
+        .bind(storeId, name, address, latitude, longitude, radius),
+      env.DB.prepare(existingStores === 0
+        ? 'INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) SELECT ?,id,stock_quantity FROM products WHERE stock_managed=1'
+        : 'INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) SELECT ?,id,0 FROM products WHERE stock_managed=1').bind(storeId)
+    ];
     await env.DB.batch(statements);
-    return response({ ok: true, store: { id: storeId, name, address, latitude, longitude, service_radius_km: radius, is_active: 1 }, initialInventory: inventorySeed === null ? 'copied-current-global-available-stock' : 'zero-stock-requires-setup' }, 201);
+    await refreshProductAvailability(env);
+    return response({ ok: true, store: { id: storeId, name, address, latitude, longitude, service_radius_km: radius, is_active: 0 }, initialInventory: inventorySeed }, 201);
   }
   const storeMatch = path.match(new RegExp('^/api/admin/delivery/stores/([^/]+)$'));
   if (storeMatch && request.method === 'PATCH') {
@@ -540,7 +606,11 @@ export async function handleAdminDeliveryRequest(request, env) {
     if (!Number.isFinite(radius) || radius < 0.1 || radius > 100) throw new Error('Invalid store delivery radius.');
     await env.DB.prepare('UPDATE delivery_stores SET name=?,address=?,latitude=?,longitude=?,service_radius_km=?,is_active=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')
       .bind(name,address,latitude,longitude,radius,active,storeId).run();
-    return response({ ok: true, store: { ...current, name, address, latitude, longitude, service_radius_km: radius, is_active: active } });
+    await refreshProductAvailability(env);
+    const pendingOrderCount = Number((await env.DB.prepare(
+      "SELECT COUNT(*) count FROM orders WHERE assigned_store_id=? AND delivery_status NOT IN ('Delivered','Cancelled')"
+    ).bind(storeId).first())?.count || 0);
+    return response({ ok: true, store: { ...current, name, address, latitude, longitude, service_radius_km: radius, is_active: active, pending_order_count: pendingOrderCount }, pendingOrderCount });
   }
   const inventoryMatch = path.match(new RegExp('^/api/admin/delivery/stores/([^/]+)/inventory$'));
   if (inventoryMatch && request.method === 'GET') {
@@ -581,8 +651,8 @@ export async function handleAdminDeliveryRequest(request, env) {
     }
     for (const row of productRows) {
       statements.push(env.DB.prepare(
-        'UPDATE products SET stock_quantity=MAX(0,(SELECT COALESCE(SUM(i.stock_quantity),0) FROM delivery_store_inventory i WHERE i.product_id=?)-' +
-        '(SELECT COALESCE(SUM(r.qty),0) FROM delivery_store_inventory_reservations r WHERE r.product_id=? AND r.status IN (\'reserved\',\'conflict\'))),updated_at=CURRENT_TIMESTAMP WHERE id=?'
+        'UPDATE products SET stock_quantity=MAX(0,(SELECT COALESCE(SUM(i.stock_quantity),0) FROM delivery_store_inventory i JOIN delivery_stores s ON s.id=i.store_id AND s.is_active=1 WHERE i.product_id=?)-' +
+        '(SELECT COALESCE(SUM(r.qty),0) FROM delivery_store_inventory_reservations r JOIN delivery_stores s ON s.id=r.store_id AND s.is_active=1 WHERE r.product_id=? AND r.status IN (\'reserved\',\'conflict\'))),updated_at=CURRENT_TIMESTAMP WHERE id=?'
       ).bind(row.id, row.id, row.id));
     }
     await env.DB.batch(statements);
