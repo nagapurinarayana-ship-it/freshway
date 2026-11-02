@@ -82,8 +82,8 @@ test('new Owner stores start inactive with zero stock when another store already
     assert.equal(result.initialInventory,'zero-stock-requires-setup');
     assert.equal(db.db.prepare('SELECT is_active FROM delivery_stores WHERE id=?').get(result.store.id).is_active,0);
     assert.equal(db.db.prepare("SELECT stock_quantity FROM delivery_store_inventory WHERE store_id=? AND product_id='product-1'").get(result.store.id).stock_quantity,0);
-    assert.equal(db.db.prepare("SELECT stock_quantity FROM products WHERE id='product-1'").get().stock_quantity,0,
-      'inactive store inventory must not appear in the customer-facing aggregate');
+    assert.equal(db.db.prepare("SELECT stock_quantity FROM products WHERE id='product-1'").get().stock_quantity,5,
+      'only the existing active store contributes to the customer-facing aggregate');
   } finally { db.close(); }
 });
 
