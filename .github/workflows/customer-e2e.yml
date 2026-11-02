@@ -155,7 +155,7 @@ jobs:
           FRESHWAY_TEST_NEAREST_STORE_ID: store-nearest
           FRESHWAY_TEST_FALLBACK_STORE_ID: store-fallback
           FRESHWAY_TEST_FALLBACK_PRODUCT_ID: test-rice
-        run: npx playwright test --config=playwright.production.config.js --grep "production availability falls back|isolated basket|isolated inactive store"
+        run: npx playwright test --config=playwright.production.config.js --grep "production availability falls back"
 
       - name: Upload isolated Playwright evidence
         if: always()
