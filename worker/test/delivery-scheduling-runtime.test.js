@@ -203,9 +203,7 @@ test('Owner slot reassignment checks store radius and keeps store stock reservat
     db.db.prepare("INSERT INTO delivery_stores (id,name,address,latitude,longitude,service_radius_km,is_active) VALUES ('store-far','Far Store','Far Address',18.5,79.5,1,1)").run();
     db.db.prepare("INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) VALUES ('store-far','product-1',5)").run();
     db.db.prepare("INSERT INTO delivery_slots (id,store_id,delivery_date,start_minute,end_minute,capacity,is_active) VALUES ('slot-far','store-far',?,600,720,5,1)").run(date);
-    const rejected=await assign('slot-far');
-    assert.equal(rejected.status,400);
-    assert.match((await rejected.json()).error,/does not cover the customer delivery location/i);
+    await assert.rejects(assign('slot-far'),/does not cover the customer delivery location/i);
     assert.equal(db.db.prepare("SELECT assigned_store_id FROM orders WHERE id='order-slot-store'").get().assigned_store_id,'store-near');
     assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-slot-store' AND store_id='store-near'").get().status,'reserved');
   } finally { db.close(); }
