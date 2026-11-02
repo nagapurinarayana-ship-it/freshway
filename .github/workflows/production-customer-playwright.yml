@@ -8,6 +8,8 @@ on:
       - 'e2e/playwright.production.config.js'
       - 'e2e/production/**'
       - 'app.js'
+      - 'index.html'
+      - 'sw.js'
       - 'frontend/customer/delivery-booking.js'
       - 'frontend/customer/delivery-offers.js'
   workflow_dispatch:
