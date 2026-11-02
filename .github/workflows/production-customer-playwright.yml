@@ -129,7 +129,7 @@ jobs:
             FRESHWAY_TEST_FALLBACK_STORE_ID:fallback?.fallbackStoreId??'',
             FRESHWAY_TEST_FALLBACK_PRODUCT_ID:fallback?.productId??''
           };
-          for(const [key,value] of Object.entries(values)) fs.appendFileSync(process.env.GITHUB_ENV,key+'='+String(value).replace(/[\r\n]/g,'')+'\\n');
+          for(const [key,value] of Object.entries(values)) fs.appendFileSync(process.env.GITHUB_ENV,key+'='+String(value).replace(/[\r\n]/g,'')+'\n');
           console.log('Read-only production fixture: inventory matrix complete; baseline active store/product selected.');
           if(fallback) console.log('Read-only two-store fallback fixture found: nearest store '+fallback.nearestStoreId+' lacks stock; next stock-capable store is '+fallback.fallbackStoreId+'.');
           else console.log('No safe overlapping two-store fallback fixture exists in current production data; the dedicated Playwright case will be explicitly skipped.');
