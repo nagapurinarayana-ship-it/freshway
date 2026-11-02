@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import { request } from '@playwright/test';
 
 const baseURL=process.env.FRESHWAY_PRODUCTION_URL||'https://fwcoldpressed.in';
 const orderId=process.env.FRESHWAY_TEST_ORDER_ID||'';
@@ -29,30 +28,29 @@ if(!customerId&&!orderId){
 }else{
   if(!adminToken)throw new Error('ADMIN_TOKEN is missing; cannot safely cancel the production test order.');
   if(!customerId||!storeId||!productId||!Number.isFinite(reservedBefore))throw new Error('Production cleanup is missing the exact test customer/store/product/reservation identifiers.');
-  const api=await request.newContext({baseURL});
-  try{
-    const login=await api.post('/api/admin/login',{data:{token:adminToken}});
-    await body(login,'Owner login for emergency production test cleanup');
+  const login=await fetch(baseURL+'/api/admin/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:adminToken})});
+  const cookieHeader=login.headers.get('set-cookie')||'';
+  const cookie=cookieHeader.split(';',1)[0];
+  await body(login,'Owner login for emergency production test cleanup');
+  if(!cookie)throw new Error('Owner login did not establish a session cookie for cleanup.');
+  const ownerRequest=async(path,options={})=>fetch(baseURL+path,{...options,headers:{cookie,'content-type':'application/json',...(options.headers||{})}});
 
-    // Safe and idempotent: any order created by this run is first marked as a
-    // test order and cancelled through the same Owner API used by the real app.
-    const patch=await api.patch('/api/admin/orders/'+encodeURIComponent(orderId),{
-      data:{status:'Cancelled',isTestOrder:true}
-    });
-    await body(patch,'Cancel and classify the production test order');
+  // Safe and idempotent: any order created by this run is first marked as a
+  // test order and cancelled through the same Owner API used by the real app.
+  const patch=await ownerRequest('/api/admin/orders/'+encodeURIComponent(orderId),{
+    method:'PATCH',body:JSON.stringify({status:'Cancelled',isTestOrder:true})
+  });
+  await body(patch,'Cancel and classify the production test order');
 
-    const rowsResponse=await api.get('/api/admin/orders?testOrders=1&limit=10&search='+encodeURIComponent(orderId));
-    const rows=await body(rowsResponse,'Verify Owner test-order state');
-    const order=(rows.orders||[]).find(item=>item.id===orderId);
-    if(!order||order.isTestOrder!==true||order.status!=='Cancelled')throw new Error('Production cleanup could not verify the order is both test-classified and cancelled.');
+  const rowsResponse=await ownerRequest('/api/admin/orders?testOrders=1&limit=10&search='+encodeURIComponent(orderId));
+  const rows=await body(rowsResponse,'Verify Owner test-order state');
+  const order=(rows.orders||[]).find(item=>item.id===orderId);
+  if(!order||order.isTestOrder!==true||order.status!=='Cancelled')throw new Error('Production cleanup could not verify the order is both test-classified and cancelled.');
 
-    const inventoryResponse=await api.get('/api/admin/delivery/stores/'+encodeURIComponent(storeId)+'/inventory');
-    const inventory=await body(inventoryResponse,'Verify production store inventory after cleanup');
-    const item=(inventory.inventory||[]).find(row=>String(row.id)===String(productId));
-    if(!item||Number(item.reserved_qty)!==reservedBefore)throw new Error('Production inventory cleanup did not restore the original reservation count.');
-    writeRunnerEnv('FRESHWAY_TEST_CLEANUP_VERIFIED','true');
-    console.log('Production test order is cancelled and test-classified; the store reservation count is back to its pre-test value.');
-  }finally{
-    await api.dispose();
-  }
+  const inventoryResponse=await ownerRequest('/api/admin/delivery/stores/'+encodeURIComponent(storeId)+'/inventory');
+  const inventory=await body(inventoryResponse,'Verify production store inventory after cleanup');
+  const item=(inventory.inventory||[]).find(row=>String(row.id)===String(productId));
+  if(!item||Number(item.reserved_qty)!==reservedBefore)throw new Error('Production inventory cleanup did not restore the original reservation count.');
+  writeRunnerEnv('FRESHWAY_TEST_CLEANUP_VERIFIED','true');
+  console.log('Production test order is cancelled and test-classified; the store reservation count is back to its pre-test value.');
 }
