@@ -133,6 +133,8 @@ const requiredDeliveryTriggers = [
   'delivery_order_store_active_before_update',
   'delivery_store_active_before_insert',
   'delivery_store_active_before_update',
+  'delivery_order_store_open_before_update',
+  'delivery_store_reservation_order_open_before_insert',
   'coupon_redemption_guard_before_insert'
 ];
 const triggerRows = rowsFor("SELECT name FROM sqlite_master WHERE type='trigger'", row => 'name' in row);
