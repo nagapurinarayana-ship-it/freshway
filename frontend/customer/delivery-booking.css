@@ -37,3 +37,8 @@
 @media(max-width:380px){.fw-delivery-date-options{grid-template-columns:1fr}.fw-delivery-date-option{min-height:54px}}
 
 body:has(#checkoutView.active-view) .bottom-nav{display:none}
+
+.fw-delivery-availability{margin:12px 0 0;padding:10px 12px;border:1px solid #dce9e0;border-radius:10px;background:#fff;color:#526158;font-size:12px;line-height:1.5}
+.fw-delivery-availability.is-available{border-color:#b9dec8;background:#edf8f0;color:#17653e}
+.fw-delivery-availability.is-unavailable,.fw-delivery-availability.is-error{border-color:#efd4cf;background:#fff7f5;color:#9b352b}
+.fw-delivery-availability.is-checking,.fw-delivery-availability.is-empty{border-color:#dce9e0;background:#fff;color:#526158}
