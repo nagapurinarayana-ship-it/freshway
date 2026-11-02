@@ -736,7 +736,64 @@ export async function handleAdminDeliveryRequest(request, env) {
     const reservations = (await env.DB.prepare("SELECT r.id,r.status,r.owner_override,r.override_reason,r.updated_at,s.delivery_date,s.start_minute,s.end_minute,ds.name store_name FROM delivery_slot_reservations r LEFT JOIN delivery_slots s ON s.id=r.slot_id LEFT JOIN delivery_stores ds ON ds.id=s.store_id WHERE r.order_id=? ORDER BY r.created_at DESC LIMIT 30").bind(orderId).all()).results || [];
     return response({ ok: true, order, events, flags, reservations });
   }
-  const storeAssignmentMatch = path.match(new RegExp('^/api/admin/delivery/orders/([^/]+)/store
+  const storeAssignmentPrefix = '/api/admin/delivery/orders/';
+  if (path.startsWith(storeAssignmentPrefix) && path.endsWith('/store') && request.method === 'PATCH') {
+    let body = {}; try { body = await request.json(); } catch (_) {}
+    const orderId = decodeURIComponent(path.slice(storeAssignmentPrefix.length, -6));
+    const order = await getOrderForAction(env, orderId);
+    if (!order) throw new Error('Order not found.');
+    if (['delivered','cancelled'].includes(String(order.delivery_status || '').trim().toLowerCase())) {
+      throw new Error('A delivered or cancelled order cannot be reassigned.');
+    }
+    const storeId = clean(body.storeId);
+    if (!storeId) throw new Error('Choose an active store.');
+    if (storeId === order.assigned_store_id) {
+      const existing = await env.DB.prepare('SELECT id,name,is_active FROM delivery_stores WHERE id=?').bind(storeId).first();
+      return response({ ok:true, unchanged:true, orderId, store:existing });
+    }
+    const store = await env.DB.prepare('SELECT id,name,is_active FROM delivery_stores WHERE id=?').bind(storeId).first();
+    if (!store || Number(store.is_active)!==1) throw new Error('Choose an active store. Inactive stores cannot receive new orders.');
+    await ensureStoreInventoryRows(env);
+    const lines = (await env.DB.prepare('SELECT product_id id,qty,stock_reserved_qty stockReservedQty FROM order_items WHERE order_id=?').bind(orderId).all()).results || [];
+    const stock = await inventoryMap(env, orderId);
+    if (!inventoryFits(storeId, lines, stock)) {
+      throw new Error('This store cannot fulfil the complete order. Choose another active store with enough stock.');
+    }
+    const before = { ...order };
+    const afterScheduleStatus = order.scheduled_delivery_date ? 'confirmed' : 'unscheduled';
+    const statements = [
+      env.DB.prepare("UPDATE orders SET assigned_store_id=?,scheduled_slot_id=NULL,scheduled_start_minute=NULL,scheduled_end_minute=NULL,schedule_status=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND delivery_status NOT IN ('Delivered','Cancelled')")
+        .bind(storeId, afterScheduleStatus, orderId),
+      env.DB.prepare("UPDATE delivery_store_inventory_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(orderId),
+      env.DB.prepare("UPDATE delivery_slot_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(orderId)
+    ];
+    for (const line of lines.filter(itemNeedsStock)) {
+      const qty = Number(line.qty || 0);
+      if (!Number.isSafeInteger(qty) || qty < 1) continue;
+      statements.push(env.DB.prepare(
+        "INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status,owner_override,override_reason) VALUES (?,?,?,?,?,'reserved',0,'')"
+      ).bind(id('stockres'),orderId,storeId,line.id,qty));
+    }
+    statements.push(env.DB.prepare(
+      "INSERT INTO order_audit_events (id,order_id,actor_type,actor_id,action,reason,before_json,after_json) VALUES (?,?,'owner',?,'fulfilment_store_reassigned',?,?,?)"
+    ).bind(id('audit'),orderId,clean(request.headers.get('X-Freshway-Owner-Id'))||'owner',clean(body.reason).slice(0,500)||'Owner reassigned fulfilment store',enc(before),enc({storeId,storeName:store.name})));
+    try { await env.DB.batch(statements); }
+    catch (error) {
+      if (/DELIVERY_STORE_INACTIVE/i.test(String(error?.message||''))) throw new Error('Choose an active store. Store availability changed; refresh and try again.');
+      if (/DELIVERY_STORE_STOCK_LOW/i.test(String(error?.message||''))) throw new Error('Store stock changed. Refresh inventory and try again.');
+      throw error;
+    }
+    await refreshProductAvailability(env);
+    const updated = await getOrderForAction(env, orderId);
+    await notifyCustomerAndOwner(env, orderId, {
+      customer_id:order.customer_id,delivery_status:order.delivery_status,payment_status:order.payment_status,
+      delivery_plan:order.delivery_plan,is_test_order:order.is_test_order
+    }, 'delivery_store_reassigned', 'Your order is now assigned to '+store.name+'.', {
+      customer_id:order.customer_id,delivery_status:order.delivery_status,payment_status:order.payment_status,
+      delivery_plan:updated?.delivery_plan,is_test_order:order.is_test_order
+    });
+    return response({ ok:true, orderId, store:{id:store.id,name:store.name}, scheduledDelivery:updated?.scheduled_delivery_date||null });
+  }
   if (scheduleMatch && request.method === 'PATCH') {
     let body = {}; try { body = await request.json(); } catch (_) {}
     const orderId = decodeURIComponent(scheduleMatch[1]);
