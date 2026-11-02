@@ -634,7 +634,14 @@ export async function handleAdminDeliveryRequest(request, env) {
         '(SELECT COALESCE(SUM(r.qty),0) FROM delivery_store_inventory_reservations r JOIN delivery_stores s ON s.id=r.store_id AND s.is_active=1 WHERE r.product_id=? AND r.status IN (\'reserved\',\'conflict\'))),updated_at=CURRENT_TIMESTAMP WHERE id=?'
       ).bind(row.id, row.id, row.id));
     }
-    await env.DB.batch(statements);
+    try {
+      await env.DB.batch(statements);
+    } catch (error) {
+      if (/DELIVERY_STORE_STOCK_RESERVED/i.test(String(error?.message || ''))) {
+        throw new Error('Stock on hand cannot be lower than active reservations. Refresh inventory and try again.');
+      }
+      throw error;
+    }
     return response({ ok: true, inventory: await inventoryAvailabilityForStore(env, storeId) });
   }
   const slotCollection = path === '/api/admin/delivery/slots';
