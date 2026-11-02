@@ -127,6 +127,7 @@ test('Owner can reassign a pending order only to an active store with enough sto
   const db=new SQLiteD1();
   try {
     db.seedOrder('order-reassign');
+    db.db.prepare("UPDATE order_items SET stock_reserved_qty=0 WHERE order_id='order-reassign'").run();
     db.db.prepare("INSERT INTO delivery_stores (id,name,address,latitude,longitude,service_radius_km,is_active) VALUES ('store-2','Second Store','Second Address',17.39,78.49,5,1)").run();
     db.db.prepare("INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) VALUES ('store-2','product-1',1)").run();
     const assign=()=>handleAdminDeliveryRequest(new Request('https://api.example.test/api/admin/delivery/orders/order-reassign/store',{
