@@ -89,13 +89,19 @@
     if(changes.length)window.dispatchEvent(new CustomEvent('freshway:store-catalogue-changed',{detail:{store,changes}}));
     return {ok:true,changed:changedStore||changes.length>0,store,changes};
   }
-  async function load({reviewChange=true}={}){
+  async function load({reviewChange=true,preserveExisting=true}={}){
     const token=++loadToken;
+    const hadData=!!preserveExisting&&ready&&products.length>0&&categories.length>0;
     const request=window.FreshWayCustomerAPI?.request;
-    loading=true;errorMessage='';ready=false;renderHome();
+    loading=!hadData;errorMessage='';ready=hadData;
+    if(!hadData)renderHome();
     if(typeof request!=='function'){
-      loading=false;errorMessage='FreshWay could not start the catalogue service. Please refresh and try again.';
-      categories=[];products=[];window.FreshWayCustomerCatalogue?.clear();renderHome();applyMode();return;
+      loading=false;
+      if(!hadData){
+        errorMessage='FreshWay could not start the catalogue service. Please refresh and try again.';
+        categories=[];products=[];window.FreshWayCustomerCatalogue?.clear();
+      }
+      renderHome();applyMode();return;
     }
     try{
       const address=window.FreshWayAddressSystem?.getSelectedAddress?.()||{};
@@ -120,7 +126,14 @@
       }
     }catch(error){
       if(token!==loadToken)return;
-      loading=false;ready=false;
+      loading=false;
+      if(hadData){
+        ready=true;errorMessage='';
+        renderHome();
+        if(selected&&categories.some(x=>String(x.id)===String(selected)))setMode(selected,{history:'none'});
+        applyMode();return;
+      }
+      ready=false;
       errorMessage=error?.message||'We could not load the FreshWay catalogue. Please retry.';
       renderHome();applyMode();
     }
@@ -163,7 +176,7 @@
     const grid=$('#productGrid');if(grid)observer.observe(grid,{childList:true});
   }
   window.FreshWayCustomerStoreCatalogue=Object.freeze({selectedStoreId:()=>selectedStore?.id||selectedStoreIdValue||'',selectedStore:()=>selectedStore,switchToStore,refresh:load});
-  window.addEventListener('freshway:address-changed',()=>{void load({reviewChange:true})});
+  window.addEventListener('freshway:address-changed',()=>{void load({reviewChange:true,preserveExisting:false})});
   window.freshWayCustomerCatalogueRefresh=load;
   window.freshWayCustomerCatalogueGoHome=()=>{const state=window.history.state;if(state?.__freshwayCustomer&&state.category)window.history.replaceState({...state,category:null},'',window.location.href);setMode(null,{history:'none'})};
   window.addEventListener('popstate',event=>{if(event.state?.__freshwayCustomer&&event.state.view==='home')setMode(event.state.category||null,{history:'none'})});
