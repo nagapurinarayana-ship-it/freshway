@@ -7,6 +7,9 @@ on:
       - '.github/workflows/production-customer-playwright.yml'
       - 'e2e/playwright.production.config.js'
       - 'e2e/production/**'
+      - 'app.js'
+      - 'frontend/customer/delivery-booking.js'
+      - 'frontend/customer/delivery-offers.js'
   workflow_dispatch:
 
 permissions:
