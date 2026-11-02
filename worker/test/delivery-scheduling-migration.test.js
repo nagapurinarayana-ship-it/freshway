@@ -9,6 +9,7 @@ const migration38 = read('../migrations/0038_anonymize_delivery_requests.sql');
 const migration39 = read('../migrations/0039_customer_preferred_delivery_date.sql');
 const migration40 = read('../migrations/0040_order_delivered_at.sql');
 const migration46 = read('../migrations/0046_store_first_fulfilment.sql');
+const migration47 = read('../migrations/0047_store_inventory_reservation_floor.sql');
 const productionSchemaAudit = read('../scripts/audit-production-schema.mjs');
 
 function legacyDatabase() {
@@ -60,6 +61,7 @@ test('0037 then 0038 migrate a legacy D1-like database without losing requests o
     db.exec(migration39);
     db.exec(migration40);
     db.exec(migration46);
+    db.exec(migration47);
     assert.ok(db.prepare('PRAGMA table_info(order_action_requests)').all().some(column => column.name === 'requested_delivery_date'), '0039 must add the customer preferred delivery date');
     assert.ok(db.prepare('PRAGMA table_info(orders)').all().some(column => column.name === 'delivered_at'), '0040 must add the actual delivery timestamp');
     const rebuiltRequest = db.prepare("SELECT * FROM order_action_requests WHERE id='request-1'").get();
@@ -93,6 +95,12 @@ test('0037 then 0038 migrate a legacy D1-like database without losing requests o
     );
     assert.equal(db.prepare("SELECT SUM(qty) qty FROM delivery_store_inventory_reservations WHERE store_id='store-1' AND product_id='product-1' AND status IN ('reserved','conflict')").get().qty,2,
       'a failed second reservation must not oversell store stock');
+    assert.throws(
+      () => db.prepare("UPDATE delivery_store_inventory SET stock_quantity=1 WHERE store_id='store-1' AND product_id='product-1'").run(),
+      /DELIVERY_STORE_STOCK_RESERVED/
+    );
+    assert.equal(db.prepare("SELECT stock_quantity FROM delivery_store_inventory WHERE store_id='store-1' AND product_id='product-1'").get().stock_quantity,3,
+      'a rejected stock reduction must not change the on-hand quantity');
     db.prepare("UPDATE delivery_stores SET is_active=0 WHERE id='store-1'").run();
     assert.equal(db.prepare("SELECT assigned_store_id FROM orders WHERE id='order-1'").get().assigned_store_id,'store-1','deactivation must not move existing orders');
     assert.equal(db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE id='existing-res'").get().status,'reserved','deactivation must preserve existing reservations');
@@ -106,7 +114,7 @@ test('0037 then 0038 migrate a legacy D1-like database without losing requests o
       () => db.prepare("INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status) VALUES ('closed-res','order-2','store-1','product-1',1,'reserved')").run(),
       /DELIVERY_ORDER_CLOSED/
     );
-    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='trigger' AND name IN ('delivery_slot_capacity_before_insert','delivery_slot_capacity_before_update','delivery_store_stock_before_insert','delivery_store_stock_before_update','delivery_order_store_active_before_insert','delivery_order_store_active_before_update','delivery_store_active_before_insert','delivery_store_active_before_update','delivery_order_store_open_before_update','delivery_store_reservation_order_open_before_insert')").get().count, 10);
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='trigger' AND name IN ('delivery_slot_capacity_before_insert','delivery_slot_capacity_before_update','delivery_store_stock_before_insert','delivery_store_stock_before_update','delivery_order_store_active_before_insert','delivery_order_store_active_before_update','delivery_store_active_before_insert','delivery_store_active_before_update','delivery_order_store_open_before_update','delivery_store_reservation_order_open_before_insert','delivery_store_inventory_stock_floor_before_update')").get().count, 11);
   } finally {
     db.close();
   }
@@ -147,11 +155,12 @@ test('production schema audit requires the delivery scheduling schema, migration
   ]) assert.ok(productionSchemaAudit.includes("'" + column + "'"), 'production audit must verify orders.' + column);
   for (const migration of [
     '0037_order_delivery_scheduling.sql','0038_anonymize_delivery_requests.sql','0039_customer_preferred_delivery_date.sql','0040_order_delivered_at.sql',
-    '0046_store_first_fulfilment.sql'
+    '0046_store_first_fulfilment.sql','0047_store_inventory_reservation_floor.sql'
   ]) assert.ok(productionSchemaAudit.includes(migration), 'production audit must require ' + migration);
   for (const trigger of [
     'delivery_slot_capacity_before_insert','delivery_slot_capacity_before_update',
     'delivery_store_stock_before_insert','delivery_store_stock_before_update',
+    'delivery_store_inventory_stock_floor_before_update',
     'delivery_order_store_active_before_insert','delivery_order_store_active_before_update',
     'delivery_store_active_before_insert','delivery_store_active_before_update'
   ]) assert.ok(productionSchemaAudit.includes(trigger), 'production audit must require ' + trigger);
