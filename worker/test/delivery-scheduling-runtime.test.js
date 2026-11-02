@@ -22,8 +22,8 @@ class SQLiteD1 {
     this.db.exec(`
       INSERT INTO customers (id,name,phone) VALUES ('customer-1','Test Customer','911234567890');
       INSERT INTO addresses (customer_id,house,area,city,pincode,latitude,longitude) VALUES ('customer-1','1-1','Test Area','Test City','500001',17.385,78.4867);
-      INSERT INTO products (id,name,unit,price,stock_managed,stock_quantity,low_stock_threshold)
-        VALUES ('product-1','Test Rice','kg',100,1,3,1);
+      INSERT INTO products (id,name,unit,price,category_id,stock_managed,stock_quantity,low_stock_threshold)
+        VALUES ('product-1','Test Rice','kg',100,'cat-rice',1,3,1);
       INSERT INTO delivery_stores (id,name,address,latitude,longitude,service_radius_km,is_active)
         VALUES ('store-1','Test Store','Test Address',17.385,78.4867,10,1);
       INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity)
@@ -134,7 +134,7 @@ test('availability falls back to the next-nearest store that can fulfil the enti
     assert.equal(result.available,true);
     assert.equal(result.store.id,'store-1','nearest store without enough stock must be skipped');
 
-    db.db.prepare("INSERT INTO products (id,name,unit,price,stock_managed,stock_quantity,low_stock_threshold) VALUES ('product-2','Test Oil','litre',150,1,5,1)").run();
+    db.db.prepare("INSERT INTO products (id,name,unit,price,category_id,stock_managed,stock_quantity,low_stock_threshold) VALUES ('product-2','Test Oil','litre',150,'cat-oils',1,5,1)").run();
     db.db.prepare("INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) VALUES ('store-near','product-2',5)").run();
     await db.prepare("INSERT OR IGNORE INTO delivery_store_inventory (store_id,product_id,stock_quantity) SELECT s.id,p.id,0 FROM delivery_stores s CROSS JOIN products p WHERE p.stock_managed=1").run();
     response=await handleCustomerDeliveryRequest(new Request('https://api.example.test/api/delivery/availability',{
