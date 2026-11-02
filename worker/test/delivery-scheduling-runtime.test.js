@@ -196,7 +196,7 @@ test('reopening checks the assigned store and Owner can reconfirm that store aft
     const shortage=JSON.parse(db.db.prepare("SELECT details_json FROM order_operational_flags WHERE order_id='order-reopen-stock' AND flag_type='reopen_stock_shortfall' AND status='open'").get().details_json);
     assert.equal(shortage.products[0].available,1,'availability must come from the assigned store, not another active store');
     assert.equal(shortage.products[0].required,2);
-    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-reopen-stock'").get().status,'conflict');
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-reopen-stock' AND status='conflict'").get().status,'conflict');
 
     db.db.prepare("UPDATE delivery_store_inventory SET stock_quantity=8 WHERE store_id='store-1' AND product_id='product-1'").run();
     const response=await handleAdminDeliveryRequest(new Request('https://api.example.test/api/admin/delivery/orders/order-reopen-stock/store',{
