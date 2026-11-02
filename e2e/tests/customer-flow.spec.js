@@ -388,7 +388,7 @@ test('checkout button shows the final payable total, not the item subtotal', asy
   // Reproduce the reported production example: ₹799 subtotal, ₹50 coupon,
   // ₹100 delivery fee means ₹849 payable. Cart-bar refreshes must not replace
   // the checkout button's server-quoted total with the subtotal.
-  await page.route('**/api/products', async route => {
+  await page.route('**/api/products**', async route => {
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -448,7 +448,7 @@ test('checkout button shows the final payable total, not the item subtotal', asy
 test('₹1,850 cart item persists through checkout navigation and page refresh', async ({ page }) => {
   const quotePayloads = [];
   let productRequests = 0;
-  await page.route('**/api/products', async route => {
+  await page.route('**/api/products**', async route => {
     productRequests += 1;
     // Simulate a slow catalogue response on reload so checkout restores before products arrive.
     if (productRequests > 1) await new Promise(resolve => setTimeout(resolve, 600));
@@ -530,7 +530,7 @@ test('₹1,850 cart item persists through checkout navigation and page refresh',
 });
 
 test('checkout refuses a quote for a different cart item instead of showing a mismatched price', async ({ page }) => {
-  await page.route('**/api/products', async route => route.fulfill({
+  await page.route('**/api/products**', async route => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({ products: [{
