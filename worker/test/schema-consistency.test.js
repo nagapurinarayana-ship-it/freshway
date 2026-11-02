@@ -9,6 +9,7 @@ const authVersionMigration = readFileSync(new URL('../migrations/0024_customer_a
 const orderAlertsMigration = readFileSync(new URL('../migrations/0025_order_alerts.sql', import.meta.url), 'utf8');
 const storeCoordinatesMigration = readFileSync(new URL('../migrations/0026_store_profile_shop_coordinates.sql', import.meta.url), 'utf8');
 const savedAddressMigration = readFileSync(new URL('../migrations/0044_reusable_address_visibility.sql', import.meta.url), 'utf8');
+const storeCatalogueMigration = readFileSync(new URL('../migrations/0048_store_catalogue_pricing.sql', import.meta.url), 'utf8');
 
 const ordersTable = schema.match(
   /CREATE TABLE IF NOT EXISTS orders \(([\s\S]*?)\n\);/
@@ -167,4 +168,20 @@ test('production D1 audit covers all Store Profile API fields and deletion/addre
   ]) {
     assert.ok(productionAudit.includes("'" + index + "'"), 'production schema audit must verify ' + index);
   }
+});
+
+
+test('store catalogue visibility and price override are present in the fresh schema and additive migration', () => {
+  const table = schema.split('CREATE TABLE IF NOT EXISTS delivery_store_catalogue (')[1]?.split('\n);')[0];
+  assert.ok(table, 'schema.sql must define delivery_store_catalogue');
+  for (const column of [
+    'store_id TEXT NOT NULL',
+    'product_id TEXT NOT NULL',
+    'is_available INTEGER NOT NULL DEFAULT 1',
+    'price_override INTEGER'
+  ]) assert.ok(table.includes(column), 'store catalogue must include ' + column);
+  assert.match(schema,/idx_delivery_store_catalogue_visible/);
+  assert.match(storeCatalogueMigration,/CREATE TABLE IF NOT EXISTS delivery_store_catalogue/);
+  assert.match(storeCatalogueMigration,/INSERT OR IGNORE INTO delivery_store_catalogue/);
+  assert.match(storeCatalogueMigration,/price_override INTEGER CHECK\(price_override IS NULL OR price_override >= 0\)/);
 });

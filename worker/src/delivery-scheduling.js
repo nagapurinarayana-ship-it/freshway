@@ -153,6 +153,7 @@ async function resolveAvailableSlots(env, payload, requestedDate = '', excludeOr
   const items = await cleanItems(env, payload.items);
   if (!items.length) return { enabled: true, settings, slots: [], message: 'Add products to your cart to check delivery availability.' };
   const activeStores = (await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores WHERE is_active=1').first())?.count || 0;
+  await ensureStoreCatalogueRows(env);
   const stock = await inventoryMap(env, excludeOrderId);
   const rows = await slotRows(env, dateFrom, dateTo);
   const eligible = [];
@@ -161,6 +162,7 @@ async function resolveAvailableSlots(env, payload, requestedDate = '', excludeOr
     const distance = distanceFor(payload.address || {}, slot, Number(activeStores));
     if (distance === Infinity) continue;
     if (Number(slot.occupied) >= Number(slot.capacity)) continue;
+    if (!await catalogueFits(env,slot.store_id,items)) continue;
     if (!inventoryFits(slot.store_id, items, stock)) continue;
     eligible.push({ ...slot, distance_km: distance });
   }
