@@ -21,7 +21,16 @@ const document={querySelector:selector=>elements[selector]||null};
 const state={cart:{apple:1},orders:[],profile:{}};
 const calls=[];
 let clearedDeliveryDate=0;
-sandbox.window.FreshWayCustomerDeliveryBookingInstance={clearCheckoutDate(){clearedDeliveryDate++}};
+let selectedStoreId='store-a';
+sandbox.window.FreshWayCustomerStoreCatalogue={
+  selectedStoreId:()=>selectedStoreId,
+  switchToStore:async store=>{selectedStoreId=String(store.id);return{ok:true,store};}
+};
+sandbox.window.FreshWayCustomerDeliveryBookingInstance={
+  clearCheckoutDate(){clearedDeliveryDate++},
+  checkAvailability:async()=>({status:'available',store:{id:selectedStoreId,name:'Store A'}}),
+  checkoutEnabled:()=>false
+};
 const deps={
   document,
   cartItems:()=>[{product:{id:'apple'},qty:1,lineTotal:120}],
@@ -65,6 +74,8 @@ assert.equal(listeners[0][0],'submit');
   assert.equal(clearedDeliveryDate,1,'successful order placement clears the saved delivery date');
   assert.ok(calls.some(x=>Array.isArray(x)&&x[0]==='auth'&&x[1]==='9876543210'),'checkout must pass the normalized selected delivery phone to authentication');
   assert.ok(calls.some(x=>Array.isArray(x)&&x[0]==='api'&&x[1]==='/api/orders'));
+  const placedPayload=calls.find(x=>Array.isArray(x)&&x[0]==='api'&&x[1]==='/api/orders')?.[2];
+  assert.equal(placedPayload?.storeId,'store-a','the selected store must be sent with the order');
   assert.ok(calls.some(x=>Array.isArray(x)&&x[0]==='notify'));
   assert.ok(calls.some(x=>Array.isArray(x)&&x[0]==='confirmation'&&x[1]==='order-1'));
   assert.ok(calls.includes('products'));
