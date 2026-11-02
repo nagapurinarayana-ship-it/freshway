@@ -418,9 +418,11 @@ async function moveOrderSchedule(env, order, target, actorType, actorId, options
     if (/DELIVERY_SLOT_FULL|DELIVERY_SLOT_CLOSED/i.test(String(error?.message || ''))) {
       throw new Error('ORDER_CONFLICT: That delivery window was just filled. Refresh and choose another slot.');
     }
+    if (/DELIVERY_STORE_INACTIVE/i.test(String(error?.message || ''))) throw new Error('ORDER_CONFLICT: Choose an active store before assigning this order.');
     if (/DELIVERY_STORE_STOCK_LOW/i.test(String(error?.message || ''))) throw new Error('ORDER_CONFLICT: That store no longer has enough stock for this order.');
     throw error;
   }
+  if (changingStore) await refreshProductAvailability(env);
   const after = await getOrderForAction(env, order.id);
   await notifyCustomerAndOwner(env, order.id, {
     customer_id: order.customer_id, delivery_status: order.delivery_status, payment_status: order.payment_status,
@@ -806,6 +808,7 @@ export async function handleAdminDeliveryRequest(request, env) {
       }
       dateStatements.push(env.DB.prepare("UPDATE orders SET scheduled_delivery_date=?,scheduled_slot_id=NULL,assigned_store_id=NULL,scheduled_start_minute=NULL,scheduled_end_minute=NULL,schedule_status='confirmed',delivery_plan=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(date,plan,row.order_id));
       await env.DB.batch(dateStatements);
+      await refreshProductAvailability(env);
       await writeAudit(env,row.order_id,'owner','owner','delivery_date_change_approved',note,order,{date});
       await notifyCustomerAndOwner(env,row.order_id,{customer_id:order.customer_id,delivery_status:order.delivery_status,payment_status:order.payment_status,delivery_plan:order.delivery_plan,is_test_order:order.is_test_order},'delivery_date_changed','Delivery date updated to '+date);
     } else if (decision === 'approve' && row.request_type === 'reschedule') {
