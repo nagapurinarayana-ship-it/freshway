@@ -86,6 +86,13 @@ test('0037 then 0038 migrate a legacy D1-like database without losing requests o
       /DELIVERY_STORE_INACTIVE/
     );
     db.prepare("UPDATE orders SET assigned_store_id='store-1' WHERE id='order-1'").run();
+    db.prepare("INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status) VALUES ('stock-res-1','order-1','store-1','product-1',2,'reserved')").run();
+    assert.throws(
+      () => db.prepare("INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status) VALUES ('stock-res-over','order-2','store-1','product-1',2,'reserved')").run(),
+      /DELIVERY_STORE_STOCK_LOW/
+    );
+    assert.equal(db.prepare("SELECT SUM(qty) qty FROM delivery_store_inventory_reservations WHERE store_id='store-1' AND product_id='product-1' AND status IN ('reserved','conflict')").get().qty,2,
+      'a failed second reservation must not oversell store stock');
     db.prepare("INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status) VALUES ('existing-res','order-1','store-1','product-1',1,'reserved')").run();
     db.prepare("UPDATE delivery_stores SET is_active=0 WHERE id='store-1'").run();
     assert.equal(db.prepare("SELECT assigned_store_id FROM orders WHERE id='order-1'").get().assigned_store_id,'store-1','deactivation must not move existing orders');
