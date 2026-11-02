@@ -90,6 +90,7 @@ test('0037 then 0038 migrate a legacy D1-like database without losing requests o
     db.prepare("UPDATE delivery_stores SET is_active=0 WHERE id='store-1'").run();
     assert.equal(db.prepare("SELECT assigned_store_id FROM orders WHERE id='order-1'").get().assigned_store_id,'store-1','deactivation must not move existing orders');
     assert.equal(db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE id='existing-res'").get().status,'reserved','deactivation must preserve existing reservations');
+    db.prepare("UPDATE delivery_stores SET is_active=1 WHERE id='store-1'").run();
     db.prepare("UPDATE orders SET delivery_status='Delivered' WHERE id='order-2'").run();
     assert.throws(
       () => db.prepare("UPDATE orders SET assigned_store_id='store-1' WHERE id='order-2'").run(),
