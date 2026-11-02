@@ -106,6 +106,9 @@ test('customer availability requires a map pin, respects active-store radius and
     const missingPin=await check({...basket,address:{city:'Test City',pincode:'500001'}});
     assert.equal(missingPin.available,false);
     assert.equal(missingPin.code,'LOCATION_REQUIRED');
+    const partialPin=await check({...basket,address:{latitude:null,longitude:78.4867}});
+    assert.equal(partialPin.available,false);
+    assert.equal(partialPin.code,'LOCATION_REQUIRED');
 
     const outside=await check({...basket,address:{latitude:18.5,longitude:79.5}});
     assert.equal(outside.available,false);
