@@ -35,7 +35,8 @@
         state.availability={
           status:result?.available===true?'available':'unavailable',
           message:String(result?.message||(result?.available===true?'Good news! We deliver to your area.':'Delivery is not available for this address.')),
-          code:String(result?.code||'')
+          code:String(result?.code||''),
+          store:result?.store||null
         };
       }catch(error){
         if(state.destroyed||sequence!==state.availabilityRequest)return null;

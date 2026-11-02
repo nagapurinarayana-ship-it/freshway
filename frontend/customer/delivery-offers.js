@@ -26,7 +26,7 @@
     if (!request) throw new Error('Pricing service is unavailable. Refresh and try again.');
     const result = await request('/api/checkout/quote', {
       method: 'POST',
-      body: JSON.stringify({ items: itemsForQuote(items), couponCode: code || '' })
+      body: JSON.stringify({ items: itemsForQuote(items), couponCode: code || '', storeId: window.FreshWayCustomerStoreCatalogue?.selectedStoreId?.() || '' })
     });
     if (!result?.pricing) throw new Error('Could not calculate your order total.');
     const pricing = result.pricing;

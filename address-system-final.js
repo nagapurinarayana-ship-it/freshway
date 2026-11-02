@@ -184,8 +184,17 @@
     } catch (_) {}
   }
 
+  let lastStoreAddressSignature = null;
   function renderDisplays() {
     const preferred = activeAddress || defaultAddress();
+    const signature = preferred ? JSON.stringify([
+      preferred.id ?? null,preferred.latitude ?? null,preferred.longitude ?? null,
+      preferred.houseFlat || preferred.house || '',preferred.area || '',preferred.city || '',preferred.pincode || ''
+    ]) : '';
+    if (signature !== lastStoreAddressSignature) {
+      lastStoreAddressSignature = signature;
+      window.dispatchEvent(new CustomEvent('freshway:address-changed',{detail:{address:preferred||null}}));
+    }
     const home = $('#homeAddress');
     const profile = $('#profileAddressText');
     if (home) home.textContent = preferred ? (iconFor(preferred.label) + ' ' + (shortAddress(preferred) || preferred.label)) : 'Add your delivery address';
