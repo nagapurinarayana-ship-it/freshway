@@ -38,6 +38,20 @@ test('production availability refuses to guess when the customer has no confirme
   expect(result.code).toBe('LOCATION_REQUIRED');
 });
 
+const outsideLatitude=Number(process.env.FRESHWAY_TEST_OUTSIDE_LATITUDE);
+const outsideLongitude=Number(process.env.FRESHWAY_TEST_OUTSIDE_LONGITUDE);
+
+test('production availability rejects a valid pin outside every active store radius', async ({ request }) => {
+  expect(Number.isFinite(outsideLatitude)&&Number.isFinite(outsideLongitude)).toBe(true);
+  const response=await request.post('/api/delivery/availability',{
+    data:{address:{latitude:outsideLatitude,longitude:outsideLongitude},items:[{id:productId,qty:1}]}
+  });
+  expect(response.status()).toBe(200);
+  const result=await response.json();
+  expect(result.available).toBe(false);
+  expect(result.code).toBe('AREA_UNAVAILABLE');
+});
+
 
 test('production checkout quote uses the real catalogue price and returns the selected cart lines', async ({ request }) => {
   const response=await request.post('/api/checkout/quote',{
@@ -100,9 +114,16 @@ test('real customer app browses live products and preserves cart without creatin
   await expect(page.locator('#cartCount')).not.toHaveText('0 items');
   await page.locator('#viewCartBtn').click();
   await expect(page.locator('#checkoutBtn')).toBeVisible();
+  const availabilityResponse=page.waitForResponse(response=>
+    new URL(response.url()).pathname==='/api/delivery/availability'&&response.request().method()==='POST'
+  );
   await page.locator('#checkoutBtn').click();
   await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
   await expect(page.locator('#fwCheckoutPricing')).toContainText('₹');
+  const availability=await (await availabilityResponse).json();
+  expect(availability.available).toBe(false);
+  expect(availability.code).toBe('LOCATION_REQUIRED');
+  await expect(page.locator('[data-fw-delivery-availability]')).toContainText('confirm your delivery location');
 
   await page.setViewportSize({width:390,height:844});
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth);
