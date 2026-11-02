@@ -1,3 +1,5 @@
+import { getStoreProductRows } from './store-catalogue.js';
+
 // Delivery rules and fixed-amount coupon management.
 // All monetary values follow the existing FreshWay convention: whole rupees in D1.
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
@@ -134,7 +136,7 @@ export async function calculateOrderPricing(env, { items, customerId = '', coupo
     settings
   };
 }
-async function readQuoteItems(env, rawItems) {
+async function readQuoteItems(env, rawItems, storeId = '') {
   if (!Array.isArray(rawItems) || !rawItems.length || rawItems.length > 100) throw new Error('Your cart is empty or invalid.');
   const quantities = new Map();
   for (const item of rawItems) {
@@ -144,6 +146,7 @@ async function readQuoteItems(env, rawItems) {
     if (totalQty > 99) throw new Error('Maximum quantity for a product is 99.');
     quantities.set(id, totalQty);
   }
+  if (storeId) return getStoreProductRows(env, storeId, quantities);
   const ids = [...quantities.keys()];
   const placeholders = ids.map(() => '?').join(',');
   const rows = (await env.DB.prepare(
@@ -214,12 +217,13 @@ export async function handleCustomerDeliveryOffersRequest(request, env, customer
     }
     if (url.pathname === '/api/checkout/quote' && request.method === 'POST') {
       const payload = await request.json().catch(() => ({}));
-      const items = await readQuoteItems(env, payload.items);
+      const storeId = clean(payload.storeId,100);
+      const items = await readQuoteItems(env, payload.items, storeId);
       const pricing = await calculateOrderPricing(env, {
         items, customerId: customerId || '', couponCode: payload.couponCode || '', forOrder: false
       });
       const { settings, coupon, couponId, firstOrderOnly, ...publicPricing } = pricing;
-      return json({ pricing: { ...publicPricing, coupon, items: items.map(item => ({ id:item.id,name:item.name,unit:item.unit,qty:item.qty,price:item.price,lineTotal:item.lineTotal })) } });
+      return json({ pricing: { ...publicPricing, storeId:storeId||null, coupon, items: items.map(item => ({ id:item.id,name:item.name,unit:item.unit,qty:item.qty,price:item.price,lineTotal:item.lineTotal })) } });
     }
     return null;
   } catch (error) {

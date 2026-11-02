@@ -1,6 +1,7 @@
 import { updateOrder } from './admin-orders.js';
 import { buildOrderChangeAlerts } from './admin-notifications.js';
 import { dispatchOrderAlert } from './order-alerts.js';
+import { ensureStoreCatalogueRows, getStoreCatalogueRows, saveStoreCatalogue } from './store-catalogue.js';
 
 const enc = value => JSON.stringify(value ?? null);
 const clean = value => String(value ?? '').trim();
@@ -8,7 +9,7 @@ const response = (data, status = 200) => new Response(JSON.stringify(data), {
   status,
   headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'private, no-store' }
 });
-const deliverySchemaMissing = error => /no such table:\s*(?:delivery_scheduling_settings|delivery_stores|delivery_store_inventory|delivery_slots|delivery_slot_reservations|delivery_store_inventory_reservations|order_action_requests|order_audit_events|order_operational_flags)\b/i.test(String(error?.message || error || ''));
+const deliverySchemaMissing = error => /no such table:\s*(?:delivery_scheduling_settings|delivery_stores|delivery_store_inventory|delivery_store_catalogue|delivery_slots|delivery_slot_reservations|delivery_store_inventory_reservations|order_action_requests|order_audit_events|order_operational_flags)\b/i.test(String(error?.message || error || ''));
 const id = prefix => prefix + '-' + crypto.randomUUID();
 const int = (value, fallback = 0) => {
   const n = Number(value);
@@ -181,20 +182,60 @@ async function resolveAvailableSlots(env, payload, requestedDate = '', excludeOr
     }))
   };
 }
+async function catalogueFits(env, storeId, items) {
+  const ids = items.map(item => String(item.id ?? item.product_id));
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = (await env.DB.prepare(
+    'SELECT sc.product_id,sc.is_available,p.active,c.active category_active ' +
+    'FROM delivery_store_catalogue sc JOIN products p ON p.id=sc.product_id ' +
+    'LEFT JOIN categories c ON c.id=p.category_id WHERE sc.store_id=? AND sc.product_id IN (' + placeholders + ')'
+  ).bind(storeId, ...ids).all()).results || [];
+  const byId = new Map(rows.map(row => [String(row.product_id), row]));
+  return items.every(item => {
+    const row = byId.get(String(item.id ?? item.product_id));
+    return !!row && Number(row.is_available) === 1 && Number(row.active) === 1 && Number(row.category_active) === 1;
+  });
+}
+
+async function resolveStoreForAddress(env, address = {}) {
+  const stores = (await env.DB.prepare(
+    'SELECT id,name,latitude,longitude,service_radius_km FROM delivery_stores WHERE is_active=1'
+  ).all()).results || [];
+  if (!stores.length) return { available:false, code:'NO_ACTIVE_STORE', message:'We are not taking delivery orders in your area right now.' };
+  if (!hasCoordinates(address)) return { available:false, code:'LOCATION_REQUIRED', message:'Please confirm your delivery location on the map to see products available near you.' };
+  const nearby = stores.map(store => ({...store,distance_km:distanceFor(address,store)}))
+    .filter(store => store.distance_km !== Infinity)
+    .sort((a,b) => a.distance_km-b.distance_km || String(a.name).localeCompare(String(b.name)));
+  if (!nearby.length) return { available:false, code:'AREA_UNAVAILABLE', message:'Sorry, we do not deliver to this address yet.' };
+  const selected = nearby[0];
+  await ensureStoreCatalogueRows(env, selected.id);
+  return { available:true, code:'AVAILABLE', message:'FreshWay delivers to your area from ' + selected.name + '.', store:{id:selected.id,name:selected.name,distanceKm:Math.round(selected.distance_km*10)/10} };
+}
+
 async function resolveStoreAvailability(env,payload={}) {
   const items=await cleanItems(env,payload.items);
   if(!items.length)return {available:false,code:'EMPTY_BASKET',message:'Add products to your cart to check delivery availability.'};
   const stores=(await env.DB.prepare('SELECT id,name,latitude,longitude,service_radius_km FROM delivery_stores WHERE is_active=1').all()).results||[];
   if(!stores.length)return {available:false,code:'NO_ACTIVE_STORE',message:'We are not taking delivery orders in your area right now.'};
   if(!hasCoordinates(payload.address||{}))return {available:false,code:'LOCATION_REQUIRED',message:'Please confirm your delivery location on the map to check delivery.'};
-  const nearby=stores.map(store=>({...store,distance_km:distanceFor(payload.address||{},store)})).filter(s=>s.distance_km!==Infinity);
+  let nearby=stores.map(store=>({...store,distance_km:distanceFor(payload.address||{},store)})).filter(s=>s.distance_km!==Infinity);
   if(!nearby.length)return {available:false,code:'AREA_UNAVAILABLE',message:'Sorry, we do not deliver to this address yet.'};
+  if(payload.storeId){
+    nearby=nearby.filter(store=>String(store.id)===String(payload.storeId));
+    if(!nearby.length)return {available:false,code:'STORE_CHANGED',message:'Your selected delivery store is no longer available for this address. Refresh the catalogue and review your cart.'};
+  }
+  await ensureStoreCatalogueRows(env);
   await ensureStoreInventoryRows(env);
   const stock=await inventoryMap(env);
   nearby.sort((a,b)=>a.distance_km-b.distance_km||String(a.name).localeCompare(String(b.name)));
-  const selected=nearby.find(s=>inventoryFits(s.id,items,stock));
-  if(!selected)return {available:false,code:'OUT_OF_STOCK',message:'Some items in your basket are not available from nearby stores. Please adjust your cart or try again.'};
-  return {available:true,code:'AVAILABLE',message:'Good news! We deliver to your area.',store:{id:selected.id,name:selected.name,distanceKm:Math.round(selected.distance_km*10)/10}};
+  let selected=null;
+  for(const candidate of nearby){
+    if(!await catalogueFits(env,candidate.id,items))continue;
+    if(!inventoryFits(candidate.id,items,stock))continue;
+    selected=candidate;break;
+  }
+  if(!selected)return {available:false,code:'OUT_OF_STOCK',message:payload.storeId?'The selected store can no longer fulfil every item in your basket. Review your cart or refresh the delivery location.':'Some items in your basket are not available from nearby stores. Please adjust your cart or try again.'};
+  return {available:true,code:'AVAILABLE',message:'Good news! We deliver to your area from '+selected.name+'.',store:{id:selected.id,name:selected.name,distanceKm:Math.round(selected.distance_km*10)/10}};
 }
 export async function prepareCheckoutDelivery(env,payload,items) {
   const raw=clean(payload.preferredDeliveryDate||payload.deliveryDate||payload.scheduledDeliveryDate);
@@ -202,7 +243,7 @@ export async function prepareCheckoutDelivery(env,payload,items) {
   if(!dateValid(raw))throw new Error('Choose a valid preferred delivery date.');
   const now=istNowParts();
   if(raw<now.date||raw>addDays(now.date,60))throw new Error('Choose a delivery date between today and the next 60 days.');
-  const availability=await resolveStoreAvailability(env,{address:payload.address||{},items});
+  const availability=await resolveStoreAvailability(env,{address:payload.address||{},items,storeId:payload.storeId||''});
   if(!availability.available)throw new Error(availability.message);
   return {date:raw,deliveryPlan:raw===now.date?'Today':raw===addDays(now.date,1)?'Tomorrow':'Later',status:'requested',storeId:availability.store.id,storeName:availability.store.name,distanceKm:availability.store.distanceKm};
 }
@@ -474,6 +515,14 @@ async function customerAction(request, env, customerId, orderId, action) {
 
 export async function handleCustomerDeliveryRequest(request, env, customerId) {
   const url = new URL(request.url);
+  if(url.pathname==='/api/delivery/store'&&request.method==='POST'){
+    let body={};try{body=await request.json();}catch(_){}
+    try{return response(await resolveStoreForAddress(env,body.address||{}));}
+    catch(error){
+      if(deliverySchemaMissing(error))return response({available:false,code:'DELIVERY_SCHEMA_UNAVAILABLE',message:'Store availability is temporarily unavailable. Please try again later.'},503);
+      return response({available:false,code:'DELIVERY_AVAILABILITY_ERROR',message:'We could not find a store for this address. Please try again.'},503);
+    }
+  }
   if(url.pathname==='/api/delivery/availability'&&request.method==='POST'){
     let body={};try{body=await request.json();}catch(_){}
     try{return response(await resolveStoreAvailability(env,body));}
@@ -564,7 +613,8 @@ export async function handleAdminDeliveryRequest(request, env) {
     const inventorySeed=existingStores===0?'copied-current-available-stock':'zero-stock-requires-setup';
     const statements=[
       env.DB.prepare('INSERT INTO delivery_stores (id,name,address,latitude,longitude,service_radius_km,is_active) VALUES (?,?,?,?,?,?,0)').bind(storeId,name,address,latitude,longitude,radius),
-      env.DB.prepare(existingStores===0?'INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) SELECT ?,id,stock_quantity FROM products WHERE stock_managed=1':'INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) SELECT ?,id,0 FROM products WHERE stock_managed=1').bind(storeId)
+      env.DB.prepare(existingStores===0?'INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) SELECT ?,id,stock_quantity FROM products WHERE stock_managed=1':'INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) SELECT ?,id,0 FROM products WHERE stock_managed=1').bind(storeId),
+      env.DB.prepare('INSERT INTO delivery_store_catalogue (store_id,product_id,is_available,price_override) SELECT ?,id,1,NULL FROM products').bind(storeId)
     ];
     await env.DB.batch(statements);
     await refreshProductAvailability(env);
@@ -590,6 +640,30 @@ export async function handleAdminDeliveryRequest(request, env) {
     await refreshProductAvailability(env);
     const pendingOrderCount=Number((await env.DB.prepare("SELECT COUNT(*) count FROM orders WHERE assigned_store_id=? AND delivery_status NOT IN ('Delivered','Cancelled')").bind(storeId).first())?.count||0);
     return response({ok:true,store:{...current,name,address,latitude,longitude,service_radius_km:radius,is_active:active,pending_order_count:pendingOrderCount},pendingOrderCount});
+  }
+  const catalogueMatch = path.match(new RegExp('^/api/admin/delivery/stores/([^/]+)/catalogue$'));
+  if (catalogueMatch && request.method === 'GET') {
+    const storeId = decodeURIComponent(catalogueMatch[1]);
+    const items = await getStoreCatalogueRows(env, storeId);
+    return response({items:items.map(row=>({
+      id:row.id,name:row.name,unit:row.unit,centralPrice:Number(row.central_price),
+      priceOverride:row.price_override==null?null:Number(row.price_override),
+      storePrice:Number(row.effective_price),isAvailable:Number(row.is_available)===1,
+      stockManaged:Number(row.stock_managed)===1,onHand:Number(row.on_hand||0),reservedQty:Number(row.reserved_qty||0),
+      categoryName:row.category_name||''
+    }))});
+  }
+  if (catalogueMatch && request.method === 'PATCH') {
+    let body = {}; try { body = await request.json(); } catch (_) {}
+    const storeId = decodeURIComponent(catalogueMatch[1]);
+    const items = await saveStoreCatalogue(env, storeId, body.items);
+    return response({ok:true,items:items.map(row=>({
+      id:row.id,name:row.name,unit:row.unit,centralPrice:Number(row.central_price),
+      priceOverride:row.price_override==null?null:Number(row.price_override),
+      storePrice:Number(row.effective_price),isAvailable:Number(row.is_available)===1,
+      stockManaged:Number(row.stock_managed)===1,onHand:Number(row.on_hand||0),reservedQty:Number(row.reserved_qty||0),
+      categoryName:row.category_name||''
+    }))});
   }
   const inventoryMatch = path.match(new RegExp('^/api/admin/delivery/stores/([^/]+)/inventory$'));
   if (inventoryMatch && request.method === 'GET') {
