@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/production-customer-playwright.yml'
+      - 'app.js'
+      - 'index.html'
+      - 'frontend/customer/**'
       - 'e2e/playwright.production.config.js'
       - 'e2e/production/**'
       - 'app.js'
