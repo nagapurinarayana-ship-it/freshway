@@ -49,29 +49,90 @@ jobs:
             echo "::error::Production D1 read credentials are missing. No production data was changed."
             exit 1
           fi
-          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "WITH reserved AS (SELECT store_id,product_id,SUM(qty) qty FROM delivery_store_inventory_reservations WHERE status IN ('reserved','conflict') GROUP BY store_id,product_id), eligible AS (SELECT s.id store_id,s.name store_name,s.latitude,s.longitude,p.id product_id,p.category_id,MAX(0,i.stock_quantity-COALESCE(r.qty,0)) available_qty FROM delivery_stores s JOIN delivery_store_inventory i ON i.store_id=s.id JOIN products p ON p.id=i.product_id AND p.active=1 AND p.stock_managed=1 JOIN categories c ON c.id=p.category_id AND c.active=1 LEFT JOIN reserved r ON r.store_id=s.id AND r.product_id=p.id WHERE s.is_active=1 AND s.latitude IS NOT NULL AND s.longitude IS NOT NULL AND NOT (s.latitude=0 AND s.longitude=0)), unique_products AS (SELECT product_id FROM eligible WHERE available_qty>0 GROUP BY product_id HAVING COUNT(*)=1) SELECT e.store_id,e.latitude,e.longitude,e.product_id,e.category_id FROM eligible e JOIN unique_products u ON u.product_id=e.product_id WHERE e.available_qty>0 ORDER BY e.store_name,e.product_id LIMIT 1" --json > "$RUNNER_TEMP/freshway-store-fixture.json"
+          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "WITH reserved AS (SELECT store_id,product_id,SUM(qty) qty FROM delivery_store_inventory_reservations WHERE status IN ('reserved','conflict') GROUP BY store_id,product_id) SELECT s.id store_id,s.name store_name,s.latitude,s.longitude,s.service_radius_km,s.is_active store_active,p.id product_id,p.category_id,p.active product_active,c.active category_active,i.store_id inventory_store_id,MAX(0,COALESCE(i.stock_quantity,0)-COALESCE(r.qty,0)) available_qty FROM delivery_stores s JOIN products p ON p.stock_managed=1 LEFT JOIN categories c ON c.id=p.category_id LEFT JOIN delivery_store_inventory i ON i.store_id=s.id AND i.product_id=p.id LEFT JOIN reserved r ON r.store_id=s.id AND r.product_id=p.id ORDER BY s.name,p.id" --json > "$RUNNER_TEMP/freshway-store-fixture.json"
           node --input-type=module - "$RUNNER_TEMP/freshway-store-fixture.json" "$GITHUB_ENV" <<'NODE'
           import fs from 'node:fs';
           const raw=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
           const batches=Array.isArray(raw)?raw:[raw];
           const rows=batches.flatMap(x=>Array.isArray(x?.results)?x.results:[]);
-          const row=rows[0];
-          if(!row) {
-            console.error('No active store has a live product with unreserved stock and valid map coordinates.');
-            process.exit(1);
-          }
-          const values={
-            FRESHWAY_TEST_STORE_ID:row.store_id,
-            FRESHWAY_TEST_LATITUDE:row.latitude,
-            FRESHWAY_TEST_LONGITUDE:row.longitude,
-            FRESHWAY_TEST_PRODUCT_ID:row.product_id,
-            FRESHWAY_TEST_CATEGORY_ID:row.category_id
+          if(!rows.length) throw new Error('Production D1 returned no store/product inventory rows.');
+          // The availability endpoint backfills missing store/product inventory rows.
+          // Never call it against production unless that matrix is already complete.
+          const missing=rows.filter(row=>!row.inventory_store_id);
+          if(missing.length) throw new Error('Read-only safety stop: '+missing.length+' store/product inventory rows are missing. The production availability endpoint would insert zero-stock rows, so no live availability request was sent.');
+          const numeric=value=>Number(value);
+          const distanceKm=(aLat,aLng,bLat,bLng)=>{
+            const rad=v=>v*Math.PI/180,dLat=rad(bLat-aLat),dLng=rad(bLng-aLng);
+            const x=Math.sin(dLat/2)**2+Math.cos(rad(aLat))*Math.cos(rad(bLat))*Math.sin(dLng/2)**2;
+            return 6371*2*Math.asin(Math.min(1,Math.sqrt(x)));
           };
-          for(const [key,value] of Object.entries(values)) {
-            if(value===undefined||value===null||String(value)==='') throw new Error('Missing production fixture field: '+key);
-            fs.appendFileSync(process.env.GITHUB_ENV,key+'='+String(value).replace(/[\r\n]/g,'')+'\n');
+          const stores=[...new Map(rows.filter(row=>numeric(row.store_active)===1).map(row=>[String(row.store_id),{
+            id:String(row.store_id),name:String(row.store_name),lat:numeric(row.latitude),lng:numeric(row.longitude),radius:numeric(row.service_radius_km)
+          }])).values()].filter(s=>Number.isFinite(s.lat)&&Number.isFinite(s.lng)&&Math.abs(s.lat)<=90&&Math.abs(s.lng)<=180&&Number.isFinite(s.radius)&&s.radius>0);
+          const byProduct=new Map();
+          for(const row of rows){
+            if(numeric(row.product_active)!==1||numeric(row.category_active)!==1) continue;
+            const productId=String(row.product_id);
+            if(!byProduct.has(productId))byProduct.set(productId,[]);
+            byProduct.get(productId).push({...row,productId,available:numeric(row.available_qty)});
           }
-          console.log('Selected one active store and a uniquely stocked live product. Only read-only production data was queried.');
+
+          // Preserve the existing live-store baseline fixture used by the other production tests.
+          const uniqueFixtures=[...byProduct.values()].flatMap(productRows=>{
+            const stocked=productRows.filter(r=>r.available>=1);
+            return stocked.length===1?[stocked[0]]:[];
+          }).sort((a,b)=>String(a.store_name).localeCompare(String(b.store_name))||a.productId.localeCompare(b.productId));
+          const baseline=uniqueFixtures[0];
+          if(!baseline) throw new Error('No active store has a live product with unreserved stock that is unique to that store.');
+
+          // Find a point where the closest active store is out of stock and the next
+          // stock-capable store is the expected fallback. Keep at least 50m radius margin.
+          let fallback=null;
+          for(const [productId,productRows] of byProduct){
+            const stockByStore=new Map(productRows.map(r=>[String(r.store_id),numeric(r.available)]));
+            for(const nearest of stores){
+              if((stockByStore.get(nearest.id)??0)>=1) continue;
+              for(const candidate of stores){
+                if(candidate.id===nearest.id||(stockByStore.get(candidate.id)??0)<1) continue;
+                for(let step=1;step<=19;step++){
+                  const t=step*0.025;
+                  if(t>=0.5) break;
+                  const latitude=nearest.lat+(candidate.lat-nearest.lat)*t;
+                  const longitude=nearest.lng+(candidate.lng-nearest.lng)*t;
+                  const ranked=stores.map(store=>({...store,distance:distanceKm(latitude,longitude,store.lat,store.lng)}))
+                    .filter(store=>store.distance<=store.radius-0.05)
+                    .sort((a,b)=>a.distance-b.distance||a.name.localeCompare(b.name));
+                  const closest=ranked[0];
+                  const stocked=ranked.find(store=>(stockByStore.get(store.id)??0)>=1);
+                  if(closest?.id===nearest.id&&stocked?.id===candidate.id&&closest.distance<stocked.distance){
+                    fallback={latitude,longitude,nearestStoreId:nearest.id,fallbackStoreId:candidate.id,productId};
+                    break;
+                  }
+                }
+                if(fallback)break;
+              }
+              if(fallback)break;
+            }
+            if(fallback)break;
+          }
+
+          const values={
+            FRESHWAY_TEST_STORE_ID:baseline.store_id,
+            FRESHWAY_TEST_LATITUDE:baseline.latitude,
+            FRESHWAY_TEST_LONGITUDE:baseline.longitude,
+            FRESHWAY_TEST_PRODUCT_ID:baseline.product_id,
+            FRESHWAY_TEST_CATEGORY_ID:baseline.category_id,
+            FRESHWAY_TEST_FALLBACK_READY:fallback?'true':'false',
+            FRESHWAY_TEST_FALLBACK_LATITUDE:fallback?.latitude??'',
+            FRESHWAY_TEST_FALLBACK_LONGITUDE:fallback?.longitude??'',
+            FRESHWAY_TEST_NEAREST_STORE_ID:fallback?.nearestStoreId??'',
+            FRESHWAY_TEST_FALLBACK_STORE_ID:fallback?.fallbackStoreId??'',
+            FRESHWAY_TEST_FALLBACK_PRODUCT_ID:fallback?.productId??''
+          };
+          for(const [key,value] of Object.entries(values)) fs.appendFileSync(process.env.GITHUB_ENV,key+'='+String(value).replace(/[\r\n]/g,'')+'\n');
+          console.log('Read-only production fixture: inventory matrix complete; baseline active store/product selected.');
+          if(fallback) console.log('Read-only two-store fallback fixture found: nearest store '+fallback.nearestStoreId+' lacks stock; next stock-capable store is '+fallback.fallbackStoreId+'.');
+          else console.log('No safe overlapping two-store fallback fixture exists in current production data; the dedicated Playwright case will be explicitly skipped.');
           NODE
 
       - name: Install Playwright dependencies
