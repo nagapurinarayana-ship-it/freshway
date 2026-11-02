@@ -261,7 +261,9 @@ async function addProduct(env,payload){
   if(!Number.isInteger(requestedStock)||requestedStock<0||!Number.isInteger(lowStockThreshold)||lowStockThreshold<0)throw new Error('Enter valid stock values.');
   const activeStores=stockManaged?Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores WHERE is_active=1').first())?.count||0):0;
   const allStores=stockManaged?Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores').first())?.count||0):0;
-  const stockQuantity=stockManaged&&activeStores>1?0:requestedStock;
+  // Once any store exists, stock-managed products are allocated per store.
+  // Only one active store can safely inherit the submitted legacy quantity.
+  const stockQuantity=stockManaged&&allStores>0&&activeStores!==1?0:requestedStock;
   const statements=[env.DB.prepare(`INSERT INTO products (id,name,unit,price,emoji,active,stock_managed,stock_quantity,low_stock_threshold) VALUES (?,?,?,?,?,?,?,?,?)`)
     .bind(id,name,unit,Math.round(price),emoji,1,stockManaged?1:0,stockQuantity,lowStockThreshold)];
   if(stockManaged&&allStores>0)statements.push(env.DB.prepare(
@@ -271,7 +273,7 @@ async function addProduct(env,payload){
   await env.DB.batch(statements);
   return{id,name,unit,price:Math.round(price),emoji,active:1,stock_managed:stockManaged?1:0,
     stock_quantity:stockQuantity,low_stock_threshold:lowStockThreshold,
-    stockAllocationRequired:Boolean(stockManaged&&activeStores>1&&requestedStock>0)};
+    stockAllocationRequired:Boolean(stockManaged&&allStores>0&&activeStores!==1&&requestedStock>0)};
 }
 
 async function updateProduct(env,id,payload){
@@ -283,7 +285,7 @@ async function updateProduct(env,id,payload){
   const activeStores=nextManaged?Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores WHERE is_active=1').first())?.count||0):0;
   const allStores=nextManaged?Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores').first())?.count||0):0;
   const changingToManaged=!currentManaged&&nextManaged;
-  const storeManagedQuantity=currentManaged&&nextManaged&&activeStores>0;
+  const storeManagedQuantity=currentManaged&&nextManaged&&allStores>0;
   const sets=[],params=[];
   let nextStockQuantity=Number(current.stock_quantity||0);
   if(payload.name!==undefined){const v=String(payload.name).trim().slice(0,100);if(!v)throw new Error('Product name cannot be empty.');sets.push('name=?');params.push(v)}
@@ -295,9 +297,9 @@ async function updateProduct(env,id,payload){
   if(payload.stockQuantity!==undefined){
     const v=Number(payload.stockQuantity);
     if(!Number.isInteger(v)||v<0)throw new Error('Invalid stock quantity.');
-    if(!storeManagedQuantity){nextStockQuantity=changingToManaged&&activeStores>1?0:v;sets.push('stock_quantity=?');params.push(nextStockQuantity);}
+    if(!storeManagedQuantity){nextStockQuantity=changingToManaged&&allStores>0&&activeStores!==1?0:v;sets.push('stock_quantity=?');params.push(nextStockQuantity);}
   }
-  if(changingToManaged&&activeStores>1&&nextStockQuantity!==0){
+  if(changingToManaged&&allStores>0&&activeStores!==1&&nextStockQuantity!==0){
     nextStockQuantity=0;sets.push('stock_quantity=?');params.push(0);
   }
   if(payload.lowStockThreshold!==undefined){const v=Number(payload.lowStockThreshold);if(!Number.isInteger(v)||v<0)throw new Error('Invalid low-stock threshold.');sets.push('low_stock_threshold=?');params.push(v)}
@@ -316,7 +318,7 @@ async function updateProduct(env,id,payload){
   ).bind(id));
   const results=await env.DB.batch(statements);
   if(!results?.[0]?.meta?.changes)throw new Error('Product not found.');
-  return{ok:true,stockQuantity:nextStockQuantity,stockAllocationRequired:Boolean(changingToManaged&&activeStores>1&&Number(payload.stockQuantity??current.stock_quantity??0)>0)};
+  return{ok:true,stockQuantity:nextStockQuantity,stockAllocationRequired:Boolean(changingToManaged&&allStores>0&&activeStores!==1&&Number(payload.stockQuantity??current.stock_quantity??0)>0)};
 }
 
 async function saveSubscription(env,payload){
