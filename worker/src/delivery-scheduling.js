@@ -335,7 +335,8 @@ async function moveOrderSchedule(env, order, target, actorType, actorId, options
   if (changingStore) {
     const address = await env.DB.prepare('SELECT a.latitude,a.longitude FROM orders o JOIN addresses a ON a.id=o.address_id WHERE o.id=?').bind(order.id).first();
     const store = chosen || await env.DB.prepare('SELECT id,latitude,longitude,service_radius_km,is_active FROM delivery_stores WHERE id=?').bind(newStoreId).first();
-    if (!store || Number(store.is_active ?? store.store_active) !== 1) throw new Error('Choose an active store. Inactive stores cannot receive new orders.');
+    const storeIsActive = chosen ? Number(chosen.store_active) === 1 : Number(store?.is_active) === 1;
+    if (!store || !storeIsActive) throw new Error('Choose an active store. Inactive stores cannot receive new orders.');
     if (!hasCoordinates(address || {}) || distanceFor(address, store) === Infinity) throw new Error('This store does not cover the customer delivery location.');
   }
   if (owner && override && !reason) throw new Error('Enter a reason for the Owner override.');
