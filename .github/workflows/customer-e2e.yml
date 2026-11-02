@@ -23,6 +23,7 @@ on:
       - 'frontend/media/catalogue/**'
       - 'icons/**'
       - 'e2e/**'
+      - 'worker/**'
       - '.github/workflows/customer-e2e.yml'
   push:
     branches:
@@ -75,6 +76,86 @@ jobs:
 
       - name: Run customer browser E2E
         run: npm test
+
+
+  isolated-store-fallback:
+    name: Isolated D1 store fallback Playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install Worker dependencies
+        working-directory: worker
+        run: npm install
+
+      - name: Create isolated local D1 schema
+        working-directory: worker
+        run: npx wrangler d1 execute freshway --local --config wrangler.jsonc --file schema.sql
+
+      - name: Seed deterministic two-store fixture
+        working-directory: worker
+        run: |
+          npx wrangler d1 execute freshway --local --config wrangler.jsonc --command "INSERT INTO categories (id,name,slug,icon,active) VALUES ('test-category','Test Category','test-category','🛒',1); INSERT INTO products (id,name,unit,price,emoji,active,category_id,display_order,stock_managed,stock_quantity,low_stock_threshold) VALUES ('test-rice','Test Rice','kg',100,'🌾',1,'test-category',1,1,5,1),('test-oil','Test Oil','litre',150,'🫒',1,'test-category',2,1,5,1),('test-inactive-only','Inactive-only product','piece',50,'🛒',1,'test-category',3,1,5,1); INSERT INTO delivery_stores (id,name,address,latitude,longitude,service_radius_km,is_active) VALUES ('store-nearest','Nearest Store','Isolated Playwright fixture',17.385,78.4867,5,1),('store-fallback','Fallback Store','Isolated Playwright fixture',17.400,78.500,5,1),('store-inactive','Inactive Store','Isolated Playwright fixture',17.405,78.505,5,0); INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) VALUES ('store-nearest','test-rice',0),('store-nearest','test-oil',5),('store-nearest','test-inactive-only',0),('store-fallback','test-rice',5),('store-fallback','test-oil',0),('store-fallback','test-inactive-only',0),('store-inactive','test-rice',5),('store-inactive','test-oil',5),('store-inactive','test-inactive-only',5);"
+
+      - name: Start local Worker with isolated D1
+        working-directory: worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          ADMIN_TOKEN=isolated-playwright-token CUSTOMER_SESSION_SECRET=isolated-customer-secret ADMIN_SESSION_SECRET=isolated-admin-secret npx wrangler dev --local --config wrangler.jsonc --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/freshway-isolated-worker.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/freshway-isolated-worker.pid"
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:8787/api/admin/status > /dev/null; then
+              echo "Isolated Worker is ready."
+              exit 0
+            fi
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/freshway-isolated-worker.log"
+          echo "::error::Isolated Worker did not become ready."
+          exit 1
+
+      - name: Install Playwright dependencies
+        working-directory: e2e
+        run: npm install
+
+      - name: Install Chromium
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run isolated store fallback Playwright tests
+        working-directory: e2e
+        env:
+          FRESHWAY_PRODUCTION_URL: http://127.0.0.1:8787
+          FRESHWAY_TEST_STORE_ID: store-fallback
+          FRESHWAY_TEST_LATITUDE: '17.400'
+          FRESHWAY_TEST_LONGITUDE: '78.500'
+          FRESHWAY_TEST_PRODUCT_ID: test-rice
+          FRESHWAY_TEST_CATEGORY_ID: test-category
+          FRESHWAY_TEST_FALLBACK_READY: 'true'
+          FRESHWAY_TEST_FALLBACK_LATITUDE: '17.386'
+          FRESHWAY_TEST_FALLBACK_LONGITUDE: '78.487'
+          FRESHWAY_TEST_NEAREST_STORE_ID: store-nearest
+          FRESHWAY_TEST_FALLBACK_STORE_ID: store-fallback
+          FRESHWAY_TEST_FALLBACK_PRODUCT_ID: test-rice
+        run: npx playwright test --config=playwright.production.config.js --grep "production availability falls back|isolated basket|isolated inactive store"
+
+      - name: Upload isolated Playwright evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: freshway-isolated-store-fallback-playwright
+          path: e2e/test-results/production/
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload responsive visual review screenshots
         if: always()
