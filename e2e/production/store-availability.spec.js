@@ -114,13 +114,30 @@ test('real customer app browses live products and preserves cart without creatin
   await expect(page.locator('#cartCount')).not.toHaveText('0 items');
   await page.locator('#viewCartBtn').click();
   await expect(page.locator('#checkoutBtn')).toBeVisible();
+  const availabilityRequests=[];
+  page.on('request',request=>{
+    if(new URL(request.url()).pathname==='/api/delivery/availability'&&request.method()==='POST')availabilityRequests.push(request);
+  });
   const availabilityResponse=page.waitForResponse(response=>
-    new URL(response.url()).pathname==='/api/delivery/availability'&&response.request().method()==='POST'
-  );
+    new URL(response.url()).pathname==='/api/delivery/availability'&&response.request().method()==='POST',
+    {timeout:5000}
+  ).catch(()=>null);
   await page.locator('#checkoutBtn').click();
   await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
   await expect(page.locator('#fwCheckoutPricing')).toContainText('₹');
-  const availability=await (await availabilityResponse).json();
+  let response=await availabilityResponse;
+  if(!response){
+    const diagnostic=await page.evaluate(async()=>{
+      const instance=window.FreshWayCustomerDeliveryBookingInstance;
+      const state=document.querySelector('#checkoutDeliveryPicker')?.__fwDeliveryDateState;
+      const before={instance:!!instance,enabled:instance?.checkoutEnabled?.()??false,destroyed:state?.destroyed??null,availability:state?.availability??null,cart:window.state?.cart??null};
+      const result=await instance?.checkAvailability?.();
+      return {before,result};
+    });
+    console.log('CHECKOUT_AVAILABILITY_DIAGNOSTIC '+JSON.stringify({requestCount:availabilityRequests.length,diagnostic}));
+    throw new Error('Checkout entry did not automatically request delivery availability; manual diagnostic: '+JSON.stringify(diagnostic));
+  }
+  const availability=await response.json();
   expect(availability.available).toBe(false);
   expect(availability.code).toBe('LOCATION_REQUIRED');
   await expect(page.locator('[data-fw-delivery-availability]')).toContainText('confirm your delivery location');
