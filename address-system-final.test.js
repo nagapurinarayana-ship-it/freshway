@@ -99,13 +99,16 @@ assert.match(source, /id="addressModalTitle" tabindex="-1"/);
 assert.match(source, /modalReturnFocus/);
 assert.ok(index.includes('frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3'), 'HTML must load the current geocode field mapper');
 assert.ok(sw.includes('/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3'), 'service worker must cache the current geocode field mapper');
-assert.ok(index.includes('address-system-final.js?v=20261029-registration-prefill-v1'), 'HTML must load the selected-address fix');
-assert.ok(sw.includes('/address-system-final.js?v=20261029-registration-prefill-v1'), 'service worker must cache the selected-address fix');
+const addressSystemScript=index.split('<script src="')
+  .map(part=>part.split('"')[0])
+  .find(path=>path.startsWith('address-system-final.js?v='));
+assert.ok(addressSystemScript, 'HTML must load the selected-address fix');
+assert.ok(sw.includes('/'+addressSystemScript), 'service worker must cache the exact selected-address asset loaded by HTML');
 assert.ok(index.includes('address-book.css?v=20261027-checkout-ux-v2'), 'HTML must load the current address CSS');
 assert.ok(sw.includes('/frontend/customer/address-book.css?v=20261027-checkout-ux-v2'), 'service worker must cache the current address CSS');
 assert.ok(index.includes('notifications.js?v=notif2'), 'HTML must load the notification permission-state module');
 assert.ok(sw.includes('/notifications.js?v=notif2'), 'service worker must cache the notification permission-state module');
-assert.match(sw, /const CACHE = 'freshway-v116'/);
+assert.match(sw, /const CACHE = 'freshway-v118'/);
 assert.match(css, /#toast\s*\{[^}]*white-space:\s*normal/s);
 assert.match(css, /\.fw-address-incomplete\s*\{/);
 console.log('checkout address completion, geocoding preservation, error feedback, accessibility and asset cache tests passed');
