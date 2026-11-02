@@ -356,6 +356,7 @@ async function moveOrderSchedule(env, order, target, actorType, actorId, options
           'INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status,owner_override,override_reason) VALUES (?,?,?,?,?,?,?,?)'
         ).bind(id('stockres'), order.id, newStoreId, line.id, Number(line.qty), stockConflict ? 'conflict' : 'reserved',
           stockConflict ? 1 : 0, stockConflict ? (reason || 'Owner override: insufficient store inventory') : ''));
+        statements.push(env.DB.prepare('UPDATE order_items SET stock_reserved_qty=qty WHERE order_id=? AND product_id=?').bind(order.id,line.id));
       }
     }
   }
@@ -730,7 +731,10 @@ export async function handleAdminDeliveryRequest(request, env) {
       statements.push(env.DB.prepare("UPDATE orders SET assigned_store_id=?,scheduled_slot_id=NULL,scheduled_start_minute=NULL,scheduled_end_minute=NULL,schedule_status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(storeId,scheduleStatus,orderId));
       statements.push(env.DB.prepare("UPDATE delivery_store_inventory_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(orderId));
       statements.push(env.DB.prepare("UPDATE delivery_slot_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(orderId));
-      for(const line of lines.filter(itemNeedsStock))statements.push(env.DB.prepare("INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status,owner_override,override_reason) VALUES (?,?,?,?,?,'reserved',0,'')").bind(id('stockres'),orderId,storeId,line.id,Number(line.qty)));
+      for(const line of lines.filter(itemNeedsStock)){
+        statements.push(env.DB.prepare("INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status,owner_override,override_reason) VALUES (?,?,?,?,?,'reserved',0,'')").bind(id('stockres'),orderId,storeId,line.id,Number(line.qty)));
+        statements.push(env.DB.prepare('UPDATE order_items SET stock_reserved_qty=qty WHERE order_id=? AND product_id=?').bind(orderId,line.id));
+      }
     }
     const action=sameStore?'fulfilment_store_stock_reconfirmed':'fulfilment_store_reassigned';
     const reason=clean(body.reason).slice(0,500)||(sameStore?'Owner re-confirmed stock at the current fulfilment store':'Owner reassigned fulfilment store');
