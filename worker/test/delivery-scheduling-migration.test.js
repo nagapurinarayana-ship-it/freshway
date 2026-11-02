@@ -8,6 +8,7 @@ const migration37 = read('../migrations/0037_order_delivery_scheduling.sql');
 const migration38 = read('../migrations/0038_anonymize_delivery_requests.sql');
 const migration39 = read('../migrations/0039_customer_preferred_delivery_date.sql');
 const migration40 = read('../migrations/0040_order_delivered_at.sql');
+const migration46 = read('../migrations/0046_store_first_fulfilment.sql');
 const productionSchemaAudit = read('../scripts/audit-production-schema.mjs');
 
 function legacyDatabase() {
@@ -58,6 +59,7 @@ test('0037 then 0038 migrate a legacy D1-like database without losing requests o
     db.exec(migration38);
     db.exec(migration39);
     db.exec(migration40);
+    db.exec(migration46);
     assert.ok(db.prepare('PRAGMA table_info(order_action_requests)').all().some(column => column.name === 'requested_delivery_date'), '0039 must add the customer preferred delivery date');
     assert.ok(db.prepare('PRAGMA table_info(orders)').all().some(column => column.name === 'delivered_at'), '0040 must add the actual delivery timestamp');
     const rebuiltRequest = db.prepare("SELECT * FROM order_action_requests WHERE id='request-1'").get();
@@ -74,7 +76,18 @@ test('0037 then 0038 migrate a legacy D1-like database without losing requests o
     assert.equal(anonymized.reason, '');
     assert.equal(anonymized.status, 'pending');
     assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
-    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='trigger' AND name IN ('delivery_slot_capacity_before_insert','delivery_slot_capacity_before_update','delivery_store_stock_before_insert','delivery_store_stock_before_update')").get().count, 4);
+    db.prepare("INSERT INTO delivery_stores (id,name,latitude,longitude,service_radius_km,is_active) VALUES ('store-off','Inactive Store',17.4,78.4,5,0)").run();
+    assert.throws(
+      () => db.prepare("UPDATE orders SET assigned_store_id='store-off' WHERE id='order-2'").run(),
+      /DELIVERY_STORE_INACTIVE/
+    );
+    assert.throws(
+      () => db.prepare("INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status) VALUES ('inactive-res','order-2','store-off','product-1',1,'reserved')").run(),
+      /DELIVERY_STORE_INACTIVE/
+    );
+    db.prepare("UPDATE orders SET assigned_store_id='store-1' WHERE id='order-1'").run();
+    assert.equal(db.prepare("SELECT assigned_store_id FROM orders WHERE id='order-1'").get().assigned_store_id,'store-1');
+    assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='trigger' AND name IN ('delivery_slot_capacity_before_insert','delivery_slot_capacity_before_update','delivery_store_stock_before_insert','delivery_store_stock_before_update','delivery_order_store_active_before_insert','delivery_order_store_active_before_update','delivery_store_active_before_insert','delivery_store_active_before_update')").get().count, 8);
   } finally {
     db.close();
   }
