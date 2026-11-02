@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { handleAdminDeliveryRequest, handleCustomerDeliveryRequest } from '../src/delivery-scheduling.js';
+import { updateOrder } from '../src/admin-orders.js';
 import { createOrder } from '../src/index.js';
 
 function dateInIndia(daysFromToday = 0) {
@@ -173,6 +174,41 @@ test('Owner can reassign a pending order only to an active store with enough sto
     assert.equal(db.db.prepare("SELECT status,qty FROM delivery_store_inventory_reservations WHERE order_id='order-reassign' AND store_id='store-2'").get().status,'reserved');
     assert.equal(db.db.prepare("SELECT status FROM delivery_slot_reservations WHERE order_id='order-reassign'").get().status,'released');
     assert.equal(db.db.prepare("SELECT stock_quantity FROM products WHERE id='product-1'").get().stock_quantity,8);
+  } finally { db.close(); }
+});
+
+test('reopening checks the assigned store and Owner can reconfirm that store after stock is replenished', async () => {
+  const db=new SQLiteD1();
+  try {
+    db.seedOrder('order-reopen-stock');
+    db.db.prepare("INSERT INTO delivery_stores (id,name,address,latitude,longitude,service_radius_km,is_active) VALUES ('store-2','Other Active Store','Other Address',17.39,78.49,5,1)").run();
+    db.db.prepare("INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) VALUES ('store-2','product-1',10)").run();
+
+    await updateOrder({DB:db},'order-reopen-stock',{status:'Cancelled'});
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-reopen-stock'").get().status,'released');
+
+    db.seedOrder('order-other-stock');
+    db.db.prepare("UPDATE delivery_store_inventory_reservations SET qty=4 WHERE order_id='order-other-stock' AND store_id='store-1' AND product_id='product-1'").run();
+    db.db.prepare("UPDATE products SET stock_quantity=11 WHERE id='product-1'").run();
+
+    const reopened=await updateOrder({DB:db},'order-reopen-stock',{status:'New'});
+    assert.match(reopened.inventoryWarning,/stock conflict/i);
+    const shortage=JSON.parse(db.db.prepare("SELECT details_json FROM order_operational_flags WHERE order_id='order-reopen-stock' AND flag_type='reopen_stock_shortfall' AND status='open'").get().details_json);
+    assert.equal(shortage.products[0].available,1,'availability must come from the assigned store, not another active store');
+    assert.equal(shortage.products[0].required,2);
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-reopen-stock'").get().status,'conflict');
+
+    db.db.prepare("UPDATE delivery_store_inventory SET stock_quantity=8 WHERE store_id='store-1' AND product_id='product-1'").run();
+    const response=await handleAdminDeliveryRequest(new Request('https://api.example.test/api/admin/delivery/orders/order-reopen-stock/store',{
+      method:'PATCH',headers:{'content-type':'application/json','X-Freshway-Owner-Id':'owner-test'},
+      body:JSON.stringify({storeId:'store-1',reason:'Recheck inventory after replenishment'})
+    }),{DB:db});
+    assert.equal(response.status,200);
+    const result=await response.json();
+    assert.equal(result.reconfirmed,true);
+    assert.equal(db.db.prepare("SELECT status,owner_override FROM delivery_store_inventory_reservations WHERE order_id='order-reopen-stock'").get().status,'reserved');
+    assert.equal(db.db.prepare("SELECT stock_reserved_qty FROM order_items WHERE order_id='order-reopen-stock'").get().stock_reserved_qty,2);
+    assert.equal(db.db.prepare("SELECT status FROM order_operational_flags WHERE order_id='order-reopen-stock' AND flag_type='reopen_stock_shortfall'").get().status,'resolved');
   } finally { db.close(); }
 });
 
