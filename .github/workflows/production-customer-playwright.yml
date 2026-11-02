@@ -77,13 +77,27 @@ jobs:
             byProduct.get(productId).push({...row,productId,available:numeric(row.available_qty)});
           }
 
-          // Preserve the existing live-store baseline fixture used by the other production tests.
-          const uniqueFixtures=[...byProduct.values()].flatMap(productRows=>{
-            const stocked=productRows.filter(r=>r.available>=1);
-            return stocked.length===1?[stocked[0]]:[];
-          }).sort((a,b)=>String(a.store_name).localeCompare(String(b.store_name))||a.productId.localeCompare(b.productId));
-          const baseline=uniqueFixtures[0];
-          if(!baseline) throw new Error('No active store has a live product with unreserved stock that is unique to that store.');
+          // Baseline fixture: use a real stocked product and calculate which stock-capable
+          // store the API should select at a real store pin. Products need not be unique to one store.
+          let baseline=null;
+          const storeById=new Map(stores.map(store=>[store.id,store]));
+          for(const [productId,productRows] of byProduct){
+            const stocked=productRows.filter(row=>row.available>=1);
+            for(const origin of stores){
+              const eligible=stocked.map(row=>{
+                const store=storeById.get(String(row.store_id));
+                if(!store)return null;
+                const distance=distanceKm(origin.lat,origin.lng,store.lat,store.lng);
+                return distance<=store.radius?{store,distance,row}:null;
+              }).filter(Boolean).sort((a,b)=>a.distance-b.distance||a.store.name.localeCompare(b.store.name));
+              if(eligible.length){
+                baseline={store_id:eligible[0].store.id,latitude:origin.lat,longitude:origin.lng,product_id:productId,category_id:productRows[0].category_id};
+                break;
+              }
+            }
+            if(baseline)break;
+          }
+          if(!baseline) throw new Error('No active store has a live product with unreserved stock inside any valid active-store radius.');
 
           // Find a point where the closest active store is out of stock and the next
           // stock-capable store is the expected fallback. Keep at least 50m radius margin.
