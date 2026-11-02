@@ -115,6 +115,8 @@ test('LIVE production media audit: real catalogue, category artwork and configur
   }
 
   await page.evaluate(() => window.scrollTo(0, 0));
+  const mobileHomeOverflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth);
+  expect(mobileHomeOverflow,'live production home must not overflow horizontally at 390px').toBe(false);
   await page.screenshot({ path: OUTPUT_DIR + '/live-production-mobile-home.png', fullPage: true, animations: 'disabled' });
 
   // Use the actual live category control and actual API data; do not stub or seed this page.
@@ -132,6 +134,8 @@ test('LIVE production media audit: real catalogue, category artwork and configur
       message: 'Production product image failed to decode: ' + await image.getAttribute('alt')
     }).toBe(true);
   }
+  const mobileProductsOverflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth);
+  expect(mobileProductsOverflow,'live production product catalogue must not overflow horizontally at 390px').toBe(false);
   await page.screenshot({ path: OUTPUT_DIR + '/live-production-mobile-products.png', fullPage: true, animations: 'disabled' });
 
   // Re-capture at desktop width to catch responsive rendering differences.
@@ -153,6 +157,8 @@ test('LIVE production media audit: real catalogue, category artwork and configur
   } else {
     await expect(page.locator('.hero-banner h1')).toBeVisible();
   }
+  const desktopHomeOverflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth);
+  expect(desktopHomeOverflow,'live production home must not overflow horizontally at desktop width').toBe(false);
   await page.screenshot({ path: OUTPUT_DIR + '/live-production-desktop-home.png', fullPage: true, animations: 'disabled' });
   await page.locator('#fwCategoryCatalogue .fw-category-card').first().click();
   const desktopCards = page.locator('#productGrid .product-card:visible');
@@ -166,6 +172,8 @@ test('LIVE production media audit: real catalogue, category artwork and configur
       message: 'Desktop production product image failed to decode: ' + await image.getAttribute('alt')
     }).toBe(true);
   }
+  const desktopProductsOverflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth);
+  expect(desktopProductsOverflow,'live production product catalogue must not overflow horizontally at desktop width').toBe(false);
   await page.screenshot({ path: OUTPUT_DIR + '/live-production-desktop-products.png', fullPage: true, animations: 'disabled' });
 
   const report = {
