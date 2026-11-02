@@ -26,6 +26,14 @@
         landmark:selectedAddress.landmark||formAddress.landmark,
         note:selectedAddress.note||formAddress.note
       }):formAddress);
+      // The selected saved map pin is required by the store-radius check. Keep
+      // coordinates separate from the text-only normalized address fields.
+      const locationPoint=selectedAddress||formAddress||{};
+      const latitude=locationPoint.latitude??locationPoint.lat,longitude=locationPoint.longitude??locationPoint.lng;
+      if(latitude!==undefined&&latitude!==null&&longitude!==undefined&&longitude!==null){
+        address.latitude=Number(latitude);
+        address.longitude=Number(longitude);
+      }
       const selectedName=String(selectedAddress?.recipientName||'').trim();
       const name=(selectedName.length>=2?selectedName:'')||$('#customerName')?.value.trim()||customerAuth.registeredName?.()||'';
       const normalizePhone=customerCheckout.normalizePhone;
