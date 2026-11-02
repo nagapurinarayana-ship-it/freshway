@@ -55,7 +55,9 @@ function istNowParts() {
   return { date: out.year + '-' + out.month + '-' + out.day, minute: Number(out.hour) * 60 + Number(out.minute) };
 }
 function hasCoordinates(address = {}) {
-  const lat = Number(address.latitude ?? address.lat), lng = Number(address.longitude ?? address.lng);
+  const rawLat = address.latitude ?? address.lat, rawLng = address.longitude ?? address.lng;
+  if (rawLat === undefined || rawLat === null || rawLat === '' || rawLng === undefined || rawLng === null || rawLng === '') return false;
+  const lat = Number(rawLat), lng = Number(rawLng);
   return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 &&
     !(lat === 0 && lng === 0);
 }
