@@ -38,6 +38,32 @@ test('production availability refuses to guess when the customer has no confirme
   expect(result.code).toBe('LOCATION_REQUIRED');
 });
 
+
+test('production checkout quote uses the real catalogue price and returns the selected cart lines', async ({ request }) => {
+  const response=await request.post('/api/checkout/quote',{
+    data:{items:[{id:productId,qty:1}],couponCode:''}
+  });
+  expect(response.status()).toBe(200);
+  const result=await response.json();
+  expect(Number.isSafeInteger(Number(result.pricing?.finalTotal))).toBe(true);
+  expect(Number(result.pricing.finalTotal)).toBeGreaterThanOrEqual(0);
+  expect(result.pricing?.items).toHaveLength(1);
+  expect(result.pricing.items[0].id).toBe(productId);
+  expect(result.pricing.items[0].qty).toBe(1);
+  expect(Number(result.pricing.items[0].price)).toBeGreaterThan(0);
+});
+
+test('customer order and session endpoints reject unauthenticated requests', async ({ request }) => {
+  const session=await request.get('/api/auth/session');
+  expect(session.status()).toBe(401);
+
+  const orders=await request.get('/api/orders?customerId=production-playwright-guest');
+  expect(orders.status()).toBe(401);
+
+  const attemptedOrder=await request.post('/api/orders',{data:{}});
+  expect(attemptedOrder.status()).toBe(401);
+});
+
 test('real customer app browses live products and preserves cart without creating an order', async ({ page }) => {
   const pageErrors=[];
   const serverErrors=[];
@@ -74,6 +100,9 @@ test('real customer app browses live products and preserves cart without creatin
   await expect(page.locator('#cartCount')).not.toHaveText('0 items');
   await page.locator('#viewCartBtn').click();
   await expect(page.locator('#checkoutBtn')).toBeVisible();
+  await page.locator('#checkoutBtn').click();
+  await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
+  await expect(page.locator('#fwCheckoutPricing')).toContainText('₹');
 
   await page.setViewportSize({width:390,height:844});
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth);
