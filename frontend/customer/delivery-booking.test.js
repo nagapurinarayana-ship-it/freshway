@@ -39,3 +39,31 @@ reloadedBooking.clearCheckoutDate();
 assert.equal(data.has(key),false,'successful order completion clears the remembered date');
 assert.equal(reloadedBooking.selectedCheckoutDate(),today,'the next order starts with Today');
 console.log('customer checkout delivery-day persistence tests passed');
+
+(async()=>{
+  let shouldFail=false;
+  const calls=[];
+  const container=makeContainer();
+  const booking=create({
+    api:async(url,options)=>{
+      calls.push({url,body:JSON.parse(options.body)});
+      if(shouldFail)throw new Error('temporary network failure');
+      return {available:true,code:'AVAILABLE',message:'Good news! We deliver to your area.'};
+    },
+    getItems:()=>[{id:'rice-1',qty:2}],
+    getAddress:()=>({latitude:17.385,longitude:78.4867})
+  });
+  booking.mountCheckout(container);
+  const available=await booking.checkAvailability();
+  assert.equal(available.status,'available');
+  assert.ok(calls.length>=1);
+  assert.equal(calls.at(-1).url,'/api/delivery/availability');
+  assert.deepEqual(calls.at(-1).body.address,{latitude:17.385,longitude:78.4867});
+  assert.match(container.innerHTML,/Good news! We deliver to your area\./);
+
+  shouldFail=true;
+  const failed=await booking.checkAvailability();
+  assert.equal(failed.status,'error','technical failures must not be misreported as an area restriction');
+  assert.match(container.innerHTML,/We could not check delivery availability/);
+  console.log('customer store-availability UI states passed');
+})().catch(error=>{console.error(error);process.exitCode=1});
