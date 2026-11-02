@@ -78,6 +78,14 @@ jobs:
       - name: Run customer browser E2E
         run: npm test
 
+      - name: Upload responsive visual review screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: freshway-customer-visual-review
+          path: e2e/test-results/visual-review/*
+          if-no-files-found: warn
+          retention-days: 7
 
   isolated-store-fallback:
     name: Isolated D1 store fallback Playwright
@@ -155,14 +163,5 @@ jobs:
         with:
           name: freshway-isolated-store-fallback-playwright
           path: e2e/test-results/production/
-          if-no-files-found: warn
-          retention-days: 7
-
-      - name: Upload responsive visual review screenshots
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: freshway-customer-visual-review
-          path: e2e/test-results/visual-review/*
           if-no-files-found: warn
           retention-days: 7
