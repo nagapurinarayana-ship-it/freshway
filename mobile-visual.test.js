@@ -18,7 +18,7 @@ assert.doesNotMatch(messages,/button\.setAttribute\('aria-label'/,'Messages butt
 assert.ok(index.includes('<span aria-hidden="true">✉️</span>')&&index.includes('<b aria-hidden="true">›</b>'),'Messages navigation decorative icon and chevron must be hidden from screen readers');
 assert.ok(index.includes('frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'customer app loads the fixed floating cart behavior');
 assert.ok(sw.includes('/frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'service worker caches the fixed floating cart behavior');
-assert.ok(sw.includes("const CACHE = 'freshway-v113'"),'service worker refreshes the app shell after the cart-bar update');
+assert.ok(sw.includes("const CACHE = 'freshway-v115'"),'service worker refreshes the app shell after the cart-bar update');
 assert.match(privacyPage,/grid-template-columns: minmax\(145px, \.36fr\) minmax\(0, 1fr\)/,'privacy contact details use a clear desktop label/value layout');
 assert.match(privacyPage,/@media \(max-width: 600px\)[\s\S]*?\.contact-line \{ grid-template-columns: minmax\(0, 1fr\)/,'privacy contact details stack cleanly on mobile');
 assert.match(privacyPage,/This policy remains a working draft/,'privacy policy clearly retains the operator-review status');
