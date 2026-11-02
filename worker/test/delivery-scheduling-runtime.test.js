@@ -306,7 +306,7 @@ test('Owner can still save an order delivery date directly without creating slot
   } finally { db.close(); }
 });
 
-test('checkout creates an order with a server-validated preferred date and reserves global stock exactly once', async () => {
+test('checkout creates an order with a server-validated preferred date and reserves selected store stock exactly once', async () => {
   const db=new SQLiteD1();
   const requestedDate=dateInIndia(1);
   try {
