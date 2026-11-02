@@ -112,3 +112,34 @@ test('real customer app browses live products and preserves cart without creatin
   expect(pageErrors,'production page must not throw uncaught JavaScript errors').toEqual([]);
   expect(serverErrors,'customer API must not return 5xx responses').toEqual([]);
 });
+
+
+const fallbackReady=process.env.FRESHWAY_TEST_FALLBACK_READY==='true';
+const fallbackLatitude=Number(process.env.FRESHWAY_TEST_FALLBACK_LATITUDE);
+const fallbackLongitude=Number(process.env.FRESHWAY_TEST_FALLBACK_LONGITUDE);
+const nearestStoreId=process.env.FRESHWAY_TEST_NEAREST_STORE_ID;
+const expectedFallbackStoreId=process.env.FRESHWAY_TEST_FALLBACK_STORE_ID;
+const fallbackProductId=process.env.FRESHWAY_TEST_FALLBACK_PRODUCT_ID;
+
+test('production availability falls back to the next-nearest active store with stock, without splitting the basket', async ({ request }) => {
+  test.skip(!fallbackReady,'Read-only production D1 inspection did not find a safe overlapping two-store fallback fixture.');
+  expect(Number.isFinite(fallbackLatitude)&&Number.isFinite(fallbackLongitude)).toBe(true);
+  expect(nearestStoreId).toBeTruthy();
+  expect(expectedFallbackStoreId).toBeTruthy();
+  expect(fallbackProductId).toBeTruthy();
+  expect(expectedFallbackStoreId).not.toBe(nearestStoreId);
+
+  const response=await request.post('/api/delivery/availability',{
+    data:{
+      address:{latitude:fallbackLatitude,longitude:fallbackLongitude},
+      items:[{id:fallbackProductId,qty:1}]
+    }
+  });
+  expect(response.status()).toBe(200);
+  const result=await response.json();
+  expect(result.available).toBe(true);
+  expect(result.code).toBe('AVAILABLE');
+  expect(result.store?.id).toBe(expectedFallbackStoreId);
+  expect(result.store?.id).not.toBe(nearestStoreId);
+  expect(result.store?.name).toBeTruthy();
+});
