@@ -68,6 +68,25 @@ class SQLiteD1 {
   close(){this.db.close();}
 }
 
+test('new Owner stores start inactive with zero stock when another store already exists', async () => {
+  const db=new SQLiteD1();
+  try {
+    const response=await handleAdminDeliveryRequest(new Request('https://api.example.test/api/admin/delivery/stores',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({name:'New Test Store',address:'Second Address',latitude:17.39,longitude:78.49})
+    }),{DB:db});
+    assert.equal(response.status,201);
+    const result=await response.json();
+    assert.equal(result.store.is_active,0);
+    assert.equal(result.store.service_radius_km,5);
+    assert.equal(result.initialInventory,'zero-stock-requires-setup');
+    assert.equal(db.db.prepare('SELECT is_active FROM delivery_stores WHERE id=?').get(result.store.id).is_active,0);
+    assert.equal(db.db.prepare("SELECT stock_quantity FROM delivery_store_inventory WHERE store_id=? AND product_id='product-1'").get(result.store.id).stock_quantity,0);
+    assert.equal(db.db.prepare("SELECT stock_quantity FROM products WHERE id='product-1'").get().stock_quantity,0,
+      'inactive store inventory must not appear in the customer-facing aggregate');
+  } finally { db.close(); }
+});
+
 test('customer availability requires a map pin, respects active-store radius and reports clear states', async () => {
   const db=new SQLiteD1();
   try {
