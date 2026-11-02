@@ -60,7 +60,10 @@ async function validateOrderItems(env, rawItems) {
   const ids = [...unique.keys()]; const placeholders = ids.map(() => '?').join(',');
   const { results: dbProducts } = await env.DB.prepare(`SELECT id,name,unit,price,emoji,stock_managed,stock_quantity,low_stock_threshold,hsn_code,gst_rate_bps,gst_rate_confirmed FROM products WHERE active=1 AND id IN (${placeholders})`).bind(...ids).all();
   if (!dbProducts || dbProducts.length !== ids.length) throw new Error('One or more products are no longer available. Please refresh and try again.');
-  const items = dbProducts.map(p => { const qty=unique.get(p.id); if(Number(p.stock_managed)===1&&Number(p.stock_quantity)<qty)throw new Error(`Not enough stock for ${p.name}. Please reduce the quantity and try again.`); return { ...p, qty, lineTotal:p.price*qty, stockReservedQty:Number(p.stock_managed)===1?qty:0 }; });
+  // Store-level stock is authoritative. The aggregate products.stock_quantity is
+  // maintained for catalogue compatibility, but checkout validates against the
+  // chosen active store and its live reservations in prepareCheckoutDelivery().
+  const items = dbProducts.map(p => { const qty=unique.get(p.id); return { ...p, qty, lineTotal:p.price*qty, stockReservedQty:Number(p.stock_managed)===1?qty:0 }; });
   return { items, total: items.reduce((sum, item) => sum + item.lineTotal, 0) };
 }
 
@@ -107,14 +110,13 @@ async function createOrder(env, payload, ctx) {
   await env.DB.prepare(`INSERT INTO customers (id,name,phone,whatsapp_opt_in,updated_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)
     ON CONFLICT(id) DO UPDATE SET name=CASE WHEN customers.name IS NULL OR TRIM(customers.name)='' THEN excluded.name ELSE customers.name END, whatsapp_opt_in=excluded.whatsapp_opt_in, updated_at=CURRENT_TIMESTAMP`)
     .bind(customerId, customerName, customerPhoneForProfile, payload.whatsappOptIn ? 1 : 0).run();
-  const addressResult = await env.DB.prepare(`INSERT INTO addresses (customer_id,house,area,city,pincode,landmark,note,is_saved_address) VALUES (?,?,?,?,?,?,?,0)`)
-    .bind(customerId, String(address.house).trim().slice(0, 200), String(address.area).trim().slice(0, 200), String(address.city).trim().slice(0, 100), String(address.pincode), String(address.landmark || '').trim().slice(0, 200), String(address.note || '').trim().slice(0, 500)).run();
+  const addressResult = await env.DB.prepare(`INSERT INTO addresses (customer_id,house,area,city,pincode,landmark,note,latitude,longitude,is_saved_address) VALUES (?,?,?,?,?,?,?,?,?,0)`)
+    .bind(customerId, String(address.house).trim().slice(0, 200), String(address.area).trim().slice(0, 200), String(address.city).trim().slice(0, 100), String(address.pincode), String(address.landmark || '').trim().slice(0, 200), String(address.note || '').trim().slice(0, 500), Number(address.latitude), Number(address.longitude)).run();
   const addressId = addressResult?.meta?.last_row_id; if (!addressId) throw new Error('Could not save delivery address.');
   const id = orderId(), createdAt = now();
-  const stockUpdates=items.filter(item=>item.stockReservedQty>0).map(item=>env.DB.prepare('UPDATE products SET stock_quantity=stock_quantity-? WHERE id=? AND stock_managed=1').bind(item.stockReservedQty,item.id));
   const deliveryPlan=deliverySelection?.deliveryPlan||'Tomorrow';
   const redemptionStatements=await orderRedemptionStatements(env,id,customerId,pricing);
-  const statements=[...stockUpdates,env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,items_subtotal,delivery_fee,coupon_id,coupon_code,coupon_discount,pricing_breakdown_known,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at,scheduled_delivery_date,scheduled_slot_id,assigned_store_id,scheduled_start_minute,scheduled_end_minute,schedule_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'Not Collected','New',?,?,?,?,?,?,?,?,?,?)`).bind(id,customerId,addressId,customerName,phone,total,pricing.itemsSubtotal,pricing.deliveryFee,pricing.couponId,pricing.couponCode,pricing.couponDiscount,1,deliveryPlan,clientOrderId||null,createdAt,createdAt,deliverySelection?.date||null,null,null,null,null,deliverySelection?'requested':'unscheduled'),...redemptionStatements,...items.map(item=>env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total,stock_reserved_qty,hsn_code,gst_rate_bps,gst_rate_confirmed) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).bind(id,item.id,item.name,item.unit,item.qty,item.price,item.lineTotal,item.stockReservedQty,item.hsn_code||'',Number(item.gst_rate_bps||0),Number(item.gst_rate_confirmed||0))),...checkoutDeliveryStatements(env,id,deliverySelection,items)];
+  const statements=[env.DB.prepare(`INSERT INTO orders (id,customer_id,address_id,customer_name,customer_phone,total,items_subtotal,delivery_fee,coupon_id,coupon_code,coupon_discount,pricing_breakdown_known,payment_status,delivery_status,delivery_plan,client_order_id,created_at,updated_at,scheduled_delivery_date,scheduled_slot_id,assigned_store_id,scheduled_start_minute,scheduled_end_minute,schedule_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'Not Collected','New',?,?,?,?,?,?,?,?,?,?)`).bind(id,customerId,addressId,customerName,phone,total,pricing.itemsSubtotal,pricing.deliveryFee,pricing.couponId,pricing.couponCode,pricing.couponDiscount,1,deliveryPlan,clientOrderId||null,createdAt,createdAt,deliverySelection?.date||null,null,deliverySelection?.storeId||null,null,null,deliverySelection?'requested':'unscheduled'),...redemptionStatements,...items.map(item=>env.DB.prepare(`INSERT INTO order_items (order_id,product_id,name,unit,qty,price,line_total,stock_reserved_qty,hsn_code,gst_rate_bps,gst_rate_confirmed) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).bind(id,item.id,item.name,item.unit,item.qty,item.price,item.lineTotal,item.stockReservedQty,item.hsn_code||'',Number(item.gst_rate_bps||0),Number(item.gst_rate_confirmed||0))),...checkoutDeliveryStatements(env,id,deliverySelection,items)];
   try { await env.DB.batch(statements); } catch (error) {
     await env.DB.prepare('DELETE FROM addresses WHERE id=?').bind(addressId).run();
     if (clientOrderId && /unique|constraint/i.test(error?.message || '')) {
@@ -122,6 +124,7 @@ async function createOrder(env, payload, ctx) {
       if (duplicate) return duplicate;
     }
     if (/DELIVERY_SLOT_FULL|DELIVERY_SLOT_CLOSED/i.test(error?.message || '')) throw new Error('That delivery window just filled. Choose another available time window.');
+    if (/DELIVERY_STORE_INACTIVE/i.test(error?.message || '')) throw new Error('Store availability changed while checking out. Refresh delivery availability and try again.');
     if (/DELIVERY_STORE_STOCK_LOW/i.test(error?.message || '')) throw new Error('The selected store can no longer fulfil the full basket. Refresh delivery availability and try again.');
     if (/COUPON_CHANGED/i.test(error?.message || '')) throw new Error('COUPON_CONFLICT: Coupon eligibility changed while checking out. Review the offer and try again.');
     if (/COUPON_MAX_REDEMPTIONS_REACHED/i.test(error?.message || '')) throw new Error('COUPON_LIMIT: This coupon has reached its usage limit. Choose another offer.');
@@ -133,7 +136,7 @@ async function createOrder(env, payload, ctx) {
   const placedAlerts = buildOrderPlacedAlerts({ id, customerId, customerName, total, items });
   const alertWork = scheduleOrderAlerts(ctx, env, placedAlerts);
   if (alertWork) await alertWork;
-  return { id, customerId, total, itemsSubtotal:pricing.itemsSubtotal, deliveryFee:pricing.deliveryFee, couponCode:pricing.couponCode, couponDiscount:pricing.couponDiscount, pricingBreakdownKnown:true, payment: 'Not Collected', status: 'New', deliveryPlan, scheduledDelivery: deliverySelection ? { date: deliverySelection.date } : null, createdAt, updatedAt: createdAt, address: { ...address, pincode: String(address.pincode) }, items };
+  return { id, customerId, total, itemsSubtotal:pricing.itemsSubtotal, deliveryFee:pricing.deliveryFee, couponCode:pricing.couponCode, couponDiscount:pricing.couponDiscount, pricingBreakdownKnown:true, payment: 'Not Collected', status: 'New', deliveryPlan, assignedStoreId: deliverySelection?.storeId || null, scheduledDelivery: deliverySelection ? { date: deliverySelection.date, storeName: deliverySelection.storeName } : null, createdAt, updatedAt: createdAt, address: { ...address, pincode: String(address.pincode) }, items };
 }
 
 async function customerOrders(env, customerId) {
