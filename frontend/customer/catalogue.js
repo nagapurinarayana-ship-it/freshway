@@ -108,9 +108,13 @@
       const result=await switchToStore(resolved.store,{review:reviewChange});
       if(token!==loadToken)return;
       if(!result?.ok){
-        loading=false;ready=false;
-        errorMessage='Your delivery location selects '+String(resolved.store.name||'a different store')+'. Review the store catalogue before continuing.';
-        renderHome();applyMode();return;
+        // Keep the previous store catalogue intact when the customer declines a
+        // store-change prompt. Checkout will independently revalidate the address
+        // and cannot silently fulfil from the old store.
+        loading=false;ready=products.length>0;errorMessage='';
+        renderHome();
+        if(selected&&categories.some(x=>String(x.id)===String(selected)))setMode(selected,{history:'none'});
+        applyMode();return;
       }
     }catch(error){
       if(token!==loadToken)return;

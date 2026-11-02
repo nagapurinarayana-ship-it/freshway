@@ -209,9 +209,18 @@ async function resolveStoreForAddress(env, address = {}) {
     .filter(store => store.distance_km !== Infinity)
     .sort((a,b) => a.distance_km-b.distance_km || String(a.name).localeCompare(String(b.name)));
   if (!nearby.length) return { available:false, code:'AREA_UNAVAILABLE', message:'Sorry, we do not deliver to this address yet.' };
-  const selected = nearby[0];
-  await ensureStoreCatalogueRows(env, selected.id);
-  return { available:true, code:'AVAILABLE', message:'FreshWay delivers to your area from ' + selected.name + '.', store:{id:selected.id,name:selected.name,distanceKm:Math.round(selected.distance_km*10)/10} };
+  for (const store of nearby) {
+    await ensureStoreCatalogueRows(env, store.id);
+    const catalogue = await getStoreCatalogueRows(env, store.id);
+    const hasAvailableProduct = catalogue.some(product =>
+      Number(product.active)===1 && Number(product.category_active)===1 && Number(product.is_available)===1 &&
+      (Number(product.stock_managed)!==1 || Number(product.on_hand||0)-Number(product.reserved_qty||0)>0)
+    );
+    if (hasAvailableProduct) {
+      return { available:true, code:'AVAILABLE', message:'FreshWay delivers to your area from ' + store.name + '.', store:{id:store.id,name:store.name,distanceKm:Math.round(store.distance_km*10)/10} };
+    }
+  }
+  return {available:false,code:'NO_STORE_CATALOGUE',message:'There are no products available for delivery in your area right now.'};
 }
 
 async function resolveStoreAvailability(env,payload={}) {

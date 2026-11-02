@@ -103,12 +103,14 @@ async function createOrder(env, payload, ctx) {
   if (!/^\d{6}$/.test(String(address.pincode))) throw new Error('Enter a valid 6-digit PIN code.');
   const existing = await existingOrderByClientId(env, customerId, clientOrderId);
   if (existing) return existing;
-  const storeId = String(payload.storeId || '').trim();
-  const { items } = await validateOrderItems(env, rawItems, storeId);
+  const { items: catalogueItems } = await validateOrderItems(env, rawItems);
+  const deliverySelection = await prepareCheckoutDelivery(env, payload, catalogueItems);
+  // Always price from the server-authoritative catalogue belonging to the
+  // resolved fulfilment store, even when an older client omits storeId.
+  const { items } = await validateOrderItems(env, rawItems, deliverySelection.storeId);
   const pricing = await calculateOrderPricing(env, { items, customerId, couponCode: payload.couponCode || '', forOrder: true });
   const total = pricing.finalTotal;
   if (payload.expectedTotal !== undefined && (!Number.isSafeInteger(Number(payload.expectedTotal)) || Number(payload.expectedTotal) !== total)) throw new Error('ORDER_CONFLICT: The order total changed while checking out. Review your cart and try again.');
-  const deliverySelection = await prepareCheckoutDelivery(env, payload, items);
   const phone = cleanPhone(customer.phone), customerName = String(customer.name).trim().slice(0, 100);
   const existingCustomer = await env.DB.prepare('SELECT phone FROM customers WHERE id=? LIMIT 1').bind(customerId).first();
   const registeredPhone = cleanPhone(existingCustomer?.phone);
