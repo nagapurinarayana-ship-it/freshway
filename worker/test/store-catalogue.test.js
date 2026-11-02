@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { getStoreCatalogueRows, getStoreProductRows, saveStoreCatalogue } from '../src/store-catalogue.js';
 import { handleCustomerDeliveryRequest, handleAdminDeliveryRequest } from '../src/delivery-scheduling.js';
 import { handleCustomerDeliveryOffersRequest } from '../src/delivery-offers.js';
+import { createOrder } from '../src/index.js';
 
 class SQLiteD1 {
   constructor() {
@@ -143,5 +144,34 @@ test('store price edits never rewrite historical order item price snapshots',asy
     const snapshot=d1.db.prepare("SELECT price,line_total FROM order_items WHERE order_id='FW-HIST-1'").get();
     assert.equal(Number(snapshot.price),200);
     assert.equal(Number(snapshot.line_total),200);
+  }finally{d1.close()}
+});
+
+function tomorrowInIndia(){
+  const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  const [year,month,day]=today.split('-').map(Number);
+  return new Date(Date.UTC(year,month-1,day+1)).toISOString().slice(0,10);
+}
+
+test('order creation resolves local price server-side even when a client omits storeId',async()=>{
+  const d1=new SQLiteD1();
+  try{
+    await saveStoreCatalogue({DB:d1},'store-near',[{productId:'oil-1',isAvailable:true,priceOverride:175}]);
+    const result=await createOrder({DB:d1},{
+      customerId:'customer-1',
+      customer:{name:'Test Customer',phone:'9999999999'},
+      address:{house:'1-1',area:'Test Area',city:'Hyderabad',pincode:'500072',latitude:17.385044,longitude:78.486671},
+      items:[{id:'oil-1',qty:1}],
+      preferredDeliveryDate:tomorrowInIndia(),
+      expectedTotal:205
+    },{waitUntil(){}});
+    assert.equal(result.assignedStoreId,'store-near');
+    assert.equal(result.items[0].price,175);
+    assert.equal(result.itemsSubtotal,175);
+    assert.equal(result.total,205);
+    const saved=d1.db.prepare("SELECT oi.price,oi.line_total,o.assigned_store_id FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.id=?").get(result.id);
+    assert.equal(Number(saved.price),175);
+    assert.equal(Number(saved.line_total),175);
+    assert.equal(saved.assigned_store_id,'store-near');
   }finally{d1.close()}
 });
