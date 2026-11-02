@@ -43,6 +43,13 @@ test('customer visual review: bundled category and product art plus decoded prom
     const url = new URL(request.url());
     const method = request.method();
 
+    if (method === 'POST' && url.pathname === '/api/delivery/store') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ available:true,code:'AVAILABLE',store:{id:'store-visual',name:'Visual Review Store',distanceKm:1} })
+      });
+    }
     if (method === 'GET' && url.pathname === '/api/categories') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ categories }) });
     }

@@ -61,6 +61,14 @@ test.beforeEach(async ({ page }) => {
       });
     }
 
+    if (url.pathname === '/api/delivery/store' && method === 'POST') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ available:true,code:'AVAILABLE',store:{id:'store-e2e',name:'FreshWay Test Store',distanceKm:1} })
+      });
+    }
+
     if (url.pathname === '/api/store-profile' && method === 'GET') {
       return route.fulfill({
         status: 200,

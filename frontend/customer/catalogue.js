@@ -31,7 +31,8 @@
     return c;
   }
   function cartChangesForStore(nextProducts){
-    const cart=window.state?.cart||{},snapshots=window.state?.cartProducts||{};
+    const snapshot=window.FreshWayCustomerCatalogue?.getCart?.()||{};
+    const cart=snapshot.cart||{},snapshots=snapshot.cartProducts||{};
     const currentById=new Map(products.map(p=>[String(p.id),p]));
     const nextById=new Map(nextProducts.map(p=>[String(p.id),p]));
     const changes=[];
@@ -59,7 +60,8 @@
     if(!categoryOk||!productOk)throw new Error('We could not load the catalogue for '+String(store.name||'the selected store')+'. Please retry.');
     const nextCategories=categoryResult.value.categories,nextProducts=productResult.value.products;
     const changes=cartChangesForStore(nextProducts);
-    const hasCart=Object.keys(window.state?.cart||{}).length>0;
+    const cartState=window.FreshWayCustomerCatalogue?.getCart?.()||{};
+    const hasCart=Object.keys(cartState.cart||{}).length>0;
     const previousStoreId=String(selectedStore?.id||selectedStoreIdValue||'');
     const changedStore=previousStoreId!==storeId;
     if(review&&hasCart&&(changedStore||changes.length)){
