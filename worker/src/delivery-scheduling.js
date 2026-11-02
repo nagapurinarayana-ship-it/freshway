@@ -304,7 +304,6 @@ async function moveOrderSchedule(env, order, target, actorType, actorId, options
   const now = istNowParts();
   const pastOrCutoff = targetDate < now.date || (targetDate === now.date && start < now.minute);
   const settings = await readSettings(env);
-  const sameStoreCandidates = selected ? [selected] : [];
   let candidates = [];
   if (selected) {
     const rows = await slotRows(env, targetDate, targetDate);
@@ -331,14 +330,20 @@ async function moveOrderSchedule(env, order, target, actorType, actorId, options
   }
   const newStoreId = chosen?.store_id || target.store_id || order.assigned_store_id || null;
   const newSlotId = chosen?.id || null;
+  const oldStore = order.assigned_store_id || null;
+  const changingStore = !!(newStoreId && newStoreId !== oldStore);
+  if (changingStore) {
+    const address = await env.DB.prepare('SELECT a.latitude,a.longitude FROM orders o JOIN addresses a ON a.id=o.address_id WHERE o.id=?').bind(order.id).first();
+    const store = chosen || await env.DB.prepare('SELECT id,latitude,longitude,service_radius_km,is_active FROM delivery_stores WHERE id=?').bind(newStoreId).first();
+    if (!store || Number(store.is_active ?? store.store_active) !== 1) throw new Error('Choose an active store. Inactive stores cannot receive new orders.');
+    if (!hasCoordinates(address || {}) || distanceFor(address, store) === Infinity) throw new Error('This store does not cover the customer delivery location.');
+  }
   if (owner && override && !reason) throw new Error('Enter a reason for the Owner override.');
   if (owner && slotConflict && !override) throw new Error('This delivery window has a capacity, availability, date, or inventory conflict. Enable Owner override and add a reason to continue.');
   const status = currentStatus === 'Delivered' ? 'completed' :
     currentStatus === 'Cancelled' ? 'conflict' :
     slotConflict && owner && override ? 'conflict' : 'reserved';
   if (status === 'reserved' && !chosen) throw new Error('Choose an available delivery window.');
-  const oldStore = order.assigned_store_id || null;
-  const changingStore = !!(newStoreId && newStoreId !== oldStore);
   const lines = (await env.DB.prepare('SELECT oi.product_id id,oi.qty,oi.stock_reserved_qty stockReservedQty,p.stock_managed FROM order_items oi JOIN products p ON p.id=oi.product_id WHERE oi.order_id=?').bind(order.id).all()).results || [];
   const stock = await inventoryMap(env, order.id);
   let stockConflict = false;
@@ -755,6 +760,8 @@ export async function handleAdminDeliveryRequest(request, env) {
     let body = {}; try { body = await request.json(); } catch (_) {}
     const orderId = decodeURIComponent(scheduleMatch[1]);
     const order = await getOrderForAction(env, orderId);
+    if (!order) throw new Error('Order not found.');
+    if (['delivered', 'cancelled'].includes(String(order.delivery_status || '').trim().toLowerCase())) throw new Error('Delivery cannot be rescheduled for a delivered or cancelled order.');
     if (body.deliveryDate && !body.startTime && !body.endTime && !body.slotId) {
       if (!order) throw new Error('Order not found.');
       if (['delivered', 'cancelled'].includes(String(order.delivery_status || '').trim().toLowerCase())) {
