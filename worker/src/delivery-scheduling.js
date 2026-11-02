@@ -230,8 +230,24 @@ export async function prepareCheckoutDelivery(env, payload, items) {
 }
 export function checkoutDeliveryStatements(env, orderId, delivery, items) {
   if (!delivery) return [];
-  return [env.DB.prepare("INSERT INTO order_audit_events (id,order_id,actor_type,actor_id,action,reason,before_json,after_json) VALUES (?,?,'system','checkout','delivery_date_requested','',NULL,?)")
-    .bind(id('audit'), orderId, enc({ date: delivery.date, status: 'requested' }))];
+  const statements = [];
+  if (delivery.storeId) {
+    for (const item of items.filter(itemNeedsStock)) {
+      const qty = Number(item.stockReservedQty ?? item.stock_reserved_qty ?? 0);
+      if (!Number.isSafeInteger(qty) || qty < 1) continue;
+      statements.push(env.DB.prepare(
+        "INSERT INTO delivery_store_inventory_reservations (id,order_id,store_id,product_id,qty,status,owner_override,override_reason) VALUES (?,?,?,?,?,'reserved',0,'')"
+      ).bind(id('stockres'), orderId, delivery.storeId, item.id ?? item.product_id, qty));
+      // products.stock_quantity remains a compatibility aggregate for catalogue and
+      // older Owner screens. Store inventory plus active reservations is authoritative.
+      statements.push(env.DB.prepare(
+        "UPDATE products SET stock_quantity=MAX(0,(SELECT COALESCE(SUM(i.stock_quantity),0) FROM delivery_store_inventory i JOIN delivery_stores s ON s.id=i.store_id AND s.is_active=1 WHERE i.product_id=?)-(SELECT COALESCE(SUM(r.qty),0) FROM delivery_store_inventory_reservations r JOIN delivery_stores s ON s.id=r.store_id AND s.is_active=1 WHERE r.product_id=? AND r.status IN ('reserved','conflict'))),updated_at=CURRENT_TIMESTAMP WHERE id=?"
+      ).bind(item.id ?? item.product_id, item.id ?? item.product_id, item.id ?? item.product_id));
+    }
+  }
+  statements.push(env.DB.prepare("INSERT INTO order_audit_events (id,order_id,actor_type,actor_id,action,reason,before_json,after_json) VALUES (?,?,'system','checkout','delivery_date_requested','',NULL,?)")
+    .bind(id('audit'), orderId, enc({ date: delivery.date, storeId: delivery.storeId, storeName: delivery.storeName, status: 'requested' })));
+  return statements;
 }
 async function writeAudit(env, orderId, actorType, actorId, action, reason, before, after) {
   await env.DB.prepare(
