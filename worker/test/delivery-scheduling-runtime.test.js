@@ -172,6 +172,7 @@ test('Owner can reassign a pending order only to an active store with enough sto
     assert.equal(order.scheduled_slot_id,null,'a store-specific slot must be cleared on reassignment');
     assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-reassign' AND store_id='store-1'").get().status,'released');
     assert.equal(db.db.prepare("SELECT status,qty FROM delivery_store_inventory_reservations WHERE order_id='order-reassign' AND store_id='store-2'").get().status,'reserved');
+    assert.equal(db.db.prepare("SELECT stock_reserved_qty FROM order_items WHERE order_id='order-reassign'").get().stock_reserved_qty,2,'store reassignment must restore the order stock reservation ledger');
     assert.equal(db.db.prepare("SELECT status FROM delivery_slot_reservations WHERE order_id='order-reassign'").get().status,'released');
     assert.equal(db.db.prepare("SELECT stock_quantity FROM products WHERE id='product-1'").get().stock_quantity,8);
   } finally { db.close(); }
