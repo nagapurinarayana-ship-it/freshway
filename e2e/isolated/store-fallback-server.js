@@ -12,15 +12,22 @@ class SQLiteD1 {
       INSERT INTO categories (id,name,slug) VALUES ('category-test','Test category','test-category');
       INSERT INTO products (id,name,unit,price,category_id,stock_managed,stock_quantity)
         VALUES ('rice-test','Test Rice','kg',100,'category-test',1,8),
-               ('oil-test','Test Oil','litre',150,'category-test',1,5);
+               ('oil-test','Test Oil','litre',150,'category-test',1,5),
+               ('inactive-only-test','Inactive-only product','each',25,'category-test',1,5);
       INSERT INTO delivery_stores (id,name,address,latitude,longitude,service_radius_km,is_active)
         VALUES ('store-nearest','Nearest Store','Test Address A',17.385,78.4867,5,1),
-               ('store-next','Next Nearest Store','Test Address B',17.395,78.4867,5,1);
+               ('store-next','Next Nearest Store','Test Address B',17.395,78.4867,5,1),
+               ('store-inactive','Inactive Store','Test Address C',17.3855,78.4867,5,0);
       INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity)
         VALUES ('store-nearest','rice-test',0),
                ('store-nearest','oil-test',5),
                ('store-next','rice-test',8),
-               ('store-next','oil-test',0);
+               ('store-next','oil-test',0),
+               ('store-nearest','inactive-only-test',0),
+               ('store-next','inactive-only-test',0),
+               ('store-inactive','rice-test',8),
+               ('store-inactive','oil-test',5),
+               ('store-inactive','inactive-only-test',5);
     `);
   }
   prepare(sql) {
