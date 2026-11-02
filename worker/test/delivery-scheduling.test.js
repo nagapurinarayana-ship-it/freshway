@@ -5,9 +5,38 @@ import { distanceKm, parseTimeMinutes, formatTimeMinutes, handleCustomerDelivery
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 function envWithSettings(settings) {
-  return { DB: { prepare(sql) { const query = { bind() { return { async first() { return sql.includes('FROM delivery_scheduling_settings') ? settings : null; }, async all() { return { results: [] }; }, async run() { return { meta: { changes: 1 } }; } }; }, async first() { return settings; }, async all() { return { results: [] }; }, async run() { return { meta: { changes: 1 } }; } }; return query; } } };
+  const products = [{ id: 'rice', stock_managed: 1 }];
+  const stores = [{
+    id: 'store-1', name: 'Test Store', latitude: 17.385,
+    longitude: 78.4867, service_radius_km: 5
+  }];
+  const inventory = [{
+    store_id: 'store-1', product_id: 'rice', stock_quantity: 10, reserved_qty: 0
+  }];
+  return {
+    DB: {
+      prepare(sql) {
+        let args = [];
+        const query = {
+          bind(...values) { args = values; return query; },
+          async first() {
+            return sql.includes('FROM delivery_scheduling_settings') ? settings : null;
+          },
+          async all() {
+            if (sql.includes('SELECT id,stock_managed FROM products')) {
+              return { results: products.filter(product => args.includes(product.id)) };
+            }
+            if (sql.includes('FROM delivery_stores WHERE is_active=1')) return { results: stores };
+            if (sql.includes('FROM delivery_store_inventory i LEFT JOIN')) return { results: inventory };
+            return { results: [] };
+          },
+          async run() { return { meta: { changes: 1 } }; }
+        };
+        return query;
+      }
+    }
+  };
 }
-
 test('time windows parse strict 24-hour times and reject malformed values', () => {
   assert.equal(parseTimeMinutes('00:00'), 0);
   assert.equal(parseTimeMinutes('09:30'), 570);
@@ -80,9 +109,10 @@ test('checkout requires a valid preferred delivery date and no longer requires a
   const dateParts = today.split('-').map(Number);
   const tomorrowDate = new Date(Date.UTC(dateParts[0], dateParts[1]-1, dateParts[2]+1));
   const tomorrow = tomorrowDate.getUTCFullYear()+'-'+String(tomorrowDate.getUTCMonth()+1).padStart(2,'0')+'-'+String(tomorrowDate.getUTCDate()).padStart(2,'0');
-  const delivery = await prepareCheckoutDelivery(envWithSettings({ id: 1, enabled: 0 }), { preferredDeliveryDate: tomorrow }, [{ id:'rice',qty:1 }]);
+  const delivery = await prepareCheckoutDelivery(envWithSettings({ id: 1, enabled: 0 }), { preferredDeliveryDate: tomorrow, address: { latitude: 17.385, longitude: 78.4867 } }, [{ id:'rice',qty:1 }]);
   assert.equal(delivery.date, tomorrow);
   assert.equal(delivery.status, 'requested');
+  assert.equal(delivery.storeId, 'store-1');
 });
 
 test('numbered migration contains every delivery table, order field and concurrency trigger', () => {
