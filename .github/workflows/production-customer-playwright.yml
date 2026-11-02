@@ -49,26 +49,29 @@ jobs:
             echo "::error::Production D1 read credentials are missing. No production data was changed."
             exit 1
           fi
-          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "WITH reserved AS (SELECT store_id,product_id,SUM(qty) qty FROM delivery_store_inventory_reservations WHERE status IN ('reserved','conflict') GROUP BY store_id,product_id) SELECT s.id store_id,s.name store_name,s.latitude,s.longitude,s.service_radius_km,p.id product_id,p.category_id,MAX(0,COALESCE(i.stock_quantity,0)-COALESCE(r.qty,0)) available_qty FROM delivery_stores s JOIN products p ON p.active=1 AND p.stock_managed=1 JOIN categories c ON c.id=p.category_id AND c.active=1 LEFT JOIN delivery_store_inventory i ON i.store_id=s.id AND i.product_id=p.id LEFT JOIN reserved r ON r.store_id=s.id AND r.product_id=p.id WHERE s.is_active=1 AND s.latitude IS NOT NULL AND s.longitude IS NOT NULL AND NOT (s.latitude=0 AND s.longitude=0) ORDER BY s.name,p.id" --json > "$RUNNER_TEMP/freshway-store-fixture.json"
+          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "WITH reserved AS (SELECT store_id,product_id,SUM(qty) qty FROM delivery_store_inventory_reservations WHERE status IN ('reserved','conflict') GROUP BY store_id,product_id) SELECT s.id store_id,s.name store_name,s.latitude,s.longitude,s.service_radius_km,s.is_active store_active,p.id product_id,p.category_id,p.active product_active,c.active category_active,i.store_id inventory_store_id,MAX(0,COALESCE(i.stock_quantity,0)-COALESCE(r.qty,0)) available_qty FROM delivery_stores s JOIN products p ON p.stock_managed=1 LEFT JOIN categories c ON c.id=p.category_id LEFT JOIN delivery_store_inventory i ON i.store_id=s.id AND i.product_id=p.id LEFT JOIN reserved r ON r.store_id=s.id AND r.product_id=p.id ORDER BY s.name,p.id" --json > "$RUNNER_TEMP/freshway-store-fixture.json"
           node --input-type=module - "$RUNNER_TEMP/freshway-store-fixture.json" "$GITHUB_ENV" <<'NODE'
           import fs from 'node:fs';
           const raw=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
           const batches=Array.isArray(raw)?raw:[raw];
           const rows=batches.flatMap(x=>Array.isArray(x?.results)?x.results:[]);
-          if(!rows.length) throw new Error('Production D1 returned no active stores with live stock-managed products.');
+          if(!rows.length) throw new Error('Production D1 returned no store/product inventory rows.');
+          // The availability endpoint backfills missing store/product inventory rows.
+          // Never call it against production unless that matrix is already complete.
+          const missing=rows.filter(row=>!row.inventory_store_id);
+          if(missing.length) throw new Error('Read-only safety stop: '+missing.length+' store/product inventory rows are missing. The production availability endpoint would insert zero-stock rows, so no live availability request was sent.');
           const numeric=value=>Number(value);
           const distanceKm=(aLat,aLng,bLat,bLng)=>{
             const rad=v=>v*Math.PI/180,dLat=rad(bLat-aLat),dLng=rad(bLng-aLng);
             const x=Math.sin(dLat/2)**2+Math.cos(rad(aLat))*Math.cos(rad(bLat))*Math.sin(dLng/2)**2;
             return 6371*2*Math.asin(Math.min(1,Math.sqrt(x)));
           };
-          const storeMap=new Map();
-          for(const row of rows) if(!storeMap.has(row.store_id)) storeMap.set(row.store_id,{
+          const stores=[...new Map(rows.filter(row=>numeric(row.store_active)===1).map(row=>[String(row.store_id),{
             id:String(row.store_id),name:String(row.store_name),lat:numeric(row.latitude),lng:numeric(row.longitude),radius:numeric(row.service_radius_km)
-          });
-          const stores=[...storeMap.values()].filter(s=>Number.isFinite(s.lat)&&Number.isFinite(s.lng)&&Math.abs(s.lat)<=90&&Math.abs(s.lng)<=180&&Number.isFinite(s.radius)&&s.radius>0);
+          }])).values()].filter(s=>Number.isFinite(s.lat)&&Number.isFinite(s.lng)&&Math.abs(s.lat)<=90&&Math.abs(s.lng)<=180&&Number.isFinite(s.radius)&&s.radius>0);
           const byProduct=new Map();
           for(const row of rows){
+            if(numeric(row.product_active)!==1||numeric(row.category_active)!==1) continue;
             const productId=String(row.product_id);
             if(!byProduct.has(productId))byProduct.set(productId,[]);
             byProduct.get(productId).push({...row,productId,available:numeric(row.available_qty)});
@@ -82,9 +85,8 @@ jobs:
           const baseline=uniqueFixtures[0];
           if(!baseline) throw new Error('No active store has a live product with unreserved stock that is unique to that store.');
 
-          // Find a point inside two active service radii where the closest active store has
-          // no unit available, while the next closest stock-capable store can fulfil the basket.
-          // All candidate inspection is derived from the read-only D1 result above.
+          // Find a point where the closest active store is out of stock and the next
+          // stock-capable store is the expected fallback. Keep at least 50m radius margin.
           let fallback=null;
           for(const [productId,productRows] of byProduct){
             const stockByStore=new Map(productRows.map(r=>[String(r.store_id),numeric(r.available)]));
@@ -128,7 +130,7 @@ jobs:
             FRESHWAY_TEST_FALLBACK_PRODUCT_ID:fallback?.productId??''
           };
           for(const [key,value] of Object.entries(values)) fs.appendFileSync(process.env.GITHUB_ENV,key+'='+String(value).replace(/[\\r\\n]/g,'')+'\\n');
-          console.log('Read-only production fixture: baseline active store/product selected.');
+          console.log('Read-only production fixture: inventory matrix complete; baseline active store/product selected.');
           if(fallback) console.log('Read-only two-store fallback fixture found: nearest store '+fallback.nearestStoreId+' lacks stock; next stock-capable store is '+fallback.fallbackStoreId+'.');
           else console.log('No safe overlapping two-store fallback fixture exists in current production data; the dedicated Playwright case will be explicitly skipped.');
           NODE
