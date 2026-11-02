@@ -1,0 +1,46 @@
+name: FreshWay isolated store fallback Playwright
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/store-fallback-playwright.yml'
+      - 'e2e/isolated/**'
+      - 'e2e/playwright.store-fallback.config.js'
+      - 'worker/src/delivery-scheduling.js'
+      - 'worker/schema.sql'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/store-fallback-playwright.yml'
+      - 'e2e/isolated/**'
+      - 'e2e/playwright.store-fallback.config.js'
+      - 'worker/src/delivery-scheduling.js'
+      - 'worker/schema.sql'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freshway-isolated-store-fallback-playwright
+  cancel-in-progress: true
+
+jobs:
+  store-fallback:
+    name: Isolated customer store fallback Playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Install Worker dependencies
+        working-directory: worker
+        run: npm install
+      - name: Install Playwright
+        working-directory: e2e
+        run: npm install
+      - name: Run isolated store fallback Playwright
+        working-directory: e2e
+        run: npx playwright test --config=playwright.store-fallback.config.js
