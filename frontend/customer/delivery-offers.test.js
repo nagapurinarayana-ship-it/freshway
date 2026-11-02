@@ -8,15 +8,18 @@ const worker=fs.readFileSync('sw.js','utf8');
 
 assert.match(source,/Number\(pricing\.standardDeliveryFee\) > 0 && pricing\.freeDeliveryEnabled && !pricing\.qualifiesForFreeDelivery/,
   'do not show threshold progress when delivery is already free at every order amount');
-const deliveryOffersScript=index.match(/<script src="(frontend\\/customer\\/delivery-offers\\.js\\?v=[^"]+)"/);
+const deliveryOffersScript=index.match(/src="([^"]*delivery-offers\\.js\\?v=[^"]+)"/);
 assert.ok(deliveryOffersScript,
   'HTML must load the updated delivery-offers module');
 assert.ok(worker.includes('/'+deliveryOffersScript[1]),
   'service worker must cache the exact delivery-offers module URL loaded by HTML');
 assert.match(worker,/const CACHE = 'freshway-v117'/,
   'the service-worker cache version must match the current customer shell');
-assert.ok(worker.includes('/frontend/customer/delivery-booking.js?v=20261102-availability-trigger-v1'),
-  'service worker must cache the persistent delivery-day picker');
+const deliveryBookingScript=index.match(/src="([^"]*delivery-booking\\.js\\?v=[^"]+)"/);
+assert.ok(deliveryBookingScript,
+  'HTML must load the persistent delivery-day picker');
+assert.ok(worker.includes('/'+deliveryBookingScript[1]),
+  'service worker must cache the exact delivery-day picker URL loaded by HTML');
 assert.match(source,/function isCouponEligibilityError\(error\)/,
   'only a server-confirmed coupon eligibility error may clear an applied coupon');
 assert.match(source,/!appliedCode \|\| !isCouponEligibilityError\(error\)/,
