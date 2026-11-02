@@ -112,6 +112,19 @@ export async function updateOrder(env,id,payload,actor={}){
   let reopeningStockConflict=false;
   if(reopening&&!deliveringFromCancelled){
     reopeningNeeded=(await env.DB.prepare('SELECT oi.product_id, SUM(CASE WHEN oi.stock_reserved_qty=0 THEN oi.qty ELSE 0 END) AS reserve_qty, MAX(p.stock_quantity) AS available_stock, MAX(p.name) AS product_name FROM order_items oi JOIN products p ON p.id=oi.product_id AND p.stock_managed=1 WHERE oi.order_id=? GROUP BY oi.product_id HAVING SUM(CASE WHEN oi.stock_reserved_qty=0 THEN oi.qty ELSE 0 END)>0').bind(id).all()).results||[];
+    // Reconcile a store-assigned order against that exact store; the catalogue
+    // aggregate can include stock at a different location that cannot fulfil it.
+    if(current.assigned_store_id&&reopeningNeeded.length){
+      const productIds=reopeningNeeded.map(item=>item.product_id);
+      const placeholders=productIds.map(()=>'?').join(',');
+      const localRows=(await env.DB.prepare(
+        'SELECT p.id product_id,COALESCE(i.stock_quantity,0)-COALESCE((' +
+        "SELECT SUM(r.qty) FROM delivery_store_inventory_reservations r WHERE r.store_id=? AND r.product_id=p.id AND r.status IN ('reserved','conflict')" +
+        '),0) available_stock FROM products p LEFT JOIN delivery_store_inventory i ON i.store_id=? AND i.product_id=p.id WHERE p.id IN ('+placeholders+')'
+      ).bind(current.assigned_store_id,current.assigned_store_id,...productIds).all()).results||[];
+      const localStock=new Map(localRows.map(item=>[item.product_id,Math.max(0,Number(item.available_stock||0))]));
+      reopeningNeeded=reopeningNeeded.map(item=>({...item,available_stock:localStock.get(item.product_id)||0,store_id:current.assigned_store_id}));
+    }
     reopeningStockConflict=reopeningNeeded.some(item=>Number(item.available_stock||0)<Number(item.reserve_qty||0));
   }
   const sets=[],params=[],guards=['id=?'],guardParams=[id];
