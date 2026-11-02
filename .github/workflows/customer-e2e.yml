@@ -49,6 +49,7 @@ on:
       - 'frontend/media/catalogue/**'
       - 'icons/**'
       - 'e2e/**'
+      - 'worker/**'
       - '.github/workflows/customer-e2e.yml'
 
 # Deterministic browser regression gate.
