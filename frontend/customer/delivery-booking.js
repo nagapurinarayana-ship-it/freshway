@@ -12,14 +12,44 @@
     let checkoutPicker=null;
     function render(state){
       const container=state.container,min=localDate(),max=shift(min,60),isToday=state.date===min,isTomorrow=state.date===shift(min,1),custom=!isToday&&!isTomorrow;
+      const availability=state.availability?'<p class="fw-delivery-availability is-'+esc(state.availability.status)+'" data-fw-delivery-availability role="status" aria-live="polite">'+esc(state.availability.message)+'</p>':'';
       container.hidden=false;
-      container.innerHTML='<div class="fw-delivery-picker-head"><h3>'+esc(state.config.title||'Choose delivery day')+'</h3><p>'+esc(state.config.description||'Choose your preferred delivery day.')+'</p></div><div class="fw-delivery-date-options" role="group" aria-label="Preferred delivery day"><button type="button" class="secondary-btn fw-delivery-date-option'+(isToday?' selected':'')+'" data-fw-date-choice="today" aria-pressed="'+isToday+'"><strong>Today</strong><span>'+esc(pretty(min))+'</span></button><button type="button" class="secondary-btn fw-delivery-date-option'+(isTomorrow?' selected':'')+'" data-fw-date-choice="tomorrow" aria-pressed="'+isTomorrow+'"><strong>Tomorrow</strong><span>'+esc(pretty(shift(min,1)))+'</span></button><button type="button" class="secondary-btn fw-delivery-date-option'+(custom?' selected':'')+'" data-fw-date-choice="custom" aria-pressed="'+custom+'"><strong>Choose date</strong><span>'+esc(custom?pretty(state.date):'Calendar')+'</span></button></div><label class="fw-delivery-date-label"'+(custom?'':' hidden')+'>Choose date<input type="date" data-fw-delivery-date min="'+min+'" max="'+max+'" value="'+esc(state.date)+'"></label><p class="fw-delivery-date-summary" role="status">Delivery date: <strong>'+esc(pretty(state.date))+'</strong></p>'+(state.config.requireConfirm?'<button type="button" class="primary-btn full" data-fw-delivery-confirm>Save date change</button>':'');
+      container.innerHTML='<div class="fw-delivery-picker-head"><h3>'+esc(state.config.title||'Choose delivery day')+'</h3><p>'+esc(state.config.description||'Choose your preferred delivery day.')+'</p></div><div class="fw-delivery-date-options" role="group" aria-label="Preferred delivery day"><button type="button" class="secondary-btn fw-delivery-date-option'+(isToday?' selected':'')+'" data-fw-date-choice="today" aria-pressed="'+isToday+'"><strong>Today</strong><span>'+esc(pretty(min))+'</span></button><button type="button" class="secondary-btn fw-delivery-date-option'+(isTomorrow?' selected':'')+'" data-fw-date-choice="tomorrow" aria-pressed="'+isTomorrow+'"><strong>Tomorrow</strong><span>'+esc(pretty(shift(min,1)))+'</span></button><button type="button" class="secondary-btn fw-delivery-date-option'+(custom?' selected':'')+'" data-fw-date-choice="custom" aria-pressed="'+custom+'"><strong>Choose date</strong><span>'+esc(custom?pretty(state.date):'Calendar')+'</span></button></div><label class="fw-delivery-date-label"'+(custom?'':' hidden')+'>Choose date<input type="date" data-fw-delivery-date min="'+min+'" max="'+max+'" value="'+esc(state.date)+'"></label><p class="fw-delivery-date-summary" role="status">Delivery date: <strong>'+esc(pretty(state.date))+'</strong></p>'+availability+(state.config.requireConfirm?'<button type="button" class="primary-btn full" data-fw-delivery-confirm>Save date change</button>':'');
     }
-    function notify(state){state.config.onSelect?.(state.date)}
+    async function refreshAvailability(state){
+      if(!state||state.destroyed||typeof options.api!=='function'||typeof options.getItems!=='function')return null;
+      const sequence=++state.availabilityRequest;
+      let items=[],address={};
+      try{items=options.getItems()||[];address=options.getAddress?.()||{};}catch(_){}
+      if(!items.length){
+        state.availability={status:'empty',message:'Add products to your cart to check delivery availability.'};
+        state.render();
+        return state.availability;
+      }
+      state.availability={status:'checking',message:'Checking delivery availability…'};
+      const status=state.container.querySelector?.('[data-fw-delivery-availability]');
+      if(status){status.textContent=state.availability.message;status.className='fw-delivery-availability is-checking';}
+      try{
+        const result=await options.api('/api/delivery/availability',{method:'POST',body:JSON.stringify({address,items})});
+        if(state.destroyed||sequence!==state.availabilityRequest)return null;
+        state.availability={
+          status:result?.available===true?'available':'unavailable',
+          message:String(result?.message||(result?.available===true?'Good news! We deliver to your area.':'Delivery is not available for this address.')),
+          code:String(result?.code||'')
+        };
+      }catch(error){
+        if(state.destroyed||sequence!==state.availabilityRequest)return null;
+        state.availability={status:'error',message:'We could not check delivery availability. Please try again.'};
+      }
+      state.render();
+      return state.availability;
+    }
+    function notify(state){state.config.onSelect?.(state.date);void refreshAvailability(state);}
     function mount(container,config={}){
       if(!container)return null;
-      const state={container,config,date:valid(config.initialDate)?config.initialDate:localDate(),destroyed:false};
+      const state={container,config,date:valid(config.initialDate)?config.initialDate:localDate(),destroyed:false,availabilityRequest:0};
       state.render=()=>render(state);
+      state.checkAvailability=()=>refreshAvailability(state);
       container.classList.add('fw-delivery-picker');
       container.__fwDeliveryDateState=state;
       if(container.dataset.fwDeliveryDateBound!=='1'){
@@ -46,7 +76,7 @@
     }
     function mountCheckout(container){checkoutPicker?.destroy?.();checkoutPicker=mount(container,{title:'Choose delivery day',description:'Choose the day you would prefer your order to arrive.',initialDate:readCheckoutDate(),onSelect:saveCheckoutDate});return checkoutPicker}
     function mountReschedule(container,details){const order=details?.order||{};return mount(container,{title:'Change delivery day',description:'Choose a new preferred delivery day.',initialDate:order.scheduledDelivery?.date||localDate(),requireConfirm:true,onConfirm:details?.onConfirm})}
-    return Object.freeze({mountCheckout,refreshCheckout(){checkoutPicker?.refresh?.()},checkoutEnabled(){return !!checkoutPicker},selectedCheckoutDate(){return checkoutPicker?.selectedDate?.()||localDate()},clearCheckoutDate(){forgetCheckoutDate();checkoutPicker?.resetDate?.()},mountReschedule});
+    return Object.freeze({mountCheckout,refreshCheckout(){checkoutPicker?.refresh?.();return checkoutPicker?.checkAvailability?.()},checkAvailability(){return checkoutPicker?.checkAvailability?.()},checkoutEnabled(){return !!checkoutPicker},selectedCheckoutDate(){return checkoutPicker?.selectedDate?.()||localDate()},clearCheckoutDate(){forgetCheckoutDate();checkoutPicker?.resetDate?.()},mountReschedule});
   }
   window.FreshWayCustomerDeliveryBooking=Object.freeze({create});
 })();

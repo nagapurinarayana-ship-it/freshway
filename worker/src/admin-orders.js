@@ -83,6 +83,10 @@ export async function orders(env, u) {
   return{orders:[...map.values()],pagination:{page,limit,total,pages:Math.max(1,Math.ceil(total/limit))}};
 }
 
+const storeAvailableStockStatement=(env,productId)=>env.DB.prepare(
+  "UPDATE products SET stock_quantity=MAX(0,(SELECT COALESCE(SUM(i.stock_quantity),0) FROM delivery_store_inventory i JOIN delivery_stores s ON s.id=i.store_id AND s.is_active=1 WHERE i.product_id=?)-(SELECT COALESCE(SUM(r.qty),0) FROM delivery_store_inventory_reservations r JOIN delivery_stores s ON s.id=r.store_id AND s.is_active=1 WHERE r.product_id=? AND r.status IN ('reserved','conflict'))),updated_at=CURRENT_TIMESTAMP WHERE id=?"
+).bind(productId,productId,productId);
+
 export async function updateOrder(env,id,payload,actor={}){
   const status=payload.status?normalizeStatus(n(payload.status)):'';
   const payment=normalizePayment(payload.payment);
@@ -108,6 +112,19 @@ export async function updateOrder(env,id,payload,actor={}){
   let reopeningStockConflict=false;
   if(reopening&&!deliveringFromCancelled){
     reopeningNeeded=(await env.DB.prepare('SELECT oi.product_id, SUM(CASE WHEN oi.stock_reserved_qty=0 THEN oi.qty ELSE 0 END) AS reserve_qty, MAX(p.stock_quantity) AS available_stock, MAX(p.name) AS product_name FROM order_items oi JOIN products p ON p.id=oi.product_id AND p.stock_managed=1 WHERE oi.order_id=? GROUP BY oi.product_id HAVING SUM(CASE WHEN oi.stock_reserved_qty=0 THEN oi.qty ELSE 0 END)>0').bind(id).all()).results||[];
+    // Reconcile a store-assigned order against that exact store; the catalogue
+    // aggregate can include stock at a different location that cannot fulfil it.
+    if(current.assigned_store_id&&reopeningNeeded.length){
+      const productIds=reopeningNeeded.map(item=>item.product_id);
+      const placeholders=productIds.map(()=>'?').join(',');
+      const localRows=(await env.DB.prepare(
+        'SELECT p.id product_id,COALESCE(i.stock_quantity,0)-COALESCE((' +
+        "SELECT SUM(r.qty) FROM delivery_store_inventory_reservations r WHERE r.store_id=? AND r.product_id=p.id AND r.status IN ('reserved','conflict')" +
+        '),0) available_stock FROM products p LEFT JOIN delivery_store_inventory i ON i.store_id=? AND i.product_id=p.id WHERE p.id IN ('+placeholders+')'
+      ).bind(current.assigned_store_id,current.assigned_store_id,...productIds).all()).results||[];
+      const localStock=new Map(localRows.map(item=>[item.product_id,Math.max(0,Number(item.available_stock||0))]));
+      reopeningNeeded=reopeningNeeded.map(item=>({...item,available_stock:localStock.get(item.product_id)||0,store_id:current.assigned_store_id}));
+    }
     reopeningStockConflict=reopeningNeeded.some(item=>Number(item.available_stock||0)<Number(item.reserve_qty||0));
   }
   const sets=[],params=[],guards=['id=?'],guardParams=[id];
@@ -144,10 +161,13 @@ export async function updateOrder(env,id,payload,actor={}){
   ];
   let statements=[];
   let stockConflictDetails=[];
-  // Cancelling releases unfulfilled global, store and slot reservations as one D1 batch.
+  const refreshStoreStockIds=new Set();
+  // Cancelling releases unfulfilled store and slot reservations in the same D1 batch.
   if(cancelling){
     const reserved=(await env.DB.prepare('SELECT product_id,SUM(stock_reserved_qty) AS reserved_qty FROM order_items WHERE order_id=? AND stock_reserved_qty>0 GROUP BY product_id').bind(id).all()).results||[];
-    statements=reserved.map(item=>env.DB.prepare('UPDATE products SET stock_quantity=stock_quantity+? WHERE id=? AND stock_managed=1 AND EXISTS(SELECT 1 FROM orders o WHERE o.id=? AND o.delivery_status IS ?)').bind(Number(item.reserved_qty),item.product_id,id,current.delivery_status));
+    // Older orders without a store assignment still use the legacy aggregate counter.
+    if(!current.assigned_store_id)statements=reserved.map(item=>env.DB.prepare('UPDATE products SET stock_quantity=stock_quantity+? WHERE id=? AND stock_managed=1 AND EXISTS(SELECT 1 FROM orders o WHERE o.id=? AND o.delivery_status IS ?)').bind(Number(item.reserved_qty),item.product_id,id,current.delivery_status));
+    else reserved.forEach(item=>refreshStoreStockIds.add(item.product_id));
     if(reserved.length)statements.push(env.DB.prepare('UPDATE order_items SET stock_reserved_qty=0 WHERE order_id=? AND stock_reserved_qty>0 AND EXISTS(SELECT 1 FROM orders o WHERE o.id=? AND o.delivery_status IS ?)').bind(id,id,current.delivery_status));
     if(current.assigned_store_id||current.scheduled_slot_id)statements.push(...releaseStoreAndSlotStatements());
     statements.push(orderUpdate,auditStatement());
@@ -157,7 +177,8 @@ export async function updateOrder(env,id,payload,actor={}){
     if(!reopeningStockConflict&&reopeningNeeded.length){
       for(const item of reopeningNeeded){
         const quantity=Number(item.reserve_qty||0);
-        statements.push(env.DB.prepare('UPDATE products SET stock_quantity=stock_quantity-? WHERE id=? AND stock_managed=1 AND stock_quantity>=? AND EXISTS(SELECT 1 FROM orders o WHERE o.id=? AND o.delivery_status IS ?)').bind(quantity,item.product_id,quantity,id,current.delivery_status));
+        if(!current.assigned_store_id)statements.push(env.DB.prepare('UPDATE products SET stock_quantity=stock_quantity-? WHERE id=? AND stock_managed=1 AND stock_quantity>=? AND EXISTS(SELECT 1 FROM orders o WHERE o.id=? AND o.delivery_status IS ?)').bind(quantity,item.product_id,quantity,id,current.delivery_status));
+        else refreshStoreStockIds.add(item.product_id);
         statements.push(env.DB.prepare('UPDATE order_items SET stock_reserved_qty=qty WHERE order_id=? AND product_id=? AND stock_reserved_qty=0 AND EXISTS(SELECT 1 FROM orders o WHERE o.id=? AND o.delivery_status IS ?)').bind(id,item.product_id,id,current.delivery_status));
       }
     }
@@ -188,7 +209,8 @@ export async function updateOrder(env,id,payload,actor={}){
       const items=(await env.DB.prepare('SELECT oi.product_id,oi.qty,p.stock_quantity,p.name FROM order_items oi JOIN products p ON p.id=oi.product_id AND p.stock_managed=1 WHERE oi.order_id=? AND oi.stock_reserved_qty=0').bind(id).all()).results||[];
       for(const item of items){
         const available=Number(item.stock_quantity||0),qty=Number(item.qty||0);
-        statements.push(env.DB.prepare('UPDATE products SET stock_quantity=MAX(0,stock_quantity-?) WHERE id=? AND stock_managed=1').bind(qty,item.product_id));
+        if(!current.assigned_store_id)statements.push(env.DB.prepare('UPDATE products SET stock_quantity=MAX(0,stock_quantity-?) WHERE id=? AND stock_managed=1').bind(qty,item.product_id));
+        else refreshStoreStockIds.add(item.product_id);
         if(available<qty)stockConflictDetails.push({productId:item.product_id,productName:item.name,available,required:qty});
       }
     }
@@ -200,6 +222,7 @@ export async function updateOrder(env,id,payload,actor={}){
       for(const item of local){
         statements.push(env.DB.prepare('UPDATE delivery_store_inventory SET stock_quantity=MAX(0,stock_quantity-?),updated_at=CURRENT_TIMESTAMP WHERE store_id=? AND product_id=?').bind(Number(item.qty||0),item.store_id,item.product_id));
         if(item.id)statements.push(env.DB.prepare("UPDATE delivery_store_inventory_reservations SET status='fulfilled',updated_at=CURRENT_TIMESTAMP WHERE id=?").bind(item.id));
+        refreshStoreStockIds.add(item.product_id);
         if(Number(item.stock_quantity||0)<Number(item.qty||0))stockConflictDetails.push({productId:item.product_id,storeId:item.store_id,available:Number(item.stock_quantity||0),required:Number(item.qty||0)});
       }
     }
@@ -210,6 +233,9 @@ export async function updateOrder(env,id,payload,actor={}){
     statements=[orderUpdate,auditStatement()];
     if(currentStatus==='Delivered'&&status==='Cancelled')statements.push(flagStatement('delivered_order_correction_review',{message:'Order status was corrected after delivery; review return and restock separately.'}));
   }
+  // Keep the legacy product stock counter derived from active store stock and
+  // reservations after every store-based cancellation, reopen or fulfilment.
+  for(const productId of refreshStoreStockIds)statements.push(storeAvailableStockStatement(env,productId));
   let updateResult;
   const orderUpdateIndex=statements.indexOf(orderUpdate);
   try{

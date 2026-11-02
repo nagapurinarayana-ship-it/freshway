@@ -205,6 +205,20 @@ test.beforeEach(async ({ page }) => {
       });
     }
 
+    if (url.pathname === '/api/delivery/availability' && method === 'POST') {
+      const payload=JSON.parse(request.postData()||'{}');
+      const latitude=Number(payload.address?.latitude),longitude=Number(payload.address?.longitude);
+      if(!Number.isFinite(latitude)||!Number.isFinite(longitude)) {
+        return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+          available:false,code:'LOCATION_REQUIRED',message:'Please confirm your delivery location on the map to check delivery.'
+        })});
+      }
+      return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+        available:true,code:'AVAILABLE',message:'Good news! We deliver to your area.',
+        store:{id:'store-e2e',name:'FreshWay Test Store',distanceKm:1}
+      })});
+    }
+
     if (url.pathname === '/api/orders' && method === 'POST') {
       const payload = JSON.parse(request.postData() || '{}');
       return route.fulfill({

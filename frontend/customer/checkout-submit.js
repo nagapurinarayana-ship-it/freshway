@@ -26,6 +26,14 @@
         landmark:selectedAddress.landmark||formAddress.landmark,
         note:selectedAddress.note||formAddress.note
       }):formAddress);
+      // The selected saved map pin is required by the store-radius check. Keep
+      // coordinates separate from the text-only normalized address fields.
+      const locationPoint=selectedAddress||formAddress||{};
+      const latitude=locationPoint.latitude??locationPoint.lat,longitude=locationPoint.longitude??locationPoint.lng;
+      if(latitude!==undefined&&latitude!==null&&longitude!==undefined&&longitude!==null){
+        address.latitude=Number(latitude);
+        address.longitude=Number(longitude);
+      }
       const selectedName=String(selectedAddress?.recipientName||'').trim();
       const name=(selectedName.length>=2?selectedName:'')||$('#customerName')?.value.trim()||customerAuth.registeredName?.()||'';
       const normalizePhone=customerCheckout.normalizePhone;
@@ -76,6 +84,8 @@
           if(!preferredDeliveryDate)throw new Error('Choose a preferred delivery day before placing your order.');
           orderPayload.preferredDeliveryDate=preferredDeliveryDate;
         }
+        const availability=await window.FreshWayCustomerDeliveryBookingInstance?.checkAvailability?.();
+        if(availability&&availability.status!=='available')throw new Error(availability.message||'Delivery is not available for this address and basket.');
         const result=await api('/api/orders',{method:'POST',body:JSON.stringify(orderPayload)});
         const registeredPhone=customerAuth.registeredPhone?.()||'';
         const order={id:result.id,customer:{name:customerAuth.registeredName?.()||name,phone:registeredPhone},address:{...address,recipientName:address.recipientName||name,deliveryPhone:phone},items:(result.items||[]).map(i=>({name:i.name,unit:i.unit,qty:i.qty,price:i.price,lineTotal:i.lineTotal})),total:result.total,pricingBreakdownKnown:result.pricingBreakdownKnown===true,itemsSubtotal:result.itemsSubtotal??null,deliveryFee:result.deliveryFee??null,couponCode:result.couponCode||null,couponDiscount:result.couponDiscount??null,payment:result.payment,status:result.status,deliveryPlan:result.deliveryPlan,scheduledDelivery:result.scheduledDelivery||null,scheduleStatus:result.scheduledDelivery?.status||'unscheduled',createdAt:result.createdAt,updatedAt:result.updatedAt};

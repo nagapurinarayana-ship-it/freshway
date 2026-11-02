@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateOrderItems, updateOrder } from '../src/index.js';
+import { prepareCheckoutDelivery } from '../src/delivery-scheduling.js';
 
 function mockProducts(rows){
   return {
@@ -28,13 +29,42 @@ test('checkout uses authoritative database price and reserves tracked stock',asy
   assert.equal(result.items[0].stockReservedQty,2);
 });
 
-test('checkout rejects tracked stock that is insufficient',async()=>{
+test('catalogue validation defers tracked stock to the selected store inventory',async()=>{
   const env={DB:mockProducts([
     {id:'p1',name:'Rice',unit:'kg',price:450,emoji:'🍚',stock_managed:1,stock_quantity:1,low_stock_threshold:1}
   ])};
+  const result=await validateOrderItems(env,[{id:'p1',qty:2}]);
+  assert.equal(result.items[0].stockReservedQty,2,
+    'the legacy aggregate count is not authoritative for store-managed inventory');
+});
+
+test('checkout rejects a basket when the selected active store lacks enough tracked stock',async()=>{
+  const products=[{id:'p1',name:'Rice',stock_managed:1}];
+  const stores=[{id:'store-1',name:'Test Store',latitude:17.385,longitude:78.4867,service_radius_km:5}];
+  const inventory=[{store_id:'store-1',product_id:'p1',stock_quantity:1,reserved_qty:0}];
+  const env={DB:{
+    prepare(sql){
+      let args=[];
+      const query={
+        bind(...values){args=values;return query;},
+        async all(){
+          if(sql.includes('SELECT id,stock_managed FROM products'))return{results:products.filter(p=>args.includes(p.id))};
+          if(sql.includes('FROM delivery_stores WHERE is_active=1'))return{results:stores};
+          if(sql.includes('FROM delivery_store_inventory i LEFT JOIN'))return{results:inventory};
+          return{results:[]};
+        },
+        async first(){return null;},
+        async run(){return{meta:{changes:1}};}
+      };
+      return query;
+    }
+  }};
+  const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  const [year,month,day]=today.split('-').map(Number);
+  const tomorrow=new Date(Date.UTC(year,month-1,day+1)).toISOString().slice(0,10);
   await assert.rejects(
-    ()=>validateOrderItems(env,[{id:'p1',qty:2}]),
-    /Not enough stock for Rice/i
+    ()=>prepareCheckoutDelivery(env,{preferredDeliveryDate:tomorrow,address:{latitude:17.385,longitude:78.4867}},[{id:'p1',qty:2}]),
+    /not available from nearby stores/i
   );
 });
 

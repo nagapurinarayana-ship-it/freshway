@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { handleAdminDeliveryRequest, handleCustomerDeliveryRequest } from '../src/delivery-scheduling.js';
+import { updateOrder } from '../src/admin-orders.js';
 import { createOrder } from '../src/index.js';
 
 function dateInIndia(daysFromToday = 0) {
@@ -20,7 +21,7 @@ class SQLiteD1 {
     this.db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
     this.db.exec(`
       INSERT INTO customers (id,name,phone) VALUES ('customer-1','Test Customer','911234567890');
-      INSERT INTO addresses (customer_id,house,area,city,pincode) VALUES ('customer-1','1-1','Test Area','Test City','500001');
+      INSERT INTO addresses (customer_id,house,area,city,pincode,latitude,longitude) VALUES ('customer-1','1-1','Test Area','Test City','500001',17.385,78.4867);
       INSERT INTO products (id,name,unit,price,stock_managed,stock_quantity,low_stock_threshold)
         VALUES ('product-1','Test Rice','kg',100,1,3,1);
       INSERT INTO delivery_stores (id,name,address,latitude,longitude,service_radius_km,is_active)
@@ -67,6 +68,181 @@ class SQLiteD1 {
   }
   close(){this.db.close();}
 }
+
+test('new Owner stores start inactive with zero stock when another store already exists', async () => {
+  const db=new SQLiteD1();
+  try {
+    const response=await handleAdminDeliveryRequest(new Request('https://api.example.test/api/admin/delivery/stores',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({name:'New Test Store',address:'Second Address',latitude:17.39,longitude:78.49})
+    }),{DB:db});
+    assert.equal(response.status,201);
+    const result=await response.json();
+    assert.equal(result.store.is_active,0);
+    assert.equal(result.store.service_radius_km,5);
+    assert.equal(result.initialInventory,'zero-stock-requires-setup');
+    assert.equal(db.db.prepare('SELECT is_active FROM delivery_stores WHERE id=?').get(result.store.id).is_active,0);
+    assert.equal(db.db.prepare("SELECT stock_quantity FROM delivery_store_inventory WHERE store_id=? AND product_id='product-1'").get(result.store.id).stock_quantity,0);
+    assert.equal(db.db.prepare("SELECT stock_quantity FROM products WHERE id='product-1'").get().stock_quantity,5,
+      'only the existing active store contributes to the customer-facing aggregate');
+  } finally { db.close(); }
+});
+
+test('customer availability requires a map pin, respects active-store radius and reports clear states', async () => {
+  const db=new SQLiteD1();
+  try {
+    const check=async body=>{
+      const response=await handleCustomerDeliveryRequest(new Request('https://api.example.test/api/delivery/availability',{
+        method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)
+      }),{DB:db},'');
+      assert.equal(response.status,200);
+      return response.json();
+    };
+    const basket={items:[{id:'product-1',qty:2}]};
+    const available=await check({...basket,address:{latitude:17.385,longitude:78.4867}});
+    assert.equal(available.available,true);
+    assert.equal(available.store.id,'store-1');
+    assert.equal(available.code,'AVAILABLE');
+
+    const missingPin=await check({...basket,address:{city:'Test City',pincode:'500001'}});
+    assert.equal(missingPin.available,false);
+    assert.equal(missingPin.code,'LOCATION_REQUIRED');
+    const partialPin=await check({...basket,address:{latitude:null,longitude:78.4867}});
+    assert.equal(partialPin.available,false);
+    assert.equal(partialPin.code,'LOCATION_REQUIRED');
+
+    const outside=await check({...basket,address:{latitude:18.5,longitude:79.5}});
+    assert.equal(outside.available,false);
+    assert.equal(outside.code,'AREA_UNAVAILABLE');
+
+    db.db.prepare("UPDATE delivery_stores SET is_active=0 WHERE id='store-1'").run();
+    const inactive=await check({...basket,address:{latitude:17.385,longitude:78.4867}});
+    assert.equal(inactive.available,false);
+    assert.equal(inactive.code,'NO_ACTIVE_STORE');
+  } finally { db.close(); }
+});
+
+test('availability falls back to the next-nearest store that can fulfil the entire basket without splitting it', async () => {
+  const db=new SQLiteD1();
+  try {
+    db.db.prepare("INSERT INTO delivery_stores (id,name,address,latitude,longitude,service_radius_km,is_active) VALUES ('store-near','A Nearby Store','Near',17.385,78.4867,5,1)").run();
+    db.db.prepare("INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) VALUES ('store-near','product-1',0)").run();
+    let response=await handleCustomerDeliveryRequest(new Request('https://api.example.test/api/delivery/availability',{
+      method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address:{latitude:17.385,longitude:78.4867},items:[{id:'product-1',qty:2}]})
+    }),{DB:db},'');
+    let result=await response.json();
+    assert.equal(result.available,true);
+    assert.equal(result.store.id,'store-1','nearest store without enough stock must be skipped');
+
+    db.db.prepare("INSERT INTO products (id,name,unit,price,stock_managed,stock_quantity,low_stock_threshold) VALUES ('product-2','Test Oil','litre',150,1,5,1)").run();
+    db.db.prepare("INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) VALUES ('store-near','product-2',5)").run();
+    await db.prepare("INSERT OR IGNORE INTO delivery_store_inventory (store_id,product_id,stock_quantity) SELECT s.id,p.id,0 FROM delivery_stores s CROSS JOIN products p WHERE p.stock_managed=1").run();
+    response=await handleCustomerDeliveryRequest(new Request('https://api.example.test/api/delivery/availability',{
+      method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address:{latitude:17.385,longitude:78.4867},items:[{id:'product-1',qty:2},{id:'product-2',qty:1}]})
+    }),{DB:db},'');
+    result=await response.json();
+    assert.equal(result.available,false,'the system must not split a basket across two stores');
+    assert.equal(result.code,'OUT_OF_STOCK');
+  } finally { db.close(); }
+});
+
+test('Owner can reassign a pending order only to an active store with enough stock for the full basket', async () => {
+  const db=new SQLiteD1();
+  try {
+    db.seedOrder('order-reassign');
+    db.db.prepare("UPDATE order_items SET stock_reserved_qty=0 WHERE order_id='order-reassign'").run();
+    db.db.prepare("INSERT INTO delivery_stores (id,name,address,latitude,longitude,service_radius_km,is_active) VALUES ('store-2','Second Store','Second Address',17.39,78.49,5,1)").run();
+    db.db.prepare("INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) VALUES ('store-2','product-1',1)").run();
+    const assign=()=>handleAdminDeliveryRequest(new Request('https://api.example.test/api/admin/delivery/orders/order-reassign/store',{
+      method:'PATCH',headers:{'content-type':'application/json','X-Freshway-Owner-Id':'owner-test'},
+      body:JSON.stringify({storeId:'store-2',reason:'Move to a store with stock'})
+    }),{DB:db});
+    await assert.rejects(assign,/cannot fulfil the complete order/i);
+    assert.equal(db.db.prepare("SELECT assigned_store_id FROM orders WHERE id='order-reassign'").get().assigned_store_id,'store-1');
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-reassign'").get().status,'reserved');
+
+    db.db.prepare("UPDATE delivery_store_inventory SET stock_quantity=5 WHERE store_id='store-2' AND product_id='product-1'").run();
+    const response=await assign();
+    assert.equal(response.status,200);
+    const result=await response.json();
+    assert.equal(result.store.id,'store-2');
+    const order=db.db.prepare("SELECT assigned_store_id,scheduled_delivery_date,scheduled_slot_id FROM orders WHERE id='order-reassign'").get();
+    assert.equal(order.assigned_store_id,'store-2');
+    assert.equal(order.scheduled_delivery_date,'2099-01-01','reassignment must preserve the requested date');
+    assert.equal(order.scheduled_slot_id,null,'a store-specific slot must be cleared on reassignment');
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-reassign' AND store_id='store-1'").get().status,'released');
+    assert.equal(db.db.prepare("SELECT status,qty FROM delivery_store_inventory_reservations WHERE order_id='order-reassign' AND store_id='store-2'").get().status,'reserved');
+    assert.equal(db.db.prepare("SELECT stock_reserved_qty FROM order_items WHERE order_id='order-reassign'").get().stock_reserved_qty,2,'store reassignment must restore the order stock reservation ledger');
+    assert.equal(db.db.prepare("SELECT status FROM delivery_slot_reservations WHERE order_id='order-reassign'").get().status,'released');
+    assert.equal(db.db.prepare("SELECT stock_quantity FROM products WHERE id='product-1'").get().stock_quantity,8);
+  } finally { db.close(); }
+});
+
+test('Owner slot reassignment checks store radius and keeps store stock reservations linked to order items', async () => {
+  const db=new SQLiteD1();
+  const date=dateInIndia(1);
+  try {
+    db.seedOrder('order-slot-store');
+    db.db.prepare("INSERT INTO delivery_stores (id,name,address,latitude,longitude,service_radius_km,is_active) VALUES ('store-near','Nearby Store','Nearby Address',17.39,78.49,5,1)").run();
+    db.db.prepare("INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) VALUES ('store-near','product-1',5)").run();
+    db.db.prepare("INSERT INTO delivery_slots (id,store_id,delivery_date,start_minute,end_minute,capacity,is_active) VALUES ('slot-near','store-near',?,600,720,5,1)").run(date);
+
+    const assign=slotId=>handleAdminDeliveryRequest(new Request('https://api.example.test/api/admin/delivery/orders/order-slot-store/schedule',{
+      method:'PATCH',headers:{'content-type':'application/json','X-Freshway-Owner-Id':'owner-test'},
+      body:JSON.stringify({slotId})
+    }),{DB:db});
+    const response=await assign('slot-near');
+    assert.equal(response.status,200);
+    const result=await response.json();
+    assert.equal(result.scheduledDelivery.storeId,'store-near');
+    assert.equal(db.db.prepare("SELECT assigned_store_id FROM orders WHERE id='order-slot-store'").get().assigned_store_id,'store-near');
+    assert.equal(db.db.prepare("SELECT stock_reserved_qty FROM order_items WHERE order_id='order-slot-store'").get().stock_reserved_qty,2);
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-slot-store' AND store_id='store-1'").get().status,'released');
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-slot-store' AND store_id='store-near'").get().status,'reserved');
+
+    db.db.prepare("INSERT INTO delivery_stores (id,name,address,latitude,longitude,service_radius_km,is_active) VALUES ('store-far','Far Store','Far Address',18.5,79.5,1,1)").run();
+    db.db.prepare("INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) VALUES ('store-far','product-1',5)").run();
+    db.db.prepare("INSERT INTO delivery_slots (id,store_id,delivery_date,start_minute,end_minute,capacity,is_active) VALUES ('slot-far','store-far',?,600,720,5,1)").run(date);
+    await assert.rejects(assign('slot-far'),/does not cover the customer delivery location/i);
+    assert.equal(db.db.prepare("SELECT assigned_store_id FROM orders WHERE id='order-slot-store'").get().assigned_store_id,'store-near');
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-slot-store' AND store_id='store-near'").get().status,'reserved');
+  } finally { db.close(); }
+});
+
+test('reopening checks the assigned store and Owner can reconfirm that store after stock is replenished', async () => {
+  const db=new SQLiteD1();
+  try {
+    db.seedOrder('order-reopen-stock');
+    db.db.prepare("INSERT INTO delivery_stores (id,name,address,latitude,longitude,service_radius_km,is_active) VALUES ('store-2','Other Active Store','Other Address',17.39,78.49,5,1)").run();
+    db.db.prepare("INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) VALUES ('store-2','product-1',10)").run();
+
+    await updateOrder({DB:db},'order-reopen-stock',{status:'Cancelled'});
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-reopen-stock' ORDER BY created_at DESC LIMIT 1").get().status,'released');
+
+    db.seedOrder('order-other-stock');
+    db.db.prepare("UPDATE delivery_store_inventory_reservations SET qty=4 WHERE order_id='order-other-stock' AND store_id='store-1' AND product_id='product-1'").run();
+    db.db.prepare("UPDATE products SET stock_quantity=11 WHERE id='product-1'").run();
+
+    const reopened=await updateOrder({DB:db},'order-reopen-stock',{status:'New'});
+    assert.match(reopened.inventoryWarning,/inventory shortfall/i);
+    const shortage=JSON.parse(db.db.prepare("SELECT details_json FROM order_operational_flags WHERE order_id='order-reopen-stock' AND flag_type='reopen_stock_shortfall' AND status='open'").get().details_json);
+    assert.equal(shortage.products[0].available,1,'availability must come from the assigned store, not another active store');
+    assert.equal(shortage.products[0].required,2);
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-reopen-stock' AND status='conflict'").get().status,'conflict');
+
+    db.db.prepare("UPDATE delivery_store_inventory SET stock_quantity=8 WHERE store_id='store-1' AND product_id='product-1'").run();
+    const response=await handleAdminDeliveryRequest(new Request('https://api.example.test/api/admin/delivery/orders/order-reopen-stock/store',{
+      method:'PATCH',headers:{'content-type':'application/json','X-Freshway-Owner-Id':'owner-test'},
+      body:JSON.stringify({storeId:'store-1',reason:'Recheck inventory after replenishment'})
+    }),{DB:db});
+    assert.equal(response.status,200);
+    const result=await response.json();
+    assert.equal(result.reconfirmed,true);
+    assert.equal(db.db.prepare("SELECT status,owner_override FROM delivery_store_inventory_reservations WHERE order_id='order-reopen-stock' AND status='reserved' ORDER BY created_at DESC LIMIT 1").get().status,'reserved');
+    assert.equal(db.db.prepare("SELECT stock_reserved_qty FROM order_items WHERE order_id='order-reopen-stock'").get().stock_reserved_qty,2);
+    assert.equal(db.db.prepare("SELECT status FROM order_operational_flags WHERE order_id='order-reopen-stock' AND flag_type='reopen_stock_shortfall'").get().status,'resolved');
+  } finally { db.close(); }
+});
 
 test('customer cancellation atomically releases stock and slot reservations and attributes the audit to the customer', async () => {
   const db=new SQLiteD1();
@@ -198,12 +374,13 @@ test('Owner can still save an order delivery date directly without creating slot
   } finally { db.close(); }
 });
 
-test('checkout creates an order with a server-validated preferred date and reserves global stock exactly once', async () => {
+test('checkout creates an order with a server-validated preferred date and reserves selected store stock exactly once', async () => {
   const db=new SQLiteD1();
   const requestedDate=dateInIndia(1);
   try {
     db.db.prepare(`UPDATE delivery_scheduling_settings
       SET enabled=1,booking_horizon_days=7,same_day_cutoff_minutes=120,timezone='Asia/Kolkata' WHERE id=1`).run();
+    db.db.prepare("UPDATE products SET stock_quantity=5 WHERE id='product-1'").run();
     const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
     db.db.prepare(`INSERT INTO coupons(id,code,title,discount_amount,first_order_only,starts_on,active)
       VALUES ('coupon-first25','FIRST25','First order fixed coupon',25,1,?,1)`).run(today);
@@ -242,11 +419,12 @@ test('checkout creates an order with a server-validated preferred date and reser
     assert.equal(order.delivery_status,'New');
     assert.equal(order.scheduled_delivery_date,requestedDate);
     assert.equal(order.scheduled_slot_id,null);
-    assert.equal(order.assigned_store_id,null);
+    assert.equal(order.assigned_store_id,'store-1');
     assert.equal(order.schedule_status,'requested');
-    assert.equal(db.db.prepare(`SELECT stock_quantity FROM products WHERE id='product-1'`).get().stock_quantity,1);
+    assert.equal(db.db.prepare(`SELECT stock_quantity FROM products WHERE id='product-1'`).get().stock_quantity,3);
     assert.equal(db.db.prepare('SELECT stock_reserved_qty FROM order_items WHERE order_id=?').get(placed.id).stock_reserved_qty,2);
-    assert.equal(db.db.prepare('SELECT COUNT(*) count FROM delivery_store_inventory_reservations WHERE order_id=?').get(placed.id).count,0);
+    assert.equal(db.db.prepare("SELECT COUNT(*) count FROM delivery_store_inventory_reservations WHERE order_id=? AND status='reserved'").get(placed.id).count,1);
+    assert.equal(db.db.prepare('SELECT qty FROM delivery_store_inventory_reservations WHERE order_id=?').get(placed.id).qty,2);
     assert.equal(db.db.prepare('SELECT COUNT(*) count FROM delivery_slot_reservations WHERE order_id=?').get(placed.id).count,0);
     assert.deepEqual(db.db.prepare('PRAGMA foreign_key_check').all(),[]);
 
@@ -260,7 +438,8 @@ test('checkout creates an order with a server-validated preferred date and reser
     assert.equal(retried.couponDiscount,25);
     assert.equal(db.db.prepare('SELECT COUNT(*) count FROM coupon_redemptions WHERE order_id=?').get(placed.id).count,1,'retry must not create another redemption');
     assert.equal(db.db.prepare('SELECT COUNT(*) count FROM first_order_coupon_claims WHERE customer_id=\'customer-1\'').get().count,1,'retry must not create another first-order claim');
-    assert.equal(db.db.prepare(`SELECT stock_quantity FROM products WHERE id='product-1'`).get().stock_quantity,1,'retry must not reserve global stock twice');
+    assert.equal(db.db.prepare(`SELECT stock_quantity FROM products WHERE id='product-1'`).get().stock_quantity,3,'retry must not reserve store stock twice');
+    assert.equal(db.db.prepare('SELECT COUNT(*) count FROM delivery_store_inventory_reservations WHERE order_id=?').get(placed.id).count,1,'retry must not create duplicate store reservations');
     assert.equal(db.db.prepare('SELECT COUNT(*) count FROM delivery_slot_reservations WHERE order_id=?').get(placed.id).count,0);
   } finally { db.close(); }
 });
