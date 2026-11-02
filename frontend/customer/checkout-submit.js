@@ -84,6 +84,8 @@
           if(!preferredDeliveryDate)throw new Error('Choose a preferred delivery day before placing your order.');
           orderPayload.preferredDeliveryDate=preferredDeliveryDate;
         }
+        const availability=await deliveryBooking?.checkAvailability?.();
+        if(availability&&availability.status!=='available')throw new Error(availability.message||'Delivery is not available for this address and basket.');
         const result=await api('/api/orders',{method:'POST',body:JSON.stringify(orderPayload)});
         const registeredPhone=customerAuth.registeredPhone?.()||'';
         const order={id:result.id,customer:{name:customerAuth.registeredName?.()||name,phone:registeredPhone},address:{...address,recipientName:address.recipientName||name,deliveryPhone:phone},items:(result.items||[]).map(i=>({name:i.name,unit:i.unit,qty:i.qty,price:i.price,lineTotal:i.lineTotal})),total:result.total,pricingBreakdownKnown:result.pricingBreakdownKnown===true,itemsSubtotal:result.itemsSubtotal??null,deliveryFee:result.deliveryFee??null,couponCode:result.couponCode||null,couponDiscount:result.couponDiscount??null,payment:result.payment,status:result.status,deliveryPlan:result.deliveryPlan,scheduledDelivery:result.scheduledDelivery||null,scheduleStatus:result.scheduledDelivery?.status||'unscheduled',createdAt:result.createdAt,updatedAt:result.updatedAt};
