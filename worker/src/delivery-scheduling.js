@@ -558,7 +558,7 @@ export async function handleAdminDeliveryRequest(request, env) {
   }
   if (path === '/api/admin/delivery/stores' && request.method === 'GET') {
     const stores = (await env.DB.prepare(
-      'SELECT id,name,address,latitude,longitude,service_radius_km,is_active,created_at,updated_at FROM delivery_stores ORDER BY created_at,id'
+      "SELECT d.id,d.name,d.address,d.latitude,d.longitude,d.service_radius_km,d.is_active,d.created_at,d.updated_at,(SELECT COUNT(*) FROM orders o WHERE o.assigned_store_id=d.id AND o.delivery_status NOT IN ('Delivered','Cancelled')) pending_order_count FROM delivery_stores d ORDER BY d.created_at,d.id"
     ).all()).results || [];
     return response({ stores });
   }
