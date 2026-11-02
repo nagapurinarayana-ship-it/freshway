@@ -762,7 +762,7 @@ export async function handleAdminDeliveryRequest(request, env) {
     const before = { ...order };
     const afterScheduleStatus = order.scheduled_delivery_date ? 'confirmed' : 'unscheduled';
     const statements = [
-      env.DB.prepare("UPDATE orders SET assigned_store_id=?,scheduled_slot_id=NULL,scheduled_start_minute=NULL,scheduled_end_minute=NULL,schedule_status=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND delivery_status NOT IN ('Delivered','Cancelled')")
+      env.DB.prepare("UPDATE orders SET assigned_store_id=?,scheduled_slot_id=NULL,scheduled_start_minute=NULL,scheduled_end_minute=NULL,schedule_status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
         .bind(storeId, afterScheduleStatus, orderId),
       env.DB.prepare("UPDATE delivery_store_inventory_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(orderId),
       env.DB.prepare("UPDATE delivery_slot_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(orderId)
@@ -780,6 +780,7 @@ export async function handleAdminDeliveryRequest(request, env) {
     try { await env.DB.batch(statements); }
     catch (error) {
       if (/DELIVERY_STORE_INACTIVE/i.test(String(error?.message||''))) throw new Error('Choose an active store. Store availability changed; refresh and try again.');
+      if (/DELIVERY_ORDER_CLOSED/i.test(String(error?.message||''))) throw new Error('This order was completed or cancelled while you were reassigning it. Refresh the order.');
       if (/DELIVERY_STORE_STOCK_LOW/i.test(String(error?.message||''))) throw new Error('Store stock changed. Refresh inventory and try again.');
       throw error;
     }
