@@ -30,7 +30,7 @@ assert.doesNotMatch(admin,/localStorage\.setItem\(['"]freshway-admin-session['"]
 assert.doesNotMatch(admin,/sessionStorage\.setItem\(['"]freshway-admin-session['"]/);
 assert.match(admin,/AUTH_HINT='freshway-admin-auth'/);
 assert.match(html,/admin\.js\?v=20261029-order-shortcuts-v1/);
-assert.match(html,/admin\.css\?v=20261102-store-catalogue-pricing-v1/);
+assert.match(html,/admin\.css\?v=20261102-store-catalogue-pricing-v2/);
 assert.doesNotMatch(html,/admin\.js\?v=20261027-customer-messages-v1/,'Owner HTML must not retain the previous script version after simplification');
 assert.doesNotMatch(html,/\.exact-location/);
 
