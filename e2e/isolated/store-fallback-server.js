@@ -50,6 +50,11 @@ const server = createServer(async (incoming, outgoing) => {
     headers: incoming.headers,
     ...(body.length ? { body: body.toString('utf8') } : {})
   });
+  if (incoming.method === 'GET' && incoming.url === '/health') {
+    outgoing.writeHead(200, { 'content-type': 'text/plain' });
+    outgoing.end('ok');
+    return;
+  }
   try {
     const response = await handleCustomerDeliveryRequest(request, { DB: db }, '');
     if (!response) {
