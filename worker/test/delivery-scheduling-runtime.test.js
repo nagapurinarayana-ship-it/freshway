@@ -123,6 +123,36 @@ test('availability falls back to the next-nearest store that can fulfil the enti
   } finally { db.close(); }
 });
 
+test('Owner can reassign a pending order only to an active store with enough stock for the full basket', async () => {
+  const db=new SQLiteD1();
+  try {
+    db.seedOrder('order-reassign');
+    db.db.prepare("INSERT INTO delivery_stores (id,name,address,latitude,longitude,service_radius_km,is_active) VALUES ('store-2','Second Store','Second Address',17.39,78.49,5,1)").run();
+    db.db.prepare("INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) VALUES ('store-2','product-1',1)").run();
+    const assign=()=>handleAdminDeliveryRequest(new Request('https://api.example.test/api/admin/delivery/orders/order-reassign/store',{
+      method:'PATCH',headers:{'content-type':'application/json','X-Freshway-Owner-Id':'owner-test'},
+      body:JSON.stringify({storeId:'store-2',reason:'Move to a store with stock'})
+    }),{DB:db});
+    await assert.rejects(assign,/cannot fulfil the complete order/i);
+    assert.equal(db.db.prepare("SELECT assigned_store_id FROM orders WHERE id='order-reassign'").get().assigned_store_id,'store-1');
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-reassign'").get().status,'reserved');
+
+    db.db.prepare("UPDATE delivery_store_inventory SET stock_quantity=5 WHERE store_id='store-2' AND product_id='product-1'").run();
+    const response=await assign();
+    assert.equal(response.status,200);
+    const result=await response.json();
+    assert.equal(result.store.id,'store-2');
+    const order=db.db.prepare("SELECT assigned_store_id,scheduled_delivery_date,scheduled_slot_id FROM orders WHERE id='order-reassign'").get();
+    assert.equal(order.assigned_store_id,'store-2');
+    assert.equal(order.scheduled_delivery_date,'2099-01-01','reassignment must preserve the requested date');
+    assert.equal(order.scheduled_slot_id,null,'a store-specific slot must be cleared on reassignment');
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-reassign' AND store_id='store-1'").get().status,'released');
+    assert.equal(db.db.prepare("SELECT status,qty FROM delivery_store_inventory_reservations WHERE order_id='order-reassign' AND store_id='store-2'").get().status,'reserved');
+    assert.equal(db.db.prepare("SELECT status FROM delivery_slot_reservations WHERE order_id='order-reassign'").get().status,'released');
+    assert.equal(db.db.prepare("SELECT stock_quantity FROM products WHERE id='product-1'").get().stock_quantity,8);
+  } finally { db.close(); }
+});
+
 test('customer cancellation atomically releases stock and slot reservations and attributes the audit to the customer', async () => {
   const db=new SQLiteD1();
   try {
