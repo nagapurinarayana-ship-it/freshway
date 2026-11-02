@@ -117,7 +117,7 @@ for (const name of expectedIndexes) if (!indexNames.includes(name)) problems.pus
 const migrationRows = rowsFor('SELECT id,name FROM d1_migrations ORDER BY id', row => 'name' in row && 'id' in row);
 report.migrations = migrationRows.map(row => ({ id: row.id, name: row.name }));
 report.migrationCount = migrationRows.length;
-const deliveryMigrationNames = ['0037_order_delivery_scheduling.sql', '0038_anonymize_delivery_requests.sql', '0039_customer_preferred_delivery_date.sql', '0040_order_delivered_at.sql', '0046_store_first_fulfilment.sql'];
+const deliveryMigrationNames = ['0037_order_delivery_scheduling.sql', '0038_anonymize_delivery_requests.sql', '0039_customer_preferred_delivery_date.sql', '0040_order_delivered_at.sql', '0046_store_first_fulfilment.sql', '0047_store_inventory_reservation_floor.sql'];
 const requiredFeatureMigrations = ['0042_customer_messages.sql', '0043_delivery_offers_fixed_coupons.sql'];
 report.featureMigrations = Object.fromEntries(requiredFeatureMigrations.map(name => [name, migrationRows.some(row => String(row.name) === name)]));
 for (const name of requiredFeatureMigrations) if (!report.featureMigrations[name]) problems.push('required feature migration not recorded as applied: ' + name);
@@ -129,6 +129,7 @@ const requiredDeliveryTriggers = [
   'delivery_slot_capacity_before_update',
   'delivery_store_stock_before_insert',
   'delivery_store_stock_before_update',
+  'delivery_store_inventory_stock_floor_before_update',
   'delivery_order_store_active_before_insert',
   'delivery_order_store_active_before_update',
   'delivery_store_active_before_insert',
