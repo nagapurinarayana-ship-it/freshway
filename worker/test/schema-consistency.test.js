@@ -70,7 +70,7 @@ test('reusable address visibility separates order-only rows without changing ord
   const orderWriter = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
   assert.ok(addressApi.includes('SELECT * FROM addresses WHERE customer_id=? AND deleted_at IS NULL AND is_saved_address=1'));
   assert.ok(addressApi.includes('is_default,is_saved_address) VALUES ('));
-  assert.ok(orderWriter.includes('INSERT INTO addresses (customer_id,house,area,city,pincode,landmark,note,is_saved_address) VALUES (?,?,?,?,?,?,?,0)'));
+  assert.ok(orderWriter.includes('INSERT INTO addresses (customer_id,house,area,city,pincode,landmark,note,latitude,longitude,is_saved_address) VALUES (?,?,?,?,?,?,?,?,?,0)'));
 });
 
 const snapshotTable = schema.match(
