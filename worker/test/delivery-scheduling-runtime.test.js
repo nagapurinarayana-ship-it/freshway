@@ -20,7 +20,7 @@ class SQLiteD1 {
     this.db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
     this.db.exec(`
       INSERT INTO customers (id,name,phone) VALUES ('customer-1','Test Customer','911234567890');
-      INSERT INTO addresses (customer_id,house,area,city,pincode) VALUES ('customer-1','1-1','Test Area','Test City','500001');
+      INSERT INTO addresses (customer_id,house,area,city,pincode,latitude,longitude) VALUES ('customer-1','1-1','Test Area','Test City','500001',17.385,78.4867);
       INSERT INTO products (id,name,unit,price,stock_managed,stock_quantity,low_stock_threshold)
         VALUES ('product-1','Test Rice','kg',100,1,3,1);
       INSERT INTO delivery_stores (id,name,address,latitude,longitude,service_radius_km,is_active)
