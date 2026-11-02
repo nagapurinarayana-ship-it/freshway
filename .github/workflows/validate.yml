@@ -29,6 +29,10 @@ jobs:
           FRESHWAY_VISUAL_ARTIFACTS: '1'
         run: npm test
 
+      - name: Build Worker bundle without deploying
+        working-directory: worker
+        run: npx wrangler deploy --dry-run --outdir ./test-results/worker-dry-run --config wrangler.jsonc
+
       - name: Upload invoice visual review PDFs
         if: always()
         uses: actions/upload-artifact@v7
