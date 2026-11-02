@@ -111,7 +111,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ADMIN_TOKEN=isolated-playwright-token CUSTOMER_SESSION_SECRET=isolated-customer-secret ADMIN_SESSION_SECRET=isolated-admin-secret npx wrangler dev --local --config wrangler.jsonc --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/freshway-isolated-worker.log" 2>&1 &
+          ADMIN_TOKEN="isolated-playwright-token" CUSTOMER_SESSION_SECRET="isolated-customer-secret" ADMIN_SESSION_SECRET="isolated-admin-secret" npx wrangler dev --local --config wrangler.jsonc --ip 127.0.0.1 --port 8787 > "$RUNNER_TEMP/freshway-isolated-worker.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/freshway-isolated-worker.pid"
           for attempt in $(seq 1 60); do
             if curl --silent --fail http://127.0.0.1:8787/api/admin/status > /dev/null; then
