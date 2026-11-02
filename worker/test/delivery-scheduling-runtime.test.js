@@ -185,7 +185,7 @@ test('reopening checks the assigned store and Owner can reconfirm that store aft
     db.db.prepare("INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity) VALUES ('store-2','product-1',10)").run();
 
     await updateOrder({DB:db},'order-reopen-stock',{status:'Cancelled'});
-    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-reopen-stock' AND status IN ('reserved','conflict') ORDER BY created_at DESC LIMIT 1").get().status,'released');
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-reopen-stock' ORDER BY created_at DESC LIMIT 1").get().status,'released');
 
     db.seedOrder('order-other-stock');
     db.db.prepare("UPDATE delivery_store_inventory_reservations SET qty=4 WHERE order_id='order-other-stock' AND store_id='store-1' AND product_id='product-1'").run();
