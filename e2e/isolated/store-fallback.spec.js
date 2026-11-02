@@ -31,3 +31,13 @@ test('does not split a basket when each store has only part of the requested sto
   expect(result.available).toBe(false);
   expect(result.code).toBe('OUT_OF_STOCK');
 });
+
+test('does not use stock from an inactive store for new delivery availability', async ({ request }) => {
+  const response = await request.post('/api/delivery/availability', {
+    data: { address, items: [{ id: 'inactive-only-test', qty: 1 }] }
+  });
+  expect(response.status()).toBe(200);
+  const result = await response.json();
+  expect(result.available).toBe(false);
+  expect(result.code).toBe('OUT_OF_STOCK');
+});
