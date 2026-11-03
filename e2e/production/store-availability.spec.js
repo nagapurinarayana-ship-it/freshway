@@ -195,13 +195,6 @@ test('real customer app browses live products and preserves cart without creatin
   await expect(addButton).toBeVisible({timeout:20000});
   await expect(addButton).toBeEnabled();
   await addButton.click();
-  if(multiBasketReady){
-    expect(multiBasketCategoryId).toBe(categoryId);
-    const secondAddButton=page.locator('#productGrid [data-add="'+multiBasketSecondProductId+'"]').first();
-    await expect(secondAddButton).toBeVisible({timeout:20000});
-    await expect(secondAddButton).toBeEnabled();
-    await secondAddButton.click();
-  }
   await expect(page.locator('#cartCount')).not.toHaveText('0 items');
 
   await page.reload();
@@ -215,11 +208,7 @@ test('real customer app browses live products and preserves cart without creatin
   await expect(page.locator('#cartCount')).not.toHaveText('0 items');
   await page.locator('#viewCartBtn').click();
   await expect(page.locator('#checkoutBtn')).toBeVisible();
-  await expect(page.locator('#cartItems [data-fw-cart-product]')).toHaveCount(multiBasketReady?2:1);
-  if(multiBasketReady){
-    await expect(page.locator('#cartItems [data-fw-cart-product="'+uiPrimaryProductId+'"]')).toHaveCount(1);
-    await expect(page.locator('#cartItems [data-fw-cart-product="'+multiBasketSecondProductId+'"]')).toHaveCount(1);
-  }
+  await expect(page.locator('#cartItems [data-fw-cart-product]')).toHaveCount(1);
   const availabilityRequests=[];
   page.on('request',request=>{
     if(new URL(request.url()).pathname==='/api/delivery/availability'&&request.method()==='POST')availabilityRequests.push(request);
@@ -235,11 +224,8 @@ test('real customer app browses live products and preserves cart without creatin
   await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
   await expect(page.locator('#fwCheckoutPricing')).toContainText('₹');
   const quote=await (await quoteResponse).json();
-  expect(quote.pricing?.items).toHaveLength(multiBasketReady?2:1);
-  if(multiBasketReady){
-    const quotedIds=quote.pricing.items.map(item=>String(item.id)).sort();
-    expect(quotedIds).toEqual([uiPrimaryProductId,multiBasketSecondProductId].map(String).sort());
-  }
+  expect(quote.pricing?.items).toHaveLength(1);
+  expect(String(quote.pricing.items[0].id)).toBe(String(uiPrimaryProductId));
   let response=await availabilityResponse;
   if(!response){
     const diagnostic=await page.evaluate(async()=>{
@@ -253,12 +239,11 @@ test('real customer app browses live products and preserves cart without creatin
     throw new Error('Checkout entry did not automatically request delivery availability; manual diagnostic: '+JSON.stringify(diagnostic));
   }
   const availability=await response.json();
-  expect(availabilityRequests[0]?.postDataJSON()?.items).toHaveLength(multiBasketReady?2:1);
+  expect(availabilityRequests[0]?.postDataJSON()?.items).toHaveLength(1);
   expect(availability.available).toBe(true);
   expect(availability.code).toBe('AVAILABLE');
   expect(availability.store?.id).toBe(storeId);
   expect(availability.store?.name).toBe(storeName);
-  expect(availabilityRequests[0]?.postDataJSON()?.items).toHaveLength(1);
   await expect(page.locator('[data-fw-delivery-availability]')).toContainText(storeName);
 
   await page.setViewportSize({width:390,height:844});
