@@ -164,22 +164,32 @@ function withinRadius(order, store) {
   return distanceKm(Number(order.delivery_latitude), Number(order.delivery_longitude),
     store.latitude, store.longitude) <= store.radius;
 }
-function basketFits(order, store) {
+function catalogueFits(order, store) {
   const items = itemsByOrder.get(String(order.id)) || [];
   if (!items.length || items.some(item => !item.active || !item.categoryActive)) return false;
   return items.every(item => {
     // Runtime catalogue initialisation creates a missing store/product row with
     // is_available=1. This audit models that default without writing it.
-    if (catalogue.has(store.id + '|' + item.productId) && catalogue.get(store.id + '|' + item.productId) !== true) return false;
+    return !catalogue.has(store.id + '|' + item.productId) ||
+      catalogue.get(store.id + '|' + item.productId) === true;
+  });
+}
+function stockFits(order, store) {
+  const items = itemsByOrder.get(String(order.id)) || [];
+  if (!items.length) return false;
+  return items.every(item => {
     if (!item.stockManaged) return true;
     const key = store.id + '|' + item.productId;
     const stock = inventory.get(key);
     if (!stock) return false;
     // Exclude this order's own reservation to reconstruct the available quantity
     // at checkout/rescheduling time; all other active reservations remain deducted.
-    const own = ownReservations.get(String(order.id) + '|' + key.replace('|', '|')) || 0;
+    const own = ownReservations.get(String(order.id) + '|' + key) || 0;
     return stock.quantity - stock.reserved + own >= item.qty;
   });
+}
+function basketFits(order, store) {
+  return catalogueFits(order, store) && stockFits(order, store);
 }
 function eligibleStoresNow(order) {
   return [...storeById.values()]
@@ -337,6 +347,7 @@ let activeUnassignedWithPin = 0;
 let activeUnassignedWithoutPin = 0;
 let activeUnassignedWithCurrentCandidate = 0;
 let activeUnassignedWithoutCurrentCandidate = 0;
+const activeUnassignedCandidateFailureReasons = new Map();
 for (const order of activeUnassigned) {
   if (!validPin(order)) {
     activeUnassignedWithoutPin++;
@@ -349,6 +360,20 @@ for (const order of activeUnassigned) {
     unassignedCandidateCounts.set(candidate.name, (unassignedCandidateCounts.get(candidate.name) || 0) + 1);
   } else {
     activeUnassignedWithoutCurrentCandidate++;
+    const nearby = [...storeById.values()].filter(store => withinRadius(order, store));
+    const items = itemsByOrder.get(String(order.id)) || [];
+    let reason = 'no_eligible_store_for_full_basket';
+    if (!nearby.length) {
+      reason = 'no_active_store_within_delivery_radius';
+    } else if (!items.length || items.some(item => !item.active || !item.categoryActive)) {
+      reason = 'one_or_more_order_products_or_categories_inactive_or_missing';
+    } else {
+      const catalogueStores = nearby.filter(store => catalogueFits(order, store));
+      if (!catalogueStores.length) reason = 'full_basket_not_visible_in_any_nearby_store_catalogue';
+      else if (!catalogueStores.some(store => stockFits(order, store))) reason = 'insufficient_current_stock_at_nearby_catalogue_stores';
+    }
+    activeUnassignedCandidateFailureReasons.set(reason,
+      (activeUnassignedCandidateFailureReasons.get(reason) || 0) + 1);
   }
 }
 const activeUnassignedBreakdown = groupBy(activeUnassigned, order => [
@@ -387,7 +412,8 @@ const report = {
     withoutAddressPin: activeUnassignedWithoutPin,
     currentlyHaveAnEligibleStore: activeUnassignedWithCurrentCandidate,
     noEligibleStoreWithCurrentCatalogueAndStock: activeUnassignedWithoutCurrentCandidate,
-    candidateStoreCounts: Object.fromEntries([...unassignedCandidateCounts.entries()].sort((a, b) => a[0].localeCompare(b[0])))
+    candidateStoreCounts: Object.fromEntries([...unassignedCandidateCounts.entries()].sort((a, b) => a[0].localeCompare(b[0]))),
+    noCandidateReasons: Object.fromEntries([...activeUnassignedCandidateFailureReasons.entries()].sort((a, b) => a[0].localeCompare(b[0])))
   },
   activeOrdersByDateAndAssignment,
   assignedOrderDateRange: assignedOrderDates.length ? { first: assignedOrderDates[0], latest: assignedOrderDates.at(-1) } : null,
