@@ -210,7 +210,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          CUSTOMER_SESSION_SECRET="isolated-customer-secret" npx wrangler dev --local --config wrangler.real-d1.jsonc --ip 0.0.0.0 --port 8787 > "$RUNNER_TEMP/freshway-real-d1-worker.log" 2>&1 &
+          ADMIN_TOKEN="isolated-admin-token" ADMIN_SESSION_SECRET="isolated-admin-session-secret" CUSTOMER_SESSION_SECRET="isolated-customer-secret" npx wrangler dev --local --config wrangler.real-d1.jsonc --ip 0.0.0.0 --port 8787 > "$RUNNER_TEMP/freshway-real-d1-worker.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/freshway-real-d1-worker.pid"
           for attempt in $(seq 1 60); do
             if curl --silent --fail http://localhost:8787/api/health > /dev/null; then

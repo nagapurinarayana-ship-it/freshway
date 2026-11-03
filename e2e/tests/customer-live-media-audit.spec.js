@@ -42,6 +42,27 @@ test('LIVE production media audit: real catalogue, category artwork and configur
   // This live test audits catalogue/media; the local customer-flow suite tests the install nudge.
   // Avoid the current production nudge blocking this read-only media check before the PR is deployed.
   await page.addInitScript(() => sessionStorage.setItem('freshway-pwa-install-nudge', '1'));
+  // The media audit is not a delivery-location test. The catalogue now correctly
+  // requires a resolved store, so provide a test-only store selection while keeping
+  // the category/product payloads as real public production API responses.
+  await page.route('**/api/delivery/store', route => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      available: true,
+      code: 'AVAILABLE',
+      store: { id: 'media-audit-store', name: 'Media audit store' }
+    })
+  }));
+  for (const endpoint of ['/api/categories', '/api/products']) {
+    await page.route('**' + endpoint + '**', async route => {
+      const url = new URL(route.request().url());
+      if (!url.searchParams.has('storeId')) return route.continue();
+      url.search = '';
+      const response = await route.fetch({ url: url.toString() });
+      await route.fulfill({ response });
+    });
+  }
   await page.goto(LIVE_BASE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await expect(page.locator('#fwCategoryCatalogue .fw-category-card').first()).toBeVisible({ timeout: 25000 });
 
