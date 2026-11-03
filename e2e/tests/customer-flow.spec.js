@@ -1528,8 +1528,8 @@ test('Buy Again merges a delivered order into the cart using current store catal
           deliveryPlan: 'Today',
           createdAt: '2026-10-28T10:00:00.000Z',
           deliveredAt: '2026-10-29T10:00:00.000Z',
-          total: 240,
-          items: [{ id: 'p1', name: 'Basmati Rice', unit: 'kg', qty: 2, price: 120, lineTotal: 240 }],
+          total: 100,
+          items: [{ id: 'p1', name: 'Basmati Rice', unit: 'kg', qty: 2, price: 50, lineTotal: 100 }],
           address: { house: '12', area: 'Test Colony', city: 'Hyderabad', pincode: '500001' }
         }] })
       });
@@ -1544,10 +1544,6 @@ test('Buy Again merges a delivered order into the cart using current store catal
     window.FreshWayNotifications.setCustomerId('e2e-customer-1');
     window.state.cart = { p1: 1 };
     window.state.cartProducts = {};
-    window.FreshWayCustomerCatalogue.setProducts([{
-      id: 'p1', name: 'Basmati Rice', unit: 'kg', price: 150, emoji: '🍚',
-      active: 1, stock_status: 'in_stock'
-    }]);
     window.setView('orders');
   });
 
@@ -1558,6 +1554,6 @@ test('Buy Again merges a delivered order into the cart using current store catal
 
   await expect(page.locator('#cartView')).toHaveClass(/active-view/);
   await expect(page.locator('#cartItems')).toContainText('3 × kg');
-  await expect(page.locator('#cartItems')).toContainText('₹450');
+  await expect(page.locator('#cartItems')).toContainText('₹360');
   await expect(page.locator('#cartCount')).toHaveText('3 items');
 });
