@@ -33,9 +33,10 @@ There is one Super Owner role. The existing Super Owner login must remain compat
 
 ### Store Owner
 - Each account is assigned to exactly one store.
+- A Store Owner account may be assigned to one or more stores; one owner can manage multiple stores.
 - Multiple Store Owner accounts may be assigned to the same store.
-- The assigned store is resolved from the authenticated account on the server.
-- Store Owners cannot change their own role or store assignment.
+- The account's complete store assignment list is resolved from the authenticated account on the server.
+- Store Owners cannot change their own role or store assignments.
 - Store Owners cannot create or manage accounts, stores or global settings.
 - Store Owners cannot view, search, export, infer or modify another store's data.
 
@@ -50,10 +51,10 @@ There is one Super Owner role. The existing Super Owner login must remain compat
 
 | Capability | Super Owner | Store Owner |
 |---|---|---|
-| View all stores | All | Assigned store only |
-| Dashboard KPIs | Business-wide | Assigned store only |
-| Orders and order details | All stores | Assigned store only |
-| Update/cancel operational orders | All stores | Assigned store only, subject to existing order rules |
+| View stores | All | Assigned stores only |
+| Dashboard KPIs | Business-wide | Combined totals for assigned stores, with per-store breakdown |
+| Orders and order details | All stores | Assigned stores only |
+| Update/cancel operational orders | All stores | Assigned stores only, subject to existing order rules |
 | Invoices and order documents | All stores | Assigned store only |
 | Customers | All customers | Customers with orders assigned to their store |
 | Customer order history | All store orders | Only orders assigned to their store |
@@ -97,8 +98,10 @@ Example: if the master catalogue has 10 products, Store A may list 5 and Store B
 Use the existing Owner PWA with role-aware navigation and data.
 
 After login:
-- A Store Owner is automatically placed in their assigned store context; there is no store switcher.
-- A Store Owner dashboard shows only their store's orders, sales, cash/COD, customers, stock, delivery operations and reports.
+- A Store Owner sees only the stores assigned to their account.
+- If assigned to one store, the dashboard opens directly in that store context.
+- If assigned to multiple stores, show a simple store selector and an overview containing combined totals for only those assigned stores. The owner can select one assigned store to manage its operations.
+- All orders, sales, cash/COD, customers, stock, delivery operations and reports must respect the selected store or the owner's assigned-store set.
 - The Super Owner dashboard retains an all-store view and can inspect individual stores.
 - Store Owner navigation must hide global-only functions, but hiding navigation is supplementary; the API must still deny unauthorised requests.
 
@@ -110,20 +113,20 @@ Add an Owner Accounts area visible only to the Super Owner.
 
 Required actions:
 - Create a Store Owner account with username and initial credential.
-- Assign the account to one existing store.
+- Assign the account to one or more existing stores.
 - View accounts and their assigned stores.
 - Reset credentials.
 - Disable and reactivate accounts.
-- Reassign an account to another store.
+- Add or remove store assignments for an account.
 
-Account changes must be audited. Reassigning a Store Owner must invalidate existing sessions so the old store context cannot continue to be used.
+Account changes must be audited. Changing a Store Owner's store assignments must invalidate existing sessions or refresh the server-side assignment context so removed stores cannot continue to be accessed.
 
 ## 7. Mandatory server-side security rules
 
 These rules apply to every Owner API, including routes that are not directly exposed by the dashboard.
 
 1. Resolve the current authenticated Owner identity, role and store assignment on the server for each request.
-2. For a Store Owner, derive the effective store ID from the authenticated account. Never trust a store ID, role or account ID sent by the browser.
+2. For a Store Owner, derive the allowed store ID set from the authenticated account. A requested active store must be a member of that set. Never trust a store ID, role or account ID sent by the browser without checking it against the server-side assignments.
 3. Apply the store restriction inside database queries before data is returned. Do not fetch all-store records and filter them in the browser or after returning them.
 4. Verify record ownership before reads and writes. A guessed order, invoice, customer, message or document ID must not bypass store scope.
 5. Apply store scope to list, detail, search, filters, counts, dashboard KPIs, reports, exports, notifications, cash totals and background-triggered Owner operations.
@@ -176,16 +179,17 @@ Use Playwright and API-level tests against an isolated, non-production test envi
 
 Required security tests:
 - Super Owner can see and manage all stores.
-- Store A Owner sees only Store A.
-- Store B Owner sees only Store B.
-- Multiple accounts assigned to one store receive the same store scope.
+- A Store Owner assigned to Store A sees only Store A.
+- A Store Owner assigned to Stores A and B sees only Stores A and B, with a combined assigned-store overview and per-store operational context.
+- A Store Owner cannot switch to an unassigned Store C, including by forging a store ID in an API request.
+- Multiple accounts assigned to the same store receive the same store scope; accounts may also have overlapping multi-store assignments.
 - Store A cannot list, search, read, update, cancel, delete or export Store B orders.
 - Store A cannot retrieve Store B invoices, customer details, messages, cash data, reports or notifications.
 - Forged browser-supplied store IDs never change the Store Owner's effective scope.
 - Guessed record IDs are rejected when the records belong to another store.
 - Store Owner cannot create another Owner, create a store, change roles, change their store assignment or modify global settings.
 - Disabled accounts and revoked sessions cannot continue to use Owner APIs.
-- Reassignment invalidates existing sessions and applies the new store assignment on the next login.
+- Adding or removing store assignments refreshes/revokes sessions and enforces the updated allowed-store set.
 - Global-only endpoints deny Store Owner access even when called directly.
 - No cross-store data appears in counts, aggregates, search suggestions, logs returned to the UI or cached responses.
 
