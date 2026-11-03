@@ -15,7 +15,7 @@ assert.ok(deliveryOffersScript,
   'HTML must load the updated delivery-offers module');
 assert.ok(worker.includes('/'+deliveryOffersScript),
   'service worker must cache the exact delivery-offers module URL loaded by HTML');
-assert.match(worker,/const CACHE = 'freshway-v119'/,
+assert.match(worker,/const CACHE = 'freshway-v120'/,
   'the service-worker cache version must match the current customer shell');
 const deliveryBookingScript=index.split('<script src="')
   .map(part=>part.split('"')[0])
