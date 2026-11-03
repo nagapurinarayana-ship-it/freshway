@@ -62,7 +62,7 @@ jobs:
             echo "::error::Production D1 read credentials are missing. No production data was changed."
             exit 1
           fi
-          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "WITH reserved AS (SELECT store_id,product_id,SUM(qty) qty FROM delivery_store_inventory_reservations WHERE status IN ('reserved','conflict') GROUP BY store_id,product_id) SELECT s.id store_id,s.name store_name,s.latitude,s.longitude,s.service_radius_km,s.is_active store_active,p.id product_id,p.category_id,p.active product_active,p.stock_managed,c.active category_active,i.store_id inventory_store_id,sc.store_id catalogue_store_id,sc.is_available store_product_available,MAX(0,COALESCE(i.stock_quantity,0)-COALESCE(r.qty,0)) available_qty FROM delivery_stores s CROSS JOIN products p LEFT JOIN categories c ON c.id=p.category_id LEFT JOIN delivery_store_inventory i ON i.store_id=s.id AND i.product_id=p.id LEFT JOIN delivery_store_catalogue sc ON sc.store_id=s.id AND sc.product_id=p.id LEFT JOIN reserved r ON r.store_id=s.id AND r.product_id=p.id ORDER BY s.name,p.id" --json > "$RUNNER_TEMP/freshway-store-fixture.json"
+          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "WITH reserved AS (SELECT store_id,product_id,SUM(qty) qty FROM delivery_store_inventory_reservations WHERE status IN ('reserved','conflict') GROUP BY store_id,product_id) SELECT s.id store_id,s.name store_name,s.latitude,s.longitude,s.service_radius_km,s.is_active store_active,p.id product_id,p.name product_name,p.unit,p.price central_price,p.active product_active,p.category_id,c.name category_name,p.stock_managed,c.active category_active,i.store_id inventory_store_id,sc.store_id catalogue_store_id,sc.is_available store_product_available,sc.price_override,COALESCE(sc.price_override,p.price) effective_price,MAX(0,COALESCE(i.stock_quantity,0)-COALESCE(r.qty,0)) available_qty FROM delivery_stores s CROSS JOIN products p LEFT JOIN categories c ON c.id=p.category_id LEFT JOIN delivery_store_inventory i ON i.store_id=s.id AND i.product_id=p.id LEFT JOIN delivery_store_catalogue sc ON sc.store_id=s.id AND sc.product_id=p.id LEFT JOIN reserved r ON r.store_id=s.id AND r.product_id=p.id ORDER BY s.name,p.id" --json > "$RUNNER_TEMP/freshway-store-fixture.json"
           node --input-type=module - "$RUNNER_TEMP/freshway-store-fixture.json" "$GITHUB_ENV" <<'NODE'
           import fs from 'node:fs';
           const raw=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
@@ -236,6 +236,42 @@ jobs:
             FRESHWAY_TEST_OUTSIDE_LONGITUDE:outside.longitude
           };
           for(const [key,value] of Object.entries(values)) fs.appendFileSync(process.env.GITHUB_ENV,key+'='+String(value).replace(/[\r\n]/g,'')+'\n');
+          const mancherialRows=rows.filter(row=>String(row.store_id)===baseline.store_id);
+          const visibleCustomerRows=mancherialRows.filter(row=>
+            numeric(row.product_active)===1&&numeric(row.category_active)===1&&
+            numeric(row.store_product_available)===1&&
+            (numeric(row.stock_managed)!==1||numeric(row.available_qty)>0)
+          );
+          const adminExtraRows=mancherialRows.filter(row=>
+            numeric(row.product_active)!==1||numeric(row.category_active)!==1
+          );
+          console.log('MANCHERIAL_STORE_CATALOGUE_AUDIT '+JSON.stringify({
+            storeId:baseline.store_id,
+            storeName:mancherialStoreName,
+            centralActiveProducts:rows.filter(row=>numeric(row.product_active)===1&&numeric(row.category_active)===1).length,
+            ownerStoreCatalogueRows:mancherialRows.length,
+            hiddenCentralRowsReturnedToOwnerEditor:adminExtraRows.map(row=>({
+              id:row.product_id,name:row.product_name,productActive:Number(row.product_active),
+              category:row.category_name,categoryActive:Number(row.category_active),
+              localShow:Number(row.store_product_available)===1,
+              centralPrice:Number(row.central_price),storeOverride:row.price_override,
+              effectivePrice:Number(row.effective_price)
+            })),
+            customerVisibleRows:visibleCustomerRows.map(row=>({
+              id:row.product_id,name:row.product_name,
+              centralPrice:Number(row.central_price),
+              storeOverride:row.price_override==null?null:Number(row.price_override),
+              effectivePrice:Number(row.effective_price),
+              availableStock:Number(row.available_qty),
+              stockManaged:Number(row.stock_managed)===1
+            })),
+            localOverrides:mancherialRows.filter(row=>row.price_override!==null&&row.price_override!==undefined).map(row=>({
+              id:row.product_id,name:row.product_name,
+              centralPrice:Number(row.central_price),storeOverride:Number(row.price_override),
+              effectivePrice:Number(row.effective_price),isAvailable:Number(row.store_product_available)===1,
+              productActive:Number(row.product_active)===1
+            }))
+          }));
           console.log('Read-only production fixture: Mancherial H.O address resolved to active store '+mancherialStoreName+' ('+baseline.store_id+'); product '+baseline.product_id+'.');
           if(fallback) console.log('Read-only two-store fallback fixture found: nearest store '+fallback.nearestStoreId+' lacks stock; next stock-capable store is '+fallback.fallbackStoreId+'.');
           else console.log('No safe overlapping two-store fallback fixture exists in current production data; the dedicated Playwright case will be explicitly skipped.');
