@@ -86,10 +86,10 @@ async function ensureStoreInventoryRows(env) {
 }
 async function inventoryMap(env, excludeOrderId = '') {
   const sql = excludeOrderId
-    ? 'SELECT i.store_id,i.product_id,i.stock_quantity,COALESCE(SUM(CASE WHEN r.status IN (\\'reserved\\',\\'conflict\\') THEN r.qty ELSE 0 END),0) reserved_qty ' +
+    ? 'SELECT i.store_id,i.product_id,i.stock_quantity,COALESCE(SUM(CASE WHEN r.status IN (\'reserved\',\'conflict\') THEN r.qty ELSE 0 END),0) reserved_qty ' +
       'FROM delivery_store_inventory i LEFT JOIN delivery_store_inventory_reservations r ON r.store_id=i.store_id AND r.product_id=i.product_id AND r.order_id<>? ' +
       'GROUP BY i.store_id,i.product_id'
-    : 'SELECT i.store_id,i.product_id,i.stock_quantity,COALESCE(SUM(CASE WHEN r.status IN (\\'reserved\\',\\'conflict\\') THEN r.qty ELSE 0 END),0) reserved_qty ' +
+    : 'SELECT i.store_id,i.product_id,i.stock_quantity,COALESCE(SUM(CASE WHEN r.status IN (\'reserved\',\'conflict\') THEN r.qty ELSE 0 END),0) reserved_qty ' +
       'FROM delivery_store_inventory i LEFT JOIN delivery_store_inventory_reservations r ON r.store_id=i.store_id AND r.product_id=i.product_id ' +
       'GROUP BY i.store_id,i.product_id';
   const query=env.DB.prepare(sql);
