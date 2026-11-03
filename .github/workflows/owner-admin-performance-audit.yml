@@ -43,7 +43,7 @@ jobs:
 
       - name: Run Lighthouse mobile audit
         run: |
-          npx --yes lighthouse@12.8.2 "$BASE_URL/admin.html" \
+          npx --yes lighthouse@12.8.2 "$BASE_URL/admin/" \
             --chrome-path="${{ steps.chrome.outputs.chrome-path }}" \
             --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
             --form-factor=mobile \
@@ -55,7 +55,7 @@ jobs:
 
       - name: Run Lighthouse desktop audit
         run: |
-          npx --yes lighthouse@12.8.2 "$BASE_URL/admin.html" \
+          npx --yes lighthouse@12.8.2 "$BASE_URL/admin/" \
             --chrome-path="${{ steps.chrome.outputs.chrome-path }}" \
             --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage" \
             --preset=desktop \
