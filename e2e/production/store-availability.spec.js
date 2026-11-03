@@ -5,6 +5,10 @@ const storeName=process.env.FRESHWAY_TEST_STORE_NAME;
 const latitude=Number(process.env.FRESHWAY_TEST_LATITUDE);
 const longitude=Number(process.env.FRESHWAY_TEST_LONGITUDE);
 const productId=process.env.FRESHWAY_TEST_PRODUCT_ID;
+const productName=process.env.FRESHWAY_TEST_PRODUCT_NAME;
+const centralPrice=Number(process.env.FRESHWAY_TEST_CENTRAL_PRICE);
+const priceOverride=process.env.FRESHWAY_TEST_PRICE_OVERRIDE===''?null:Number(process.env.FRESHWAY_TEST_PRICE_OVERRIDE);
+const effectivePrice=Number(process.env.FRESHWAY_TEST_EFFECTIVE_PRICE);
 const categoryId=process.env.FRESHWAY_TEST_CATEGORY_ID;
 const multiBasketReady=process.env.FRESHWAY_TEST_MULTI_BASKET_READY==='true';
 const multiBasketStoreId=process.env.FRESHWAY_TEST_MULTI_BASKET_STORE_ID;
@@ -148,9 +152,22 @@ test('production availability rejects a valid pin outside every active store rad
 });
 
 
-test('production checkout quote uses the real catalogue price and returns the selected cart lines', async ({ request }) => {
+test('Mancherial customer catalogue API uses the saved store price override', async ({ request }) => {
+  expect(Number.isFinite(centralPrice)).toBe(true);
+  expect(Number.isFinite(effectivePrice)).toBe(true);
+  const response=await request.get('/api/products?storeId='+encodeURIComponent(storeId));
+  expect(response.status()).toBe(200);
+  const result=await response.json();
+  const product=result.products?.find(item=>String(item.id)===String(productId));
+  expect(product,'the selected Mancherial product must be returned by the store catalogue').toBeTruthy();
+  expect(product.name).toBe(productName);
+  expect(Number(product.price)).toBe(effectivePrice);
+  if(priceOverride!==null)expect(Number(product.price)).toBe(priceOverride);
+});
+
+test('Mancherial checkout quote uses the saved store price, not the central default', async ({ request }) => {
   const response=await request.post('/api/checkout/quote',{
-    data:{items:[{id:productId,qty:1}],couponCode:''}
+    data:{items:[{id:productId,qty:1}],couponCode:'',storeId}
   });
   expect(response.status()).toBe(200);
   const result=await response.json();
@@ -159,7 +176,8 @@ test('production checkout quote uses the real catalogue price and returns the se
   expect(result.pricing?.items).toHaveLength(1);
   expect(result.pricing.items[0].id).toBe(productId);
   expect(result.pricing.items[0].qty).toBe(1);
-  expect(Number(result.pricing.items[0].price)).toBeGreaterThan(0);
+  expect(Number(result.pricing.items[0].price)).toBe(effectivePrice);
+  if(priceOverride!==null)expect(Number(result.pricing.items[0].price)).toBe(priceOverride);
 });
 
 test('customer order and session endpoints reject unauthenticated requests', async ({ request }) => {
@@ -199,6 +217,7 @@ test('real customer app browses live products and preserves cart without creatin
   const addButton=page.locator('#productGrid [data-add="'+uiPrimaryProductId+'"]').first();
   await expect(addButton).toBeVisible({timeout:20000});
   await expect(addButton).toBeEnabled();
+  await expect(page.locator('#productGrid .product-price').first()).toContainText('₹'+effectivePrice.toLocaleString('en-IN'));
   await addButton.click();
   await expect(page.locator('#cartCount')).not.toHaveText('0 items');
 
@@ -231,6 +250,8 @@ test('real customer app browses live products and preserves cart without creatin
   const quote=await (await quoteResponse).json();
   expect(quote.pricing?.items).toHaveLength(1);
   expect(String(quote.pricing.items[0].id)).toBe(String(uiPrimaryProductId));
+  expect(Number(quote.pricing.items[0].price)).toBe(effectivePrice);
+  if(priceOverride!==null)expect(Number(quote.pricing.items[0].price)).toBe(priceOverride);
   let response=await availabilityResponse;
   if(!response){
     const diagnostic=await page.evaluate(async()=>{
