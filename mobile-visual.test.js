@@ -18,7 +18,7 @@ assert.doesNotMatch(messages,/button\.setAttribute\('aria-label'/,'Messages butt
 assert.ok(index.includes('<span aria-hidden="true">✉️</span>')&&index.includes('<b aria-hidden="true">›</b>'),'Messages navigation decorative icon and chevron must be hidden from screen readers');
 assert.ok(index.includes('frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'customer app loads the fixed floating cart behavior');
 assert.ok(sw.includes('/frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'service worker caches the fixed floating cart behavior');
-assert.ok(sw.includes("const CACHE = 'freshway-v116'"),'service worker refreshes the app shell after the cart-bar update');
+assert.ok(sw.includes("const CACHE = 'freshway-v118'"),'service worker refreshes the app shell after the current customer shell asset update');
 assert.match(privacyPage,/grid-template-columns: minmax\(145px, \.36fr\) minmax\(0, 1fr\)/,'privacy contact details use a clear desktop label/value layout');
 assert.match(privacyPage,/@media \(max-width: 600px\)[\s\S]*?\.contact-line \{ grid-template-columns: minmax\(0, 1fr\)/,'privacy contact details stack cleanly on mobile');
 assert.match(privacyPage,/This policy remains a working draft/,'privacy policy clearly retains the operator-review status');
@@ -35,8 +35,11 @@ assert.ok(index.includes('frontend/customer/category-fold-fit.css?v=20261021-ful
 assert.ok(categoryFoldStyles.includes('height:100%!important;aspect-ratio:1/1'),'product artwork uses a square contained image box so the complete illustration is visible');
 assert.ok(sw.includes('/styles.css?v=20261030-aa-contrast-v1'),'service worker caches the current mobile viewport stylesheet');
 assert.ok(sw.includes('/frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2'),'service worker caches the selected-category fold-fit stylesheet');
-assert.ok(index.includes('frontend/customer/catalogue.js?v=img1'),'HTML loads the current category navigation asset');
-assert.ok(sw.includes('/frontend/customer/catalogue.js?v=img1'),'service worker caches the current category navigation asset');
+const customerCatalogueScript=index.split('<script src="')
+  .map(part=>part.split('"')[0])
+  .find(path=>path.startsWith('frontend/customer/catalogue.js?v='));
+assert.ok(customerCatalogueScript,'HTML loads the current category navigation asset');
+assert.ok(sw.includes('/'+customerCatalogueScript),'service worker caches the exact category navigation asset loaded by HTML');
 assert.ok(css.includes('body{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}'),'body reserves Android safe-area space');
 assert.ok(css.includes('main{padding:14px 16px calc(98px + env(safe-area-inset-bottom,0px))}'),'main reserves scroll space below fixed navigation');
 assert.ok(css.includes('.bottom-nav{height:calc(68px + env(safe-area-inset-bottom,0px))}'),'bottom navigation includes device safe area');

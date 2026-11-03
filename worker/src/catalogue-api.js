@@ -1,3 +1,5 @@
+import { assertActiveStore, getStoreCatalogueRows } from './store-catalogue.js';
+
 export async function handleCatalogueRequest(request, env) {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -8,8 +10,14 @@ export async function handleCatalogueRequest(request, env) {
       try { entityId = decodeURIComponent(imageMatch[2]); } catch (_) { return imageNotFound(); }
       return publicCatalogueImage(request, env, imageMatch[1], entityId);
     }
-    if (path === '/api/categories' && request.method === 'GET') return json(await publicCategories(env));
-    if (path === '/api/products' && request.method === 'GET') return json(await publicProducts(env));
+    if (path === '/api/categories' && request.method === 'GET') {
+      const storeId=clean(url.searchParams.get('storeId'),100);
+      return json(storeId?await publicCategories(env,storeId):await publicCategories(env));
+    }
+    if (path === '/api/products' && request.method === 'GET') {
+      const storeId=clean(url.searchParams.get('storeId'),100);
+      return json(storeId?await publicProducts(env,storeId):await publicProducts(env));
+    }
     if (path === '/api/admin/catalogue' && request.method === 'GET') return json(await adminCatalogue(env));
     if (path === '/api/admin/categories' && request.method === 'POST') return json(await createCategory(env, await readBody(request)), 201);
     if (path.startsWith('/api/admin/categories/') && request.method === 'PATCH') return json(await updateCategory(env, decodeURIComponent(path.split('/').pop()), await readBody(request)));
@@ -39,7 +47,25 @@ async function publicImageUrl(type, row) {
   if (Number(row.has_custom_image) !== 1) return null;
   return '/api/catalogue/images/' + type + '/' + encodeURIComponent(row.id) + '?v=' + await imageVersion(row);
 }
-async function publicProducts(env) {
+async function publicProducts(env, storeId = '') {
+  if (storeId) {
+    await assertActiveStore(env,storeId);
+    const rows=await getStoreCatalogueRows(env,storeId);
+    const visible=rows.filter(p=>Number(p.active)===1&&Number(p.category_active)===1&&Number(p.is_available)===1&&
+      (Number(p.stock_managed)!==1||Number(p.on_hand||0)-Number(p.reserved_qty||0)>0));
+    return {products:await Promise.all(visible.map(async p=>{
+      const availableStock=Math.max(0,Number(p.on_hand||0)-Number(p.reserved_qty||0));
+      const product={
+        id:p.id,name:p.name,unit:p.unit,price:Number(p.effective_price),emoji:p.emoji,active:p.active,
+        category_id:p.category_id,display_order:p.display_order,category_name:p.category_name,category_slug:p.category_slug
+      };
+      return {
+        ...product,
+        image_url:await publicImageUrl('products',{id:p.id,has_custom_image:p.image_data?1:0,image_length:p.image_data?String(p.image_data).length:0,image_data:p.image_data,updated_at:p.updated_at}),
+        stock_status:stockStatus(p.stock_managed,availableStock,p.low_stock_threshold)
+      };
+    }))};
+  }
   const query = "SELECT p.id,p.name,p.unit,p.price,p.emoji,p.active,p.category_id,p.display_order," +
     "CASE WHEN p.image_data IS NOT NULL AND p.image_data <> '' THEN 1 ELSE 0 END AS has_custom_image," +
     "LENGTH(p.image_data) AS image_length,p.image_data,p.updated_at,p.stock_managed,p.stock_quantity,p.low_stock_threshold," +
@@ -57,7 +83,29 @@ async function publicProducts(env) {
     };
   })) };
 }
-async function publicCategories(env) {
+async function publicCategories(env, storeId = '') {
+  if (storeId) {
+    await assertActiveStore(env,storeId);
+    const rows=await getStoreCatalogueRows(env,storeId);
+    const counts=new Map();
+    for(const p of rows){
+      if(Number(p.active)!==1||Number(p.category_active)!==1||Number(p.is_available)!==1)continue;
+      if(Number(p.stock_managed)===1&&Number(p.on_hand||0)-Number(p.reserved_qty||0)<=0)continue;
+      const key=String(p.category_id||'');if(key)counts.set(key,(counts.get(key)||0)+1);
+    }
+    if(!counts.size)return {categories:[]};
+    const ids=[...counts.keys()],placeholders=ids.map(()=>'?').join(',');
+    const {results}=await env.DB.prepare(
+      'SELECT c.id,c.name,c.slug,c.icon,c.description,c.display_order,c.updated_at,'+
+      "CASE WHEN c.image_data IS NOT NULL AND c.image_data<>'' THEN 1 ELSE 0 END has_custom_image,"+
+      'LENGTH(c.image_data) image_length,c.image_data FROM categories c WHERE c.active=1 AND c.id IN ('+placeholders+') ORDER BY c.display_order,c.name'
+    ).bind(...ids).all();
+    return {categories:await Promise.all((results||[]).map(async c=>({
+      id:c.id,name:c.name,slug:c.slug,icon:c.icon,description:c.description,display_order:c.display_order,
+      product_count:counts.get(String(c.id))||0,
+      image_url:await publicImageUrl('categories',{id:c.id,has_custom_image:c.has_custom_image,image_length:c.image_length,image_data:c.image_data,updated_at:c.updated_at})
+    })))};
+  }
   const query = "SELECT c.id,c.name,c.slug,c.icon,c.description,c.display_order,c.updated_at," +
     "MAX(CASE WHEN c.image_data IS NOT NULL AND c.image_data <> '' THEN 1 ELSE 0 END) AS has_custom_image," +
     "MAX(LENGTH(c.image_data)) AS image_length,MAX(c.image_data) AS image_data,COUNT(p.id) AS product_count " +

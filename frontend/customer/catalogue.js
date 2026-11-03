@@ -3,6 +3,9 @@
   const esc=v=>String(v??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
   const CATEGORY_STORAGE_KEY='freshway-customer-selected-category';
   const getStoredCategory=()=>{try{return window.sessionStorage.getItem(CATEGORY_STORAGE_KEY)||null}catch(_){return null}};
+  const STORE_STORAGE_KEY='freshway-selected-store-v1';
+  const readStoreId=()=>{try{return window.localStorage.getItem(STORE_STORAGE_KEY)||''}catch(_){return''}};
+  let selectedStoreIdValue=readStoreId(),selectedStore=null,pendingStore=null;
   let categories=[],products=[],selected=(window.history.state?.__freshwayCustomer&&window.history.state.view==='home'?window.history.state.category:null)||getStoredCategory()||null,ready=false,loading=true,errorMessage='',loadToken=0;
   const media=window.FreshWayCatalogueMedia;
   const style=document.createElement('style');
@@ -27,28 +30,113 @@
     if(hero){const fruit=$('.hero-fruit');if(fruit)fruit.textContent='🫒🍚';const h=hero.querySelector('h1');if(h)h.innerHTML='Fresh groceries,<br><em>delivered locally.</em>'}
     return c;
   }
-  async function load(){
-    const token=++loadToken;
-    const hadData=ready&&products.length>0&&categories.length>0;
+  function cartChangesForStore(nextProducts){
+    const snapshot=window.FreshWayCustomerCatalogue?.getCart?.()||{};
+    const cart=snapshot.cart||{},snapshots=snapshot.cartProducts||{};
+    const currentById=new Map(products.map(p=>[String(p.id),p]));
+    const nextById=new Map(nextProducts.map(p=>[String(p.id),p]));
+    const changes=[];
+    for(const id of Object.keys(cart)){
+      const previous=currentById.get(String(id))||snapshots[String(id)]||{};
+      const next=nextById.get(String(id));
+      if(!next){changes.push({name:previous.name||'Saved cart item',type:'unavailable',oldPrice:Number(previous.price)||0});continue}
+      const oldPrice=Number(previous.price),newPrice=Number(next.price);
+      if(Number.isFinite(oldPrice)&&Number.isFinite(newPrice)&&oldPrice!==newPrice){
+        changes.push({name:next.name||previous.name||'Product',type:'price',oldPrice,newPrice});
+      }
+    }
+    return changes;
+  }
+  async function switchToStore(store,{review=true}={}){
     const request=window.FreshWayCustomerAPI?.request;
-    loading=!hadData;errorMessage='';ready=hadData;if(!hadData)renderHome();
-    if(typeof request!=='function'){loading=false;ready=hadData;if(!hadData){categories=[];products=[];window.FreshWayCustomerCatalogue?.clear();errorMessage='FreshWay could not start the catalogue service. Please refresh and try again.';renderHome();applyMode()}return}
-    const [categoryResult,productResult]=await Promise.allSettled([request('/api/categories'),request('/api/products')]);
-    if(token!==loadToken)return;
+    if(typeof request!=='function'||!store?.id)return {ok:false,reviewRequired:true};
+    const storeId=String(store.id);
+    const [categoryResult,productResult]=await Promise.allSettled([
+      request('/api/categories?storeId='+encodeURIComponent(storeId)),
+      request('/api/products?storeId='+encodeURIComponent(storeId))
+    ]);
     const categoryOk=categoryResult.status==='fulfilled'&&Array.isArray(categoryResult.value?.categories);
     const productOk=productResult.status==='fulfilled'&&Array.isArray(productResult.value?.products);
-    if(categoryOk)categories=categoryResult.value.categories;
-    if(productOk){
-      products=productResult.value.products;
-      const sync=window.FreshWayCustomerCatalogue?.setProducts(products)||{};
-      if(Number(sync.removed)>0)window.dispatchEvent(new CustomEvent('freshway:catalogue-sync',{detail:sync}));
+    if(!categoryOk||!productOk)throw new Error('We could not load the catalogue for '+String(store.name||'the selected store')+'. Please retry.');
+    const nextCategories=categoryResult.value.categories,nextProducts=productResult.value.products;
+    const changes=cartChangesForStore(nextProducts);
+    const cartState=window.FreshWayCustomerCatalogue?.getCart?.()||{};
+    const hasCart=Object.keys(cartState.cart||{}).length>0;
+    const previousStoreId=String(selectedStore?.id||selectedStoreIdValue||'');
+    const changedStore=previousStoreId!==storeId;
+    if(review&&hasCart&&(changedStore||changes.length)){
+      const detail=changes.length?changes.map(x=>x.type==='unavailable'?x.name+' — not available at this store':x.name+' — ₹'+x.oldPrice.toLocaleString('en-IN')+' → ₹'+x.newPrice.toLocaleString('en-IN')).join('\n'):'All cart items remain available at the same prices.';
+      const message='Your delivery will be fulfilled by '+String(store.name||'the selected store')+'.'+
+        (changedStore?'\n\nYour delivery store is changing.':'')+'\n\n'+detail+
+        '\n\nContinue and refresh your cart with this store’s catalogue and prices?';
+      if(!window.confirm(message)){
+        pendingStore=store;
+        return {ok:false,reviewRequired:true,store,changes};
+      }
     }
-    if(!categoryOk||!productOk){
+    selectedStore=store;
+    selectedStoreIdValue=storeId;
+    pendingStore=null;
+    try{window.localStorage.setItem(STORE_STORAGE_KEY,storeId)}catch(_){}
+    categories=nextCategories;
+    products=nextProducts;
+    const sync=window.FreshWayCustomerCatalogue?.setProducts(products)||{};
+    if(Number(sync.unavailable)>0)window.dispatchEvent(new CustomEvent('freshway:catalogue-sync',{detail:sync}));
+    loading=false;ready=true;errorMessage='';
+    renderHome();
+    if(selected&&categories.some(x=>String(x.id)===String(selected)))setMode(selected,{history:'none'});
+    else setMode(null,{history:selected?'replace':'none'});
+    if(changes.length)window.dispatchEvent(new CustomEvent('freshway:store-catalogue-changed',{detail:{store,changes}}));
+    return {ok:true,changed:changedStore||changes.length>0,store,changes};
+  }
+  async function load({reviewChange=true,preserveExisting=true}={}){
+    const token=++loadToken;
+    const hadData=!!preserveExisting&&ready&&products.length>0&&categories.length>0;
+    const request=window.FreshWayCustomerAPI?.request;
+    loading=!hadData;errorMessage='';ready=hadData;
+    if(!hadData)renderHome();
+    if(typeof request!=='function'){
       loading=false;
-      if(hadData){ready=true;renderHome();if(selected&&categories.some(x=>String(x.id)===String(selected)))setMode(selected,{history:'none'});else setMode(null,{history:selected?'replace':'none'});return}
-      categories=[];products=[];window.FreshWayCustomerCatalogue?.clear();ready=false;errorMessage=!productOk?'We could not load FreshWay products right now. Please check your connection and retry.':'We could not load the full catalogue. Please retry.';renderHome();applyMode();return
+      if(!hadData){
+        errorMessage='FreshWay could not start the catalogue service. Please refresh and try again.';
+        categories=[];products=[];window.FreshWayCustomerCatalogue?.clear();
+      }
+      renderHome();applyMode();return;
     }
-    loading=false;ready=true;renderHome();if(selected&&categories.some(x=>String(x.id)===String(selected)))setMode(selected,{history:'none'});else setMode(null,{history:selected?'replace':'none'})
+    try{
+      const address=window.FreshWayAddressSystem?.getSelectedAddress?.()||{};
+      const resolved=await request('/api/delivery/store',{method:'POST',body:JSON.stringify({address})});
+      if(token!==loadToken)return;
+      if(resolved?.available!==true||!resolved?.store?.id){
+        selectedStore=null;pendingStore=null;categories=[];products=[];
+        window.FreshWayCustomerCatalogue?.clear();
+        errorMessage=String(resolved?.message||'Confirm your delivery location to see products available near you.');
+        loading=false;ready=false;renderHome();applyMode();return;
+      }
+      const result=await switchToStore(resolved.store,{review:reviewChange});
+      if(token!==loadToken)return;
+      if(!result?.ok){
+        // Keep the previous store catalogue intact when the customer declines a
+        // store-change prompt. Checkout will independently revalidate the address
+        // and cannot silently fulfil from the old store.
+        loading=false;ready=products.length>0;errorMessage='';
+        renderHome();
+        if(selected&&categories.some(x=>String(x.id)===String(selected)))setMode(selected,{history:'none'});
+        applyMode();return;
+      }
+    }catch(error){
+      if(token!==loadToken)return;
+      loading=false;
+      if(hadData){
+        ready=true;errorMessage='';
+        renderHome();
+        if(selected&&categories.some(x=>String(x.id)===String(selected)))setMode(selected,{history:'none'});
+        applyMode();return;
+      }
+      ready=false;
+      errorMessage=error?.message||'We could not load the FreshWay catalogue. Please retry.';
+      renderHome();applyMode();
+    }
   }
   function renderHome(){
     const c=ensureUI();if(!c)return;
@@ -56,7 +144,7 @@
     if(errorMessage){c.innerHTML='<div class="fw-category-error" role="alert"><strong>Catalogue temporarily unavailable.</strong><br>'+esc(errorMessage)+'<button type="button" class="fw-catalogue-retry" id="fwCatalogueRetry">Retry</button></div>';return}
     const usable=categories.filter(x=>Number(x.product_count)>0);
     const cards=usable.map(x=>'<button type="button" class="fw-category-card" data-fw-category="'+esc(x.id)+'">'+((x.image_url||media?.image('categories',x.id,x))?'<span class="fw-category-icon fw-category-image"><img src="'+esc(x.image_url||media.image('categories',x.id,x))+'" alt="" loading="lazy" decoding="async"></span>':'<span class="fw-category-icon" aria-hidden="true">'+esc(x.icon)+'</span>')+'<span><strong>'+esc(x.name)+'</strong><small>'+Number(x.product_count)+' '+(Number(x.product_count)===1?'product':'products')+' <span class="fw-cat-arrow">View →</span></small></span></button>').join('');
-    c.innerHTML='<div class="fw-cat-heading"><div><span class="eyebrow">SHOP BY CATEGORY</span><h2>Choose what you need</h2></div><span class="count-pill">'+usable.length+' '+(usable.length===1?'category':'categories')+'</span></div><div class="fw-category-grid'+(usable.length===1?' is-single':'')+'">'+(cards||'<div class="fw-category-empty" style="grid-column:1/-1"><strong>No products are available right now.</strong><br>Please check back later.</div>')+'</div>';
+    c.innerHTML='<div class="fw-cat-heading"><div><span class="eyebrow">SHOP BY CATEGORY</span><h2>Choose what you need</h2></div><span class="count-pill">'+usable.length+' '+(usable.length===1?'category':'categories')+'</span></div>'+(selectedStore?'<p class="fw-store-selection">Prices and availability at '+esc(selectedStore.name)+'</p>':'')+'<div class="fw-category-grid'+(usable.length===1?' is-single':'')+'">'+(cards||'<div class="fw-category-empty" style="grid-column:1/-1"><strong>No products are available right now.</strong><br>Please check back later.</div>')+'</div>';
   }
   function setMode(categoryId,{history='push'}={}){
     selected=categoryId||null;
@@ -87,6 +175,8 @@
     const observer=new MutationObserver(()=>{if(selected)applyMode()});
     const grid=$('#productGrid');if(grid)observer.observe(grid,{childList:true});
   }
+  window.FreshWayCustomerStoreCatalogue=Object.freeze({selectedStoreId:()=>selectedStore?.id||selectedStoreIdValue||'',selectedStore:()=>selectedStore,switchToStore,refresh:load});
+  window.addEventListener('freshway:address-changed',()=>{void load({reviewChange:true,preserveExisting:false})});
   window.freshWayCustomerCatalogueRefresh=load;
   window.freshWayCustomerCatalogueGoHome=()=>{const state=window.history.state;if(state?.__freshwayCustomer&&state.category)window.history.replaceState({...state,category:null},'',window.location.href);setMode(null,{history:'none'})};
   window.addEventListener('popstate',event=>{if(event.state?.__freshwayCustomer&&event.state.view==='home')setMode(event.state.category||null,{history:'none'})});

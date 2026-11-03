@@ -14,7 +14,10 @@ const deliverySchedulingSource = readRepoFile('worker/src/delivery-scheduling.js
 const ownerProxySource = readRepoFile('functions/admin/[[path]].js').toString('utf8');
 assert.ok(sourceHtml.includes('data-screen="stores"') && sourceHtml.includes('id="stores"'), 'Owner app must expose a dedicated Stores screen');
 assert.ok(sourceHtml.includes('data-screen="requests"') && sourceHtml.includes('id="requests"'), 'Owner app must expose customer requests in Owner navigation');
-assert.ok(sourceHtml.includes('store-management.js?v=20261027-store-manager-v1'), 'Owner app must load the versioned store and request management module');
+const storeManagementAsset=sourceHtml.split('<script src="')
+  .map(part=>part.split('"')[0])
+  .find(path=>path.startsWith('frontend/admin/store-management.js?v='));
+assert.ok(storeManagementAsset, 'Owner app must load the versioned store and request management module');
 assert.ok(ownerProxySource.includes("['frontend/admin/store-management.js', '/frontend/admin/store-management.js']"), 'Owner proxy must allow the store management asset');
 assert.ok(storeManagementSource.includes("api('/admin/delivery/stores'"), 'Store manager must load stores from the authenticated API');
 assert.ok(storeManagementSource.includes("api('/admin/delivery/requests'"), 'Customer request screen must load persisted order-related requests');

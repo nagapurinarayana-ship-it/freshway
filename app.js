@@ -49,7 +49,8 @@ const cartPersistence=window.FreshWayCustomerCartPersistence.create({
 window.FreshWayCustomerCatalogue=Object.freeze({
   setProducts:cartPersistence.setProducts,
   clear:cartPersistence.clear,
-  syncQuotedItems:cartPersistence.syncQuotedItems
+  syncQuotedItems:cartPersistence.syncQuotedItems,
+  getCart:()=>({cart:state.cart||{},cartProducts:state.cartProducts||{}})
 });
 const cartItems=()=>catalogueCart.items(state,PRODUCTS);
 const cartTotal=()=>catalogueCart.total(state,PRODUCTS);

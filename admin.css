@@ -312,3 +312,12 @@ button,input,textarea,select{touch-action:manipulation}
 .fw-owner-order-pricing{display:flex;flex-wrap:wrap;gap:6px 12px;margin:8px 0;color:var(--muted);font-size:11px}.fw-owner-order-pricing span{white-space:nowrap}
 
 .fw-offers-history{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}.fw-offers-history-note{font-size:11px;color:var(--muted)}.fw-offers-history-list{display:grid;gap:8px;margin-top:8px}.fw-offers-history-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:10px;border-radius:10px;background:#f7faf8;min-width:0}.fw-offers-history-row>div{display:grid;gap:3px;min-width:0}.fw-offers-history-row small{font-size:11px;color:var(--muted);overflow-wrap:anywhere}.fw-offers-history-row>div:last-child{text-align:right;flex-shrink:0}
+
+/* Store-specific catalogue visibility and selling prices. */
+.fw-store-catalogue-row{align-items:center;gap:12px}
+.fw-store-catalogue-controls{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex:0 1 260px;min-width:0}
+.fw-store-catalogue-controls label{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:12px;font-weight:700}
+.fw-store-catalogue-controls input[type=number]{width:112px;min-width:0;min-height:40px;border:1px solid var(--line);border-radius:10px;padding:8px 9px;font:inherit}
+.fw-store-catalogue-controls input[type=checkbox]{width:18px;height:18px;accent-color:#0f7a4b}
+.fw-store-catalogue-panel .fw-inventory-row>span:first-child{min-width:0}
+@media(max-width:560px){.fw-store-catalogue-row{align-items:flex-start;flex-direction:column}.fw-store-catalogue-controls{width:100%;justify-content:space-between;flex-basis:auto}.fw-store-catalogue-controls input[type=number]{width:min(46%,150px)}}

@@ -6,6 +6,7 @@ import { handleReverseGeocode } from './geocode-api.js';
 import { validatePushEndpoint } from './push-endpoint.js';
 import { prepareCheckoutDelivery, checkoutDeliveryStatements } from './delivery-scheduling.js';
 import { calculateOrderPricing, orderRedemptionStatements } from './delivery-offers.js';
+import { getStoreProductRows } from './store-catalogue.js';
 
 const json = (data, status = 200, origin = '*') => new Response(JSON.stringify(data), {
   status,
@@ -48,7 +49,7 @@ async function registerCustomer(env, payload) {
   return { ok: true };
 }
 
-async function validateOrderItems(env, rawItems) {
+async function validateOrderItems(env, rawItems, storeId = '') {
   const unique = new Map();
   for (const raw of rawItems) {
     const id = String(raw?.id || ''); const qty = Number(raw?.qty);
@@ -57,13 +58,19 @@ async function validateOrderItems(env, rawItems) {
     if (nextQty > 99) throw new Error('Maximum quantity for a product is 99.');
     unique.set(id, nextQty);
   }
-  const ids = [...unique.keys()]; const placeholders = ids.map(() => '?').join(',');
-  const { results: dbProducts } = await env.DB.prepare(`SELECT id,name,unit,price,emoji,stock_managed,stock_quantity,low_stock_threshold,hsn_code,gst_rate_bps,gst_rate_confirmed FROM products WHERE active=1 AND id IN (${placeholders})`).bind(...ids).all();
-  if (!dbProducts || dbProducts.length !== ids.length) throw new Error('One or more products are no longer available. Please refresh and try again.');
+  let dbProducts;
+  if (storeId) {
+    dbProducts = await getStoreProductRows(env, storeId, unique);
+  } else {
+    const ids = [...unique.keys()]; const placeholders = ids.map(() => '?').join(',');
+    const result = await env.DB.prepare(`SELECT id,name,unit,price,emoji,stock_managed,stock_quantity,low_stock_threshold,hsn_code,gst_rate_bps,gst_rate_confirmed FROM products WHERE active=1 AND id IN (${placeholders})`).bind(...ids).all();
+    dbProducts = result.results || [];
+    if (dbProducts.length !== ids.length) throw new Error('One or more products are no longer available. Please refresh and try again.');
+  }
   // Store-level stock is authoritative. The aggregate products.stock_quantity is
   // maintained for catalogue compatibility, but checkout validates against the
   // chosen active store and its live reservations in prepareCheckoutDelivery().
-  const items = dbProducts.map(p => { const qty=unique.get(p.id); return { ...p, qty, lineTotal:p.price*qty, stockReservedQty:Number(p.stock_managed)===1?qty:0 }; });
+  const items = dbProducts.map(p => { const qty=unique.get(p.id); return { ...p, qty, lineTotal:Number(p.price)*qty, stockReservedQty:Number(p.stock_managed)===1?qty:0 }; });
   return { items, total: items.reduce((sum, item) => sum + item.lineTotal, 0) };
 }
 
@@ -96,11 +103,14 @@ async function createOrder(env, payload, ctx) {
   if (!/^\d{6}$/.test(String(address.pincode))) throw new Error('Enter a valid 6-digit PIN code.');
   const existing = await existingOrderByClientId(env, customerId, clientOrderId);
   if (existing) return existing;
-  const { items } = await validateOrderItems(env, rawItems);
+  const { items: catalogueItems } = await validateOrderItems(env, rawItems);
+  const deliverySelection = await prepareCheckoutDelivery(env, payload, catalogueItems);
+  // Always price from the server-authoritative catalogue belonging to the
+  // resolved fulfilment store, even when an older client omits storeId.
+  const { items } = await validateOrderItems(env, rawItems, deliverySelection.storeId);
   const pricing = await calculateOrderPricing(env, { items, customerId, couponCode: payload.couponCode || '', forOrder: true });
   const total = pricing.finalTotal;
   if (payload.expectedTotal !== undefined && (!Number.isSafeInteger(Number(payload.expectedTotal)) || Number(payload.expectedTotal) !== total)) throw new Error('ORDER_CONFLICT: The order total changed while checking out. Review your cart and try again.');
-  const deliverySelection = await prepareCheckoutDelivery(env, payload, items);
   const phone = cleanPhone(customer.phone), customerName = String(customer.name).trim().slice(0, 100);
   const existingCustomer = await env.DB.prepare('SELECT phone FROM customers WHERE id=? LIMIT 1').bind(customerId).first();
   const registeredPhone = cleanPhone(existingCustomer?.phone);

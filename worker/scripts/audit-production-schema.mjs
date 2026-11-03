@@ -52,6 +52,7 @@ const required = {
   delivery_scheduling_settings: ['id', 'enabled', 'booking_horizon_days', 'same_day_cutoff_minutes', 'timezone', 'updated_at'],
   delivery_stores: ['id', 'name', 'address', 'latitude', 'longitude', 'service_radius_km', 'is_active', 'created_at', 'updated_at'],
   delivery_store_inventory: ['store_id', 'product_id', 'stock_quantity', 'updated_at'],
+  delivery_store_catalogue: ['store_id', 'product_id', 'is_available', 'price_override', 'created_at', 'updated_at'],
   delivery_slots: ['id', 'store_id', 'delivery_date', 'start_minute', 'end_minute', 'capacity', 'is_active', 'created_at', 'updated_at'],
   delivery_slot_reservations: ['id', 'order_id', 'slot_id', 'status', 'owner_override', 'override_reason', 'created_at', 'updated_at'],
   delivery_store_inventory_reservations: ['id', 'order_id', 'store_id', 'product_id', 'qty', 'status', 'owner_override', 'override_reason', 'created_at', 'updated_at'],
@@ -97,6 +98,7 @@ const expectedIndexes = [
   'idx_delivery_slot_reservations_slot_state',
   'idx_delivery_store_inventory_one_active',
   'idx_delivery_store_inventory_product_state',
+  'idx_delivery_store_catalogue_visible',
   'idx_order_action_one_pending_type',
   'idx_order_action_queue',
   'idx_order_audit_timeline',
@@ -117,7 +119,7 @@ for (const name of expectedIndexes) if (!indexNames.includes(name)) problems.pus
 const migrationRows = rowsFor('SELECT id,name FROM d1_migrations ORDER BY id', row => 'name' in row && 'id' in row);
 report.migrations = migrationRows.map(row => ({ id: row.id, name: row.name }));
 report.migrationCount = migrationRows.length;
-const deliveryMigrationNames = ['0037_order_delivery_scheduling.sql', '0038_anonymize_delivery_requests.sql', '0039_customer_preferred_delivery_date.sql', '0040_order_delivered_at.sql', '0046_store_first_fulfilment.sql', '0047_store_inventory_reservation_floor.sql'];
+const deliveryMigrationNames = ['0037_order_delivery_scheduling.sql', '0038_anonymize_delivery_requests.sql', '0039_customer_preferred_delivery_date.sql', '0040_order_delivered_at.sql', '0046_store_first_fulfilment.sql', '0047_store_inventory_reservation_floor.sql', '0048_store_catalogue_pricing.sql'];
 const requiredFeatureMigrations = ['0042_customer_messages.sql', '0043_delivery_offers_fixed_coupons.sql'];
 report.featureMigrations = Object.fromEntries(requiredFeatureMigrations.map(name => [name, migrationRows.some(row => String(row.name) === name)]));
 for (const name of requiredFeatureMigrations) if (!report.featureMigrations[name]) problems.push('required feature migration not recorded as applied: ' + name);

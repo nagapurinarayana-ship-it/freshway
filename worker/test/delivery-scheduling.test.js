@@ -28,6 +28,9 @@ function envWithSettings(settings) {
             }
             if (sql.includes('FROM delivery_stores WHERE is_active=1')) return { results: stores };
             if (sql.includes('FROM delivery_store_inventory i LEFT JOIN')) return { results: inventory };
+            if (sql.includes('FROM delivery_store_catalogue sc JOIN products p')) return { results: [{
+              product_id:'rice',is_available:1,active:1,category_active:1
+            }] };
             return { results: [] };
           },
           async run() { return { meta: { changes: 1 } }; }

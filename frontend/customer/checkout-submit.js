@@ -54,9 +54,28 @@
         const deliveryOffers=window.FreshWayCustomerDeliveryOffers;
         const couponCode=deliveryOffers?.getAppliedCode?.()||'';
         const oldTotal=deliveryOffers?.getDisplayedTotal?.();
+        const deliveryBooking=window.FreshWayCustomerDeliveryBookingInstance;
+        const storeCatalogue=window.FreshWayCustomerStoreCatalogue;
+        const ensureCurrentStore=async availability=>{
+          if(!availability||availability.status!=='available'||!availability.store?.id){
+            throw new Error(availability?.message||'Delivery is not available for this address and basket.');
+          }
+          const availableStoreId=String(availability.store.id);
+          const currentStoreId=String(storeCatalogue?.selectedStoreId?.()||'');
+          if(currentStoreId!==availableStoreId){
+            const switched=await storeCatalogue?.switchToStore?.(availability.store,{review:true});
+            if(!switched?.ok)throw new Error('Your delivery store has changed. Confirm the store catalogue before continuing.');
+            setView('cart');
+            throw new Error('Your delivery store has changed. Review your cart and prices, then continue to checkout again.');
+          }
+          return currentStoreId;
+        };
+        const initialAvailability=await deliveryBooking?.checkAvailability?.();
+        const storeId=await ensureCurrentStore(initialAvailability);
+        orderPayload.storeId=storeId;
         let quote;
         try{
-          quote=await api('/api/checkout/quote',{method:'POST',body:JSON.stringify({items:cartItems().map(x=>({id:x.product.id,qty:x.qty})),couponCode})});
+          quote=await api('/api/checkout/quote',{method:'POST',body:JSON.stringify({items:cartItems().map(x=>({id:x.product.id,qty:x.qty})),couponCode,storeId})});
         }catch(error){
           deliveryOffers?.invalidateDisplayedQuote?.();
           throw error;
@@ -78,14 +97,13 @@
         if(oldTotal!=null&&Number(oldTotal)!==Number(pricing.finalTotal)&&!window.confirm('Your order total changed from '+money(oldTotal)+' to '+money(pricing.finalTotal)+'. Continue with the updated total?'))throw new Error('Review the updated total before placing the order.');
         orderPayload.couponCode=couponCode;
         orderPayload.expectedTotal=Number(pricing.finalTotal);
-        const deliveryBooking=window.FreshWayCustomerDeliveryBookingInstance;
         if(deliveryBooking?.checkoutEnabled?.()){
           const preferredDeliveryDate=deliveryBooking.selectedCheckoutDate?.();
           if(!preferredDeliveryDate)throw new Error('Choose a preferred delivery day before placing your order.');
           orderPayload.preferredDeliveryDate=preferredDeliveryDate;
         }
-        const availability=await window.FreshWayCustomerDeliveryBookingInstance?.checkAvailability?.();
-        if(availability&&availability.status!=='available')throw new Error(availability.message||'Delivery is not available for this address and basket.');
+        const finalAvailability=await deliveryBooking?.checkAvailability?.();
+        await ensureCurrentStore(finalAvailability);
         const result=await api('/api/orders',{method:'POST',body:JSON.stringify(orderPayload)});
         const registeredPhone=customerAuth.registeredPhone?.()||'';
         const order={id:result.id,customer:{name:customerAuth.registeredName?.()||name,phone:registeredPhone},address:{...address,recipientName:address.recipientName||name,deliveryPhone:phone},items:(result.items||[]).map(i=>({name:i.name,unit:i.unit,qty:i.qty,price:i.price,lineTotal:i.lineTotal})),total:result.total,pricingBreakdownKnown:result.pricingBreakdownKnown===true,itemsSubtotal:result.itemsSubtotal??null,deliveryFee:result.deliveryFee??null,couponCode:result.couponCode||null,couponDiscount:result.couponDiscount??null,payment:result.payment,status:result.status,deliveryPlan:result.deliveryPlan,scheduledDelivery:result.scheduledDelivery||null,scheduleStatus:result.scheduledDelivery?.status||'unscheduled',createdAt:result.createdAt,updatedAt:result.updatedAt};
