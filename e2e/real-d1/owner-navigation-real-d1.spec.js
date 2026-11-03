@@ -128,3 +128,83 @@ test('Owner can navigate every implemented management screen against the real Wo
     await context.close();
   }
 });
+
+
+test('Owner mobile More menu reopens after selecting secondary destinations repeatedly', async ({ browser }) => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    deviceScaleFactor: 1,
+    isMobile: true,
+    hasTouch: true,
+    serviceWorkers: 'block'
+  });
+  const page = await context.newPage();
+  const pageErrors = [];
+  const apiFailures = [];
+  let checkingNavigation = false;
+
+  page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('response', async response => {
+    const url = new URL(response.url());
+    if (checkingNavigation && url.pathname.startsWith('/api/') && response.status() >= 400) {
+      const body = await response.text().catch(() => '');
+      apiFailures.push({ path: url.pathname, status: response.status(), body: body.slice(0, 300) });
+    }
+  });
+
+  try {
+    await proxyOwnerAssets(page);
+    await proxyWorkerApi(page);
+
+    const home = await page.goto('/admin.html#overview');
+    expect(home?.status()).toBe(200);
+    await expect(page.locator('#loginView')).toBeVisible();
+
+    const loginResponse = page.waitForResponse(response =>
+      new URL(response.url()).pathname === '/api/admin/login' &&
+      response.request().method() === 'POST'
+    );
+    await page.locator('#adminToken').fill('isolated-admin-token');
+    await page.locator('#connectBtn').click();
+    expect((await loginResponse).status()).toBe(200);
+    await expect(page.locator('#appView')).toBeVisible();
+    await expect(page.locator('.mobile-nav')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    checkingNavigation = true;
+
+    for (const screen of ['stores', 'requests', 'messages', 'catalogue', 'cash', 'offers', 'notifications', 'reports', 'settings']) {
+      await page.locator('#mobileMoreBtn').click();
+      await expect(page.locator('#mobileMoreMenu')).toBeVisible();
+      await page.locator('#mobileMoreMenu [data-more-screen="' + screen + '"]').click();
+      await expect(page.locator('#' + screen)).toHaveClass(/active/);
+      // Selection dismisses the overlay but leaves its DOM node hidden. The next
+      // More tap must create a fresh visible menu instead of only removing that node.
+      await expect(page.locator('#mobileMoreMenu')).toHaveClass(/hidden/);
+    }
+
+    // The explicit close control must also allow a subsequent open.
+    await page.locator('#mobileMoreBtn').click();
+    await expect(page.locator('#mobileMoreMenu')).toBeVisible();
+    await page.locator('#mobileMoreClose').click();
+    await expect(page.locator('#mobileMoreMenu')).toHaveClass(/hidden/);
+    await page.locator('#mobileMoreBtn').click();
+    await expect(page.locator('#mobileMoreMenu')).toBeVisible();
+
+    const layout = await page.evaluate(() => ({
+      viewportWidth: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth
+    }));
+    expect(layout.horizontalOverflow).toBe(false);
+    expect(pageErrors).toEqual([]);
+    expect(apiFailures).toEqual([]);
+
+    await page.screenshot({
+      path: 'test-results/real-d1/owner-mobile-more-menu-reopen.png',
+      fullPage: true
+    });
+  } finally {
+    checkingNavigation = false;
+    await context.close();
+  }
+});
