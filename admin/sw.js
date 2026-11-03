@@ -35,7 +35,7 @@ const REQUIRED_SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
-  '/admin/admin.css?v=20261103-assigned-store-label-v1',
+  '/admin/admin.css?v=20261103-accessibility-v1',
   '/admin/admin.js?v=20261103-assigned-store-label-v1',
   '/admin/frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5',
   '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
