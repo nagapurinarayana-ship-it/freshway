@@ -164,7 +164,7 @@ jobs:
           name: freshway-isolated-store-fallback-playwright
           path: e2e/test-results/production/
           if-no-files-found: warn
-          retention-days: 7\n
+          retention-days: 7
   isolated-real-d1-store-checkout:
     name: Isolated real D1 customer checkout and Owner catalogue Playwright
     runs-on: ubuntu-latest
@@ -195,7 +195,7 @@ jobs:
             APP_ORIGINS:'http://localhost:4173',
             APP_ORIGIN_SUFFIXES:''
           };
-          fs.writeFileSync('wrangler.real-d1.jsonc',JSON.stringify(config,null,2)+'\\n');
+          fs.writeFileSync('wrangler.real-d1.jsonc',JSON.stringify(config,null,2));
           NODE
 
       - name: Create a fresh isolated D1 schema and seed store fixtures
