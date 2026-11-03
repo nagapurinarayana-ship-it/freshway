@@ -10,6 +10,7 @@ const orderAlertsMigration = readFileSync(new URL('../migrations/0025_order_aler
 const storeCoordinatesMigration = readFileSync(new URL('../migrations/0026_store_profile_shop_coordinates.sql', import.meta.url), 'utf8');
 const savedAddressMigration = readFileSync(new URL('../migrations/0044_reusable_address_visibility.sql', import.meta.url), 'utf8');
 const storeCatalogueMigration = readFileSync(new URL('../migrations/0048_store_catalogue_pricing.sql', import.meta.url), 'utf8');
+const customerMessagesMigration = readFileSync(new URL('../migrations/0042_customer_messages.sql', import.meta.url), 'utf8');
 
 const ordersTable = schema.match(
   /CREATE TABLE IF NOT EXISTS orders \(([\s\S]*?)\n\);/
@@ -170,6 +171,23 @@ test('production D1 audit covers all Store Profile API fields and deletion/addre
   }
 });
 
+
+test('fresh schema includes the customer-message inbox and order-request reply fields from migration 0042', () => {
+  const table = schema.split('CREATE TABLE IF NOT EXISTS customer_messages (')[1]?.split('\\n);')[0];
+  assert.ok(table, 'schema.sql must define the customer_messages table for a new isolated D1 database');
+  for (const field of ['id TEXT PRIMARY KEY NOT NULL','customer_id TEXT NOT NULL','message TEXT NOT NULL','status TEXT NOT NULL DEFAULT \'pending\'','admin_reply TEXT','replied_at TEXT','reply_seen_at TEXT','expires_at TEXT NOT NULL']) {
+    assert.ok(table.includes(field), 'customer_messages must include ' + field);
+    assert.ok(customerMessagesMigration.includes(field), 'migration 0042 must include ' + field);
+  }
+  const requests = schema.split('CREATE TABLE IF NOT EXISTS order_action_requests (')[1]?.split('\\n);')[0];
+  assert.ok(requests?.includes('admin_reply TEXT'));
+  assert.ok(requests?.includes('replied_at TEXT'));
+  assert.ok(requests?.includes('reply_seen_at TEXT'));
+  assert.match(schema, /idx_customer_messages_customer_created/);
+  assert.match(schema, /idx_customer_messages_status_created/);
+  assert.match(schema, /idx_customer_messages_expires/);
+  assert.match(customerMessagesMigration, /idx_order_action_requests_customer_issue/);
+});
 
 test('store catalogue visibility and price override are present in the fresh schema and additive migration', () => {
   const table = schema.split('CREATE TABLE IF NOT EXISTS delivery_store_catalogue (')[1]?.split('\n);')[0];
