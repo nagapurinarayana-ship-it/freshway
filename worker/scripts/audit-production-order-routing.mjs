@@ -259,12 +259,12 @@ for (const order of orders) {
         findings.assignmentAuditStoreMismatch++;
         if (statusActive) issues.push('order_store_not_cleared_after_date_change_approval');
       }
-    } else if (order.latest_event_store_id != null && String(order.latest_event_store_id) !== assignedId) {
-      findings.assignmentAuditStoreMismatch++;
-      if (statusActive) issues.push('order_assignment_differs_from_latest_assignment_audit');
-    } else if (order.latest_event_store_id == null && assignedId) {
+    } else if (order.latest_event_store_id == null) {
       findings.assignmentAuditStoreMismatch++;
       if (statusActive) issues.push('assignment_audit_missing_store_id');
+    } else if (String(order.latest_event_store_id) !== assignedId) {
+      findings.assignmentAuditStoreMismatch++;
+      if (statusActive) issues.push('order_assignment_differs_from_latest_assignment_audit');
     }
   }
 
@@ -293,6 +293,30 @@ for (const order of orders) {
   }
 }
 
+const groupBy = (rows, keyOf) => {
+  const counts = new Map();
+  for (const row of rows) {
+    const key = keyOf(row);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return Object.fromEntries([...counts.entries()].sort((a, b) => a[0].localeCompare(b[0])));
+};
+const activeUnassigned = orders.filter(order => isActiveOrder(order) && !order.assigned_store_id);
+const activeUnassignedBreakdown = groupBy(activeUnassigned, order => [
+  String(order.created_at || '').slice(0, 10) || 'unknown-date',
+  String(order.delivery_status || 'unknown-status'),
+  String(order.schedule_status || 'unknown-schedule'),
+  String(order.latest_assignment_action || 'no-assignment-audit-event'),
+  order.latest_event_store_id == null ? 'audit-store-id-missing' : 'audit-store-id-present',
+  validPin(order) ? 'has-map-pin' : 'no-map-pin'
+].join(' | '));
+const activeOrdersByDateAndAssignment = groupBy(orders.filter(isActiveOrder), order => [
+  String(order.created_at || '').slice(0, 10) || 'unknown-date',
+  order.assigned_store_id ? 'assigned' : 'unassigned'
+].join(' | '));
+const assignedOrderDates = orders.filter(order => order.assigned_store_id).map(order => String(order.created_at || '')).filter(Boolean).sort();
+const assignmentAuditDates = orders.filter(order => order.latest_assignment_action).map(order => String(order.created_at || '')).filter(Boolean).sort();
+
 const report = {
   audit: 'read-only-production-order-store-routing',
   generatedAt: new Date().toISOString(),
@@ -307,6 +331,10 @@ const report = {
   orderCountsByAssignedStore: Object.fromEntries([...storeCounts.entries()].sort((a, b) => a[0].localeCompare(b[0]))),
   activeOrdersWithoutStoreOrAddressPin: orders.filter(order => isActiveOrder(order) &&
     (!order.assigned_store_id || !validPin(order))).length,
+  activeUnassignedBreakdown,
+  activeOrdersByDateAndAssignment,
+  assignedOrderDateRange: assignedOrderDates.length ? { first: assignedOrderDates[0], latest: assignedOrderDates.at(-1) } : null,
+  assignmentAuditOrderDateRange: assignmentAuditDates.length ? { first: assignmentAuditDates[0], latest: assignmentAuditDates.at(-1) } : null,
   status: issues.length ? 'REVIEW_REQUIRED' : 'NO_CURRENT_ROUTING_INCONSISTENCIES_DETECTED',
   issueCount: issues.length,
   issueCategories: [...new Set(issues)].sort()
@@ -330,6 +358,15 @@ const summary = [
   '| Store | Orders |',
   '|---|---:|',
   ...Object.entries(report.orderCountsByAssignedStore).map(([name, count]) => '| ' + name.replace(/\|/g, '/') + ' | ' + count + ' |'),
+  '',
+  '## Active unassigned order breakdown',
+  '',
+  '| Date | Status / schedule / assignment-audit / location | Count |',
+  '|---|---|---:|',
+  ...Object.entries(report.activeUnassignedBreakdown).map(([key, count]) => {
+    const parts = key.split(' | ');
+    return '| ' + parts.shift() + ' | ' + parts.join('; ') + ' | ' + count + ' |';
+  }),
   '',
   '## Issue categories',
   '',
