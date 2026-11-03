@@ -42,7 +42,7 @@
       if(o.scheduledDelivery?.date)html+='<button type="button" class="secondary-btn" data-customer-order-reschedule="'+id+'" aria-expanded="false">Change delivery date</button>';
       html+='<button type="button" class="text-btn" data-customer-order-open-request="issue">Contact FreshWay</button>';
     }else if(delivered){
-      html+='<button type="button" class="secondary-btn" data-customer-order-open-request="issue">Report an issue</button><button type="button" class="secondary-btn" data-customer-order-open-request="return">Request a return</button>';
+      html+='<button type="button" class="secondary-btn" data-customer-order-buy-again="'+id+'">Buy again</button><button type="button" class="secondary-btn" data-customer-order-open-request="issue">Report an issue</button><button type="button" class="secondary-btn" data-customer-order-open-request="return">Request a return</button>';
     }else{
       html+='<button type="button" class="text-btn" data-customer-order-open-request="issue">Need help with this order?</button>';
     }

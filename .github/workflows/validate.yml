@@ -79,6 +79,7 @@ jobs:
           node frontend/customer/store-info.test.js
           node frontend/customer/search.test.js
           node frontend/customer/orders-view.test.js
+          node frontend/customer/orders.test.js
           node sw-notification-refresh.test.js
           node frontend/customer/notifications.test.js
           node frontend/customer/notifications-permissions.test.js
@@ -120,7 +121,7 @@ jobs:
           const contact = fs.readFileSync('frontend/customer/store-info.js', 'utf8');
           const messages = fs.readFileSync('frontend/customer/messages.js', 'utf8');
           const requiredHtml = [
-            'app.js?v=104',
+            'app.js?v=105',
             'frontend/customer/store-info.js?v=msg1',
             'frontend/customer/messages.js?v=msg1'
           ];

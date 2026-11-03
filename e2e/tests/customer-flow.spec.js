@@ -1510,3 +1510,50 @@ test('checks the standalone account-deletion request flow on mobile and desktop'
   await expect(page.locator('#verifyForm')).toBeVisible();
   await capture('desktop-account-deletion-verify');
 });
+
+
+test('Buy Again merges a delivered order into the cart using current store catalogue prices', async ({ page }) => {
+  const orderId = 'FW-QA-BUY-AGAIN-1';
+  await page.route('**/api/orders**', async route => {
+    const request = route.request();
+    const url = new URL(request.url());
+    if (url.pathname === '/api/orders' && request.method() === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ orders: [{
+          id: orderId,
+          status: 'Delivered',
+          payment: 'Collected',
+          deliveryPlan: 'Today',
+          createdAt: '2026-10-28T10:00:00.000Z',
+          deliveredAt: '2026-10-29T10:00:00.000Z',
+          total: 100,
+          items: [{ id: 'p1', name: 'Basmati Rice', unit: 'kg', qty: 2, price: 50, lineTotal: 100 }],
+          address: { house: '12', area: 'Test Colony', city: 'Hyderabad', pincode: '500001' }
+        }] })
+      });
+    }
+    return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'Unexpected Buy Again test endpoint.' }) });
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await expect(page.locator('#fwCategoryCatalogue')).toContainText('Choose what you need');
+  await page.evaluate(() => {
+    window.FreshWayNotifications.setCustomerId('e2e-customer-1');
+    window.state.cart = { p1: 1 };
+    window.state.cartProducts = {};
+    window.setView('orders');
+  });
+
+  const orderCard = page.locator('[data-order-id="' + orderId + '"]');
+  await expect(orderCard).toBeVisible();
+  await expect(orderCard.locator('[data-customer-order-buy-again="' + orderId + '"]')).toHaveText('Buy again');
+  await orderCard.locator('[data-customer-order-buy-again="' + orderId + '"]').click();
+
+  await expect(page.locator('#cartView')).toHaveClass(/active-view/);
+  await expect(page.locator('#cartItems')).toContainText('3 × kg');
+  await expect(page.locator('#cartItems')).toContainText('₹360');
+  await expect(page.locator('#cartCount')).toHaveText('3 items');
+});
