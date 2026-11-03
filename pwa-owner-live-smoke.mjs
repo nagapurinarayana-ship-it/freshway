@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 const BASE_URL = (process.env.OWNER_PWA_BASE_URL || '').replace(/\/$/, '');
 if (!BASE_URL) throw new Error('OWNER_PWA_BASE_URL is required for Owner PWA deployment smoke');
 
-const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261103-assigned-store-label-v1';
+const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261103-accessibility-v1';
 const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261103-assigned-store-label-v1';
 const LEGACY_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261029-order-shortcuts-v1';
 const OLDER_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261028-nav-refresh-v1';
