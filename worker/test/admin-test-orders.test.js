@@ -6,7 +6,7 @@ function fixture({ testFlag = 0 } = {}) {
   const calls = [];
   const row = {
     id: 'FW-TEST-1', customer_id: 'cust-test', customer_name: 'Sample Test', customer_phone: '911234567890',
-    is_test_order: testFlag, total: 120, payment_status: 'Not Collected', delivery_status: 'New',
+    is_test_order: testFlag, assigned_store_id: 'store-mancherial', assigned_store_name: 'FreshWay Mancherial', total: 120, payment_status: 'Not Collected', delivery_status: 'New',
     delivery_plan: 'Tomorrow', created_at: '2026-10-18 10:00:00', updated_at: '2026-10-18 10:00:00',
     payment_collected_at: null, house: '1', area: 'Test Road', city: 'Hyderabad', pincode: '500001', landmark: '', note: ''
   };
@@ -57,6 +57,9 @@ test('owner live-order query explicitly excludes test orders', async () => {
   const { env, calls } = fixture();
   const result = await orders(env, new URL('https://example.test/api/admin/orders'));
   assert.equal(result.orders[0].isTestOrder, false);
+  assert.equal(result.orders[0].assignedStoreId, 'store-mancherial');
+  assert.equal(result.orders[0].assignedStoreName, 'FreshWay Mancherial');
+  assert.equal(result.orders[0].scheduledDelivery, null, 'assigned store is exposed even without a delivery schedule');
   assert.ok(calls.some(call => call.sql.includes('o.is_test_order=0')));
 });
 
