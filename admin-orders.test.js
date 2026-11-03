@@ -73,6 +73,10 @@ assert.match(js,/function navigateAdminScreen\(id,\{historyMode='push',deferOrde
 
 
 
+assert.match(js,/order-store-line/,'all shared order cards must display the assigned store or Not assigned');
+assert.match(js,/assignedStoreName\|\|.Not assigned./,'order cards must show a safe fallback for unassigned orders');
+assert.match(js,/Assigned store/,'full order details must display the same assigned store');
+
 assert.match(js,/Registered mobile/);
 assert.match(js,/Delivery contact/);
 assert.match(js,/registeredPhone/);
@@ -93,14 +97,14 @@ assert.match(js,/const addressText = addressParts\.join\(', '\)/);
 assert.match(css,/\.order-map-row/);
 assert.match(css,/\.order-map-status/);
 assert.match(css,/\.order-map-link/);
-assert.ok(html.includes('admin.css?v=20261102-store-catalogue-pricing-v2'),'Owner HTML must load the compact location-row styles');
-assert.ok(html.includes('admin.js?v=20261029-order-shortcuts-v1'),'Owner HTML must load the cleaned order details');
+assert.ok(html.includes('admin.css?v=20261103-assigned-store-label-v1'),'Owner HTML must load the compact location-row styles');
+assert.ok(html.includes('admin.js?v=20261103-assigned-store-label-v1'),'Owner HTML must load the cleaned order details');
 const ownerSw=fs.readFileSync('admin/sw.js','utf8');
-assert.ok(ownerSw.includes('fw-owner-v58'),'Owner PWA cache must advance for updated order detail assets');
+assert.ok(ownerSw.includes('fw-owner-v59'),'Owner PWA cache must advance for updated order detail assets');
 assert.ok(html.includes('owner-lifecycle.js?v=20261029-test-order-manual-tab-v1'),'Owner HTML must load the cache-busted map fix');
 assert.ok(ownerSw.includes('/admin/owner-lifecycle.js?v=20261029-test-order-manual-tab-v1'),'Owner PWA shell must cache the map fix');
-assert.ok(ownerSw.includes('/admin/admin.css?v=20261102-store-catalogue-pricing-v2'),'Owner PWA shell must cache the current Owner CSS');
-assert.ok(ownerSw.includes('/admin/admin.js?v=20261029-order-shortcuts-v1'),'Owner PWA shell must cache the current Owner JS');
+assert.ok(ownerSw.includes('/admin/admin.css?v=20261103-assigned-store-label-v1'),'Owner PWA shell must cache the current Owner CSS');
+assert.ok(ownerSw.includes('/admin/admin.js?v=20261103-assigned-store-label-v1'),'Owner PWA shell must cache the current Owner JS');
 assert.ok(html.includes('frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1'),'Owner HTML must load the login-aware push setup');
 assert.ok(ownerSw.includes('/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1'),'Owner PWA shell must cache the login-aware push setup');
 
