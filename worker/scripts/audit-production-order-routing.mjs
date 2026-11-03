@@ -201,6 +201,7 @@ const findings = {
   assignedStoreInactiveNow: 0,
   assignedStoreOutsideCurrentRadius: 0,
   assignmentAuditEventsPresent: 0,
+  assignmentAuditEventsWithoutStoreId: 0,
   assignmentAuditStoreMismatch: 0,
   activeOrdersNotFulfillableAtAssignedStoreNow: 0,
   activeOrdersPotentiallyFulfillableAtAnotherStoreNow: 0,
@@ -263,8 +264,14 @@ for (const order of orders) {
         if (statusActive) issues.push('order_store_not_cleared_after_date_change_approval');
       }
     } else if (order.latest_event_store_id == null) {
-      findings.assignmentAuditStoreMismatch++;
-      if (statusActive) issues.push('assignment_audit_missing_store_id');
+      findings.assignmentAuditEventsWithoutStoreId++;
+      if (assignedId) {
+        findings.assignmentAuditStoreMismatch++;
+        if (statusActive) issues.push('assignment_audit_missing_store_id_for_assigned_order');
+      }
+      // Older delivery_date_requested events did not always include a storeId.
+      // When the order itself is also unassigned, classify this as legacy/incomplete
+      // audit metadata rather than a contradictory store assignment.
     } else if (String(order.latest_event_store_id) !== assignedId) {
       findings.assignmentAuditStoreMismatch++;
       if (statusActive) issues.push('order_assignment_differs_from_latest_assignment_audit');
@@ -325,6 +332,25 @@ const groupBy = (rows, keyOf) => {
   return Object.fromEntries([...counts.entries()].sort((a, b) => a[0].localeCompare(b[0])));
 };
 const activeUnassigned = orders.filter(order => isActiveOrder(order) && !order.assigned_store_id);
+const unassignedCandidateCounts = new Map();
+let activeUnassignedWithPin = 0;
+let activeUnassignedWithoutPin = 0;
+let activeUnassignedWithCurrentCandidate = 0;
+let activeUnassignedWithoutCurrentCandidate = 0;
+for (const order of activeUnassigned) {
+  if (!validPin(order)) {
+    activeUnassignedWithoutPin++;
+    continue;
+  }
+  activeUnassignedWithPin++;
+  const candidate = eligibleStoresNow(order)[0];
+  if (candidate) {
+    activeUnassignedWithCurrentCandidate++;
+    unassignedCandidateCounts.set(candidate.name, (unassignedCandidateCounts.get(candidate.name) || 0) + 1);
+  } else {
+    activeUnassignedWithoutCurrentCandidate++;
+  }
+}
 const activeUnassignedBreakdown = groupBy(activeUnassigned, order => [
   String(order.created_at || '').slice(0, 10) || 'unknown-date',
   String(order.delivery_status || 'unknown-status'),
@@ -356,6 +382,13 @@ const report = {
   activeOrdersWithoutStoreOrAddressPin: orders.filter(order => isActiveOrder(order) &&
     (!order.assigned_store_id || !validPin(order))).length,
   activeUnassignedBreakdown,
+  activeUnassignedCurrentRoutingCandidates: {
+    withAddressPin: activeUnassignedWithPin,
+    withoutAddressPin: activeUnassignedWithoutPin,
+    currentlyHaveAnEligibleStore: activeUnassignedWithCurrentCandidate,
+    noEligibleStoreWithCurrentCatalogueAndStock: activeUnassignedWithoutCurrentCandidate,
+    candidateStoreCounts: Object.fromEntries([...unassignedCandidateCounts.entries()].sort((a, b) => a[0].localeCompare(b[0])))
+  },
   activeOrdersByDateAndAssignment,
   assignedOrderDateRange: assignedOrderDates.length ? { first: assignedOrderDates[0], latest: assignedOrderDates.at(-1) } : null,
   assignmentAuditOrderDateRange: assignmentAuditDates.length ? { first: assignmentAuditDates[0], latest: assignmentAuditDates.at(-1) } : null,
@@ -382,6 +415,12 @@ const summary = [
   '| Store | Orders |',
   '|---|---:|',
   ...Object.entries(report.orderCountsByAssignedStore).map(([name, count]) => '| ' + name.replace(/\|/g, '/') + ' | ' + count + ' |'),
+  '',
+  '## Read-only candidate stores for active unassigned orders',
+  '',
+  JSON.stringify(report.activeUnassignedCurrentRoutingCandidates, null, 2),
+  '',
+  'This is only a current-data candidate calculation. No order assignment was changed.',
   '',
   '## Active assigned orders: route checks',
   '',
