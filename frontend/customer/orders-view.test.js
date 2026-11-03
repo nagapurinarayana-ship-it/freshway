@@ -24,6 +24,7 @@ assert.doesNotMatch(el.innerHTML,/once invoice issuance is enabled/i);
 api.render(document,[{...base,id:'FW-2',status:'Delivered',deliveryPlan:'Tomorrow',deliveredAt:'2026-10-25 12:00:00'}],helpers);
 assert.match(el.innerHTML,/class="status delivered">Delivered/);
 assert.match(el.innerHTML,/Delivered on 25 Oct 2026/);
+assert.match(el.innerHTML,/data-customer-order-buy-again="FW-2"/,'delivered orders expose Buy again');
 assert.doesNotMatch(el.innerHTML,/invoice PDF will be available here after dispatch/i);
 assert.doesNotMatch(el.innerHTML,/Tomorrow/);
 api.render(document,[{...base,id:'FW-LEGACY-PRICING',status:'New',deliveryPlan:'Today',pricingBreakdownKnown:false,itemsSubtotal:null,deliveryFee:null,couponDiscount:null}],helpers);
@@ -39,6 +40,7 @@ api.render(document,[{...base,id:'FW-3',status:'Cancelled',deliveryPlan:'Today'}
 assert.match(el.innerHTML,/class="status cancelled">Cancelled/);
 assert.doesNotMatch(el.innerHTML,/Delivery date:/,'cancelled orders must not look scheduled for delivery');
 assert.doesNotMatch(el.innerHTML,/Today/);
+assert.doesNotMatch(el.innerHTML,/data-customer-order-buy-again=/,'cancelled orders must not expose Buy again');
 api.render(document,[{...base,id:'FW-4',status:'delivered',deliveryPlan:'Later'}],helpers);
 assert.match(el.innerHTML,/class="status delivered">delivered/);
 assert.doesNotMatch(el.innerHTML,/Later/);
@@ -49,5 +51,6 @@ assert.match(el.innerHTML,/class="status delivered">Collected/);
 assert.doesNotMatch(el.innerHTML,/Delivery date: 2026-10-31/);
 assert.doesNotMatch(el.innerHTML,/data-customer-order-cancel=/);
 assert.doesNotMatch(el.innerHTML,/data-customer-order-reschedule=/);
+assert.match(el.innerHTML,/data-customer-order-buy-again="FW-DELIVERED-PAID"/);
 
 console.log('customer orders-view terminal status tests OK');
