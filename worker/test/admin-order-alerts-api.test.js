@@ -22,7 +22,11 @@ function responseDb() {
             async run() { return { meta: { changes: 1 }, values }; }
           };
         },
-        async run() { return { meta: { changes: 1 }, values: [] }; }
+        async run() { return { meta: { changes: 1 }, values: [] }; },
+        async all() {
+          if (sql.includes('FROM notification_log')) return { results: [] };
+          return { results: [] };
+        }
       };
     },
     async batch() { return [] }
