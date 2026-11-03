@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v59';
+const CACHE = 'fw-owner-v60';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -22,7 +22,7 @@ const SHELL = [
   '/admin/frontend/admin/catalogue.js?v=20261029-promo-alttext-v1',
   '/admin/frontend/admin/owner-lifecycle-autosave.js?v=20260909-owner-lifecycle-v1',
   '/admin/frontend/admin/push.js?v=20260908-push-v1',
-  '/admin/owner-lifecycle.js?v=20261029-test-order-manual-tab-v1',
+  '/admin/owner-lifecycle.js?v=20261103-assigned-store-lifecycle-v1',
   '/admin/owner-address-final.js?v=20260909-address-final-v6',
   '/admin/freshway-logo-master.webp?v=20261008-master-v1',
   '/admin/freshway-logo-clean.svg?v=20261008-brand-v1',
@@ -46,7 +46,7 @@ const REQUIRED_SHELL = [
   '/admin/frontend/admin/store-management.js?v=20261102-store-catalogue-pricing-v1',
   '/admin/frontend/admin/customer-messages.js?v=20261027-customer-messages-v1',
   '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2',
-  '/admin/owner-lifecycle.js?v=20261029-test-order-manual-tab-v1'
+  '/admin/owner-lifecycle.js?v=20261103-assigned-store-lifecycle-v1'
 ];
 
 self.addEventListener('install', event => {
