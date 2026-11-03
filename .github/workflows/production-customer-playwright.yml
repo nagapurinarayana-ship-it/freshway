@@ -122,7 +122,11 @@ jobs:
                 latitude:mancherialAddress.latitude,
                 longitude:mancherialAddress.longitude,
                 product_id:sellable.productId,
-                category_id:sellable.category_id
+                category_id:sellable.category_id,
+                product_name:sellable.product_name,
+                central_price:numeric(sellable.central_price),
+                price_override:sellable.price_override==null?null:numeric(sellable.price_override),
+                effective_price:numeric(sellable.effective_price)
               };
               mancherialStoreName=candidate.name;
               break;
@@ -219,6 +223,10 @@ jobs:
             FRESHWAY_TEST_LONGITUDE:baseline.longitude,
             FRESHWAY_TEST_PRODUCT_ID:baseline.product_id,
             FRESHWAY_TEST_CATEGORY_ID:baseline.category_id,
+            FRESHWAY_TEST_PRODUCT_NAME:baseline.product_name,
+            FRESHWAY_TEST_CENTRAL_PRICE:baseline.central_price,
+            FRESHWAY_TEST_PRICE_OVERRIDE:baseline.price_override??'',
+            FRESHWAY_TEST_EFFECTIVE_PRICE:baseline.effective_price,
             FRESHWAY_TEST_MULTI_BASKET_READY:multiBasket?'true':'false',
             FRESHWAY_TEST_MULTI_BASKET_STORE_ID:multiBasket?.store_id??'',
             FRESHWAY_TEST_MULTI_BASKET_LATITUDE:multiBasket?.latitude??'',
