@@ -180,6 +180,12 @@ function inventoryRowsForProduct(env,productId,stockQuantity,activeStores){
     'SELECT s.id,?,CASE WHEN ?=1 AND s.is_active=1 THEN ? ELSE 0 END FROM delivery_stores s'
   ).bind(productId,activeStores,stockQuantity);
 }
+function catalogueRowsForProduct(env,productId){
+  return env.DB.prepare(
+    'INSERT OR IGNORE INTO delivery_store_catalogue (store_id,product_id,is_available,price_override) '+
+    'SELECT id,?,1,NULL FROM delivery_stores'
+  ).bind(productId);
+}
 async function createProduct(env,p){
   const name=clean(p.name,100),unit=clean(p.unit,30),price=Number(p.price),emoji=clean(p.emoji||'🛒',8),
     hsnCode=clean(p.hsnCode??p.hsn_code??'',8),gstRateBps=Number(p.gstRateBps??p.gst_rate_bps??0),
@@ -204,6 +210,7 @@ async function createProduct(env,p){
     'INSERT INTO products (id,name,unit,price,emoji,image_data,image_mime_type,active,category_id,display_order,stock_managed,stock_quantity,low_stock_threshold,hsn_code,gst_rate_bps,gst_rate_confirmed) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
   ).bind(productId,name,unit,Math.round(price),emoji,image.imageData,image.imageMimeType,1,categoryId,displayOrder,
     stockManaged?1:0,stockQuantity,lowStockThreshold,hsnCode,gstRateBps,gstRateConfirmed)];
+  statements.push(catalogueRowsForProduct(env,productId));
   if(stockManaged&&allStores>0)statements.push(inventoryRowsForProduct(env,productId,requestedStock,activeStores));
   await env.DB.batch(statements);
   const stockAllocationRequired=Boolean(stockManaged&&activeStores>1&&requestedStock>0);
@@ -247,6 +254,7 @@ async function updateProduct(env,productId,p){
     'UPDATE products SET name=?,unit=?,price=?,emoji=?,image_data=?,image_mime_type=?,active=?,category_id=?,display_order=?,stock_managed=?,stock_quantity=?,low_stock_threshold=?,hsn_code=?,gst_rate_bps=?,gst_rate_confirmed=?,updated_at=CURRENT_TIMESTAMP WHERE id=?'
   ).bind(name,unit,Math.round(price),emoji,image.imageData,image.imageMimeType,next.active?1:0,categoryId,displayOrder,
     stockManaged?1:0,stockQuantity,lowStockThreshold,hsnCode,gstRateBps,gstRateConfirmed,productId)];
+  statements.push(catalogueRowsForProduct(env,productId));
   if(changingToManaged&&allStores>0)statements.push(inventoryRowsForProduct(env,productId,requestedStock,activeStores));
   else if(wasManaged&&stockManaged&&allStores>0){
     statements.push(env.DB.prepare(

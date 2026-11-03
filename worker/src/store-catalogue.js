@@ -33,7 +33,6 @@ export async function assertActiveStore(env, storeId) {
 export async function getStoreCatalogueRows(env, storeId) {
   const store = await env.DB.prepare('SELECT id FROM delivery_stores WHERE id=? LIMIT 1').bind(String(storeId || '')).first();
   if (!store) throw new Error('Delivery store not found.');
-  await ensureStoreCatalogueRows(env, storeId);
   const { results } = await env.DB.prepare(
     'SELECT p.id,p.name,p.unit,p.price central_price,p.emoji,p.active,p.category_id,p.display_order,' +
     'p.image_data,p.image_mime_type,p.updated_at,p.stock_managed,p.stock_quantity,p.low_stock_threshold,' +
@@ -53,24 +52,36 @@ export async function getStoreCatalogueRows(env, storeId) {
 
 export async function getStoreProductRows(env, storeId, quantities) {
   await assertActiveStore(env, storeId);
-  const rows = await getStoreCatalogueRows(env, storeId);
-  const byId = new Map(rows.map(row => [String(row.id), row]));
-  const items = [];
-  for (const [rawId, rawQty] of quantities) {
-    const productId = String(rawId);
-    const qty = Number(rawQty);
-    const row = byId.get(productId);
-    if (!row || Number(row.active) !== 1 || Number(row.category_active) !== 1 || Number(row.is_available) !== 1) {
+  if (!quantities || !quantities.size) return [];
+  const ids=[...quantities.keys()].map(String);
+  const placeholders=ids.map(()=>'?').join(',');
+  const { results }=await env.DB.prepare(
+    'SELECT p.id,p.name,p.unit,p.price central_price,p.emoji,p.active,p.category_id,'+
+    'p.stock_managed,p.stock_quantity,p.low_stock_threshold,p.hsn_code,p.gst_rate_bps,p.gst_rate_confirmed,'+
+    'c.name category_name,c.slug category_slug,c.active category_active,'+
+    'sc.is_available,sc.price_override,COALESCE(sc.price_override,p.price) effective_price,'+
+    'COALESCE(i.stock_quantity,0) on_hand,'+
+    "COALESCE((SELECT SUM(r.qty) FROM delivery_store_inventory_reservations r "+
+    "WHERE r.store_id=sc.store_id AND r.product_id=p.id AND r.status IN ('reserved','conflict')),0) reserved_qty "+
+    'FROM delivery_store_catalogue sc JOIN products p ON p.id=sc.product_id '+
+    'JOIN categories c ON c.id=p.category_id '+
+    'LEFT JOIN delivery_store_inventory i ON i.store_id=sc.store_id AND i.product_id=p.id '+
+    'WHERE sc.store_id=? AND sc.product_id IN ('+placeholders+')'
+  ).bind(storeId,...ids).all();
+  const byId=new Map((results||[]).map(row=>[String(row.id),row]));
+  const items=[];
+  for(const [rawId,rawQty] of quantities){
+    const productId=String(rawId),qty=Number(rawQty),row=byId.get(productId);
+    if(!row||Number(row.active)!==1||Number(row.category_active)!==1||Number(row.is_available)!==1)
       throw new Error('One or more products are not available from the selected store. Review your cart.');
-    }
-    if (!Number.isInteger(qty) || qty < 1 || qty > 99) throw new Error('The cart contains an invalid item quantity.');
-    const managed = Number(row.stock_managed) === 1;
-    const available = Math.max(0, Number(row.on_hand || 0) - Number(row.reserved_qty || 0));
-    if (managed && available < qty) throw new Error('Not enough store stock for ' + row.name + '. Review your cart and try again.');
-    const price = Number(row.effective_price);
-    items.push({ ...row, price, qty, lineTotal: price * qty, stockReservedQty: managed ? qty : 0 });
+    if(!Number.isInteger(qty)||qty<1||qty>99)throw new Error('The cart contains an invalid item quantity.');
+    const managed=Number(row.stock_managed)===1;
+    const available=Math.max(0,Number(row.on_hand||0)-Number(row.reserved_qty||0));
+    if(managed&&available<qty)throw new Error('Not enough store stock for '+row.name+'. Review your cart and try again.');
+    const price=Number(row.effective_price);
+    items.push({...row,price,qty,lineTotal:price*qty,stockReservedQty:managed?qty:0});
   }
-  if (items.length !== quantities.size) throw new Error('One or more products are no longer available from the selected store.');
+  if(items.length!==quantities.size)throw new Error('One or more products are no longer available from the selected store.');
   return items;
 }
 

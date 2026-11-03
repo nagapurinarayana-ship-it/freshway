@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { getStoreCatalogueRows, getStoreProductRows, saveStoreCatalogue } from '../src/store-catalogue.js';
 import { handleCustomerDeliveryRequest, handleAdminDeliveryRequest } from '../src/delivery-scheduling.js';
 import { handleCustomerDeliveryOffersRequest } from '../src/delivery-offers.js';
-import { createOrder } from '../src/index.js';
+import { addProduct, createOrder } from '../src/index.js';
 
 class SQLiteD1 {
   constructor() {
@@ -19,6 +19,8 @@ class SQLiteD1 {
       VALUES
         ('store-near','Nearest Store','Near',17.385044,78.486671,5,1),
         ('store-next','Next Store','Next',17.390044,78.491671,5,1);
+      INSERT INTO delivery_store_catalogue (store_id,product_id,is_available,price_override)
+        SELECT s.id,p.id,1,NULL FROM delivery_stores s CROSS JOIN products p;
       INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity)
       VALUES ('store-near','oil-1',5),('store-next','oil-1',8);
       INSERT INTO customers (id,name,phone) VALUES ('customer-1','Test Customer','919999999999');
@@ -49,6 +51,23 @@ const jsonRequest=(url,body,method='POST')=>new Request(url,{
   method,headers:{'content-type':'application/json'},body:method==='GET'?undefined:JSON.stringify(body)
 });
 
+test('customer store catalogue reads are read-only and new products seed visible rows at creation',async()=>{
+  const d1=new SQLiteD1();
+  try{
+    d1.db.exec(`INSERT INTO products (id,name,unit,price,emoji,active,category_id,stock_managed,stock_quantity,low_stock_threshold,hsn_code,gst_rate_bps,gst_rate_confirmed)
+      VALUES ('legacy-unseeded','Legacy Product','piece',70,'📦',1,'cat-oils',0,0,0,'',0,0)`);
+    assert.equal(Number(d1.db.prepare("SELECT COUNT(*) count FROM delivery_store_catalogue WHERE product_id='legacy-unseeded'").get().count),0);
+    const catalogue=await getStoreCatalogueRows({DB:d1},'store-near');
+    assert.equal(catalogue.some(row=>row.id==='legacy-unseeded'),false);
+    assert.equal(Number(d1.db.prepare("SELECT COUNT(*) count FROM delivery_store_catalogue WHERE product_id='legacy-unseeded'").get().count),0);
+    await assert.rejects(getStoreProductRows({DB:d1},'store-near',new Map([['legacy-unseeded',1]])),/not available from the selected store/i);
+    await addProduct({DB:d1},{id:'new-product',name:'New Product',unit:'piece',price:199});
+    const rows=d1.db.prepare("SELECT store_id,is_available,price_override FROM delivery_store_catalogue WHERE product_id='new-product' ORDER BY store_id").all();
+    assert.equal(rows.length,2);
+    assert.ok(rows.every(row=>Number(row.is_available)===1&&row.price_override===null));
+  }finally{d1.close()}
+});
+
 test('store catalogue uses the central price by default and accepts an independent local override',async()=>{
   const d1=new SQLiteD1();
   try{
@@ -76,9 +95,10 @@ test('store catalogue editor excludes centrally hidden products and hidden categ
       VALUES
         ('hidden-product','Hidden Product','piece',50,'📦',0,'cat-oils',0,0,0,'',0,0),
         ('hidden-category-product','Product In Hidden Category','piece',60,'📦',1,'cat-hidden',0,0,0,'',0,0);
+      INSERT INTO delivery_store_catalogue (store_id,product_id,is_available,price_override)
+      VALUES ('store-near','hidden-product',1,NULL),('store-near','hidden-category-product',1,NULL);
     `);
-    // ensureStoreCatalogueRows gives new rows a local Show default, but a hidden
-    // central product/category must never appear in the store editor or customer list.
+    // Hidden products retain their local settings but remain excluded from customer/editor catalogue reads.
     const initial=await getStoreCatalogueRows({DB:d1},'store-near');
     assert.deepEqual(initial.map(row=>row.id),['oil-1']);
     await saveStoreCatalogue({DB:d1},'store-near',[
