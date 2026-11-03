@@ -18,6 +18,8 @@ class SQLiteD1 {
         VALUES ('store-nearest','Nearest Store','Test Address A',17.385,78.4867,5,1),
                ('store-next','Next Nearest Store','Test Address B',17.395,78.4867,5,1),
                ('store-inactive','Inactive Store','Test Address C',17.3855,78.4867,5,0);
+      INSERT INTO delivery_store_catalogue (store_id,product_id,is_available,price_override)
+        SELECT s.id,p.id,1,NULL FROM delivery_stores s CROSS JOIN products p;
       INSERT INTO delivery_store_inventory (store_id,product_id,stock_quantity)
         VALUES ('store-nearest','rice-test',0),
                ('store-nearest','oil-test',5),
