@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v60';
+const CACHE = 'fw-owner-v61';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
