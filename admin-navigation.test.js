@@ -33,6 +33,6 @@ const primaryNav=html.match(/<nav aria-label="Owner navigation">([\s\S]*?)<detai
 assert.doesNotMatch(primaryNav,/data-screen="settings"/,'Settings should not crowd the primary desktop navigation');
 assert.match(html,/mobile-more-label">Reports & settings/,'less-used options should be grouped under a clear heading');
 assert.match(source,/else if\(target==='offers'\)\{await window\.FreshWayOwnerDeliveryOffers\?\.load\(\);\}/,'direct refresh on #offers must load delivery settings and coupons');
-assert.ok(html.indexOf('frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5') < html.indexOf('admin.js?v=20261029-order-shortcuts-v1'), 'Delivery & Offers must load before Owner bootstrap so a direct #offers route can call its loader');
+assert.ok(html.indexOf('frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5') < html.indexOf('admin.js?v=20261103-assigned-store-label-v1'), 'Delivery & Offers must load before Owner bootstrap so a direct #offers route can call its loader');
 assert.match(html,/data-more-screen="offers">🎟 Delivery & offers/,'mobile More menu must expose Delivery & Offers');
 console.log('owner navigation history and safe initial settings bootstrap OK');
