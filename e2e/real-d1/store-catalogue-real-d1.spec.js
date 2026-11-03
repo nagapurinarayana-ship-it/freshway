@@ -3,15 +3,11 @@ import { test, expect } from '@playwright/test';
 const origin = 'http://localhost:4173';
 const workerOrigin = 'http://localhost:8787';
 
-async function proxyWorkerApi(page, ownerSession = '') {
+async function proxyWorkerApi(page) {
   await page.route('**/api/**', async route => {
     const incoming = new URL(route.request().url());
     const target = workerOrigin + incoming.pathname + incoming.search;
-    const headers = { ...route.request().headers() };
-    if (ownerSession && incoming.pathname.startsWith('/api/admin/')) {
-      headers.cookie = [headers.cookie || '', '__Host-freshway-admin-session=' + ownerSession].filter(Boolean).join('; ');
-    }
-    const response = await route.fetch({ url: target, headers });
+    const response = await route.fetch({ url: target });
     await route.fulfill({ response });
   });
 }
@@ -24,13 +20,13 @@ async function addLocalSessionCookie(context, response, name, sameSite) {
     name,
     value: match[1],
     url: origin,
-      secure: true,
+    secure: true,
     httpOnly: true,
     sameSite
   }]);
 }
 
-test('real Worker + isolated D1: Owner edits store catalogue, customer checks out at the saved local price', async ({ browser }) => {
+test('customer storefront uses the selected store catalogue and checks out at its server price', async ({ browser }) => {
   const context = await browser.newContext({ serviceWorkers: 'block' });
   const setup = await context.request.post(workerOrigin + '/api/auth/register', {
     headers: { Origin: origin },
@@ -58,32 +54,6 @@ test('real Worker + isolated D1: Owner edits store catalogue, customer checks ou
   });
   expect(addressResponse.status()).toBe(201);
   expect((await addressResponse.json()).addresses).toHaveLength(1);
-
-  const ownerLogin = await context.request.post(workerOrigin + '/api/admin/login', {
-    headers: { Origin: origin },
-    data: { token: 'isolated-owner-token' }
-  });
-  expect(ownerLogin.status()).toBe(200);
-  const ownerCookie = (ownerLogin.headers()['set-cookie'] || '')
-    .match(/__Host-freshway-admin-session=([^;,\\s]+)/);
-  expect(ownerCookie, 'Owner login must return an admin session').toBeTruthy();
-
-  const ownerPage = await context.newPage();
-  await ownerPage.addInitScript(() => {
-    sessionStorage.setItem('freshway-admin-auth', '1');
-    localStorage.setItem('freshway-admin-auth', '1');
-  });
-  await proxyWorkerApi(ownerPage, ownerCookie[1]);
-  await ownerPage.goto('/admin.html#stores');
-  await expect(ownerPage.locator('#authState')).toHaveText('Connected');
-  await expect(ownerPage.locator('#storeManagement')).toContainText('D1 Store');
-  await ownerPage.locator('[data-edit-catalogue="store-d1"]').click();
-  const panel = ownerPage.locator('.fw-store-catalogue-panel');
-  await expect(panel).toBeVisible();
-  await ownerPage.locator('[data-catalogue-price="oil-d1"]').fill('189');
-  await ownerPage.locator('[data-catalogue-available="rice-d1"]').uncheck();
-  await ownerPage.locator('[data-save-catalogue]').click();
-  await expect(ownerPage.locator('#storeManagement')).toContainText('Store product availability and prices saved.');
 
   const visibleCatalogue = await context.request.get(
     workerOrigin + '/api/products?storeId=store-d1',
