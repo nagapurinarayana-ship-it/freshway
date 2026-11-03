@@ -204,12 +204,15 @@ const findings = {
   assignmentAuditStoreMismatch: 0,
   activeOrdersNotFulfillableAtAssignedStoreNow: 0,
   activeOrdersPotentiallyFulfillableAtAnotherStoreNow: 0,
+  activeAssignedOrdersAtNearestEligibleStoreNow: 0,
+  activeAssignedOrdersNotAtNearestEligibleStoreNow: 0,
   activeStockReservationStoreMismatch: 0,
   activeSlotReservationStoreMismatch: 0,
   ordersWithMultipleActiveStockReservationStores: 0,
   ordersWithMultipleActiveSlotReservationStores: 0
 };
 const storeCounts = new Map();
+const activeAssignedRouteChecks = [];
 const issues = [];
 
 for (const order of orders) {
@@ -285,11 +288,31 @@ for (const order of orders) {
 
   if (statusActive && assignedId && assignedStore && hasPin) {
     const eligible = eligibleStoresNow(order);
-    if (!eligible.some(store => store.id === assignedId)) {
+    const assignedIsEligible = eligible.some(store => store.id === assignedId);
+    if (!assignedIsEligible) {
       findings.activeOrdersNotFulfillableAtAssignedStoreNow++;
       issues.push('active_order_basket_not_fulfillable_at_assigned_store_now');
       if (eligible.some(store => store.id !== assignedId)) findings.activeOrdersPotentiallyFulfillableAtAnotherStoreNow++;
     }
+    const nearestEligible = eligible[0] || null;
+    const distanceToAssigned = distanceKm(Number(order.delivery_latitude), Number(order.delivery_longitude),
+      assignedStore.latitude, assignedStore.longitude);
+    const assignedIsNearestEligible = !!nearestEligible && nearestEligible.id === assignedId;
+    if (assignedIsNearestEligible) findings.activeAssignedOrdersAtNearestEligibleStoreNow++;
+    else findings.activeAssignedOrdersNotAtNearestEligibleStoreNow++;
+    activeAssignedRouteChecks.push({
+      orderDate: String(order.created_at || '').slice(0, 10),
+      status: String(order.delivery_status || ''),
+      assignedStore: assignedStore.name,
+      distanceToAssignedStoreKm: Math.round(distanceToAssigned * 100) / 100,
+      assignedStoreCurrentlyFitsBasket: assignedIsEligible,
+      nearestCurrentlyEligibleStore: nearestEligible?.name || null,
+      distanceToNearestEligibleStoreKm: nearestEligible
+        ? Math.round(distanceKm(Number(order.delivery_latitude), Number(order.delivery_longitude),
+          nearestEligible.latitude, nearestEligible.longitude) * 100) / 100
+        : null,
+      assignedStoreIsNearestEligible: assignedIsNearestEligible
+    });
   }
 }
 
@@ -329,6 +352,7 @@ const report = {
   ],
   findings,
   orderCountsByAssignedStore: Object.fromEntries([...storeCounts.entries()].sort((a, b) => a[0].localeCompare(b[0]))),
+  activeAssignedRouteChecks,
   activeOrdersWithoutStoreOrAddressPin: orders.filter(order => isActiveOrder(order) &&
     (!order.assigned_store_id || !validPin(order))).length,
   activeUnassignedBreakdown,
@@ -358,6 +382,18 @@ const summary = [
   '| Store | Orders |',
   '|---|---:|',
   ...Object.entries(report.orderCountsByAssignedStore).map(([name, count]) => '| ' + name.replace(/\|/g, '/') + ' | ' + count + ' |'),
+  '',
+  '## Active assigned orders: route checks',
+  '',
+  '| Order date | Status | Assigned store | Distance (km) | Basket currently fits | Nearest eligible store | Nearest distance (km) | Assigned is nearest |',
+  '|---|---|---|---:|---|---|---:|---|',
+  ...report.activeAssignedRouteChecks.map(row => '| ' + [
+    row.orderDate,row.status,row.assignedStore,row.distanceToAssignedStoreKm,
+    row.assignedStoreCurrentlyFitsBasket ? 'Yes' : 'No',
+    row.nearestCurrentlyEligibleStore || 'None',
+    row.distanceToNearestEligibleStoreKm ?? '—',
+    row.assignedStoreIsNearestEligible ? 'Yes' : 'No'
+  ].join(' | ') + ' |'),
   '',
   '## Active unassigned order breakdown',
   '',
