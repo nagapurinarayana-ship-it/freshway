@@ -94,29 +94,11 @@ const navigation=customerNavigation.create({document,onView:handleView,afterView
 customerFreshness=customerStateFreshness?.create({document,getView:()=>document.querySelector('.view.active-view')?.id?.replace(/View$/,'')||'home',refreshCatalogue:()=>window.freshWayCustomerCatalogueRefresh?.(),refreshOrders:()=>customerOrderData.load(),refreshPromotions:()=>customerPromotions?.refresh?.(),renderProfile});
 function setView(name,options){if(name==='home'&&options?.history!=='none')window.freshWayCustomerCatalogueGoHome?.();navigation.setView(name,options)}
 function changeQty(id,delta){const key=String(id);const current=Number(state.cart[key]||0);const next=catalogueCart.nextQuantity(current,delta);if(delta>0&&current>=99){toast('Maximum quantity is 99');return}if(next<=0){delete state.cart[key];cartPersistence.removeProduct(key)}else{state.cart[key]=next;const product=PRODUCTS.find(item=>String(item.id)===key);if(product)cartPersistence.rememberProduct(key,product)}save();renderProducts($('#searchInput')?.value||'');if($('#cartView')?.classList.contains('active-view'))renderCart();if($('#checkoutView')?.classList.contains('active-view'))void customerDeliveryBooking?.refreshCheckout?.()}
-function buyAgain(button){
-  const orderId=String(button?.dataset?.customerOrderBuyAgain||'');
-  const order=state.orders.find(item=>String(item?.id)===orderId);
-  if(!order){toast('This order could not be found. Refresh My Orders and try again.');return}
-  const plan=customerOrders.buyAgainPlan(order,PRODUCTS,state.cart);
-  if(!plan.eligible){toast('Buy Again is available for delivered orders.');return}
-  if(!plan.additions.length){
-    const message=plan.unavailable.length
-      ?'None of the products from this order are currently available at your selected store.'
-      :'There are no products to add from this order.';
-    toast(message);return;
-  }
-  state.cart=plan.cart;
-  for(const item of plan.additions)cartPersistence.rememberProduct(item.id,item.product);
-  save();
-  renderProducts($('#searchInput')?.value||'');
-  updateCartBar();
-  setView('cart');
-  const added=plan.addedQuantity;
-  const notes=[];
-  if(plan.unavailable.length)notes.push(plan.unavailable.length+' '+(plan.unavailable.length===1?'item is':'items are')+' unavailable at this store');
-  if(plan.quantityLimit.length)notes.push('quantity limit reached for '+plan.quantityLimit.length+' '+(plan.quantityLimit.length===1?'item':'items'));
-  toast('Added '+added+' '+(added===1?'item':'items')+' to your cart.'+(notes.length?' '+notes.join('; ')+'.':''));
+function buyAgain(b){
+const o=state.orders.find(x=>String(x.id)===b.dataset.customerOrderBuyAgain);if(!o){toast('Order not found.');return}
+const p=customerOrders.buyAgainPlan(o,PRODUCTS,state.cart);if(!p.eligible)return;if(!p.additions.length){toast('No items available.');return}
+state.cart=p.cart;p.additions.forEach(x=>cartPersistence.rememberProduct(x.id,x.product));save();renderProducts($('#searchInput')?.value);setView('cart');
+const n=p.unavailable.length+p.quantityLimit.length;toast('Added '+p.addedQuantity+' to cart'+(n?'; '+n+' skipped':'')+'.');
 }
 function openAddressModal(){customerModal.open(document)}
 function closeModal(){customerModal.close(document)}
