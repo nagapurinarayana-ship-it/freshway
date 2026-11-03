@@ -89,17 +89,18 @@ test('Owner can edit, save and reload store-specific catalogue using real Worker
         const originalOilVisible = page.locator('#storeManagement [data-catalogue-available="oil-d1"]');
         const originalOilPrice = page.locator('#storeManagement [data-catalogue-price="oil-d1"]');
         const originalRiceVisible = page.locator('#storeManagement [data-catalogue-available="rice-d1"]');
-        if (await originalOilVisible.count() && await originalOilPrice.count() && await originalRiceVisible.count()) {
-          await originalOilVisible.check();
-          await originalOilPrice.fill('189');
-          await originalRiceVisible.uncheck();
-          const restoreResponse = page.waitForResponse(response =>
-            new URL(response.url()).pathname === '/api/admin/delivery/stores/store-d1/catalogue' &&
-            response.request().method() === 'PATCH'
-          );
-          await page.locator('#storeManagement [data-save-catalogue]').click();
-          expect((await restoreResponse).status()).toBe(200);
-        }
+        await expect(originalOilVisible).toBeVisible({ timeout: 10000 });
+        await expect(originalOilPrice).toBeVisible({ timeout: 10000 });
+        await expect(originalRiceVisible).toBeVisible({ timeout: 10000 });
+        await originalOilVisible.check();
+        await originalOilPrice.fill('189');
+        await originalRiceVisible.uncheck();
+        const restoreResponse = page.waitForResponse(response =>
+          new URL(response.url()).pathname === '/api/admin/delivery/stores/store-d1/catalogue' &&
+          response.request().method() === 'PATCH'
+        );
+        await page.locator('#storeManagement [data-save-catalogue]').click();
+        expect((await restoreResponse).status()).toBe(200);
       }
     }
 
