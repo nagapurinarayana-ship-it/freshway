@@ -47,10 +47,13 @@ test('Owner can navigate every implemented management screen against the real Wo
   let checkingNavigation = false;
 
   page.on('pageerror', error => pageErrors.push(error.message));
-  page.on('response', response => {
+  page.on('response', async response => {
     const url = new URL(response.url());
-    if (url.pathname.startsWith('/api/') && response.status() >= 400) {
-      apiFailures.push({ path: url.pathname, status: response.status() });
+    // The login screen may initialise read-only widgets before authentication.
+    // Those expected 401s are not part of the authenticated Owner screen sweep.
+    if (checkingNavigation && url.pathname.startsWith('/api/') && response.status() >= 400) {
+      const body = await response.text().catch(() => '');
+      apiFailures.push({ path: url.pathname, status: response.status(), body: body.slice(0, 300) });
     }
   });
   page.on('request', request => {
