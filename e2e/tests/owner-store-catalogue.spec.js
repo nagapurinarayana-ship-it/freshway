@@ -88,16 +88,14 @@ test('Owner can edit per-store product visibility and prices without changing in
     return send({ error: 'Unexpected Owner E2E endpoint: ' + method + ' ' + path }, 404);
   });
 
-  await page.goto('/admin.html');
+  // Open the existing Stores route directly. The desktop "More" menu is
+  // intentionally hidden at this mobile viewport; route bootstrap still loads
+  // the same authenticated Store Management screen.
+  await page.goto('/admin.html#stores');
   await expect(page.locator('#loginView')).toBeVisible();
   await page.locator('#adminToken').fill('owner-e2e-token');
   await page.locator('#connectBtn').click();
   await expect(page.locator('#authState')).toHaveText('Connected');
-
-  const moreMenu = page.locator('.owner-nav-more');
-  await moreMenu.locator('summary').click();
-  await expect(moreMenu.locator('button[data-screen="stores"]')).toBeVisible();
-  await moreMenu.locator('button[data-screen="stores"]').click();
   await expect(page.locator('#storeManagement')).toContainText('Kukatpally Store');
   await page.locator('[data-edit-catalogue="store-1"]').click();
 
