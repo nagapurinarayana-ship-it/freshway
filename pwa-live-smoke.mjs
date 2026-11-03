@@ -16,6 +16,7 @@ const EXPECTED_CUSTOMER_CACHE = 'freshway-v118';
 const LEGACY_CUSTOMER_CACHES = ['freshway-v117', 'freshway-v116', 'freshway-v115'];
 const SUPPORTED_CUSTOMER_CACHES = [EXPECTED_CUSTOMER_CACHE, ...LEGACY_CUSTOMER_CACHES];
 const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261029-nonintrusive-install-v2';
+const CUSTOMER_CATALOGUE_PATH = '/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v1';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchWithRetry(url, options = {}) {
@@ -92,7 +93,7 @@ async function waitForFullImageFitAssets(base) {
   const viewportStylesPath = VIEWPORT_STYLES_PATH;
   let appPath = CUSTOMER_APP_PATH;
   const promotionPath = '/frontend/customer/promotions.js?v=20261030-lazy-promo-images-v1';
-  const customerCataloguePath = '/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v1';
+  const customerCataloguePath = CUSTOMER_CATALOGUE_PATH;
   const addressGeocodePath = ADDRESS_GEOCODE_PATH;
   const addressSystemPath = ADDRESS_SYSTEM_PATH;
   const cataloguePath = '/frontend/admin/catalogue.js?v=20261029-promo-alttext-v1';
@@ -347,14 +348,14 @@ async function verifyCustomDomain() {
   }
   assertCurrentScriptReference(homeHtml, homeResponse.url, PWA_INSTALL_SCRIPT_PATH, 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/promotions.js?v=20261030-lazy-promo-images-v1', 'custom-domain home');
-  assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/catalogue.js?v=img1', 'custom-domain home');
+  assertCurrentScriptReference(homeHtml, homeResponse.url, CUSTOMER_CATALOGUE_PATH, 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, ADDRESS_GEOCODE_PATH, 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, ADDRESS_SYSTEM_PATH, 'custom-domain home');
   assertCurrentScriptReference(adminHtml, adminResponse.url, '/frontend/admin/catalogue.js?v=20261029-promo-alttext-v1', 'custom-domain Owner');
   assert.ok(sw.includes(customAppPath), 'custom-domain service worker must cache the current app navigation script');
   assert.ok(sw.includes(PWA_INSTALL_SCRIPT_PATH), 'custom-domain service worker must cache the current native install script');
   assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261030-lazy-promo-images-v1'), 'custom-domain service worker must cache the current promotion script');
-  assert.ok(sw.includes('/frontend/customer/catalogue.js?v=img1'), 'custom-domain service worker must cache the current customer catalogue script');
+  assert.ok(sw.includes(CUSTOMER_CATALOGUE_PATH), 'custom-domain service worker must cache the current customer catalogue script');
   assert.ok(sw.includes(ADDRESS_GEOCODE_PATH), 'custom-domain service worker must cache the current address geocode mapper');
   assert.ok(sw.includes(ADDRESS_SYSTEM_PATH), 'custom-domain service worker must cache the current address editor');
 
@@ -367,7 +368,7 @@ async function verifyCustomDomain() {
     fetchWithRetry(`${customBase}/api/health`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/api/products`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/api/categories`, { cache: 'no-store' }),
-    fetchWithRetry(`${customBase}/frontend/customer/catalogue.js?v=img1`, { cache: 'no-store' }),
+    fetchWithRetry(`${customBase}${CUSTOMER_CATALOGUE_PATH}`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}${VIEWPORT_STYLES_PATH}`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}${customAppPath}`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}${ADDRESS_GEOCODE_PATH}`, { cache: 'no-store' }),
