@@ -19,8 +19,8 @@ assert.ok(index.includes('<span aria-hidden="true">✉️</span>')&&index.includ
 assert.ok(index.includes('frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'customer app loads the fixed floating cart behavior');
 assert.ok(sw.includes('/frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'service worker caches the fixed floating cart behavior');
 assert.ok(sw.includes("const CACHE = 'freshway-v120'"),'service worker refreshes the app shell after the current customer shell asset update');
-assert.ok(index.includes('frontend/customer/orders.js?v=20261103-buy-again-v1')&&sw.includes('/frontend/customer/orders.js?v=20261103-buy-again-v1'),'Buy Again helper is versioned and included in the customer app shell');
-assert.ok(index.includes('frontend/customer/orders-view.js?v=20261103-buy-again-v1')&&sw.includes('/frontend/customer/orders-view.js?v=20261103-buy-again-v1'),'Buy Again order-card action is loaded from the current app shell');
+assert.ok(index.includes('frontend/customer/orders.js?v=ba1')&&sw.includes('/frontend/customer/orders.js?v=ba1'),'Buy Again helper is versioned and included in the customer app shell');
+assert.ok(index.includes('frontend/customer/orders-view.js?v=ba1')&&sw.includes('/frontend/customer/orders-view.js?v=ba1'),'Buy Again order-card action is loaded from the current app shell');
 assert.ok(index.includes('app.js?v=105')&&sw.includes('/app.js?v=105'),'Buy Again cart action is loaded from the current app shell');
 assert.ok(index.includes('frontend/customer/delivery-offers.js?v=20261103-store-pricing-v1'),'customer HTML loads the store-aware checkout quote module');
 assert.ok(sw.includes('/frontend/customer/delivery-offers.js?v=20261103-store-pricing-v1'),'service worker precaches the same store-aware checkout quote module');
