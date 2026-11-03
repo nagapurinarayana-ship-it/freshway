@@ -15,6 +15,11 @@ on:
       - 'sw.js'
       - 'frontend/customer/delivery-booking.js'
       - 'frontend/customer/delivery-offers.js'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/production-customer-playwright.yml'
+      - 'e2e/production/store-availability.spec.js'
   workflow_dispatch:
 
 permissions:
@@ -57,18 +62,22 @@ jobs:
             echo "::error::Production D1 read credentials are missing. No production data was changed."
             exit 1
           fi
-          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "WITH reserved AS (SELECT store_id,product_id,SUM(qty) qty FROM delivery_store_inventory_reservations WHERE status IN ('reserved','conflict') GROUP BY store_id,product_id) SELECT s.id store_id,s.name store_name,s.latitude,s.longitude,s.service_radius_km,s.is_active store_active,p.id product_id,p.category_id,p.active product_active,c.active category_active,i.store_id inventory_store_id,MAX(0,COALESCE(i.stock_quantity,0)-COALESCE(r.qty,0)) available_qty FROM delivery_stores s JOIN products p ON p.stock_managed=1 LEFT JOIN categories c ON c.id=p.category_id LEFT JOIN delivery_store_inventory i ON i.store_id=s.id AND i.product_id=p.id LEFT JOIN reserved r ON r.store_id=s.id AND r.product_id=p.id ORDER BY s.name,p.id" --json > "$RUNNER_TEMP/freshway-store-fixture.json"
+          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "WITH reserved AS (SELECT store_id,product_id,SUM(qty) qty FROM delivery_store_inventory_reservations WHERE status IN ('reserved','conflict') GROUP BY store_id,product_id) SELECT s.id store_id,s.name store_name,s.latitude,s.longitude,s.service_radius_km,s.is_active store_active,p.id product_id,p.category_id,p.active product_active,p.stock_managed,c.active category_active,i.store_id inventory_store_id,sc.store_id catalogue_store_id,sc.is_available store_product_available,MAX(0,COALESCE(i.stock_quantity,0)-COALESCE(r.qty,0)) available_qty FROM delivery_stores s CROSS JOIN products p LEFT JOIN categories c ON c.id=p.category_id LEFT JOIN delivery_store_inventory i ON i.store_id=s.id AND i.product_id=p.id LEFT JOIN delivery_store_catalogue sc ON sc.store_id=s.id AND sc.product_id=p.id LEFT JOIN reserved r ON r.store_id=s.id AND r.product_id=p.id ORDER BY s.name,p.id" --json > "$RUNNER_TEMP/freshway-store-fixture.json"
           node --input-type=module - "$RUNNER_TEMP/freshway-store-fixture.json" "$GITHUB_ENV" <<'NODE'
           import fs from 'node:fs';
           const raw=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
           const batches=Array.isArray(raw)?raw:[raw];
           const rows=batches.flatMap(x=>Array.isArray(x?.results)?x.results:[]);
           if(!rows.length) throw new Error('Production D1 returned no store/product inventory rows.');
-          // The availability endpoint backfills missing store/product inventory rows.
-          // Never call it against production unless that matrix is already complete.
-          const missing=rows.filter(row=>!row.inventory_store_id);
-          if(missing.length) throw new Error('Read-only safety stop: '+missing.length+' store/product inventory rows are missing. The production availability endpoint would insert zero-stock rows, so no live availability request was sent.');
           const numeric=value=>Number(value);
+          // The live store resolver and availability endpoint can backfill missing
+          // catalogue/inventory rows. Require both matrices to be complete before
+          // making any production POST that could otherwise write those rows.
+          const missingInventory=rows.filter(row=>numeric(row.stock_managed)===1&&!row.inventory_store_id);
+          const missingCatalogue=rows.filter(row=>!row.catalogue_store_id);
+          if(missingInventory.length||missingCatalogue.length) {
+            throw new Error('Read-only safety stop: missing inventory rows='+missingInventory.length+', missing store catalogue rows='+missingCatalogue.length+'. No production customer API POST was sent.');
+          }
           const distanceKm=(aLat,aLng,bLat,bLng)=>{
             const rad=v=>v*Math.PI/180,dLat=rad(bLat-aLat),dLng=rad(bLng-aLng);
             const x=Math.sin(dLat/2)**2+Math.cos(rad(aLat))*Math.cos(rad(bLat))*Math.sin(dLng/2)**2;
@@ -85,27 +94,41 @@ jobs:
             byProduct.get(productId).push({...row,productId,available:numeric(row.available_qty)});
           }
 
-          // Baseline fixture: use a real stocked product and calculate which stock-capable
-          // store the API should select at a real store pin. Products need not be unique to one store.
+          // Use the public Mancherial Head Post Office location as the customer's
+          // verified delivery pin: Indra Nagar / Janmabhoomi Nagar, PIN 504208.
+          // Resolve the nearest store with at least one visible, sellable product,
+          // matching the production /api/delivery/store resolver's selection rules.
+          const mancherialAddress={latitude:18.880305,longitude:79.442307};
+          const nearbyMancherialStores=stores.map(store=>({
+            ...store,
+            distance:distanceKm(mancherialAddress.latitude,mancherialAddress.longitude,store.lat,store.lng)
+          })).filter(store=>store.distance<=store.radius)
+            .sort((a,b)=>a.distance-b.distance||a.name.localeCompare(b.name));
           let baseline=null;
-          const storeById=new Map(stores.map(store=>[store.id,store]));
-          for(const [productId,productRows] of byProduct){
-            const stocked=productRows.filter(row=>row.available>=1);
-            for(const origin of stores){
-              const eligible=stocked.map(row=>{
-                const store=storeById.get(String(row.store_id));
-                if(!store)return null;
-                const distance=distanceKm(origin.lat,origin.lng,store.lat,store.lng);
-                return distance<=store.radius?{store,distance,row}:null;
-              }).filter(Boolean).sort((a,b)=>a.distance-b.distance||a.store.name.localeCompare(b.store.name));
-              if(eligible.length){
-                baseline={store_id:eligible[0].store.id,latitude:origin.lat,longitude:origin.lng,product_id:productId,category_id:productRows[0].category_id};
-                break;
-              }
+          let mancherialStoreName='';
+          for(const candidate of nearbyMancherialStores){
+            let sellable=null;
+            for(const [candidateProductId,productRows] of byProduct){
+              sellable=productRows.find(row=>
+                String(row.store_id)===candidate.id &&
+                numeric(row.store_product_available)===1 &&
+                (numeric(row.stock_managed)!==1 || numeric(row.available)>=1)
+              );
+              if(sellable) break;
             }
-            if(baseline)break;
+            if(sellable){
+              baseline={
+                store_id:candidate.id,
+                latitude:mancherialAddress.latitude,
+                longitude:mancherialAddress.longitude,
+                product_id:sellable.productId,
+                category_id:sellable.category_id
+              };
+              mancherialStoreName=candidate.name;
+              break;
+            }
           }
-          if(!baseline) throw new Error('No active store has a live product with unreserved stock inside any valid active-store radius.');
+          if(!baseline) throw new Error('No active store with a visible product and available stock currently serves the Mancherial Head Post Office test address (Indra Nagar / Janmabhoomi Nagar, PIN 504208).');
 
           // A second fixture exercises a real whole-basket decision. Both live products
           // must have unreserved stock at the same eligible store; no stock is changed.
@@ -190,6 +213,8 @@ jobs:
 
           const values={
             FRESHWAY_TEST_STORE_ID:baseline.store_id,
+            FRESHWAY_TEST_STORE_NAME:mancherialStoreName,
+            FRESHWAY_TEST_ADDRESS_LABEL:'Mancherial Head Post Office, Indra Nagar, Janmabhoomi Nagar, Mancherial, Telangana 504208',
             FRESHWAY_TEST_LATITUDE:baseline.latitude,
             FRESHWAY_TEST_LONGITUDE:baseline.longitude,
             FRESHWAY_TEST_PRODUCT_ID:baseline.product_id,
@@ -211,7 +236,7 @@ jobs:
             FRESHWAY_TEST_OUTSIDE_LONGITUDE:outside.longitude
           };
           for(const [key,value] of Object.entries(values)) fs.appendFileSync(process.env.GITHUB_ENV,key+'='+String(value).replace(/[\r\n]/g,'')+'\n');
-          console.log('Read-only production fixture: inventory matrix complete; baseline active store/product selected.');
+          console.log('Read-only production fixture: Mancherial H.O address resolved to active store '+mancherialStoreName+' ('+baseline.store_id+'); product '+baseline.product_id+'.');
           if(fallback) console.log('Read-only two-store fallback fixture found: nearest store '+fallback.nearestStoreId+' lacks stock; next stock-capable store is '+fallback.fallbackStoreId+'.');
           else console.log('No safe overlapping two-store fallback fixture exists in current production data; the dedicated Playwright case will be explicitly skipped.');
           console.log('Derived read-only outside-radius customer test pin from active store radii.');
