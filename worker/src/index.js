@@ -276,6 +276,9 @@ async function addProduct(env,payload){
   const stockQuantity=stockManaged&&allStores>0&&activeStores!==1?0:requestedStock;
   const statements=[env.DB.prepare(`INSERT INTO products (id,name,unit,price,emoji,active,stock_managed,stock_quantity,low_stock_threshold) VALUES (?,?,?,?,?,?,?,?,?)`)
     .bind(id,name,unit,Math.round(price),emoji,1,stockManaged?1:0,stockQuantity,lowStockThreshold)];
+  statements.push(env.DB.prepare(
+    'INSERT INTO delivery_store_catalogue (store_id,product_id,is_available,price_override) SELECT id,?,1,NULL FROM delivery_stores'
+  ).bind(id));
   if(stockManaged&&allStores>0)statements.push(env.DB.prepare(
     'INSERT OR IGNORE INTO delivery_store_inventory (store_id,product_id,stock_quantity) '+
     'SELECT s.id,?,CASE WHEN ?=1 AND s.is_active=1 THEN ? ELSE 0 END FROM delivery_stores s'
@@ -319,6 +322,9 @@ async function updateProduct(env,id,payload){
   }
   sets.push('updated_at=CURRENT_TIMESTAMP');params.push(id);
   const statements=[env.DB.prepare(`UPDATE products SET ${sets.join(',')} WHERE id=?`).bind(...params)];
+  statements.push(env.DB.prepare(
+    'INSERT OR IGNORE INTO delivery_store_catalogue (store_id,product_id,is_available,price_override) SELECT id,?,1,NULL FROM delivery_stores'
+  ).bind(id));
   if(changingToManaged&&allStores>0)statements.push(env.DB.prepare(
     'INSERT OR IGNORE INTO delivery_store_inventory (store_id,product_id,stock_quantity) '+
     'SELECT s.id,?,CASE WHEN ?=1 AND s.is_active=1 THEN ? ELSE 0 END FROM delivery_stores s'

@@ -22,6 +22,13 @@ class SQLiteD1 {
       CREATE TABLE delivery_stores (
         id TEXT PRIMARY KEY, is_active INTEGER NOT NULL DEFAULT 1
       );
+      CREATE TABLE delivery_store_catalogue (
+        store_id TEXT NOT NULL REFERENCES delivery_stores(id),
+        product_id TEXT NOT NULL REFERENCES products(id),
+        is_available INTEGER NOT NULL DEFAULT 1,
+        price_override INTEGER,
+        PRIMARY KEY (store_id,product_id)
+      );
       CREATE TABLE delivery_store_inventory (
         store_id TEXT NOT NULL REFERENCES delivery_stores(id),
         product_id TEXT NOT NULL REFERENCES products(id),
@@ -87,6 +94,10 @@ test('new tracked product assigns initial stock to the only active store and see
       {store_id:'store-paused',stock_quantity:0}
     ]);
     assert.equal(db.product(productId).stock_quantity,12);
+    assert.deepEqual(db.db.prepare('SELECT store_id,is_available,price_override FROM delivery_store_catalogue WHERE product_id=? ORDER BY store_id').all(productId).map(row=>({...row})),[
+      {store_id:'store-active',is_available:1,price_override:null},
+      {store_id:'store-paused',is_available:1,price_override:null}
+    ]);
   } finally { db.close(); }
 });
 

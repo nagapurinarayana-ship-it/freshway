@@ -16,39 +16,79 @@
       container.hidden=false;
       container.innerHTML='<div class="fw-delivery-picker-head"><h3>'+esc(state.config.title||'Choose delivery day')+'</h3><p>'+esc(state.config.description||'Choose your preferred delivery day.')+'</p></div><div class="fw-delivery-date-options" role="group" aria-label="Preferred delivery day"><button type="button" class="secondary-btn fw-delivery-date-option'+(isToday?' selected':'')+'" data-fw-date-choice="today" aria-pressed="'+isToday+'"><strong>Today</strong><span>'+esc(pretty(min))+'</span></button><button type="button" class="secondary-btn fw-delivery-date-option'+(isTomorrow?' selected':'')+'" data-fw-date-choice="tomorrow" aria-pressed="'+isTomorrow+'"><strong>Tomorrow</strong><span>'+esc(pretty(shift(min,1)))+'</span></button><button type="button" class="secondary-btn fw-delivery-date-option'+(custom?' selected':'')+'" data-fw-date-choice="custom" aria-pressed="'+custom+'"><strong>Choose date</strong><span>'+esc(custom?pretty(state.date):'Calendar')+'</span></button></div><label class="fw-delivery-date-label"'+(custom?'':' hidden')+'>Choose date<input type="date" data-fw-delivery-date min="'+min+'" max="'+max+'" value="'+esc(state.date)+'"></label><p class="fw-delivery-date-summary" role="status">Delivery date: <strong>'+esc(pretty(state.date))+'</strong></p>'+availability+(state.config.requireConfirm?'<button type="button" class="primary-btn full" data-fw-delivery-confirm>Save date change</button>':'');
     }
-    async function refreshAvailability(state){
-      if(!state||state.destroyed||typeof options.api!=='function'||typeof options.getItems!=='function')return null;
-      const sequence=++state.availabilityRequest;
+    function availabilitySnapshot(state){
       let items=[],address={};
       try{items=options.getItems()||[];address=options.getAddress?.()||{};}catch(_){}
-      if(!items.length){
+      const normalizedItems=items.map(item=>({id:String(item?.id??item?.productId??''),qty:Number(item?.qty??item?.quantity??0)}))
+        .filter(item=>item.id&&Number.isFinite(item.qty)&&item.qty>0)
+        .sort((a,b)=>a.id.localeCompare(b.id));
+      const latitude=address?.latitude??address?.lat??null;
+      const longitude=address?.longitude??address?.lng??null;
+      const key=JSON.stringify({items:normalizedItems,latitude,longitude});
+      return {items:normalizedItems,address,key};
+    }
+    async function refreshAvailability(state){
+      if(!state||state.destroyed||typeof options.api!=='function'||typeof options.getItems!=='function')return null;
+      const snapshot=availabilitySnapshot(state);
+      if(!snapshot.items.length){
+        state.availabilityRequest++;
+        state.availabilityKey=snapshot.key;
+        state.availabilityPromise=null;
         state.availability={status:'empty',message:'Add products to your cart to check delivery availability.'};
         state.render();
         return state.availability;
       }
+      if(state.availabilityKey===snapshot.key){
+        if(state.availabilityPromise)return state.availabilityPromise;
+        if(state.availability&&state.availability.status!=='error')return state.availability;
+      }
+      const sequence=++state.availabilityRequest;
+      state.availabilityKey=snapshot.key;
       state.availability={status:'checking',message:'Checking delivery availability…'};
       const status=state.container.querySelector?.('[data-fw-delivery-availability]');
       if(status){status.textContent=state.availability.message;status.className='fw-delivery-availability is-checking';}
-      try{
-        const result=await options.api('/api/delivery/availability',{method:'POST',body:JSON.stringify({address,items})});
+      const pending=(async()=>{
+        try{
+          const result=await options.api('/api/delivery/availability',{method:'POST',body:JSON.stringify({address:snapshot.address,items:snapshot.items})});
+          if(state.destroyed||sequence!==state.availabilityRequest)return null;
+          state.availability={
+            status:result?.available===true?'available':'unavailable',
+            message:String(result?.message||(result?.available===true?'Good news! We deliver to your area.':'Delivery is not available for this address.')),
+            code:String(result?.code||''),
+            store:result?.store||null
+          };
+        }catch(_){
+          if(state.destroyed||sequence!==state.availabilityRequest)return null;
+          state.availability={status:'error',message:'We could not check delivery availability. Please try again.'};
+        }
         if(state.destroyed||sequence!==state.availabilityRequest)return null;
-        state.availability={
-          status:result?.available===true?'available':'unavailable',
-          message:String(result?.message||(result?.available===true?'Good news! We deliver to your area.':'Delivery is not available for this address.')),
-          code:String(result?.code||''),
-          store:result?.store||null
-        };
-      }catch(error){
-        if(state.destroyed||sequence!==state.availabilityRequest)return null;
-        state.availability={status:'error',message:'We could not check delivery availability. Please try again.'};
+        state.render();
+        return state.availability;
+      })();
+      state.availabilityPromise=pending;
+      try{return await pending;}
+      finally{if(state.availabilityPromise===pending)state.availabilityPromise=null;}
+    }
+    function scheduleAvailability(state,delay=180){
+      if(!state||state.destroyed)return Promise.resolve(null);
+      if(state.availabilityTimer){
+        clearTimeout(state.availabilityTimer);
+        state.availabilityTimer=null;
+        state.availabilityTimerResolve?.(null);
       }
-      state.render();
-      return state.availability;
+      return new Promise(resolve=>{
+        state.availabilityTimerResolve=resolve;
+        state.availabilityTimer=setTimeout(()=>{
+          state.availabilityTimer=null;
+          state.availabilityTimerResolve=null;
+          Promise.resolve(refreshAvailability(state)).then(resolve);
+        },delay);
+      });
     }
     function notify(state){state.config.onSelect?.(state.date);void refreshAvailability(state);}
     function mount(container,config={}){
       if(!container)return null;
-      const state={container,config,date:valid(config.initialDate)?config.initialDate:localDate(),destroyed:false,availabilityRequest:0};
+      const state={container,config,date:valid(config.initialDate)?config.initialDate:localDate(),destroyed:false,availabilityRequest:0,availabilityKey:'',availabilityPromise:null,availabilityTimer:null,availabilityTimerResolve:null};
       state.render=()=>render(state);
       state.checkAvailability=()=>refreshAvailability(state);
       container.classList.add('fw-delivery-picker');
@@ -68,7 +108,7 @@
           current.date=value;current.render();notify(current);
         });
       }
-      state.destroy=()=>{state.destroyed=true;if(container.__fwDeliveryDateState===state)container.__fwDeliveryDateState=null;container.replaceChildren()};
+      state.destroy=()=>{state.destroyed=true;if(state.availabilityTimer)clearTimeout(state.availabilityTimer);state.availabilityTimer=null;state.availabilityTimerResolve?.(null);state.availabilityTimerResolve=null;state.availabilityRequest++;if(container.__fwDeliveryDateState===state)container.__fwDeliveryDateState=null;container.replaceChildren()};
       state.refresh=()=>state.render();
       state.selectedDate=()=>state.date;
       state.resetDate=()=>{state.date=localDate();state.render()};
@@ -77,7 +117,7 @@
     }
     function mountCheckout(container){checkoutPicker?.destroy?.();checkoutPicker=mount(container,{title:'Choose delivery day',description:'Choose the day you would prefer your order to arrive.',initialDate:readCheckoutDate(),onSelect:saveCheckoutDate});return checkoutPicker}
     function mountReschedule(container,details){const order=details?.order||{};return mount(container,{title:'Change delivery day',description:'Choose a new preferred delivery day.',initialDate:order.scheduledDelivery?.date||localDate(),requireConfirm:true,onConfirm:details?.onConfirm})}
-    return Object.freeze({mountCheckout,refreshCheckout(){checkoutPicker?.refresh?.();return checkoutPicker?.checkAvailability?.()},checkAvailability(){return checkoutPicker?.checkAvailability?.()},checkoutEnabled(){return !!checkoutPicker},selectedCheckoutDate(){return checkoutPicker?.selectedDate?.()||localDate()},clearCheckoutDate(){forgetCheckoutDate();checkoutPicker?.resetDate?.()},mountReschedule});
+    return Object.freeze({mountCheckout,refreshCheckout(){return checkoutPicker? scheduleAvailability(checkoutPicker):Promise.resolve(null)},checkAvailability(){return checkoutPicker?.checkAvailability?.()},checkoutEnabled(){return !!checkoutPicker},selectedCheckoutDate(){return checkoutPicker?.selectedDate?.()||localDate()},clearCheckoutDate(){forgetCheckoutDate();checkoutPicker?.resetDate?.()},mountReschedule});
   }
   window.FreshWayCustomerDeliveryBooking=Object.freeze({create});
 })();

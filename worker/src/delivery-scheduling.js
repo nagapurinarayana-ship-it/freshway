@@ -1,7 +1,7 @@
 import { updateOrder } from './admin-orders.js';
 import { buildOrderChangeAlerts } from './admin-notifications.js';
 import { dispatchOrderAlert } from './order-alerts.js';
-import { ensureStoreCatalogueRows, getStoreCatalogueRows, saveStoreCatalogue } from './store-catalogue.js';
+import { getStoreCatalogueRows, saveStoreCatalogue } from './store-catalogue.js';
 
 const enc = value => JSON.stringify(value ?? null);
 const clean = value => String(value ?? '').trim();
@@ -78,6 +78,12 @@ async function readSettings(env) {
   const row = await env.DB.prepare('SELECT enabled,booking_horizon_days,same_day_cutoff_minutes,timezone,updated_at FROM delivery_scheduling_settings WHERE id=1').first();
   return row || { enabled: 0, booking_horizon_days: 7, same_day_cutoff_minutes: 120, timezone: 'Asia/Kolkata' };
 }
+async function ensureStoreInventoryRows(env) {
+  await env.DB.prepare(
+    'INSERT OR IGNORE INTO delivery_store_inventory (store_id,product_id,stock_quantity) ' +
+    'SELECT s.id,p.id,0 FROM delivery_stores s CROSS JOIN products p WHERE p.stock_managed=1'
+  ).run();
+}
 async function inventoryMap(env, excludeOrderId = '') {
   const sql = excludeOrderId
     ? 'SELECT i.store_id,i.product_id,i.stock_quantity,COALESCE(SUM(CASE WHEN r.status IN (\'reserved\',\'conflict\') THEN r.qty ELSE 0 END),0) reserved_qty ' +
@@ -86,21 +92,11 @@ async function inventoryMap(env, excludeOrderId = '') {
     : 'SELECT i.store_id,i.product_id,i.stock_quantity,COALESCE(SUM(CASE WHEN r.status IN (\'reserved\',\'conflict\') THEN r.qty ELSE 0 END),0) reserved_qty ' +
       'FROM delivery_store_inventory i LEFT JOIN delivery_store_inventory_reservations r ON r.store_id=i.store_id AND r.product_id=i.product_id ' +
       'GROUP BY i.store_id,i.product_id';
-  const query = env.DB.prepare(sql);
-  const rows = (await (excludeOrderId ? query.bind(excludeOrderId) : query).all()).results || [];
-  const map = new Map();
-  for (const row of rows) map.set(row.store_id + '|' + row.product_id, {
-    quantity: Number(row.stock_quantity || 0), reserved: Number(row.reserved_qty || 0)
-  });
+  const query=env.DB.prepare(sql);
+  const rows=(await (excludeOrderId?query.bind(excludeOrderId):query).all()).results||[];
+  const map=new Map();
+  for(const row of rows)map.set(row.store_id+'|'+row.product_id,{quantity:Number(row.stock_quantity||0),reserved:Number(row.reserved_qty||0)});
   return map;
-}
-async function ensureStoreInventoryRows(env) {
-  // New stock-managed products may be created after stores already exist. Add missing
-  // per-store rows at zero so they can be explicitly allocated without inventing stock.
-  await env.DB.prepare(
-    'INSERT OR IGNORE INTO delivery_store_inventory (store_id,product_id,stock_quantity) ' +
-    'SELECT s.id,p.id,0 FROM delivery_stores s CROSS JOIN products p WHERE p.stock_managed=1'
-  ).run();
 }
 function itemNeedsStock(item) {
   const managed=item.stock_managed??item.stockManaged;
@@ -112,6 +108,56 @@ function inventoryFits(storeId, items, stock) {
     const row = stock.get(storeId + '|' + String(item.id ?? item.product_id));
     return !!row && row.quantity - row.reserved >= Number(item.qty || 0);
   });
+}
+async function storeFulfilmentMap(env, storeIds, items, excludeOrderId = '') {
+  const stores=[...new Set((storeIds||[]).map(String))];
+  const products=[...new Set((items||[]).map(item=>String(item.id??item.product_id)))];
+  if(!stores.length||!products.length)return new Map();
+  const storeSlots=stores.map(()=>'?').join(','),productSlots=products.map(()=>'?').join(',');
+  const excludeReservation=excludeOrderId?' AND r.order_id<>?':'';
+  const params=[...(excludeOrderId?[excludeOrderId]:[]),...stores,...products];
+  const rows=(await env.DB.prepare(
+    'SELECT sc.store_id,sc.product_id,sc.is_available,p.active,c.active category_active,p.stock_managed,'+
+    'COALESCE(i.stock_quantity,0) on_hand,'+
+    'COALESCE((SELECT SUM(r.qty) FROM delivery_store_inventory_reservations r '+
+    "WHERE r.store_id=sc.store_id AND r.product_id=sc.product_id AND r.status IN ('reserved','conflict')"+excludeReservation+'),0) reserved_qty '+
+    'FROM delivery_store_catalogue sc JOIN products p ON p.id=sc.product_id '+
+    'JOIN categories c ON c.id=p.category_id '+
+    'LEFT JOIN delivery_store_inventory i ON i.store_id=sc.store_id AND i.product_id=sc.product_id '+
+    'WHERE sc.store_id IN ('+storeSlots+') AND sc.product_id IN ('+productSlots+')'
+  ).bind(...params).all()).results||[];
+  const byStore=new Map();
+  for(const row of rows){
+    const storeId=String(row.store_id);
+    if(!byStore.has(storeId))byStore.set(storeId,new Map());
+    byStore.get(storeId).set(String(row.product_id),row);
+  }
+  return byStore;
+}
+function storeCanFulfil(storeId,items,byStore){
+  const products=byStore.get(String(storeId));
+  if(!products)return false;
+  return items.every(item=>{
+    const row=products.get(String(item.id??item.product_id));
+    if(!row||Number(row.is_available)!==1||Number(row.active)!==1||Number(row.category_active)!==1)return false;
+    if(Number(row.stock_managed)!==1)return true;
+    return Math.max(0,Number(row.on_hand||0)-Number(row.reserved_qty||0))>=Number(item.qty||0);
+  });
+}
+async function storesWithAvailableProducts(env,storeIds){
+  const stores=[...new Set((storeIds||[]).map(String))];
+  if(!stores.length)return new Set();
+  const placeholders=stores.map(()=>'?').join(',');
+  const rows=(await env.DB.prepare(
+    'SELECT DISTINCT sc.store_id FROM delivery_store_catalogue sc '+
+    'JOIN products p ON p.id=sc.product_id JOIN categories c ON c.id=p.category_id '+
+    'LEFT JOIN delivery_store_inventory i ON i.store_id=sc.store_id AND i.product_id=sc.product_id '+
+    'WHERE sc.store_id IN ('+placeholders+') AND sc.is_available=1 AND p.active=1 AND c.active=1 '+
+    'AND (p.stock_managed<>1 OR COALESCE(i.stock_quantity,0)-COALESCE((SELECT SUM(r.qty) '+
+    "FROM delivery_store_inventory_reservations r WHERE r.store_id=sc.store_id AND r.product_id=sc.product_id "+
+    "AND r.status IN ('reserved','conflict')),0)>0)"
+  ).bind(...stores).all()).results||[];
+  return new Set(rows.map(row=>String(row.store_id)));
 }
 async function slotRows(env, fromDate, toDate) {
   return (await env.DB.prepare(
@@ -152,20 +198,16 @@ async function resolveAvailableSlots(env, payload, requestedDate = '', excludeOr
   if (dateFrom < now.date || dateFrom > dateTo) throw new Error('Choose a date within the available delivery window.');
   const items = await cleanItems(env, payload.items);
   if (!items.length) return { enabled: true, settings, slots: [], message: 'Add products to your cart to check delivery availability.' };
-  const activeStores = (await env.DB.prepare('SELECT COUNT(*) count FROM delivery_stores WHERE is_active=1').first())?.count || 0;
-  await ensureStoreCatalogueRows(env);
-  const stock = await inventoryMap(env, excludeOrderId);
   const rows = await slotRows(env, dateFrom, dateTo);
-  const eligible = [];
+  const candidates=[];
   for (const slot of rows) {
     if (slot.delivery_date !== dateFrom || !slotCanBeCustomerBooked(slot, settings, now)) continue;
-    const distance = distanceFor(payload.address || {}, slot, Number(activeStores));
-    if (distance === Infinity) continue;
-    if (Number(slot.occupied) >= Number(slot.capacity)) continue;
-    if (!await catalogueFits(env,slot.store_id,items)) continue;
-    if (!inventoryFits(slot.store_id, items, stock)) continue;
-    eligible.push({ ...slot, distance_km: distance });
+    const distance = distanceFor(payload.address || {}, slot);
+    if (distance === Infinity || Number(slot.occupied) >= Number(slot.capacity)) continue;
+    candidates.push({ ...slot, distance_km: distance });
   }
+  const fulfilment=await storeFulfilmentMap(env,candidates.map(slot=>slot.store_id),items,excludeOrderId);
+  const eligible=candidates.filter(slot=>storeCanFulfil(slot.store_id,items,fulfilment));
   eligible.sort((a, b) => (a.distance_km ?? 0) - (b.distance_km ?? 0) || a.start_minute - b.start_minute || a.store_name.localeCompare(b.store_name));
   const windows = new Map();
   for (const slot of eligible) {
@@ -184,21 +226,6 @@ async function resolveAvailableSlots(env, payload, requestedDate = '', excludeOr
     }))
   };
 }
-async function catalogueFits(env, storeId, items) {
-  const ids = items.map(item => String(item.id ?? item.product_id));
-  const placeholders = ids.map(() => '?').join(',');
-  const rows = (await env.DB.prepare(
-    'SELECT sc.product_id,sc.is_available,p.active,c.active category_active ' +
-    'FROM delivery_store_catalogue sc JOIN products p ON p.id=sc.product_id ' +
-    'LEFT JOIN categories c ON c.id=p.category_id WHERE sc.store_id=? AND sc.product_id IN (' + placeholders + ')'
-  ).bind(storeId, ...ids).all()).results || [];
-  const byId = new Map(rows.map(row => [String(row.product_id), row]));
-  return items.every(item => {
-    const row = byId.get(String(item.id ?? item.product_id));
-    return !!row && Number(row.is_available) === 1 && Number(row.active) === 1 && Number(row.category_active) === 1;
-  });
-}
-
 async function resolveStoreForAddress(env, address = {}) {
   const stores = (await env.DB.prepare(
     'SELECT id,name,latitude,longitude,service_radius_km FROM delivery_stores WHERE is_active=1'
@@ -209,14 +236,9 @@ async function resolveStoreForAddress(env, address = {}) {
     .filter(store => store.distance_km !== Infinity)
     .sort((a,b) => a.distance_km-b.distance_km || String(a.name).localeCompare(String(b.name)));
   if (!nearby.length) return { available:false, code:'AREA_UNAVAILABLE', message:'Sorry, we do not deliver to this address yet.' };
+  const availableStoreIds=await storesWithAvailableProducts(env,nearby.map(store=>store.id));
   for (const store of nearby) {
-    await ensureStoreCatalogueRows(env, store.id);
-    const catalogue = await getStoreCatalogueRows(env, store.id);
-    const hasAvailableProduct = catalogue.some(product =>
-      Number(product.active)===1 && Number(product.category_active)===1 && Number(product.is_available)===1 &&
-      (Number(product.stock_managed)!==1 || Number(product.on_hand||0)-Number(product.reserved_qty||0)>0)
-    );
-    if (hasAvailableProduct) {
+    if (availableStoreIds.has(String(store.id))) {
       return { available:true, code:'AVAILABLE', message:'FreshWay delivers to your area from ' + store.name + '.', store:{id:store.id,name:store.name,distanceKm:Math.round(store.distance_km*10)/10} };
     }
   }
@@ -235,16 +257,9 @@ async function resolveStoreAvailability(env,payload={}) {
     nearby=nearby.filter(store=>String(store.id)===String(payload.storeId));
     if(!nearby.length)return {available:false,code:'STORE_CHANGED',message:'Your selected delivery store is no longer available for this address. Refresh the catalogue and review your cart.'};
   }
-  await ensureStoreCatalogueRows(env);
-  await ensureStoreInventoryRows(env);
-  const stock=await inventoryMap(env);
   nearby.sort((a,b)=>a.distance_km-b.distance_km||String(a.name).localeCompare(String(b.name)));
-  let selected=null;
-  for(const candidate of nearby){
-    if(!await catalogueFits(env,candidate.id,items))continue;
-    if(!inventoryFits(candidate.id,items,stock))continue;
-    selected=candidate;break;
-  }
+  const fulfilment=await storeFulfilmentMap(env,nearby.map(store=>store.id),items);
+  const selected=nearby.find(candidate=>storeCanFulfil(candidate.id,items,fulfilment))||null;
   if(!selected)return {available:false,code:'OUT_OF_STOCK',message:payload.storeId?'The selected store can no longer fulfil every item in your basket. Review your cart or refresh the delivery location.':'Some items in your basket are not available from nearby stores. Please adjust your cart or try again.'};
   return {available:true,code:'AVAILABLE',message:'Good news! We deliver to your area from '+selected.name+'.',store:{id:selected.id,name:selected.name,distanceKm:Math.round(selected.distance_km*10)/10}};
 }

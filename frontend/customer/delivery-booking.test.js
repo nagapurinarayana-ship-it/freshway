@@ -7,7 +7,7 @@ const context={window:{localStorage:{
   getItem:key=>data.has(key)?data.get(key):null,
   setItem:(key,value)=>data.set(key,String(value)),
   removeItem:key=>data.delete(key)
-}},Intl,Date};
+}},Intl,Date,setTimeout,clearTimeout};
 vm.createContext(context);
 vm.runInNewContext(fs.readFileSync('frontend/customer/delivery-booking.js','utf8'),context);
 const create=context.window.FreshWayCustomerDeliveryBooking?.create;
@@ -43,6 +43,7 @@ console.log('customer checkout delivery-day persistence tests passed');
 (async()=>{
   let shouldFail=false;
   const calls=[];
+  const bookingAddress={latitude:17.385,longitude:78.4867};
   const container=makeContainer();
   const booking=create({
     api:async(url,options)=>{
@@ -51,7 +52,7 @@ console.log('customer checkout delivery-day persistence tests passed');
       return {available:true,code:'AVAILABLE',message:'Good news! We deliver to your area.'};
     },
     getItems:()=>[{id:'rice-1',qty:2}],
-    getAddress:()=>({latitude:17.385,longitude:78.4867})
+    getAddress:()=>bookingAddress
   });
   booking.mountCheckout(container);
   const available=await booking.checkAvailability();
@@ -62,8 +63,27 @@ console.log('customer checkout delivery-day persistence tests passed');
   assert.match(container.innerHTML,/Good news! We deliver to your area\./);
 
   shouldFail=true;
+  bookingAddress.longitude=78.5;
   const failed=await booking.checkAvailability();
   assert.equal(failed.status,'error','technical failures must not be misreported as an area restriction');
   assert.match(container.innerHTML,/We could not check delivery availability/);
-  console.log('customer store-availability UI states passed');
+
+  let burstAddress={latitude:17.385,longitude:78.4867};
+  const burstCalls=[];
+  const burstContainer=makeContainer();
+  const burstBooking=create({
+    api:async(url,request)=>{burstCalls.push({url,body:JSON.parse(request.body)});return {available:true,code:'AVAILABLE',message:'Available'};},
+    getItems:()=>[{id:'rice-1',qty:2}],
+    getAddress:()=>burstAddress
+  });
+  burstBooking.mountCheckout(burstContainer);
+  await burstBooking.checkAvailability();
+  assert.equal(burstCalls.length,1,'mount and explicit checkout check must share one request');
+  await Promise.all(Array.from({length:17},()=>burstBooking.refreshCheckout()));
+  assert.equal(burstCalls.length,1,'checkout change bursts reuse the same availability result');
+  burstAddress={latitude:17.385,longitude:78.5};
+  await Promise.all(Array.from({length:17},()=>burstBooking.refreshCheckout()));
+  assert.equal(burstCalls.length,2,'a changed map pin triggers exactly one new availability request');
+  assert.equal(burstCalls[1].body.address.longitude,78.5);
+  console.log('customer store-availability UI states and request coalescing passed');
 })().catch(error=>{console.error(error);process.exitCode=1});
