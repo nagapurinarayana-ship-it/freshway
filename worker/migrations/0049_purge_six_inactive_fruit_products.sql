@@ -1,4 +1,4 @@
--- Permanently remove the six retired inactive fruit products and any whole order that
+-- Permanently remove the six retired fruit products and any whole order that
 -- contains one. Oil and Rice products/categories are explicitly protected.
 CREATE TABLE IF NOT EXISTS fw_purge_20261103_products (product_id TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS fw_purge_20261103_orders (order_id TEXT PRIMARY KEY);
@@ -10,8 +10,7 @@ DELETE FROM fw_purge_20261103_store_stock_products;
 
 INSERT OR IGNORE INTO fw_purge_20261103_products
 SELECT p.id FROM products p LEFT JOIN categories c ON c.id=p.category_id
-WHERE p.active=0
-AND LOWER(TRIM(p.name)) IN ('mango','orange','papaya','pineapple','pomegranate','watermelon')
+WHERE LOWER(TRIM(p.name)) IN ('mango','orange','papaya','pineapple','pomegranate','watermelon')
 AND COALESCE(p.category_id,'') NOT IN ('cat-oils','cat-rice')
 AND LOWER(TRIM(COALESCE(c.name,''))) NOT IN ('oil','oils','rice')
 AND LOWER(TRIM(COALESCE(c.slug,''))) NOT IN ('oil','oils','rice');

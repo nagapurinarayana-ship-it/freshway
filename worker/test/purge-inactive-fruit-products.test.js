@@ -190,3 +190,13 @@ test('Oil and Rice products are protected even if marked inactive',()=>{
     assert.equal(Number(db.prepare("SELECT active FROM products WHERE id='rice-hmt'").get().active),0);
   }finally{db.close()}
 });
+
+
+test('legacy seeded fruit products are purged even when their original seed active flag is set',()=>{
+  const db=createDb();
+  try{
+    db.prepare("UPDATE products SET active=1 WHERE id IN ('mango','orange','papaya','pineapple','pomegranate','watermelon')").run();
+    db.exec(migration);
+    assert.equal(Number(db.prepare("SELECT COUNT(*) n FROM products WHERE id IN ('mango','orange','papaya','pineapple','pomegranate','watermelon')").get().n),0);
+  }finally{db.close()}
+});
