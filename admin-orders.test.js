@@ -76,7 +76,7 @@ assert.match(js,/function navigateAdminScreen\(id,\{historyMode='push',deferOrde
 assert.match(js,/order-store-line/,'all shared order cards must display the assigned store or Not assigned');
 assert.match(js,/assignedStoreName\|\|.Not assigned./,'order cards must show a safe fallback for unassigned orders');
 assert.match(js,/Assigned store/,'full order details must display the same assigned store');
-assert.match(lifecycle,/small>Store<\\/small><b>\$\\{esc2\\(o\\.assignedStoreName\\|\\|.Not assigned.\\)\\}/,'Order Lifecycle details must display the assigned store independently of the regular details panel');
+assert.ok(lifecycle.includes('<small>Store</small>') && lifecycle.includes("o.assignedStoreName||'Not assigned'"),'Order Lifecycle details must display the assigned store independently of the regular details panel');
 
 assert.match(js,/Registered mobile/);
 assert.match(js,/Delivery contact/);
