@@ -5,3 +5,8 @@ node_modules/
 .env.*
 .DS_Store
 npm-debug.log*
+
+# Local Playwright browser authentication state and reports
+e2e/.auth/
+e2e/playwright-report/
+e2e/test-results/
