@@ -120,12 +120,29 @@ test('real customer app browses live products and preserves cart without creatin
   page.on('request',request=>{
     if(new URL(request.url()).pathname==='/api/orders'&&request.method()==='POST')orderPostCount++;
   });
+  const documentResponse=await page.goto('/');
+  expect(documentResponse?.status()).toBe(200);
+  // This customer starts without a saved delivery pin. Resolve the real stock-backed
+  // test store explicitly before asserting the live store-filtered catalogue APIs.
+  await page.waitForFunction(() =>
+    typeof window.FreshWayCustomerStoreCatalogue?.switchToStore === 'function'
+  );
   const productsResponse=page.waitForResponse(response=>
     new URL(response.url()).pathname==='/api/products'&&response.request().method()==='GET'
   );
-  const documentResponse=await page.goto('/');
-  expect(documentResponse?.status()).toBe(200);
+  const categoriesResponse=page.waitForResponse(response=>
+    new URL(response.url()).pathname==='/api/categories'&&response.request().method()==='GET'
+  );
+  const storeSelection=await page.evaluate(async storeId =>
+    window.FreshWayCustomerStoreCatalogue.switchToStore(
+      { id: storeId, name: 'Production test store' },
+      { review: false }
+    ),
+    storeId
+  );
+  expect(storeSelection.ok, 'the selected real store catalogue must load').toBe(true);
   const apiResponse=await productsResponse;
+  expect((await categoriesResponse).status()).toBe(200);
   expect(apiResponse.status()).toBe(200);
   const payload=await apiResponse.json();
   expect(Array.isArray(payload.products)).toBe(true);
