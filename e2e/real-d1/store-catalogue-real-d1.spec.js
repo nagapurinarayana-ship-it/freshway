@@ -20,8 +20,7 @@ async function addLocalSessionCookie(context, response, name, sameSite) {
     name,
     value: match[1],
     url: origin,
-    path: '/',
-    secure: true,
+      secure: true,
     httpOnly: true,
     sameSite
   }]);
