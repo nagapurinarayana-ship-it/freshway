@@ -21,7 +21,7 @@ const ownerBootstrap=source.slice(source.indexOf('function startOwnerApp()'));
 assert.ok(ownerBootstrap.indexOf("setAdminScreenVisual(location.hash.slice(1)||'overview')") < ownerBootstrap.indexOf('auth(true)'),
   'Owner must select the restored screen before revealing the authenticated app to prevent an Overview flash');
 assert.match(source,/document\.readyState==='loading'\)document\.addEventListener\('DOMContentLoaded',startOwnerApp,\{once:true\}\)/);
-assert.ok(html.indexOf('admin.js?v=20261029-order-shortcuts-v1') < html.indexOf('frontend/admin/store-profile.js'),
+assert.ok(html.indexOf('admin.js?v=20261103-assigned-store-label-v1') < html.indexOf('frontend/admin/store-profile.js'),
   'the regression test should cover the real script-loading order');
 assert.match(html,/id="accountDeletionSummary"/);
 assert.match(html,/class="owner-nav-more"/,'desktop navigation should group occasional tools under More');
