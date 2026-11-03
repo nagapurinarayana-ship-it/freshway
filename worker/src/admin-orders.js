@@ -56,7 +56,7 @@ export async function orders(env, u) {
   const ids=rows.map(row=>row.id),ph=ids.map(()=>'?').join(',');
   const items=(await env.DB.prepare(`SELECT order_id,product_id,name,unit,qty,price,line_total FROM order_items WHERE order_id IN (${ph}) ORDER BY id`).bind(...ids).all()).results||[];
   const map=new Map(rows.map(row=>[row.id,{
-    id:row.id,customerId:row.customer_id,
+    id:row.id,customerId:row.customer_id,assignedStoreId:row.assigned_store_id||null,assignedStoreName:row.assigned_store_name||'',
     customer:{
       name:row.registered_name||row.customer_name,
       phone:row.registered_phone||row.customer_phone,
