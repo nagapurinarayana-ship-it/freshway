@@ -109,6 +109,23 @@ test('signed Owner can read push configuration, subscribe/unsubscribe and read t
 });
 
 
+test('signed Owner can read notification broadcast history; unauthenticated users cannot', async () => {
+  const env = baseEnv();
+  const denied = await adminAuth.fetch(new Request('https://fwcoldpressed.in/api/admin/notifications/history', {
+    headers: { Origin: 'https://fwcoldpressed.in' }
+  }), env, { waitUntil() {} });
+  assert.equal(denied.status, 401);
+  assert.deepEqual(await denied.json(), { error: 'Unauthorized' });
+
+  const cookie = await signedIn(env);
+  const response = await adminAuth.fetch(new Request('https://fwcoldpressed.in/api/admin/notifications/history', {
+    headers: { Origin: 'https://fwcoldpressed.in', Cookie: cookie }
+  }), env, { waitUntil() {} });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { notifications: [] });
+  assert.match(env.DB.sqlCalls.join('\\n'), /FROM notification_log ORDER BY created_at DESC,id DESC LIMIT 50/);
+});
+
 test('Owner alert history hasMore is false at an exact page boundary with no older rows', async () => {
   async function readHistory({ hasOlder }) {
     const sqlCalls = [];
