@@ -11,9 +11,9 @@ const INTERMEDIATE_CUSTOMER_MESSAGES_PATH = '/frontend/customer/messages.js?v=20
 const CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?v=msg1';
 const INTERMEDIATE_CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?v=20261027-customer-messages-v1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
-const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261029-registration-prefill-v1';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v116';
-const LEGACY_CUSTOMER_CACHES = ['freshway-v115', 'freshway-v114', 'freshway-v113'];
+const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=store-catalogue-pricing-20261102-v1';
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v118';
+const LEGACY_CUSTOMER_CACHES = ['freshway-v117', 'freshway-v116', 'freshway-v115'];
 const SUPPORTED_CUSTOMER_CACHES = [EXPECTED_CUSTOMER_CACHE, ...LEGACY_CUSTOMER_CACHES];
 const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261029-nonintrusive-install-v2';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -92,7 +92,7 @@ async function waitForFullImageFitAssets(base) {
   const viewportStylesPath = VIEWPORT_STYLES_PATH;
   let appPath = CUSTOMER_APP_PATH;
   const promotionPath = '/frontend/customer/promotions.js?v=20261030-lazy-promo-images-v1';
-  const customerCataloguePath = '/frontend/customer/catalogue.js?v=img1';
+  const customerCataloguePath = '/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v1';
   const addressGeocodePath = ADDRESS_GEOCODE_PATH;
   const addressSystemPath = ADDRESS_SYSTEM_PATH;
   const cataloguePath = '/frontend/admin/catalogue.js?v=20261029-promo-alttext-v1';
