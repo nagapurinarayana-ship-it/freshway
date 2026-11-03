@@ -128,7 +128,7 @@ test('real Worker + isolated D1: Owner edits store catalogue, customer checks ou
   expect(placed.items[0].price).toBe(189);
   expect(placed.itemsSubtotal).toBe(189);
   await expect(customerPage.locator('#confirmationView')).toBeVisible();
-  await expect(customerPage.locator('#confirmationView')).toContainText('Groundnut Oil');
+  await expect(customerPage.locator('#confirmationView')).toContainText('₹' + placed.total.toLocaleString('en-IN'));
   expect(pageErrors).toEqual([]);
 
   await context.close();
