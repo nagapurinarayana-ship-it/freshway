@@ -30,6 +30,7 @@ assert.match(html,/id="accountDeletionSummary"/);
 assert.match(html,/class="owner-nav-more"/,'desktop navigation should group occasional tools under More');
 assert.match(html,/data-screen="delivery">⌁<span>Delivery<\/span>/,'Delivery should be a primary mobile destination');
 assert.match(html,/class="mobile-more-group"/,'mobile More menu should group secondary tools');
+assert.match(html,/if\(m&&!m\.classList\.contains\('hidden'\)\)\{closeOwnerOverlay\(m\);return\}if\(m\)m\.remove\(\);/,'mobile More menu must replace a previously dismissed hidden menu when it is opened again');
 assert.match(html,/\.mobile-more-card>\.mobile-more-group>button\{[^}]*border:1px solid var\(--line\)[^}]*border-radius:12px/,'mobile More buttons must use consistent rounded borders instead of browser-default button outlines');
 assert.match(html,/\.mobile-more-card>\.mobile-more-group\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/,'mobile More options must align in a responsive two-column grid');
 const primaryNav=html.match(/<nav aria-label="Owner navigation">([\s\S]*?)<details class="owner-nav-more">/)?.[1]||'';
