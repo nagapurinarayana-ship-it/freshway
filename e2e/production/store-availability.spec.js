@@ -237,6 +237,13 @@ test('real customer app browses live products and preserves cart without creatin
   page.on('request',request=>{
     if(new URL(request.url()).pathname==='/api/delivery/availability'&&request.method()==='POST')availabilityRequests.push(request);
   });
+  const quoteRequests=[];
+  page.on('request',request=>{
+    if(new URL(request.url()).pathname==='/api/checkout/quote'&&request.method()==='POST'){
+      quoteRequests.push(request.postDataJSON()||{});
+    }
+  });
+  await expect.poll(()=>page.evaluate(()=>window.FreshWayCustomerStoreCatalogue?.selectedStoreId()||'')).toBe(storeId);
   const quoteResponse=page.waitForResponse(response=>
     new URL(response.url()).pathname==='/api/checkout/quote'&&response.request().method()==='POST'
   );
@@ -247,7 +254,20 @@ test('real customer app browses live products and preserves cart without creatin
   await page.locator('#checkoutBtn').click();
   await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
   await expect(page.locator('#fwCheckoutPricing')).toContainText('₹');
-  const quote=await (await quoteResponse).json();
+  const quoteResponseObject=await quoteResponse;
+  const quote=await quoteResponseObject.json();
+  console.log('MANCHERIAL_CUSTOMER_QUOTE_DIAGNOSTIC '+JSON.stringify({
+    selectedStoreId:await page.evaluate(()=>window.FreshWayCustomerStoreCatalogue?.selectedStoreId()||''),
+    quoteRequests,
+    responseStoreId:quote.pricing?.storeId??null,
+    centralPrice,
+    priceOverride,
+    effectivePrice,
+    returnedPrice:quote.pricing?.items?.[0]?.price??null
+  }));
+  expect(quoteRequests.length).toBeGreaterThan(0);
+  expect(String(quoteRequests[0]?.storeId||'')).toBe(storeId);
+  expect(quote.pricing?.storeId).toBe(storeId);
   expect(quote.pricing?.items).toHaveLength(1);
   expect(String(quote.pricing.items[0].id)).toBe(String(uiPrimaryProductId));
   expect(Number(quote.pricing.items[0].price)).toBe(effectivePrice);
