@@ -125,7 +125,8 @@ jobs:
             const deadline = Date.now() + durationMs;
             let requestNumber = 0;
             while (Date.now() < deadline) {
-              const path = requestNumber++ % 2 === 0 ? '/admin.html' : '/api/health';
+              const endpoints = ['/admin/', '/api/health', '/admin/admin.js?v=20261103-assigned-store-label-v1', '/admin/admin.css?v=20261103-assigned-store-label-v1'];
+              const path = endpoints[requestNumber++ % endpoints.length];
               const start = performance.now();
               let status = 0;
               let error = null;
@@ -182,7 +183,7 @@ jobs:
             startedAt,
             target: base,
             durationMs: elapsedMs,
-            profile: { concurrency, intervalMs, methods: ['GET'], endpoints: ['/admin.html', '/api/health'] },
+            profile: { concurrency, intervalMs, methods: ['GET'], endpoints: ['/admin/', '/api/health', '/admin/admin.js', '/admin/admin.css'] },
             totalRequests: samples.length,
             requestsPerSecond: Number((samples.length / (elapsedMs / 1000)).toFixed(2)),
             successful: samples.filter(s => s.status >= 200 && s.status < 300 && !s.error).length,
