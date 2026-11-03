@@ -29,8 +29,13 @@ const mancherialAddress={
 
 async function chooseMancherialAddress(page){
   await page.locator('#addressBtn').click();
-  await expect(page.locator('#fwAddressManagerNew')).toBeVisible({timeout:20000});
-  await page.locator('#fwAddressManagerNew').click();
+  await page.waitForFunction(()=>
+    !!document.querySelector('#fwAddressGps')?.offsetParent ||
+    !!document.querySelector('#fwAddressManagerNew')?.offsetParent,
+    null,{timeout:20000}
+  );
+  const addAddress=page.locator('#fwAddressManagerNew');
+  if(await addAddress.isVisible().catch(()=>false)) await addAddress.click();
   await expect(page.locator('#fwAddressGps')).toBeVisible({timeout:10000});
   await page.locator('#fwAddressGps').click();
   await expect(page.locator('#fwAddressLocationStatus')).toContainText('Delivery pin selected',{timeout:30000});
