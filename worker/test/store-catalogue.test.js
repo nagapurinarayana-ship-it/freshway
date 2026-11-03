@@ -66,6 +66,36 @@ test('store catalogue uses the central price by default and accepts an independe
   }finally{d1.close()}
 });
 
+test('store catalogue editor excludes centrally hidden products and hidden categories while preserving their saved settings',async()=>{
+  const d1=new SQLiteD1();
+  try{
+    d1.db.exec(`
+      INSERT INTO categories (id,name,slug,icon,display_order,active)
+      VALUES ('cat-hidden','Hidden Category','hidden-category','📦',99,0);
+      INSERT INTO products (id,name,unit,price,emoji,active,category_id,stock_managed,stock_quantity,low_stock_threshold,hsn_code,gst_rate_bps,gst_rate_confirmed)
+      VALUES
+        ('hidden-product','Hidden Product','piece',50,'📦',0,'cat-oils',0,0,0,'',0,0),
+        ('hidden-category-product','Product In Hidden Category','piece',60,'📦',1,'cat-hidden',0,0,0,'',0,0);
+    `);
+    // ensureStoreCatalogueRows gives new rows a local Show default, but a hidden
+    // central product/category must never appear in the store editor or customer list.
+    const initial=await getStoreCatalogueRows({DB:d1},'store-near');
+    assert.deepEqual(initial.map(row=>row.id),['oil-1']);
+    await saveStoreCatalogue({DB:d1},'store-near',[
+      {productId:'oil-1',isAvailable:true,priceOverride:175}
+    ]);
+    const hiddenRows=d1.db.prepare(
+      "SELECT product_id,is_available,price_override FROM delivery_store_catalogue WHERE store_id='store-near' AND product_id IN ('hidden-product','hidden-category-product') ORDER BY product_id"
+    ).all();
+    assert.equal(hiddenRows.length,2);
+    assert.equal(Number(hiddenRows[0].is_available),1);
+    assert.equal(Number(hiddenRows[1].is_available),1);
+    assert.equal(Number(d1.db.prepare(
+      "SELECT price_override FROM delivery_store_catalogue WHERE store_id='store-near' AND product_id='oil-1'"
+    ).get().price_override),175);
+  }finally{d1.close()}
+});
+
 test('store visibility blocks hidden products from quotes even when physical stock exists',async()=>{
   const d1=new SQLiteD1();
   try{
