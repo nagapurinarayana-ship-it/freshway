@@ -3,18 +3,11 @@ import assert from 'node:assert/strict';
 const BASE_URL = process.env.BASE_URL || 'https://freshway-f32.pages.dev';
 const VIEWPORT_STYLES_PATH = '/styles.css?v=20261030-aa-contrast-v1';
 const CUSTOMER_APP_PATH = '/app.js?v=105';
-const INTERMEDIATE_CUSTOMER_APP_PATH = '/app.js?v=104';
-const LEGACY_CUSTOMER_APP_PATH = '/app.js?v=20261027-cancel-refresh-v1';
-const SUPPORTED_CUSTOMER_APP_PATHS = [CUSTOMER_APP_PATH, INTERMEDIATE_CUSTOMER_APP_PATH, LEGACY_CUSTOMER_APP_PATH];
 const CUSTOMER_MESSAGES_PATH = '/frontend/customer/messages.js?v=msg1';
-const INTERMEDIATE_CUSTOMER_MESSAGES_PATH = '/frontend/customer/messages.js?v=20261027-customer-messages-v1';
 const CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?v=msg1';
-const INTERMEDIATE_CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?v=20261027-customer-messages-v1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=store-catalogue-pricing-20261102-v1';
 const EXPECTED_CUSTOMER_CACHE = 'freshway-v121';
-const LEGACY_CUSTOMER_CACHES = ['freshway-v120', 'freshway-v119', 'freshway-v118'];
-const SUPPORTED_CUSTOMER_CACHES = [EXPECTED_CUSTOMER_CACHE, ...LEGACY_CUSTOMER_CACHES];
 const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261029-nonintrusive-install-v2';
 const CUSTOMER_CATALOGUE_PATH = '/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v1';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -123,17 +116,15 @@ async function waitForFullImageFitAssets(base) {
       const [indexHtml, adminHtml, sw] = await Promise.all([
         indexResponse.text(), adminResponse.text(), swResponse.text()
       ]);
-      if (!indexHtml.includes(appPath.slice(1))) appPath = SUPPORTED_CUSTOMER_APP_PATHS.find(path => indexHtml.includes(path.slice(1))) || appPath;
-      const usesCustomerMessages = appPath !== LEGACY_CUSTOMER_APP_PATH;
-      const messagesPath = indexHtml.includes(CUSTOMER_MESSAGES_PATH.slice(1)) ? CUSTOMER_MESSAGES_PATH : INTERMEDIATE_CUSTOMER_MESSAGES_PATH;
-      const storeInfoPath = indexHtml.includes(CUSTOMER_STORE_INFO_PATH.slice(1)) ? CUSTOMER_STORE_INFO_PATH : INTERMEDIATE_CUSTOMER_STORE_INFO_PATH;
-      if (appPath === CUSTOMER_APP_PATH) {
-        assert.ok(indexHtml.includes(CUSTOMER_STORE_INFO_PATH.slice(1)), 'message-enabled customer app must use the current Contact Us module');
-        assert.ok(indexHtml.includes(CUSTOMER_MESSAGES_PATH.slice(1)), 'message-enabled customer app must load the Messages module');
-      }
+      assert.ok(indexHtml.includes(CUSTOMER_APP_PATH.slice(1)), 'production home must deploy the current customer app script');
+      const usesCustomerMessages = true;
+      const messagesPath = CUSTOMER_MESSAGES_PATH;
+      const storeInfoPath = CUSTOMER_STORE_INFO_PATH;
+      assert.ok(indexHtml.includes(CUSTOMER_STORE_INFO_PATH.slice(1)), 'customer app must use the current Contact Us module');
+      assert.ok(indexHtml.includes(CUSTOMER_MESSAGES_PATH.slice(1)), 'customer app must load the current Messages module');
       assertVersionedCodeReferences(indexHtml, indexResponse.url, 'production home');
       assertVersionedCodeReferences(adminHtml, adminResponse.url, 'production Owner');
-      assert.ok(SUPPORTED_CUSTOMER_CACHES.some(cache => sw.includes("const CACHE = '" + cache + "';")), 'customer service worker must publish a supported cache version');
+      assert.ok(sw.includes("const CACHE = '" + EXPECTED_CUSTOMER_CACHE + "';"), 'customer service worker must publish the current cache version');
       if (usesCustomerMessages) {
         assert.ok(sw.includes(messagesPath), 'new customer service worker must include the Messages screen asset');
         assert.ok(sw.includes(storeInfoPath), 'new customer service worker must include the current Contact Us module');
@@ -320,15 +311,14 @@ async function verifyCustomDomain() {
   ]);
   assertVersionedCodeReferences(homeHtml, homeResponse.url, 'custom-domain home');
   assertVersionedCodeReferences(adminHtml, adminResponse.url, 'custom-domain Owner');
-  const customAppPath = SUPPORTED_CUSTOMER_APP_PATHS.find(path => homeHtml.includes(path.slice(1))) || CUSTOMER_APP_PATH;
-  const customUsesCustomerMessages = customAppPath !== LEGACY_CUSTOMER_APP_PATH;
-  const customMessagesPath = homeHtml.includes(CUSTOMER_MESSAGES_PATH.slice(1)) ? CUSTOMER_MESSAGES_PATH : INTERMEDIATE_CUSTOMER_MESSAGES_PATH;
-  const customStoreInfoPath = homeHtml.includes(CUSTOMER_STORE_INFO_PATH.slice(1)) ? CUSTOMER_STORE_INFO_PATH : INTERMEDIATE_CUSTOMER_STORE_INFO_PATH;
-  if (customAppPath === CUSTOMER_APP_PATH) {
-    assert.ok(homeHtml.includes(CUSTOMER_STORE_INFO_PATH.slice(1)), 'message-enabled custom-domain app must use the current Contact Us module');
-    assert.ok(homeHtml.includes(CUSTOMER_MESSAGES_PATH.slice(1)), 'message-enabled custom-domain app must load the Messages module');
-  }
-  assert.ok(SUPPORTED_CUSTOMER_CACHES.some(cache => sw.includes("const CACHE = '" + cache + "';")), 'custom-domain service worker must publish a supported cache version');
+  const customAppPath = CUSTOMER_APP_PATH;
+  const customUsesCustomerMessages = true;
+  const customMessagesPath = CUSTOMER_MESSAGES_PATH;
+  const customStoreInfoPath = CUSTOMER_STORE_INFO_PATH;
+  assert.ok(homeHtml.includes(CUSTOMER_APP_PATH.slice(1)), 'custom-domain home must deploy the current customer app script');
+  assert.ok(homeHtml.includes(CUSTOMER_STORE_INFO_PATH.slice(1)), 'custom-domain app must use the current Contact Us module');
+  assert.ok(homeHtml.includes(CUSTOMER_MESSAGES_PATH.slice(1)), 'custom-domain app must load the current Messages module');
+  assert.ok(sw.includes("const CACHE = '" + EXPECTED_CUSTOMER_CACHE + "';"), 'custom-domain service worker must publish the current cache version');
   if (customUsesCustomerMessages) {
     assert.ok(sw.includes(customMessagesPath), 'new custom-domain service worker must include the Messages screen asset');
     assert.ok(sw.includes(customStoreInfoPath), 'new custom-domain service worker must include the current Contact Us module');
