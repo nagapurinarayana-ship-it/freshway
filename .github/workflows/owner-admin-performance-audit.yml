@@ -5,7 +5,7 @@ on:
     branches:
       - 'perf-audit/**'
     paths:
-      - '.github/workflows/production-performance-audit.yml'
+      - '.github/workflows/owner-admin-performance-audit.yml'
   workflow_dispatch:
 
 permissions:
@@ -125,7 +125,7 @@ jobs:
             const deadline = Date.now() + durationMs;
             let requestNumber = 0;
             while (Date.now() < deadline) {
-              const path = requestNumber++ % 2 === 0 ? '/' : '/api/health';
+              const path = requestNumber++ % 2 === 0 ? '/admin.html' : '/api/health';
               const start = performance.now();
               let status = 0;
               let error = null;
@@ -182,7 +182,7 @@ jobs:
             startedAt,
             target: base,
             durationMs: elapsedMs,
-            profile: { concurrency, intervalMs, methods: ['GET'], endpoints: ['/', '/api/health'] },
+            profile: { concurrency, intervalMs, methods: ['GET'], endpoints: ['/admin.html', '/api/health'] },
             totalRequests: samples.length,
             requestsPerSecond: Number((samples.length / (elapsedMs / 1000)).toFixed(2)),
             successful: samples.filter(s => s.status >= 200 && s.status < 300 && !s.error).length,
