@@ -36,7 +36,7 @@ test('real Worker + isolated D1: Owner edits store catalogue, customer checks ou
   expect(setup.status()).toBe(200);
   const account = await setup.json();
   expect(account.customerId).toBeTruthy();
-  await addLocalSessionCookie(context, setup, '__Host-freshway-customer-session', 'None');
+  await addLocalSessionCookie(context, setup, 'freshway-customer-session', 'None');
 
   const addressResponse = await context.request.post(workerOrigin + '/api/addresses', {
     headers: { Origin: origin },
