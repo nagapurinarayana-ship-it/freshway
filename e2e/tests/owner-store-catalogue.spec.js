@@ -94,7 +94,10 @@ test('Owner can edit per-store product visibility and prices without changing in
   await page.locator('#connectBtn').click();
   await expect(page.locator('#authState')).toHaveText('Connected');
 
-  await page.locator('button[data-screen="stores"]').click();
+  const moreMenu = page.locator('.owner-nav-more');
+  await moreMenu.locator('summary').click();
+  await expect(moreMenu.locator('button[data-screen="stores"]')).toBeVisible();
+  await moreMenu.locator('button[data-screen="stores"]').click();
   await expect(page.locator('#storeManagement')).toContainText('Kukatpally Store');
   await page.locator('[data-edit-catalogue="store-1"]').click();
 
