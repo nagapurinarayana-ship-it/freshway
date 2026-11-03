@@ -18,7 +18,9 @@ assert.doesNotMatch(messages,/button\.setAttribute\('aria-label'/,'Messages butt
 assert.ok(index.includes('<span aria-hidden="true">✉️</span>')&&index.includes('<b aria-hidden="true">›</b>'),'Messages navigation decorative icon and chevron must be hidden from screen readers');
 assert.ok(index.includes('frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'customer app loads the fixed floating cart behavior');
 assert.ok(sw.includes('/frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'service worker caches the fixed floating cart behavior');
-assert.ok(sw.includes("const CACHE = 'freshway-v118'"),'service worker refreshes the app shell after the current customer shell asset update');
+assert.ok(sw.includes("const CACHE = 'freshway-v119'"),'service worker refreshes the app shell after the current customer shell asset update');
+assert.ok(index.includes('frontend/customer/delivery-offers.js?v=20261103-store-pricing-v1'),'customer HTML loads the store-aware checkout quote module');
+assert.ok(sw.includes('/frontend/customer/delivery-offers.js?v=20261103-store-pricing-v1'),'service worker precaches the same store-aware checkout quote module');
 assert.match(privacyPage,/grid-template-columns: minmax\(145px, \.36fr\) minmax\(0, 1fr\)/,'privacy contact details use a clear desktop label/value layout');
 assert.match(privacyPage,/@media \(max-width: 600px\)[\s\S]*?\.contact-line \{ grid-template-columns: minmax\(0, 1fr\)/,'privacy contact details stack cleanly on mobile');
 assert.match(privacyPage,/This policy remains a working draft/,'privacy policy clearly retains the operator-review status');

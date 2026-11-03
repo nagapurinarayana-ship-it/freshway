@@ -15,7 +15,7 @@ assert.ok(deliveryOffersScript,
   'HTML must load the updated delivery-offers module');
 assert.ok(worker.includes('/'+deliveryOffersScript),
   'service worker must cache the exact delivery-offers module URL loaded by HTML');
-assert.match(worker,/const CACHE = 'freshway-v118'/,
+assert.match(worker,/const CACHE = 'freshway-v119'/,
   'the service-worker cache version must match the current customer shell');
 const deliveryBookingScript=index.split('<script src="')
   .map(part=>part.split('"')[0])
@@ -61,7 +61,7 @@ function createHarness(request, savedCode='') {
   const storage=new Map();
   if(savedCode)storage.set('freshway-applied-fixed-coupon',savedCode);
   const context={
-    window:{FreshWayCustomerAPI:{request},CSS:{escape:value=>String(value)}},
+    window:{FreshWayCustomerAPI:{request},FreshWayCustomerStoreCatalogue:{selectedStoreId:()=> 'store-test'},CSS:{escape:value=>String(value)}},
     document,
     CSS:{escape:value=>String(value)},
     sessionStorage:{
@@ -89,8 +89,10 @@ function createHarness(request, savedCode='') {
 const items=[{product:{id:'p1'},qty:1,lineTotal:100}];
 (async()=>{
   {
+    let quoteStoreId='';
     const request=async(path,options={})=>{
       if(path==='/api/checkout/quote'){
+        quoteStoreId=JSON.parse(options.body||'{}').storeId||'';
         const code=JSON.parse(options.body||'{}').couponCode||'';
         if(code==='BAD'){
           const error=new Error('Coupon not found.');
@@ -104,6 +106,7 @@ const items=[{product:{id:'p1'},qty:1,lineTotal:100}];
     };
     const h=createHarness(request,'SAVE10');
     await h.module.renderCart({items,total:100});
+    assert.equal(quoteStoreId,'store-test','customer cart quotes must include the selected store so local overrides are used');
     assert.match(h.elements['#fwDeliveryPricing'].innerHTML,/Add ₹700 more to unlock free delivery/,
       'threshold progress should clearly explain how to unlock free delivery');
     assert.match(h.elements['#fwDeliveryPricing'].innerHTML,/Delivery fee applies until you reach the free-delivery threshold/,

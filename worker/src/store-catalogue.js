@@ -43,9 +43,9 @@ export async function getStoreCatalogueRows(env, storeId) {
     'COALESCE((SELECT SUM(r.qty) FROM delivery_store_inventory_reservations r ' +
     'WHERE r.store_id=sc.store_id AND r.product_id=p.id AND r.status IN (\'reserved\',\'conflict\')),0) reserved_qty ' +
     'FROM delivery_store_catalogue sc JOIN products p ON p.id=sc.product_id ' +
-    'LEFT JOIN categories c ON c.id=p.category_id ' +
+    'JOIN categories c ON c.id=p.category_id ' +
     'LEFT JOIN delivery_store_inventory i ON i.store_id=sc.store_id AND i.product_id=p.id ' +
-    'WHERE sc.store_id=? ORDER BY CASE WHEN c.display_order IS NULL THEN 999999 ELSE c.display_order END,' +
+    'WHERE sc.store_id=? AND p.active=1 AND c.active=1 ORDER BY CASE WHEN c.display_order IS NULL THEN 999999 ELSE c.display_order END,' +
     'c.name,p.display_order,p.name'
   ).bind(storeId).all();
   return results || [];
@@ -79,7 +79,7 @@ export async function saveStoreCatalogue(env, storeId, rawItems) {
   if (!store) throw new Error('Delivery store not found.');
   if (!Array.isArray(rawItems) || rawItems.length > 500) throw new Error('Enter a valid store catalogue.');
   await ensureStoreCatalogueRows(env, storeId);
-  const products = (await env.DB.prepare('SELECT id FROM products ORDER BY id').all()).results || [];
+  const products = (await env.DB.prepare('SELECT p.id FROM products p JOIN categories c ON c.id=p.category_id WHERE p.active=1 AND c.active=1 ORDER BY p.id').all()).results || [];
   const productIds = new Set(products.map(row => String(row.id)));
   const requested = new Map();
   for (const item of rawItems) {

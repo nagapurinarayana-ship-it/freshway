@@ -90,6 +90,8 @@ async function dispatchPush(payload) {
   assert.match(index, /frontend\/customer\/messages\.js\?v=msg1/);
   assert.match(index, /frontend\/customer\/store-info\.js\?v=msg1/);
   assert.match(index, /frontend\/customer\/cart-bar\.js\?v=20261029-cartbar-v2/);
+  assert.match(index, /frontend\/customer\/delivery-offers\.js\?v=20261103-store-pricing-v1/);
+  assert.ok(fs.readFileSync('sw.js', 'utf8').includes('/frontend/customer/delivery-offers.js?v=20261103-store-pricing-v1'), 'service worker must precache the exact store-aware delivery-offers asset URL loaded by HTML');
   const assetUrl = 'https://fwcoldpressed.in/frontend/customer/navigation.js?v=20261028-nav-restore-v2';
   const oldResponse = { ok: true, body: 'legacy', clone() { return { ...this }; } };
   const freshResponse = { ok: true, body: 'current', clone() { return { ...this }; } };
