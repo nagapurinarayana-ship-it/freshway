@@ -17,7 +17,7 @@
       const requested=Number(item?.qty);
       const product=byId.get(id);
       const name=String(item?.name||product?.name||'An item');
-      if(!id||!Number.isSafeInteger(requested)||requested<1||!product||product.active===0||String(product.stock_status||'').toLowerCase()==='out_of_stock'){
+      if(!id||!Number.isSafeInteger(requested)||requested<1||!product||product.active===0||product.active===false||String(product.active)==='0'||String(product.stock_status||'').toLowerCase()==='out_of_stock'){
         unavailable.push(name);
         continue;
       }
