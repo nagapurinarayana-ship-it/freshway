@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 const storeId=process.env.FRESHWAY_TEST_STORE_ID;
+const storeName=process.env.FRESHWAY_TEST_STORE_NAME;
 const latitude=Number(process.env.FRESHWAY_TEST_LATITUDE);
 const longitude=Number(process.env.FRESHWAY_TEST_LONGITUDE);
 const productId=process.env.FRESHWAY_TEST_PRODUCT_ID;
@@ -12,8 +13,55 @@ const multiBasketLongitude=Number(process.env.FRESHWAY_TEST_MULTI_BASKET_LONGITU
 const multiBasketProductId=process.env.FRESHWAY_TEST_MULTI_BASKET_PRODUCT_ID;
 const multiBasketSecondProductId=process.env.FRESHWAY_TEST_MULTI_BASKET_SECOND_PRODUCT_ID;
 const multiBasketCategoryId=process.env.FRESHWAY_TEST_MULTI_BASKET_CATEGORY_ID;
-const uiCategoryId=multiBasketReady?multiBasketCategoryId:categoryId;
-const uiPrimaryProductId=multiBasketReady?multiBasketProductId:productId;
+const uiCategoryId=categoryId;
+const uiPrimaryProductId=productId;
+
+const mancherialAddress={
+  houseFlat:'Mancherial Head Post Office',
+  area:'Indra Nagar, Janmabhoomi Nagar',
+  city:'Mancherial',
+  district:'Mancherial',
+  state:'Telangana',
+  pincode:'504208',
+  latitude,
+  longitude
+};
+
+async function chooseMancherialAddress(page){
+  await page.locator('#addressBtn').click();
+  await expect(page.locator('#fwAddressManagerNew')).toBeVisible({timeout:20000});
+  await page.locator('#fwAddressManagerNew').click();
+  await expect(page.locator('#fwAddressGps')).toBeVisible({timeout:10000});
+  await page.locator('#fwAddressGps').click();
+  await expect(page.locator('#fwAddressLocationStatus')).toContainText('Delivery pin selected',{timeout:30000});
+  await page.locator('#fwAddrName').fill('FreshWay Playwright Test');
+  await page.locator('#fwAddrPhone').fill('9999999999');
+  await page.locator('#fwAddrHouse').fill(mancherialAddress.houseFlat);
+  await page.locator('#fwAddrArea').fill(mancherialAddress.area);
+  await page.locator('#fwAddrCity').fill(mancherialAddress.city);
+  await page.locator('#fwAddrPincode').fill(mancherialAddress.pincode);
+  const selected=page.waitForResponse(response=>{
+    const url=new URL(response.url());
+    if(url.pathname!=='/api/delivery/store'||response.request().method()!=='POST')return false;
+    const payload=response.request().postDataJSON()||{};
+    const address=payload.address||{};
+    return Math.abs(Number(address.latitude)-latitude)<0.00001&&Math.abs(Number(address.longitude)-longitude)<0.00001;
+  },{timeout:20000});
+  await page.locator('#fwAddressSave').click();
+  const response=await selected;
+  expect(response.status()).toBe(200);
+  const result=await response.json();
+  expect(result.available,'Mancherial address must resolve to a serviceable active store').toBe(true);
+  expect(result.code).toBe('AVAILABLE');
+  expect(result.store?.id).toBe(storeId);
+  expect(result.store?.name).toBe(storeName);
+  await page.waitForFunction(expected=>
+    window.FreshWayCustomerStoreCatalogue?.selectedStoreId()===expected,
+    storeId,{timeout:20000}
+  );
+  await expect(page.locator('#homeAddress')).toContainText('Mancherial');
+  return result.store;
+}
 
 test.beforeAll(() => {
   expect(storeId,'production must have an active store').toBeTruthy();
@@ -22,10 +70,22 @@ test.beforeAll(() => {
   expect(categoryId,'stocked product must belong to an active category').toBeTruthy();
 });
 
-test('production availability selects the active store with real unreserved stock', async ({ request }) => {
+test('Mancherial Head Post Office address resolves to its active FreshWay store', async ({ request }) => {
+  const response=await request.post('/api/delivery/store',{
+    data:{address:mancherialAddress}
+  });
+  expect(response.status()).toBe(200);
+  const result=await response.json();
+  expect(result.available).toBe(true);
+  expect(result.code).toBe('AVAILABLE');
+  expect(result.store?.id).toBe(storeId);
+  expect(result.store?.name).toBe(storeName);
+});
+
+test('Mancherial address availability selects the live store with real unreserved stock', async ({ request }) => {
   const response=await request.post('/api/delivery/availability',{
     data:{
-      address:{latitude,longitude},
+      address:mancherialAddress,
       items:[{id:productId,qty:1}]
     }
   });
@@ -120,37 +180,17 @@ test('real customer app browses live products and preserves cart without creatin
   page.on('request',request=>{
     if(new URL(request.url()).pathname==='/api/orders'&&request.method()==='POST')orderPostCount++;
   });
+  await page.context().grantPermissions(['geolocation']);
+  await page.context().setGeolocation({latitude,longitude,accuracy:20});
   const documentResponse=await page.goto('/');
   expect(documentResponse?.status()).toBe(200);
-  // This customer starts without a saved delivery pin. Resolve the real stock-backed
-  // test store explicitly before asserting the live store-filtered catalogue APIs.
   await page.waitForFunction(() =>
     typeof window.FreshWayCustomerStoreCatalogue?.switchToStore === 'function'
   );
-  const productsResponse=page.waitForResponse(response=>
-    new URL(response.url()).pathname==='/api/products'&&response.request().method()==='GET'
-  );
-  const categoriesResponse=page.waitForResponse(response=>
-    new URL(response.url()).pathname==='/api/categories'&&response.request().method()==='GET'
-  );
-  const storeSelection=await page.evaluate(async storeId =>
-    window.FreshWayCustomerStoreCatalogue.switchToStore(
-      { id: storeId, name: 'Production test store' },
-      { review: false }
-    ),
-    storeId
-  );
-  expect(storeSelection.ok, 'the selected real store catalogue must load').toBe(true);
-  const apiResponse=await productsResponse;
-  expect((await categoriesResponse).status()).toBe(200);
-  expect(apiResponse.status()).toBe(200);
-  const payload=await apiResponse.json();
-  expect(Array.isArray(payload.products)).toBe(true);
-  expect(payload.products.length).toBeGreaterThan(0);
-
-  const category=page.locator('[data-fw-category="'+uiCategoryId+'"]').first();
-  await expect(category).toBeVisible({timeout:20000});
-  await category.click();
+  const storeSelection=await chooseMancherialAddress(page);
+  expect(storeSelection.id).toBe(storeId);
+  await expect(page.locator('#fwCategoryCatalogue [data-fw-category="'+uiCategoryId+'"]').first()).toBeVisible({timeout:20000});
+  await page.locator('[data-fw-category="'+uiCategoryId+'"]').first().click();
   const addButton=page.locator('#productGrid [data-add="'+uiPrimaryProductId+'"]').first();
   await expect(addButton).toBeVisible({timeout:20000});
   await expect(addButton).toBeEnabled();
@@ -165,6 +205,13 @@ test('real customer app browses live products and preserves cart without creatin
   await expect(page.locator('#cartCount')).not.toHaveText('0 items');
 
   await page.reload();
+  await expect(page.locator('#cartCount')).not.toHaveText('0 items');
+  // Guest addresses are intentionally visit-only; select the same Mancherial pin
+  // again after reload, then confirm the cart is still intact at that store.
+  await page.context().grantPermissions(['geolocation']);
+  await page.context().setGeolocation({latitude,longitude,accuracy:20});
+  const reselectedStore=await chooseMancherialAddress(page);
+  expect(reselectedStore.id).toBe(storeId);
   await expect(page.locator('#cartCount')).not.toHaveText('0 items');
   await page.locator('#viewCartBtn').click();
   await expect(page.locator('#checkoutBtn')).toBeVisible();
@@ -207,9 +254,12 @@ test('real customer app browses live products and preserves cart without creatin
   }
   const availability=await response.json();
   expect(availabilityRequests[0]?.postDataJSON()?.items).toHaveLength(multiBasketReady?2:1);
-  expect(availability.available).toBe(false);
-  expect(availability.code).toBe('LOCATION_REQUIRED');
-  await expect(page.locator('[data-fw-delivery-availability]')).toContainText('confirm your delivery location');
+  expect(availability.available).toBe(true);
+  expect(availability.code).toBe('AVAILABLE');
+  expect(availability.store?.id).toBe(storeId);
+  expect(availability.store?.name).toBe(storeName);
+  expect(availabilityRequests[0]?.postDataJSON()?.items).toHaveLength(1);
+  await expect(page.locator('[data-fw-delivery-availability]')).toContainText(storeName);
 
   await page.setViewportSize({width:390,height:844});
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth);
