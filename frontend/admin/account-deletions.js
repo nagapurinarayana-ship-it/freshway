@@ -155,6 +155,7 @@
       setMessage('Action could not start: ' + (error?.message || 'unknown browser error'), true);
     }
   }, true);
+  window.FreshWayOwnerAccountDeletions = Object.freeze({ load });
   $('#accountDeletionRefresh')?.addEventListener('click', () => void load());
   window.addEventListener('freshway:admin-authenticated', () => { if ($('#settings')?.classList.contains('active')) void load(); });
   $('#accountDeletionStatus')?.addEventListener('change', () => void load());
