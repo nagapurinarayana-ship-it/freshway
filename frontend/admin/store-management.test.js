@@ -101,6 +101,7 @@ async function run() {
   };
   const calls = [];
   let failNextInventoryPatch = false;
+  let failNextStoreTwoInventoryRead = false;
   let assertControlsDisabledDuringSave = false;
 
   const fetch = async (url, options = {}) => {
@@ -136,6 +137,10 @@ async function run() {
       }
       return response({ ok: true });
     }
+    if (method === 'GET' && storeId === 'store-two' && resource === 'inventory' && failNextStoreTwoInventoryRead) {
+      failNextStoreTwoInventoryRead = false;
+      return response({ error: 'Store inventory temporarily unavailable' }, 503);
+    }
     if (delayed[storeId + ':' + resource]) return delayed[storeId + ':' + resource].promise;
     return response(fixtures[storeId][resource]);
   };
@@ -166,6 +171,8 @@ async function run() {
 
   const oldStoreRequest = manager.open('store-one');
   await Promise.resolve();
+  assert.ok(root.innerHTML.includes('Loading products and stock…'), 'opening a store must show an honest loading state');
+  assert.ok(root.innerHTML.includes('data-store-summary-products>—</strong>'), 'product count must not show a false zero while loading');
   assert.ok(calls.some(call => call.url === '/api/admin/delivery/stores/store-one/inventory'));
   await manager.open('store-two');
   assert.ok(root.innerHTML.includes('data-inventory-product="oil-d1" value="24"'));
@@ -224,6 +231,14 @@ async function run() {
   assert.ok(root.innerHTML.includes('data-manage-store="store-one"'));
   assert.ok(root.innerHTML.includes('data-manage-store="store-two"'));
   assert.ok(!root.innerHTML.includes('fw-store-management-panel'));
-  console.log('Owner store workspace: store isolation, inventory-only products, summaries, accessible filters, combined save, partial-save recovery and refresh OK');
+  failNextStoreTwoInventoryRead = true;
+  await manager.open('store-two');
+  assert.ok(root.innerHTML.includes('Prices and inventory could not be loaded for this store.'), 'a failed read must not be presented as an empty catalogue');
+  assert.ok(root.innerHTML.includes('data-retry-store-management'), 'a failed store read must have an in-place retry');
+  await click({ target: { closest: selector => selector.includes('[data-retry-store-management]') ? {} : null } });
+  assert.ok(root.innerHTML.includes('value="319"'), 'retry must successfully reload the selected store');
+  assert.ok(root.innerHTML.includes('value="26"'));
+
+  console.log('Owner store workspace: store isolation, inventory-only products, loading and retry states, summaries, accessible filters, combined save, partial-save recovery and refresh OK');
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });
