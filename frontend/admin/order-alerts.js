@@ -318,6 +318,11 @@
     }
   }
 
+  window.FreshWayOwnerOrderAlerts = Object.freeze({
+    refreshNotifications: async () => { await Promise.all([loadStatus(), loadAlerts()]); },
+    refreshHistory: () => loadOwnerAlertHistory({ reset: true })
+  });
+
   function setup() {
     if (!$('#ownerOrderAlertToggle') || window.__freshWayOrderAlertsBound) return;
     window.__freshWayOrderAlertsBound = true;
