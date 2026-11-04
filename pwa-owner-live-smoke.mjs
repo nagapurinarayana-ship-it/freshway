@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 const BASE_URL = (process.env.OWNER_PWA_BASE_URL || '').replace(/\/$/, '');
 if (!BASE_URL) throw new Error('OWNER_PWA_BASE_URL is required for Owner PWA deployment smoke');
 
-const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261103-accessibility-v1';
+const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261104-store-stock-workspace-v1';
 const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261103-assigned-store-label-v1';
 const LEGACY_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261029-order-shortcuts-v1';
 const OLDER_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261028-nav-refresh-v1';
@@ -16,14 +16,14 @@ const EXPECTED_OWNER_ACCOUNT_DELETIONS_SCRIPT = '/admin/frontend/admin/account-d
 const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261021-owner-push-diagnostics-v1';
 const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2';
 const EXPECTED_OWNER_DELIVERY_SCRIPT = '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2';
-const EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT = '/admin/frontend/admin/store-management.js?v=20261102-store-catalogue-pricing-v1';
+const EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT = '/admin/frontend/admin/store-management.js?v=20261104-store-stock-workspace-v1';
 const EXPECTED_OWNER_DELIVERY_OFFERS_SCRIPT = '/admin/frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5';
 const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261103-assigned-store-lifecycle-v1';
-const EXPECTED_OWNER_CACHE = 'fw-owner-v61';
-const LEGACY_OWNER_CACHE = 'fw-owner-v60';
-const OLDER_OWNER_CACHE = 'fw-owner-v58';
-const OLDEST_OWNER_CACHE = 'fw-owner-v57';
-const SUPPORTED_OWNER_CACHES = [EXPECTED_OWNER_CACHE, LEGACY_OWNER_CACHE, OLDER_OWNER_CACHE, OLDEST_OWNER_CACHE, 'fw-owner-v56'];
+const EXPECTED_OWNER_CACHE = 'fw-owner-v62';
+const LEGACY_OWNER_CACHE = 'fw-owner-v61';
+const OLDER_OWNER_CACHE = 'fw-owner-v60';
+const OLDEST_OWNER_CACHE = 'fw-owner-v58';
+const SUPPORTED_OWNER_CACHES = [EXPECTED_OWNER_CACHE, LEGACY_OWNER_CACHE, OLDER_OWNER_CACHE, OLDEST_OWNER_CACHE, 'fw-owner-v57', 'fw-owner-v56'];
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
