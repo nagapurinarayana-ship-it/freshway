@@ -102,6 +102,16 @@ async function run() {
   await manager.load();
   assert.ok(root.innerHTML.includes('data-manage-store="store-one"'), 'each store card must have its own management button');
   assert.ok(root.innerHTML.includes('data-manage-store="store-two"'), 'second store must have a distinct management button');
+  const click = root.listeners.get('click');
+  await click({
+    target: {
+      closest(selector) {
+        return selector.includes('[data-manage-store]') ? { dataset: { manageStore: 'store-two' } } : null;
+      }
+    }
+  });
+  assert.ok(root.innerHTML.includes('<h2>Store Two</h2>'), 'the Store Two card button must open Store Two');
+  assert.ok(root.innerHTML.includes('value="24"'), 'the Store Two button must load Store Two inventory');
 
   // Start Store One, then switch to Store Two before Store One's two API reads finish.
   const oldStoreRequest = manager.open('store-one');
@@ -125,7 +135,6 @@ async function run() {
     if (selector === '[data-catalogue-price="oil-d1"]') return { value: '309' };
     return null;
   };
-  const click = root.listeners.get('click');
   const saveButton = { disabled: false, textContent: '' };
   await click({
     target: {
