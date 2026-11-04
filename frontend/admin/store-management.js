@@ -19,16 +19,14 @@ function renderStores(){
  '</div><p class="muted">New stores start inactive. Add actual inventory, then activate the store from Edit when it is ready.</p><div class="settings-actions"><button class="primary" type="submit">Save store</button><button class="ghost" type="button" data-store-cancel>Cancel</button></div></form>';}
  const cards=stores.length?stores.map(s=>'<article class="panel fw-store-card"><div class="section-head"><div><h3>'+esc(s.name)+'</h3><p>'+esc(s.address||'No address added')+'</p></div><span class="fw-store-state '+(Number(s.is_active)===1?'is-active':'is-inactive')+'">'+(Number(s.is_active)===1?'Active':'Inactive')+'</span></div><div class="fw-store-meta"><span>'+esc(s.service_radius_km)+' km radius</span><span>'+esc(s.latitude)+', '+esc(s.longitude)+'</span></div>'+(Number(s.pending_order_count)>0?'<p class="muted">'+Number(s.pending_order_count)+' existing order'+(Number(s.pending_order_count)===1?'':'s')+' remain assigned to this store.</p>':'')+'<div class="fw-store-actions"><a class="ghost" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(s.latitude+','+s.longitude)+'">Open map</a><button class="ghost" data-edit-store="'+esc(s.id)+'" type="button">Edit</button><button class="primary" data-manage-store="'+esc(s.id)+'" data-edit-inventory="'+esc(s.id)+'" data-edit-catalogue="'+esc(s.id)+'" type="button">Manage products &amp; stock</button></div></article>').join(''):'<p class="muted">No stores configured yet. Add your first store to begin.</p>';
  const inventoryById=new Map(inventory.map(item=>[String(item.id),item]));
- const managedSummary=storeCatalogue.map(p=>{
-  const stock=inventoryById.get(String(p.id));
-  if(!(p.stockManaged===true||Number(p.stockManaged)===1))return null;
-  const onHand=Number(stock?.on_hand??p.onHand??0),reserved=Number(stock?.reserved_qty??p.reservedQty??0);
-  const available=Math.max(0,onHand-reserved),threshold=Number(stock?.low_stock_threshold??p.lowStockThreshold??0);
+ const catalogueProductIds=new Set(storeCatalogue.map(item=>String(item.id)));
+ const managedSummary=inventory.filter(item=>Number(item.stock_managed)===1||item.stock_managed===true).map(item=>{
+  const onHand=Number(item.on_hand||0),reserved=Number(item.reserved_qty||0),available=Math.max(0,onHand-reserved),threshold=Number(item.low_stock_threshold||0);
   return {available,threshold,state:available<=0?'out':(threshold>0&&available<=threshold?'low':'healthy')};
- }).filter(Boolean);
+ });
  const lowStockCount=managedSummary.filter(item=>item.state==='low').length;
  const outOfStockCount=managedSummary.filter(item=>item.state==='out').length;
- const productRows=storeCatalogue.map(p=>{
+ const catalogueRows=storeCatalogue.map(p=>{
   const stock=inventoryById.get(String(p.id));
   const managed=p.stockManaged===true||Number(p.stockManaged)===1;
   const onHand=Number(stock?.on_hand??p.onHand??0),reserved=Number(stock?.reserved_qty??p.reservedQty??0);
@@ -43,18 +41,27 @@ function renderStores(){
    '<div class="fw-managed-product-head"><div class="fw-managed-product-name"><h3>'+esc(p.name)+'</h3><p>'+esc(p.categoryName||'Uncategorised')+' · '+esc(p.unit||'')+'</p></div><span class="fw-stock-pill fw-stock-'+stockState+'" data-stock-state-label>'+stockLabel+'</span></div>'+
    '<div class="fw-managed-product-controls">'+
     '<label class="fw-managed-availability"><input type="checkbox" data-catalogue-available="'+esc(p.id)+'" '+(p.isAvailable?'checked':'')+'><span>Sell in this store</span></label>'+
-    '<label class="fw-managed-field"><span>Store selling price</span><span class="fw-managed-price-input"><b>₹</b><input type="number" min="0" max="10000000" step="1" inputmode="numeric" data-catalogue-price="'+esc(p.id)+'" value="'+(p.priceOverride==null?'':esc(p.priceOverride))+'" placeholder="Central '+esc(p.centralPrice)+'" aria-label="Selling price for '+esc(p.name)+'"></span><small>Central price: '+money(p.centralPrice)+' · Leave blank to use central price</small></label>'+
+    '<label class="fw-managed-field"><span>Store selling price</span><span class="fw-managed-price-input"><b>₹</b><input type="number" min="0" max="10000000" step="1" inputmode="numeric" data-catalogue-price="'+esc(p.id)+'" value="'+(p.priceOverride==null?'':esc(p.priceOverride))+'" placeholder="Central '+esc(p.centralPrice)+'" aria-label="Selling price for '+esc(p.name)+'"></span><small>Current: '+money(p.storePrice)+' · Central: '+money(p.centralPrice)+' · Blank uses central price</small></label>'+
     stockControls+
    '</div></article>';
  }).join('');
- let management='';
+ const inventoryOnlyRows=inventory.filter(p=>(Number(p.stock_managed)===1||p.stock_managed===true)&&!catalogueProductIds.has(String(p.id))).map(p=>{
+  const onHand=Number(p.on_hand||0),reserved=Number(p.reserved_qty||0),available=Math.max(0,onHand-reserved),threshold=Number(p.low_stock_threshold||0);
+  const stockState=available<=0?'out':(threshold>0&&available<=threshold?'low':'healthy');
+  const stockLabel=stockState==='out'?'Out of stock':stockState==='low'?'Low stock':'In stock';
+  return '<article class="fw-managed-product fw-managed-inventory-only" data-managed-product data-stock-state="'+stockState+'" data-search="'+esc(String(p.name||'').toLowerCase())+'" data-reserved="'+reserved+'" data-low-threshold="'+threshold+'">'+
+   '<div class="fw-managed-product-head"><div class="fw-managed-product-name"><h3>'+esc(p.name)+'</h3><p>'+esc(p.unit||'')+' · Central catalogue hidden or inactive</p></div><span class="fw-stock-pill fw-stock-'+stockState+'" data-stock-state-label>'+stockLabel+'</span></div>'+
+   '<div class="fw-managed-product-controls"><div class="fw-managed-untracked"><span>Store selling price</span><strong>Not editable</strong><small>Manage central visibility in Catalogue before selling this product at a store.</small></div>'+
+   '<label class="fw-managed-field"><span>On-hand quantity</span><input type="number" min="'+reserved+'" step="1" inputmode="numeric" required data-inventory-product="'+esc(p.id)+'" value="'+esc(onHand)+'" aria-label="On-hand quantity for '+esc(p.name)+'"><small>Reserved: '+reserved+' · Available: <strong data-available-qty>'+available+'</strong> · Low-stock alert: '+threshold+'</small></label></div></article>';
+ }).join('');
+ const productRows=catalogueRows+inventoryOnlyRows; let management='';
  if(selectedStoreId){
   const selectedStore=stores.find(item=>String(item.id)===String(selectedStoreId))||{};
   management='<section class="panel fw-store-management-panel"><div class="fw-store-management-heading"><div><span class="eyebrow">STORE PRODUCTS &amp; STOCK</span><h2>'+esc(selectedStore.name||'Store')+'</h2><p>Prices, availability and physical inventory are managed independently for this store.</p></div><div class="fw-store-management-actions"><span class="fw-store-state '+(Number(selectedStore.is_active)===1?'is-active':'is-inactive')+'">'+(Number(selectedStore.is_active)===1?'Active':'Inactive')+'</span><button class="ghost" type="button" data-close-store-management data-close-catalogue data-close-inventory>Back to stores</button></div></div>'+
    '<p data-store-management-status class="muted" role="status" aria-live="polite">Loading this store&#39;s catalogue and inventory…</p>'+
-   '<div class="fw-inventory-summary"><div><strong>'+storeCatalogue.length+'</strong><span>Products</span></div><div><strong>'+lowStockCount+'</strong><span>Low stock</span></div><div><strong>'+outOfStockCount+'</strong><span>Out of stock</span></div></div>'+
+   '<div class="fw-inventory-summary"><div><strong>'+(storeCatalogue.length+inventoryOnlyRows.length)+'</strong><span>Products</span></div><div><strong>'+lowStockCount+'</strong><span>Low stock</span></div><div><strong>'+outOfStockCount+'</strong><span>Out of stock</span></div></div>'+
    '<div class="fw-inventory-toolbar"><label class="fw-inventory-search"><span class="sr-only">Search products</span><input type="search" data-store-product-search placeholder="Search product or category" autocomplete="off"></label><div class="fw-stock-filters"><button type="button" class="is-active" data-stock-filter="all">All</button><button type="button" data-stock-filter="low">Low stock</button><button type="button" data-stock-filter="out">Out of stock</button><button type="button" data-stock-filter="untracked">Not tracked</button></div></div>'+
-   '<div class="fw-managed-products">'+(productRows||'<p class="muted">No active central catalogue products are available to manage.</p>')+'</div>'+
+   '<div class="fw-managed-products">'+(productRows||'<p class="muted">No products are available to manage for this store.</p>')+'</div>'+
    '<div class="fw-store-management-save"><p class="muted">Saving updates this store only. Reserved quantities are protected from being reduced.</p><button class="primary" type="button" data-save-store-management data-save-catalogue data-save-inventory>Save prices &amp; inventory</button></div></section>';
  }
 
