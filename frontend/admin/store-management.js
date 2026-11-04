@@ -149,11 +149,13 @@ async function saveStoreManagement(button){
   inventory=Array.isArray(refreshed[1].inventory)?refreshed[1].inventory:[];
   storeSaving=false;
   renderStores();
+  applyStoreFilters();
   if(messages.length)note(storeRoot,'Some changes were saved, but '+messages.join(' · ')+'. Review the values and try again.','[data-store-management-status]');
   else note(storeRoot,'Prices, availability and inventory saved for this store.','[data-store-management-status]');
  }catch(error){
   storeSaving=false;
   renderStores();
+  applyStoreFilters();
   note(storeRoot,'Save request completed, but the latest values could not be reloaded: '+error.message,'[data-store-management-status]');
  }
 }
