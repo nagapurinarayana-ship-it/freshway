@@ -59,10 +59,15 @@ async function navigateTo(page, screen) {
   await page.waitForLoadState('networkidle');
 }
 
-async function browserHistory(page, direction, screen) {
+async function browserHistory(page, direction, screen, expectedApiPath) {
+  const refreshed = expectedApiPath ? page.waitForRequest(request =>
+    request.method() === 'GET' && new URL(request.url()).pathname === expectedApiPath
+  ) : null;
   await page.evaluate(direction === 'back' ? () => history.back() : () => history.forward());
+  if (refreshed) await refreshed;
   await expect(page.locator('#' + screen)).toHaveClass(/active/);
   await expect.poll(() => page.evaluate(() => location.hash)).toBe('#' + screen);
+  await page.waitForLoadState('networkidle');
 }
 
 test('Owner Back and Forward restore screens, including Catalogue, and direct refresh keeps the route', async ({ browser }) => {
@@ -82,13 +87,13 @@ test('Owner Back and Forward restore screens, including Catalogue, and direct re
     await navigateTo(page, 'orders');
     await navigateTo(page, 'stores');
 
-    await browserHistory(page, 'back', 'orders');
-    await browserHistory(page, 'back', 'overview');
-    await browserHistory(page, 'forward', 'orders');
+    await browserHistory(page, 'back', 'orders', '/api/admin/orders');
+    await browserHistory(page, 'back', 'overview', '/api/admin/summary');
+    await browserHistory(page, 'forward', 'orders', '/api/admin/orders');
 
     await navigateTo(page, 'catalogue');
-    await browserHistory(page, 'back', 'orders');
-    await browserHistory(page, 'forward', 'catalogue');
+    await browserHistory(page, 'back', 'orders', '/api/admin/orders');
+    await browserHistory(page, 'forward', 'catalogue', '/api/admin/catalogue');
 
     // A hard reload must restore the active hash, authenticate from the
     // existing Owner session, and reload Catalogue data rather than Overview.
