@@ -10,9 +10,9 @@ async function proxyOwnerAssets(page) {
     if (targetPath !== '/admin/sw.js' &&
         targetPath !== '/admin/manifest.webmanifest' &&
         !targetPath.startsWith('/admin/icons/')) {
-      targetPath = targetPath.replace(/^\\/admin(?=\\/)/, '');
+      targetPath = targetPath.replace(/^\/admin(?=\/)/, '');
     } else if (targetPath.startsWith('/admin/icons/')) {
-      targetPath = targetPath.replace(/^\\/admin\\/icons\\//, '/icons/');
+      targetPath = targetPath.replace(/^\/admin\/icons\//, '/icons/');
     }
     const response = await route.fetch({ url: pageOrigin + targetPath + incoming.search });
     await route.fulfill({ response });
