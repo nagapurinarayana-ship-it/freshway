@@ -33,28 +33,56 @@ function fixture(storeId, name, price, onHand) {
     },
     inventory: {
       store: { id: storeId, name, is_active: 1 },
-      inventory: [{
-        id: 'oil-d1',
-        name: 'Groundnut Oil',
-        unit: '5 litre can',
-        stock_managed: 1,
-        on_hand: onHand,
-        reserved_qty: 2,
-        low_stock_threshold: 5
-      }]
+      inventory: [
+        {
+          id: 'oil-d1',
+          name: 'Groundnut Oil',
+          unit: '5 litre can',
+          stock_managed: 1,
+          on_hand: onHand,
+          reserved_qty: 2,
+          low_stock_threshold: 5
+        },
+        {
+          id: 'hidden-oil',
+          name: 'Archived Groundnut Oil',
+          unit: '1 litre bottle',
+          stock_managed: 1,
+          on_hand: 4,
+          reserved_qty: 0,
+          low_stock_threshold: 2
+        }
+      ]
     }
   };
 }
 
 async function run() {
+  const availabilityInput = { checked: true, disabled: false };
+  const priceInput = { value: '299', disabled: false };
+  const stockInput = { dataset: { inventoryProduct: 'oil-d1' }, value: '24', disabled: false };
+  const hiddenStockInput = { dataset: { inventoryProduct: 'hidden-oil' }, value: '4', disabled: false };
+  const status = { textContent: '' };
+  const searchInput = { value: '' };
+  const filterEmpty = { hidden: true };
+  const saveButton = { disabled: false, textContent: '' };
+  const controls = [availabilityInput, priceInput, stockInput, hiddenStockInput];
   const root = {
     innerHTML: '',
     listeners: new Map(),
-    querySelector() { return null; },
+    querySelector(selector) {
+      if (selector === '[data-catalogue-available="oil-d1"]') return availabilityInput;
+      if (selector === '[data-catalogue-price="oil-d1"]') return priceInput;
+      if (selector === '[data-store-management-status]') return status;
+      if (selector === '[data-store-product-search]') return searchInput;
+      if (selector === '[data-store-filter-empty]') return filterEmpty;
+      if (selector === '[data-save-store-management]') return saveButton;
+      return null;
+    },
     querySelectorAll(selector) {
-      if (selector === '[data-inventory-product]') {
-        return [{ dataset: { inventoryProduct: 'oil-d1' }, value: '25' }];
-      }
+      if (selector === '[data-inventory-product]') return [stockInput, hiddenStockInput];
+      if (selector === '[data-catalogue-available],[data-catalogue-price],[data-inventory-product]') return controls;
+      if (selector === '[data-managed-product]' || selector === '[data-stock-filter]') return [];
       return [];
     },
     addEventListener(name, callback) { this.listeners.set(name, callback); }
@@ -72,24 +100,48 @@ async function run() {
     'store-one:inventory': deferred()
   };
   const calls = [];
+  let failNextInventoryPatch = false;
+  let assertControlsDisabledDuringSave = false;
+
   const fetch = async (url, options = {}) => {
     const method = options.method || 'GET';
-    calls.push({ url, method, body: options.body ? JSON.parse(options.body) : null });
+    const body = options.body ? JSON.parse(options.body) : null;
+    calls.push({ url, method, body });
     if (url === '/api/admin/delivery/stores' && method === 'GET') return response({ stores });
     const match = String(url).match(/^\/api\/admin\/delivery\/stores\/([^/]+)\/(catalogue|inventory)$/);
     assert.ok(match, 'unexpected Owner store API request: ' + url);
     const [, storeId, resource] = match;
-    if (method === 'PATCH') return response({ ok: true });
+    if (method === 'PATCH') {
+      if (assertControlsDisabledDuringSave) {
+        assert.ok(controls.every(control => control.disabled), 'editable product fields must be disabled during save');
+      }
+      if (resource === 'inventory' && failNextInventoryPatch) {
+        failNextInventoryPatch = false;
+        return response({ error: 'Inventory temporarily unavailable' }, 503);
+      }
+      if (resource === 'catalogue') {
+        for (const item of body.items) {
+          const current = fixtures[storeId].catalogue.items.find(row => row.id === item.productId);
+          if (current) {
+            current.isAvailable = item.isAvailable;
+            current.priceOverride = item.priceOverride;
+            current.storePrice = item.priceOverride == null ? current.centralPrice : item.priceOverride;
+          }
+        }
+      } else {
+        for (const item of body.items) {
+          const current = fixtures[storeId].inventory.inventory.find(row => row.id === item.productId);
+          if (current) current.on_hand = item.stockQuantity;
+        }
+      }
+      return response({ ok: true });
+    }
     if (delayed[storeId + ':' + resource]) return delayed[storeId + ':' + resource].promise;
     return response(fixtures[storeId][resource]);
   };
+
   const context = {
-    document: {
-      querySelector(selector) {
-        if (selector === '#storeManagement') return root;
-        return null;
-      }
-    },
+    document: { querySelector: selector => selector === '#storeManagement' ? root : null },
     window: {},
     fetch,
     CSS: { escape: value => String(value) },
@@ -97,67 +149,81 @@ async function run() {
   };
   vm.runInNewContext(source, context, { filename: 'store-management.js' });
   const manager = context.window.FreshWayOwnerStoreManagement;
-  assert.ok(manager && typeof manager.open === 'function', 'Owner store manager must expose its workspace opener for integration');
+  assert.ok(manager && typeof manager.open === 'function', 'Owner store manager must expose its workspace opener');
 
   await manager.load();
-  assert.ok(root.innerHTML.includes('data-manage-store="store-one"'), 'each store card must have its own management button');
-  assert.ok(root.innerHTML.includes('data-manage-store="store-two"'), 'second store must have a distinct management button');
+  assert.ok(root.innerHTML.includes('data-manage-store="store-one"'));
+  assert.ok(root.innerHTML.includes('data-manage-store="store-two"'));
   const click = root.listeners.get('click');
-  await click({
-    target: {
-      closest(selector) {
-        return selector.includes('[data-manage-store]') ? { dataset: { manageStore: 'store-two' } } : null;
-      }
-    }
-  });
-  assert.ok(root.innerHTML.includes('<h2>Store Two</h2>'), 'the Store Two card button must open Store Two');
-  assert.ok(root.innerHTML.includes('value="24"'), 'the Store Two button must load Store Two inventory');
 
-  // Start Store One, then switch to Store Two before Store One's two API reads finish.
+  await click({ target: { closest: selector => selector.includes('[data-manage-store]') ? { dataset: { manageStore: 'store-two' } } : null } });
+  assert.ok(root.innerHTML.includes('<h2>Store Two</h2>'));
+  assert.ok(!root.innerHTML.includes('data-manage-store='), 'the store list must be hidden while editing');
+  assert.ok(root.innerHTML.includes('<strong data-store-summary-products>2</strong>'), 'product summary must count products, not rendered HTML characters');
+  assert.ok(root.innerHTML.includes('fw-managed-inventory-only'), 'hidden central-catalogue stock must remain manageable');
+  assert.ok(!root.innerHTML.includes('Reserved: 2 · Available:'), 'stock details must not be duplicated');
+  assert.ok(root.innerHTML.includes('aria-pressed="true" data-stock-filter="all"'));
+
   const oldStoreRequest = manager.open('store-one');
   await Promise.resolve();
-  assert.ok(calls.some(call => call.url === '/api/admin/delivery/stores/store-one/inventory'), 'Store One must request its own inventory URL');
+  assert.ok(calls.some(call => call.url === '/api/admin/delivery/stores/store-one/inventory'));
   await manager.open('store-two');
-  assert.ok(root.innerHTML.includes('<h2>Store Two</h2>'), 'the selected Store Two workspace must be rendered');
-  assert.ok(root.innerHTML.includes('data-inventory-product="oil-d1" value="24"'), 'Store Two must show its own on-hand quantity');
-  assert.ok(root.innerHTML.includes('data-catalogue-price="oil-d1" value="299"'), 'Store Two must show its own selling-price override');
-
+  assert.ok(root.innerHTML.includes('data-inventory-product="oil-d1" value="24"'));
+  assert.ok(root.innerHTML.includes('data-catalogue-price="oil-d1" value="299"'));
   delayed['store-one:catalogue'].resolve(response(fixtures['store-one'].catalogue));
   delayed['store-one:inventory'].resolve(response(fixtures['store-one'].inventory));
   await oldStoreRequest;
-  assert.ok(root.innerHTML.includes('<h2>Store Two</h2>'), 'a late Store One response must not replace the selected Store Two workspace');
-  assert.ok(root.innerHTML.includes('data-inventory-product="oil-d1" value="24"'), 'late responses must not overwrite Store Two stock');
-  assert.ok(root.innerHTML.includes('data-catalogue-price="oil-d1" value="299"'), 'late responses must not overwrite Store Two pricing');
+  assert.ok(root.innerHTML.includes('<h2>Store Two</h2>'), 'late Store One results must not replace Store Two');
+  assert.ok(root.innerHTML.includes('data-inventory-product="oil-d1" value="24"'));
+  assert.ok(root.innerHTML.includes('data-catalogue-price="oil-d1" value="299"'));
 
-  // One Save action must write both settings to the selected Store Two endpoints.
-  root.querySelector = selector => {
-    if (selector === '[data-catalogue-available="oil-d1"]') return { checked: true };
-    if (selector === '[data-catalogue-price="oil-d1"]') return { value: '309' };
-    return null;
-  };
-  const saveButton = { disabled: false, textContent: '' };
-  await click({
-    target: {
-      closest(selector) {
-        return selector.includes('[data-save-store-management]') ? saveButton : null;
-      }
-    }
-  });
-  const patches = calls.filter(call => call.method === 'PATCH');
-  assert.deepEqual(patches.map(call => call.url).sort(), [
+  priceInput.value = '309';
+  stockInput.value = '25';
+  hiddenStockInput.value = '6';
+  await click({ target: { closest: selector => selector.includes('[data-save-store-management]') ? saveButton : null } });
+  const firstPatches = calls.filter(call => call.method === 'PATCH');
+  assert.deepEqual(firstPatches.slice(0, 2).map(call => call.url).sort(), [
     '/api/admin/delivery/stores/store-two/catalogue',
     '/api/admin/delivery/stores/store-two/inventory'
-  ].sort(), 'combined Save must write price and inventory to the selected store only');
-  const cataloguePatch = patches.find(call => call.url.endsWith('/catalogue'));
-  const inventoryPatch = patches.find(call => call.url.endsWith('/inventory'));
-  assert.equal(cataloguePatch.body.items[0].priceOverride, 309);
-  assert.equal(inventoryPatch.body.items[0].stockQuantity, 25);
-  assert.ok(root.innerHTML.includes('<h2>Store Two</h2>'), 'save refresh must keep the same store selected');
+  ].sort());
+  assert.equal(firstPatches.find(call => call.url.endsWith('/catalogue')).body.items[0].priceOverride, 309);
+  const firstInventoryItems = firstPatches.find(call => call.url.endsWith('/inventory')).body.items;
+  assert.equal(firstInventoryItems.find(item => item.productId === 'oil-d1').stockQuantity, 25);
+  assert.equal(firstInventoryItems.find(item => item.productId === 'hidden-oil').stockQuantity, 6);
+  assert.ok(root.innerHTML.includes('value="309"'));
+  assert.ok(root.innerHTML.includes('value="25"'));
 
-  console.log('Owner store-scoped combined pricing/inventory workspace and stale-response regression OK');
+  priceInput.value = '319';
+  stockInput.value = '26';
+  hiddenStockInput.value = '7';
+  const viewBeforePartialSave = root.innerHTML;
+  failNextInventoryPatch = true;
+  assertControlsDisabledDuringSave = true;
+  await click({ target: { closest: selector => selector.includes('[data-save-store-management]') ? saveButton : null } });
+  assertControlsDisabledDuringSave = false;
+  assert.equal(root.innerHTML, viewBeforePartialSave, 'partial failure must not rerender and discard edited values');
+  assert.equal(priceInput.value, '319');
+  assert.equal(stockInput.value, '26');
+  assert.equal(hiddenStockInput.value, '7');
+  assert.ok(controls.every(control => !control.disabled));
+  assert.equal(saveButton.disabled, false);
+  assert.match(status.textContent, /Prices and availability saved/);
+  assert.match(status.textContent, /Inventory: Inventory temporarily unavailable/);
+  assert.match(status.textContent, /edits are still on screen/);
+
+  await click({ target: { closest: selector => selector.includes('[data-save-store-management]') ? saveButton : null } });
+  assert.ok(root.innerHTML.includes('value="319"'));
+  assert.ok(root.innerHTML.includes('value="26"'));
+  assert.ok(root.innerHTML.includes('value="7"'));
+
+  const allPatches = calls.filter(call => call.method === 'PATCH');
+  assert.ok(allPatches.every(call => call.url.includes('/stores/store-two/')), 'every write must stay scoped to Store Two');
+  assert.equal(allPatches.length, 6, 'success, partial failure and retry each issue two scoped writes');
+
+  await manager.load();
+  assert.ok(root.innerHTML.includes('data-manage-store="store-one"'));
+  assert.ok(root.innerHTML.includes('data-manage-store="store-two"'));
+  assert.ok(!root.innerHTML.includes('fw-store-management-panel'));
+  console.log('Owner store workspace: store isolation, inventory-only products, summaries, accessible filters, combined save, partial-save recovery and refresh OK');
 }
-
-run().catch(error => {
-  console.error(error);
-  process.exitCode = 1;
-});
+run().catch(error => { console.error(error); process.exitCode = 1; });

@@ -35,7 +35,7 @@ function renderStores(){
   const stockLabel=stockState==='out'?'Out of stock':stockState==='low'?'Low stock':stockState==='healthy'?'In stock':'Not tracked';
   const searchText=(String(p.name||'')+' '+String(p.categoryName||'')).toLowerCase();
   const stockControls=managed
-   ?'<label class="fw-managed-field"><span>On-hand quantity</span><input type="number" min="'+reserved+'" step="1" inputmode="numeric" required data-inventory-product="'+esc(p.id)+'" value="'+esc(onHand)+'" aria-label="On-hand quantity for '+esc(p.name)+'"><small>Reserved: '+reserved+' · Available: <strong data-available-qty>'+available+'</strong></small></label><div class="fw-managed-stock-meta"><span>Reserved <strong>'+reserved+'</strong></span><span>Available <strong data-available-qty>'+available+'</strong></span><span>Low-stock alert <strong>'+threshold+'</strong></span></div>'
+   ?'<label class="fw-managed-field"><span>On-hand quantity</span><input type="number" min="'+reserved+'" step="1" inputmode="numeric" required data-inventory-product="'+esc(p.id)+'" value="'+esc(onHand)+'" aria-label="On-hand quantity for '+esc(p.name)+'"><small>Physical stock kept at this store.</small></label><div class="fw-managed-stock-meta"><span>Reserved <strong>'+reserved+'</strong></span><span>Available <strong data-available-qty>'+available+'</strong></span><span>Low-stock alert <strong>'+threshold+'</strong></span></div>'
    :'<div class="fw-managed-untracked"><span>Physical stock</span><strong>Not tracked</strong><small>Existing non-stock-managed product behaviour is unchanged.</small></div>';
   return '<article class="fw-managed-product" data-managed-product data-stock-state="'+stockState+'" data-search="'+esc(searchText)+'" data-reserved="'+reserved+'" data-low-threshold="'+threshold+'">'+
    '<div class="fw-managed-product-head"><div class="fw-managed-product-name"><h3>'+esc(p.name)+'</h3><p>'+esc(p.categoryName||'Uncategorised')+' · '+esc(p.unit||'')+'</p></div><span class="fw-stock-pill fw-stock-'+stockState+'" data-stock-state-label>'+stockLabel+'</span></div>'+
@@ -52,22 +52,24 @@ function renderStores(){
   return '<article class="fw-managed-product fw-managed-inventory-only" data-managed-product data-stock-state="'+stockState+'" data-search="'+esc(String(p.name||'').toLowerCase())+'" data-reserved="'+reserved+'" data-low-threshold="'+threshold+'">'+
    '<div class="fw-managed-product-head"><div class="fw-managed-product-name"><h3>'+esc(p.name)+'</h3><p>'+esc(p.unit||'')+' · Central catalogue hidden or inactive</p></div><span class="fw-stock-pill fw-stock-'+stockState+'" data-stock-state-label>'+stockLabel+'</span></div>'+
    '<div class="fw-managed-product-controls"><div class="fw-managed-untracked"><span>Store selling price</span><strong>Not editable</strong><small>Manage central visibility in Catalogue before selling this product at a store.</small></div>'+
-   '<label class="fw-managed-field"><span>On-hand quantity</span><input type="number" min="'+reserved+'" step="1" inputmode="numeric" required data-inventory-product="'+esc(p.id)+'" value="'+esc(onHand)+'" aria-label="On-hand quantity for '+esc(p.name)+'"><small>Reserved: '+reserved+' · Available: <strong data-available-qty>'+available+'</strong> · Low-stock alert: '+threshold+'</small></label></div></article>';
+   '<label class="fw-managed-field"><span>On-hand quantity</span><input type="number" min="'+reserved+'" step="1" inputmode="numeric" required data-inventory-product="'+esc(p.id)+'" value="'+esc(onHand)+'" aria-label="On-hand quantity for '+esc(p.name)+'"></label><div class="fw-managed-stock-meta"><span>Reserved <strong>'+reserved+'</strong></span><span>Available <strong data-available-qty>'+available+'</strong></span><span>Low-stock alert <strong>'+threshold+'</strong></span></div></div></article>';
  }).join('');
+ const inventoryOnlyCount=inventory.filter(p=>(Number(p.stock_managed)===1||p.stock_managed===true)&&!catalogueProductIds.has(String(p.id))).length;
  const productRows=catalogueRows+inventoryOnlyRows; let management='';
  if(selectedStoreId){
   const selectedStore=stores.find(item=>String(item.id)===String(selectedStoreId))||{};
   management='<section class="panel fw-store-management-panel"><div class="fw-store-management-heading"><div><span class="eyebrow">STORE PRODUCTS &amp; STOCK</span><h2>'+esc(selectedStore.name||'Store')+'</h2><p>Prices, availability and physical inventory are managed independently for this store.</p></div><div class="fw-store-management-actions"><span class="fw-store-state '+(Number(selectedStore.is_active)===1?'is-active':'is-inactive')+'">'+(Number(selectedStore.is_active)===1?'Active':'Inactive')+'</span><button class="ghost" type="button" data-close-store-management data-close-catalogue data-close-inventory>Back to stores</button></div></div>'+
    '<p data-store-management-status class="muted" role="status" aria-live="polite">Loading this store&#39;s catalogue and inventory…</p>'+
-   '<div class="fw-inventory-summary"><div><strong>'+(storeCatalogue.length+inventoryOnlyRows.length)+'</strong><span>Products</span></div><div><strong>'+lowStockCount+'</strong><span>Low stock</span></div><div><strong>'+outOfStockCount+'</strong><span>Out of stock</span></div></div>'+
-   '<div class="fw-inventory-toolbar"><label class="fw-inventory-search"><span class="sr-only">Search products</span><input type="search" data-store-product-search placeholder="Search product or category" autocomplete="off"></label><div class="fw-stock-filters"><button type="button" class="is-active" data-stock-filter="all">All</button><button type="button" data-stock-filter="low">Low stock</button><button type="button" data-stock-filter="out">Out of stock</button><button type="button" data-stock-filter="untracked">Not tracked</button></div></div>'+
-   '<div class="fw-managed-products">'+(productRows||'<p class="muted">No products are available to manage for this store.</p>')+'</div>'+
+   '<div class="fw-inventory-summary"><div><strong data-store-summary-products>'+(storeCatalogue.length+inventoryOnlyCount)+'</strong><span>Products</span></div><div><strong data-store-summary-low>'+lowStockCount+'</strong><span>Low stock</span></div><div><strong data-store-summary-out>'+outOfStockCount+'</strong><span>Out of stock</span></div></div>'+
+   '<div class="fw-inventory-toolbar"><label class="fw-inventory-search"><span class="sr-only">Search products</span><input type="search" data-store-product-search placeholder="Search product or category" autocomplete="off"></label><div class="fw-stock-filters"><button type="button" class="is-active" aria-pressed="true" data-stock-filter="all">All</button><button type="button" aria-pressed="false" data-stock-filter="low">Low stock</button><button type="button" aria-pressed="false" data-stock-filter="out">Out of stock</button><button type="button" aria-pressed="false" data-stock-filter="untracked">Not tracked</button></div></div>'+
+   '<div class="fw-managed-products">'+(productRows||'<p class="muted">No products are available to manage for this store.</p>')+'</div>'+(productRows?'<p class="muted" data-store-filter-empty hidden>No products match these filters.</p>':'')+
    '<div class="fw-store-management-save"><p class="muted">Saving updates this store only. Reserved quantities are protected from being reduced.</p><button class="primary" type="button" data-save-store-management data-save-catalogue data-save-inventory>Save prices &amp; inventory</button></div></section>';
  }
 
- storeRoot.innerHTML='<div class="fw-admin-section-head"><div><span class="eyebrow">DELIVERY SETUP</span><h2>Stores</h2><p>Manage locations, 5 km delivery areas and stock by location.</p></div><button class="primary" type="button" data-add-store>+ Add store</button></div><p data-store-status class="muted fw-admin-status" role="status" aria-live="polite">'+stores.length+' store'+(stores.length===1?'':'s')+' loaded.</p>'+form+management+'<div class="fw-store-grid">'+cards+'</div>';
+ const storesView='<div class="fw-admin-section-head"><div><span class="eyebrow">DELIVERY SETUP</span><h2>Stores</h2><p>Manage locations, 5 km delivery areas and stock by location.</p></div><button class="primary" type="button" data-add-store>+ Add store</button></div><p data-store-status class="muted fw-admin-status" role="status" aria-live="polite">'+stores.length+' store'+(stores.length===1?'':'s')+' loaded.</p>'+form+'<div class="fw-store-grid">'+cards+'</div>';
+ storeRoot.innerHTML=selectedStoreId?management:storesView;
 }
-async function loadStores(){if(!storeRoot||storeBusy)return;storeBusy=true;storeRoot.innerHTML='<p class="muted">Loading stores…</p>';try{const d=await api('/admin/delivery/stores');stores=Array.isArray(d.stores)?d.stores:[];renderStores()}catch(e){storeRoot.innerHTML='<section class="panel"><h2>Could not load stores</h2><p class="muted">'+esc(e.message)+'</p><button class="primary" type="button" data-retry-stores>Try again</button></section>'}finally{storeBusy=false}}
+async function loadStores(){if(!storeRoot||storeBusy)return;storeRequestVersion++;selectedStoreId=null;editing=null;inventory=[];storeCatalogue=[];storeSaving=false;storeStockFilter='all';storeBusy=true;storeRoot.innerHTML='<p class="muted">Loading stores…</p>';try{const d=await api('/admin/delivery/stores');stores=Array.isArray(d.stores)?d.stores:[];renderStores()}catch(e){storeRoot.innerHTML='<section class="panel"><h2>Could not load stores</h2><p class="muted">'+esc(e.message)+'</p><button class="primary" type="button" data-retry-stores>Try again</button></section>'}finally{storeBusy=false}}
 async function openStoreManagement(id){
  const storeId=String(id||'');
  if(!storeId||!stores.some(store=>String(store.id)===storeId))return;
@@ -95,17 +97,37 @@ function closeStoreManagement(){
  selectedStoreId=null;inventory=[];storeCatalogue=[];storeSaving=false;storeStockFilter='all';
  renderStores();
 }
+function updateStoreSummary(){
+ if(!storeRoot)return;
+ const rows=[...storeRoot.querySelectorAll('[data-managed-product]')];
+ const low=rows.filter(row=>row.dataset.stockState==='low').length;
+ const out=rows.filter(row=>row.dataset.stockState==='out').length;
+ note(storeRoot,String(rows.length),'[data-store-summary-products]');
+ note(storeRoot,String(low),'[data-store-summary-low]');
+ note(storeRoot,String(out),'[data-store-summary-out]');
+}
+function setStoreSaving(saving,button){
+ if(!storeRoot)return;
+ storeRoot.querySelectorAll('[data-catalogue-available],[data-catalogue-price],[data-inventory-product]').forEach(control=>{control.disabled=saving;});
+ const saveButton=button||storeRoot.querySelector('[data-save-store-management]');
+ if(saveButton){saveButton.disabled=saving;saveButton.textContent=saving?'Saving…':'Save prices & inventory';}
+}
 function applyStoreFilters(){
  if(!storeRoot)return;
  const query=String(storeRoot.querySelector('[data-store-product-search]')?.value||'').trim().toLowerCase();
- const rows=storeRoot.querySelectorAll('[data-managed-product]');
+ const rows=[...storeRoot.querySelectorAll('[data-managed-product]')];
+ let visibleCount=0;
  rows.forEach(row=>{
   const state=row.dataset.stockState||'untracked';
   const text=String(row.dataset.search||'');
   const queryMatch=!query||text.includes(query);
   const filterMatch=storeStockFilter==='all'||(storeStockFilter==='low'&&state==='low')||(storeStockFilter==='out'&&state==='out')||(storeStockFilter==='untracked'&&state==='untracked');
   row.hidden=!(queryMatch&&filterMatch);
+  if(!row.hidden)visibleCount++;
  });
+ const empty=storeRoot.querySelector('[data-store-filter-empty]');
+ if(empty)empty.hidden=rows.length===0||visibleCount>0;
+ updateStoreSummary();
  storeRoot.querySelectorAll('[data-stock-filter]').forEach(button=>{
   const active=button.dataset.stockFilter===storeStockFilter;
   button.classList.toggle('is-active',active);
@@ -132,7 +154,7 @@ async function saveStoreManagement(button){
   return {productId:item.id,stockQuantity:quantity};
  });
  storeSaving=true;
- if(button){button.disabled=true;button.textContent='Saving…';}
+ setStoreSaving(true,button);
  const base='/admin/delivery/stores/'+encodeURIComponent(storeId);
  const outcomes=await Promise.allSettled([
   api(base+'/catalogue',{method:'PATCH',body:JSON.stringify({items:catalogueItems})}),
@@ -140,8 +162,18 @@ async function saveStoreManagement(button){
  ]);
  if(version!==storeRequestVersion||selectedStoreId!==storeId)return;
  const messages=[];
- if(outcomes[0].status==='rejected')messages.push('Prices/availability: '+(outcomes[0].reason?.message||'save failed'));
- if(outcomes[1].status==='rejected')messages.push('Inventory: '+(outcomes[1].reason?.message||'save failed'));
+ const saved=[];
+ if(outcomes[0].status==='fulfilled')saved.push('Prices and availability');
+ else messages.push('Prices/availability: '+(outcomes[0].reason?.message||'save failed'));
+ if(outcomes[1].status==='fulfilled')saved.push('Inventory');
+ else messages.push('Inventory: '+(outcomes[1].reason?.message||'save failed'));
+ if(messages.length){
+  storeSaving=false;
+  setStoreSaving(false,button);
+  const lead=saved.length?saved.join(' and ')+' saved. ':'Nothing was saved. ';
+  note(storeRoot,lead+messages.join(' · ')+'. Your edits are still on screen. Fix the failed section and save again.','[data-store-management-status]');
+  return;
+ }
  try{
   const refreshed=await Promise.all([api(base+'/catalogue'),api(base+'/inventory')]);
   if(version!==storeRequestVersion||selectedStoreId!==storeId)return;
@@ -150,13 +182,12 @@ async function saveStoreManagement(button){
   storeSaving=false;
   renderStores();
   applyStoreFilters();
-  if(messages.length)note(storeRoot,'Some changes were saved, but '+messages.join(' · ')+'. Review the values and try again.','[data-store-management-status]');
-  else note(storeRoot,'Prices, availability and inventory saved for this store.','[data-store-management-status]');
+  note(storeRoot,'Prices, availability and inventory saved for this store.','[data-store-management-status]');
  }catch(error){
+  if(version!==storeRequestVersion||selectedStoreId!==storeId)return;
   storeSaving=false;
-  renderStores();
-  applyStoreFilters();
-  note(storeRoot,'Save request completed, but the latest values could not be reloaded: '+error.message,'[data-store-management-status]');
+  setStoreSaving(false,button);
+  note(storeRoot,'Both save requests succeeded, but the latest values could not be reloaded: '+error.message+' Your edits are still on screen. Refresh the store before making further changes.','[data-store-management-status]');
  }
 }
 storeRoot&&storeRoot.addEventListener('click',async e=>{
@@ -182,7 +213,10 @@ storeRoot&&storeRoot.addEventListener('input',e=>{
  const label=row.querySelector('[data-stock-state-label]');
  if(label){label.textContent=state==='out'?'Out of stock':state==='low'?'Low stock':'In stock';label.className='fw-stock-pill fw-stock-'+state;}
  row.querySelectorAll('[data-available-qty]').forEach(node=>{node.textContent=String(available)});
- applyStoreFilters();
+ updateStoreSummary();
+});
+storeRoot&&storeRoot.addEventListener('change',e=>{
+ if(e.target.matches('[data-inventory-product]'))applyStoreFilters();
 });
 storeRoot&&storeRoot.addEventListener('submit',async e=>{if(e.target.id!=='fwStoreForm')return;e.preventDefault();const creating=!editing.id;const f=new FormData(e.target),payload={name:String(f.get('name')||'').trim(),address:String(f.get('address')||'').trim(),latitude:Number(f.get('latitude')),longitude:Number(f.get('longitude')),serviceRadiusKm:Number(f.get('radius'))};if(editing.id)payload.isActive=f.get('active')==='1';if(!payload.name||!Number.isFinite(payload.latitude)||Math.abs(payload.latitude)>90||!Number.isFinite(payload.longitude)||Math.abs(payload.longitude)>180||!Number.isFinite(payload.serviceRadiusKm)||payload.serviceRadiusKm<.1||payload.serviceRadiusKm>100){note(storeRoot,'Enter a name, valid coordinates and radius between 0.1 and 100 km.','[data-store-status]');return}if(editing.id&&editing.active&&!payload.isActive){const current=stores.find(s=>s.id===editing.id),pending=Number(current?.pending_order_count||0);if(pending&&!window.confirm('This store has '+pending+' existing order'+(pending===1?'':'s')+' still assigned. Deactivation will not cancel or move them. Continue?'))return}const btn=e.target.querySelector('[type="submit"]');btn.disabled=true;try{if(editing.id)await api('/admin/delivery/stores/'+encodeURIComponent(editing.id),{method:'PATCH',body:JSON.stringify(payload)});else await api('/admin/delivery/stores',{method:'POST',body:JSON.stringify(payload)});editing=null;selectedStoreId=null;inventory=[];storeCatalogue=[];storeRequestVersion++;storeSaving=false;await loadStores();note(storeRoot,creating?'Store created inactive. Add inventory and activate it when ready.':'Store saved. Existing orders and reservations were left unchanged.','[data-store-status]')}catch(err){note(storeRoot,err.message,'[data-store-status]');btn.disabled=false}});
 function typeName(t){return ({cancellation:'Cancellation',reschedule:'Delivery date change',return:'Return',issue:'Order issue'})[t]||'Customer request'}
