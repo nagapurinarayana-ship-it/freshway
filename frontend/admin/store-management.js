@@ -51,7 +51,7 @@ function renderStores(){
  if(selectedStoreId){
   const selectedStore=stores.find(item=>String(item.id)===String(selectedStoreId))||{};
   management='<section class="panel fw-store-management-panel"><div class="fw-store-management-heading"><div><span class="eyebrow">STORE PRODUCTS &amp; STOCK</span><h2>'+esc(selectedStore.name||'Store')+'</h2><p>Prices, availability and physical inventory are managed independently for this store.</p></div><div class="fw-store-management-actions"><span class="fw-store-state '+(Number(selectedStore.is_active)===1?'is-active':'is-inactive')+'">'+(Number(selectedStore.is_active)===1?'Active':'Inactive')+'</span><button class="ghost" type="button" data-close-store-management data-close-catalogue data-close-inventory>Back to stores</button></div></div>'+
-   '<p data-store-management-status class="muted" role="status" aria-live="polite">Loading this store\\'s catalogue and inventory…</p>'+
+   '<p data-store-management-status class="muted" role="status" aria-live="polite">Loading this store&#39;s catalogue and inventory…</p>'+
    '<div class="fw-inventory-summary"><div><strong>'+storeCatalogue.length+'</strong><span>Products</span></div><div><strong>'+lowStockCount+'</strong><span>Low stock</span></div><div><strong>'+outOfStockCount+'</strong><span>Out of stock</span></div></div>'+
    '<div class="fw-inventory-toolbar"><label class="fw-inventory-search"><span class="sr-only">Search products</span><input type="search" data-store-product-search placeholder="Search product or category" autocomplete="off"></label><div class="fw-stock-filters"><button type="button" class="is-active" data-stock-filter="all">All</button><button type="button" data-stock-filter="low">Low stock</button><button type="button" data-stock-filter="out">Out of stock</button><button type="button" data-stock-filter="untracked">Not tracked</button></div></div>'+
    '<div class="fw-managed-products">'+(productRows||'<p class="muted">No active central catalogue products are available to manage.</p>')+'</div>'+
@@ -68,7 +68,7 @@ async function openStoreManagement(id){
  selectedStoreId=storeId;editing=null;inventory=[];storeCatalogue=[];storeSaving=false;storeStockFilter='all';
  renderStores();
  const storeStatus=storeRoot.querySelector('[data-store-management-status]');
- if(storeStatus)storeStatus.textContent='Loading this store\\'s prices and inventory…';
+ if(storeStatus)storeStatus.textContent='Loading this store&#39;s prices and inventory…';
  try{
   const base='/admin/delivery/stores/'+encodeURIComponent(storeId);
   const results=await Promise.all([api(base+'/catalogue'),api(base+'/inventory')]);
