@@ -163,6 +163,39 @@ test('Owner manages prices and inventory together without mixing store data', as
     expect(inventoryWrites.every(url => url.includes('/stores/' + secondStoreId + '/inventory'))).toBe(true);
     expect(pageErrors).toEqual([]);
     await page.screenshot({ path: 'test-results/real-d1/owner-store-management.png', fullPage: true });
+
+    // Mobile: product controls must stack cleanly, the save action must span its footer, and the page must not scroll sideways.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.locator('#storeManagement .fw-store-management-panel')).toBeVisible();
+    const mobileLayout = await page.evaluate(() => {
+      const panel = document.querySelector('#storeManagement .fw-store-management-panel');
+      const footer = document.querySelector('#storeManagement .fw-store-management-save');
+      const button = footer?.querySelector('[data-save-store-management]');
+      return {
+        viewport: window.innerWidth,
+        documentWidth: document.documentElement.scrollWidth,
+        panelWidth: panel?.clientWidth || 0,
+        panelScrollWidth: panel?.scrollWidth || 0,
+        footerWidth: footer?.clientWidth || 0,
+        buttonWidth: button?.getBoundingClientRect().width || 0
+      };
+    });
+    expect(mobileLayout.documentWidth).toBeLessThanOrEqual(mobileLayout.viewport + 1);
+    expect(mobileLayout.panelScrollWidth).toBeLessThanOrEqual(mobileLayout.panelWidth + 1);
+    expect(mobileLayout.buttonWidth).toBeGreaterThanOrEqual(mobileLayout.footerWidth - 2);
+    await page.screenshot({ path: 'test-results/real-d1/owner-store-management-mobile.png', fullPage: true });
+
+    // Narrow tablet: the desktop three-column minimums must not force horizontal overflow beside the fixed sidebar.
+    await page.setViewportSize({ width: 810, height: 900 });
+    const tabletLayout = await page.evaluate(() => ({
+      viewport: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      panel: document.querySelector('#storeManagement .fw-store-management-panel'),
+      controls: document.querySelector('#storeManagement .fw-managed-product-controls')
+    }));
+    expect(tabletLayout.documentWidth).toBeLessThanOrEqual(tabletLayout.viewport + 1);
+    expect(tabletLayout.controls).toBeTruthy();
+    await page.screenshot({ path: 'test-results/real-d1/owner-store-management-tablet.png', fullPage: true });
   } finally {
     if (secondStoreId) {
       await ownerApi(page, '/admin/delivery/stores/' + encodeURIComponent(secondStoreId), 'PATCH', {
