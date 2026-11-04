@@ -328,3 +328,70 @@ button,input,textarea,select{touch-action:manipulation}
 .login-card p,.login-card small{font-size:12px;line-height:1.6}
 .login .primary,.login .ghost{font-size:12px}
 .toast{font-size:12px;z-index:1101;background:#123b2b;color:#fff}
+
+
+/* Unified store product, price and inventory workspace. */
+.fw-store-management-panel{display:grid;gap:18px;padding:20px;min-width:0}
+.fw-store-management-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;min-width:0}
+.fw-store-management-heading h2{margin:5px 0}
+.fw-store-management-heading p{margin:5px 0;color:var(--muted)}
+.fw-store-management-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fw-inventory-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.fw-inventory-summary>div{display:flex;flex-direction:column;gap:3px;padding:13px 15px;border:1px solid var(--line);border-radius:13px;background:var(--surface,#fff)}
+.fw-inventory-summary strong{font-size:22px;line-height:1.2;font-variant-numeric:tabular-nums}
+.fw-inventory-summary span{font-size:12px;color:var(--muted)}
+.fw-inventory-toolbar{display:grid;gap:10px}
+.fw-inventory-search input{width:100%;min-height:44px;padding:10px 13px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--ink);font:inherit}
+.fw-stock-filters{display:flex;gap:7px;flex-wrap:wrap}
+.fw-stock-filters button{min-height:36px;padding:7px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--ink);font:600 12px inherit}
+.fw-stock-filters button.is-active{border-color:var(--green,#16734a);background:var(--soft-green,#eaf5ee);color:var(--green,#16734a)}
+.fw-managed-products{display:grid;gap:12px;min-width:0}
+.fw-managed-product{display:grid;gap:14px;padding:15px;border:1px solid var(--line);border-radius:14px;min-width:0;background:#fff}
+.fw-managed-product[hidden]{display:none!important}
+.fw-managed-product-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;min-width:0}
+.fw-managed-product-name{min-width:0}
+.fw-managed-product-name h3{margin:0 0 4px;font-size:15px;overflow-wrap:anywhere}
+.fw-managed-product-name p{margin:0;color:var(--muted);font-size:12px}
+.fw-stock-pill{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;padding:5px 9px;border-radius:999px;background:var(--surface-secondary,#f2f4f2);color:var(--muted);font-size:11px;font-weight:700}
+.fw-stock-healthy{background:#eaf5ee;color:#16613e}
+.fw-stock-low{background:#fff4db;color:#865900}
+.fw-stock-out{background:#fdecec;color:#a52b2b}
+.fw-stock-untracked{background:#f1f2f1;color:#626b65}
+.fw-managed-product-controls{display:grid;grid-template-columns:minmax(130px,.8fr) minmax(190px,1.3fr) minmax(170px,1fr);align-items:start;gap:14px;min-width:0}
+.fw-managed-availability{display:flex;align-items:center;gap:9px;min-height:42px;font-size:13px;font-weight:650}
+.fw-managed-availability input{width:19px;height:19px;accent-color:var(--green,#16734a)}
+.fw-managed-field{display:grid;gap:6px;min-width:0;font-size:12px;font-weight:650}
+.fw-managed-field>span:first-child,.fw-managed-untracked>span{color:var(--muted)}
+.fw-managed-field input{width:100%;min-width:0;min-height:42px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font:inherit;font-size:14px}
+.fw-managed-field input:focus,.fw-inventory-search input:focus{outline:2px solid var(--green,#16734a);outline-offset:1px}
+.fw-managed-field small,.fw-managed-untracked small{color:var(--muted);font-size:11px;line-height:1.45;font-weight:400}
+.fw-managed-price-input{display:flex;align-items:center;gap:8px}
+.fw-managed-price-input>b{font-size:14px}
+.fw-managed-stock-meta{grid-column:1/-1;display:flex;gap:14px;flex-wrap:wrap;padding-top:3px;color:var(--muted);font-size:11px}
+.fw-managed-stock-meta strong{color:var(--ink);font-variant-numeric:tabular-nums}
+.fw-managed-untracked{display:grid;align-content:start;gap:5px;min-width:0;padding:10px 12px;border:1px dashed var(--line);border-radius:10px}
+.fw-managed-untracked strong{font-size:13px}
+.fw-store-management-save{display:flex;align-items:center;justify-content:space-between;gap:14px;padding-top:14px;border-top:1px solid var(--line)}
+.fw-store-management-save p{margin:0;font-size:12px}
+.fw-store-management-save button{white-space:nowrap;min-height:44px}
+@media(max-width:760px){
+ .fw-store-management-panel{padding:14px;gap:14px}
+ .fw-store-management-heading{flex-direction:column}
+ .fw-store-management-actions{width:100%;justify-content:space-between}
+ .fw-managed-product-controls{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+ .fw-managed-availability{grid-column:1/-1}
+ .fw-managed-stock-meta{grid-column:1/-1}
+ .fw-store-management-save{align-items:stretch;flex-direction:column}
+ .fw-store-management-save button{width:100%}
+}
+@media(max-width:420px){
+ .fw-inventory-summary{gap:7px}
+ .fw-inventory-summary>div{padding:10px}
+ .fw-inventory-summary strong{font-size:19px}
+ .fw-managed-product{padding:12px}
+ .fw-managed-product-controls{grid-template-columns:minmax(0,1fr)}
+ .fw-managed-availability,.fw-managed-stock-meta{grid-column:auto}
+ .fw-managed-product-head{align-items:flex-start}
+ .fw-stock-filters{flex-wrap:nowrap;overflow-x:auto;padding-bottom:3px}
+ .fw-stock-filters button{flex-shrink:0}
+}
