@@ -56,6 +56,7 @@ async function navigateTo(page, screen) {
   }
   await expect(page.locator('#' + screen)).toHaveClass(/active/);
   await expect.poll(() => page.evaluate(() => location.hash)).toBe('#' + screen);
+  await page.waitForLoadState('networkidle');
 }
 
 async function browserHistory(page, direction, screen) {
@@ -116,6 +117,7 @@ test('Owner Refresh reloads secondary screens without losing unsaved store edits
     request.method() === 'GET' && new URL(request.url()).pathname === path
   );
   const refresh = async path => {
+    await page.waitForLoadState('networkidle');
     const request = waitForGet(path);
     await page.locator('#refreshBtn').click();
     await request;
