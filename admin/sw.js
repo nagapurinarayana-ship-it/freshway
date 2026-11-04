@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v61';
+const CACHE = 'fw-owner-v66';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -7,7 +7,7 @@ const SHELL = [
   '/admin/icons/icon-512-maskable-v2.png?v=20261026-brand-v2',
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/owner-pwa-install.css?v=20261019-install-prompt-v2',
-  '/admin/admin.css?v=20261103-accessibility-v1',
+  '/admin/admin.css?v=20261104-store-stock-workspace-v3',
   '/admin/admin.js?v=20261103-assigned-store-label-v1',
   '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2',
   '/admin/frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5',
@@ -16,7 +16,7 @@ const SHELL = [
   '/admin/frontend/phone-display.js?v=20261009-phone-display-v1',
   '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2',
   '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2',
-  '/admin/frontend/admin/store-management.js?v=20261102-store-catalogue-pricing-v1',
+  '/admin/frontend/admin/store-management.js?v=20261104-store-stock-workspace-v3',
   '/admin/frontend/admin/customer-messages.js?v=20261027-customer-messages-v1',
   '/admin/frontend/catalogue-media.js?v=20261008-ui-media-v1',
   '/admin/frontend/admin/catalogue.js?v=20261029-promo-alttext-v1',
@@ -35,7 +35,7 @@ const REQUIRED_SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
-  '/admin/admin.css?v=20261103-accessibility-v1',
+  '/admin/admin.css?v=20261104-store-stock-workspace-v3',
   '/admin/admin.js?v=20261103-assigned-store-label-v1',
   '/admin/frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5',
   '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
@@ -43,7 +43,7 @@ const REQUIRED_SHELL = [
   '/admin/frontend/admin/catalogue.js?v=20261029-promo-alttext-v1',
   '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2',
   '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2',
-  '/admin/frontend/admin/store-management.js?v=20261102-store-catalogue-pricing-v1',
+  '/admin/frontend/admin/store-management.js?v=20261104-store-stock-workspace-v3',
   '/admin/frontend/admin/customer-messages.js?v=20261027-customer-messages-v1',
   '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2',
   '/admin/owner-lifecycle.js?v=20261103-assigned-store-lifecycle-v1'

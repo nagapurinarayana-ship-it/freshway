@@ -2,6 +2,7 @@
 // issued invoice snapshots remain unchanged pending an explicit retention decision.
 (function () {
   const $ = selector => document.querySelector(selector);
+  const ownerAuthHint = () => { try { return sessionStorage.getItem('freshway-admin-auth') === '1' || localStorage.getItem('freshway-admin-auth') === '1'; } catch (_) { return false; } };
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const label = value => ({pending:'Pending',in_review:'In review',completed:'Completed',rejected:'Rejected'}[value] || value);
   const date = value => {
@@ -72,6 +73,7 @@
   }
 
   async function load() {
+    if (!ownerAuthHint()) return;
     const refresh = $('#accountDeletionRefresh');
     if (!$('#accountDeletionRequests')) return;
     if (refresh) refresh.disabled = true;
@@ -154,6 +156,7 @@
     }
   }, true);
   $('#accountDeletionRefresh')?.addEventListener('click', () => void load());
+  window.addEventListener('freshway:admin-authenticated', () => { if ($('#settings')?.classList.contains('active')) void load(); });
   $('#accountDeletionStatus')?.addEventListener('change', () => void load());
   document.addEventListener('click', event => {
     if (event.target.closest('[data-screen="settings"]')) {

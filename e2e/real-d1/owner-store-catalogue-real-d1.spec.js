@@ -68,7 +68,7 @@ test('Owner can edit, save and reload store-specific catalogue using real Worker
       await page.locator('#storeManagement [data-save-catalogue]').click();
       const saved = await saveResponse;
       expect(saved.status()).toBe(200);
-      await expect(page.locator('#storeManagement [data-store-status]')).toContainText('saved');
+      await expect(page.locator('#storeManagement [data-store-management-status]')).toContainText('saved');
 
       await page.locator('#storeManagement [data-close-catalogue]').click();
       await page.locator('#storeManagement [data-edit-catalogue="store-d1"]').click();
@@ -104,7 +104,8 @@ test('Owner can edit, save and reload store-specific catalogue using real Worker
       }
     }
 
-    expect(inventoryWrites).toEqual([]);
+    expect(inventoryWrites).toHaveLength(2, 'the unified Save button must persist inventory alongside catalogue settings');
+    expect(inventoryWrites.every(url => url.includes('/stores/store-d1/inventory'))).toBe(true, 'inventory writes must remain scoped to the selected store');
     expect(pageErrors).toEqual([]);
     await page.screenshot({ path: 'test-results/real-d1/owner-store-catalogue.png', fullPage: true });
   } finally {
