@@ -343,7 +343,7 @@ button,input,textarea,select{touch-action:manipulation}
 .fw-inventory-toolbar{display:grid;gap:10px}
 .fw-inventory-search input{width:100%;min-height:44px;padding:10px 13px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--ink);font:inherit}
 .fw-stock-filters{display:flex;gap:7px;flex-wrap:wrap}
-.fw-stock-filters button{min-height:36px;padding:7px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--ink);font:600 12px inherit}
+.fw-stock-filters button{min-height:36px;padding:7px 12px;border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--ink);font:inherit;font-size:12px;font-weight:600}
 .fw-stock-filters button.is-active{border-color:var(--green,#16734a);background:var(--soft-green,#eaf5ee);color:var(--green,#16734a)}
 .fw-managed-products{display:grid;gap:12px;min-width:0}
 .fw-managed-product{display:grid;gap:14px;padding:15px;border:1px solid var(--line);border-radius:14px;min-width:0;background:#fff}
