@@ -29,10 +29,17 @@ test('Owner manages prices and inventory together without mixing store data', as
   const context = await browser.newContext({ serviceWorkers: 'block' });
   const page = await context.newPage();
   const pageErrors = [];
+  const unauthorizedResponses = [];
   const inventoryWrites = [];
   let secondStoreId = '';
 
   page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('response', response => {
+    const url = new URL(response.url());
+    if (url.pathname.startsWith('/api/') && [401, 403].includes(response.status())) {
+      unauthorizedResponses.push({ status: response.status(), path: url.pathname });
+    }
+  });
   page.on('request', request => {
     const url = new URL(request.url());
     if (url.pathname.includes('/api/admin/delivery/stores/') &&
@@ -162,6 +169,7 @@ test('Owner manages prices and inventory together without mixing store data', as
     expect(inventoryWrites.length).toBeGreaterThanOrEqual(2);
     expect(inventoryWrites.every(url => url.includes('/stores/' + secondStoreId + '/inventory'))).toBe(true);
     expect(pageErrors).toEqual([]);
+    expect(unauthorizedResponses, 'the Owner store flow must not generate unauthorized API responses').toEqual([]);
     await page.screenshot({ path: 'test-results/real-d1/owner-store-management.png', fullPage: true });
 
     // Mobile: product controls must stack cleanly, the save action must span its footer, and the page must not scroll sideways.
