@@ -20,7 +20,7 @@ function clearOwnerScreenForFreshLoad(id){
 }
 window.freshWayClearOwnerScreenForFreshLoad=clearOwnerScreenForFreshLoad;
 const baseFreshNavigate=window.navigateAdminScreen;
-if(typeof baseFreshNavigate==='function'&&baseFreshNavigate.__fwFreshnessWrapped!=='1'){const freshNavigate=function(id){clearOwnerScreenForFreshLoad(id);return baseFreshNavigate(id)};freshNavigate.__fwFreshnessWrapped='1';window.navigateAdminScreen=freshNavigate}
+if(typeof baseFreshNavigate==='function'&&baseFreshNavigate.__fwFreshnessWrapped!=='1'){const freshNavigate=function(id,...args){const previousScreen=document.querySelector('.screen.active')?.id||'overview';const result=baseFreshNavigate(id,...args);const activeScreen=document.querySelector('.screen.active')?.id||'overview';if(activeScreen===id&&activeScreen!==previousScreen)clearOwnerScreenForFreshLoad(id);return result};freshNavigate.__fwFreshnessWrapped='1';window.navigateAdminScreen=freshNavigate}
 const baseOwnerRefresh=window.freshWayOwnerRefresh;
-if(typeof baseOwnerRefresh==='function'&&baseOwnerRefresh.__fwFreshnessWrapped!=='1'){const freshRefresh=async function(){const id=location.hash.slice(1)||'overview';clearOwnerScreenForFreshLoad(id);return baseOwnerRefresh()};freshRefresh.__fwFreshnessWrapped='1';window.freshWayOwnerRefresh=freshRefresh;const btn=document.getElementById('refreshBtn');if(btn)btn.onclick=freshRefresh}
+if(typeof baseOwnerRefresh==='function'&&baseOwnerRefresh.__fwFreshnessWrapped!=='1'){const freshRefresh=async function(...args){return baseOwnerRefresh(...args)};freshRefresh.__fwFreshnessWrapped='1';window.freshWayOwnerRefresh=freshRefresh;const btn=document.getElementById('refreshBtn');if(btn)btn.onclick=freshRefresh}
 })();
