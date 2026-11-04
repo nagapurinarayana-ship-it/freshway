@@ -70,8 +70,9 @@ function renderStores(){
  const storesView='<div class="fw-admin-section-head"><div><span class="eyebrow">DELIVERY SETUP</span><h2>Stores</h2><p>Manage locations, 5 km delivery areas and stock by location.</p></div><button class="primary" type="button" data-add-store>+ Add store</button></div><p data-store-status class="muted fw-admin-status" role="status" aria-live="polite">'+stores.length+' store'+(stores.length===1?'':'s')+' loaded.</p>'+form+'<div class="fw-store-grid">'+cards+'</div>';
  storeRoot.innerHTML=selectedStoreId?management:storesView;
 }
-async function loadStores(){if(!storeRoot||storeBusy)return;storeRequestVersion++;selectedStoreId=null;editing=null;inventory=[];storeCatalogue=[];storeSaving=false;storeDetailLoading=false;storeLoadError='';storeStockFilter='all';storeBusy=true;storeRoot.innerHTML='<p class="muted">Loading stores…</p>';try{const d=await api('/admin/delivery/stores');stores=Array.isArray(d.stores)?d.stores:[];renderStores()}catch(e){storeRoot.innerHTML='<section class="panel"><h2>Could not load stores</h2><p class="muted">'+esc(e.message)+'</p><button class="primary" type="button" data-retry-stores>Try again</button></section>'}finally{storeBusy=false}}
+async function loadStores(){if(!storeRoot||storeBusy||storeSaving)return;storeRequestVersion++;selectedStoreId=null;editing=null;inventory=[];storeCatalogue=[];storeSaving=false;storeDetailLoading=false;storeLoadError='';storeStockFilter='all';storeBusy=true;storeRoot.innerHTML='<p class="muted">Loading stores…</p>';try{const d=await api('/admin/delivery/stores');stores=Array.isArray(d.stores)?d.stores:[];renderStores()}catch(e){storeRoot.innerHTML='<section class="panel"><h2>Could not load stores</h2><p class="muted">'+esc(e.message)+'</p><button class="primary" type="button" data-retry-stores>Try again</button></section>'}finally{storeBusy=false}}
 async function openStoreManagement(id){
+  if(storeSaving)return;
  const storeId=String(id||'');
  if(!storeId||!stores.some(store=>String(store.id)===storeId))return;
  const version=++storeRequestVersion;
@@ -96,6 +97,7 @@ async function openStoreManagement(id){
  }
 }
 function closeStoreManagement(){
+  if(storeSaving)return;
  storeRequestVersion++;
  selectedStoreId=null;inventory=[];storeCatalogue=[];storeSaving=false;storeDetailLoading=false;storeLoadError='';storeStockFilter='all';
  renderStores();
@@ -112,6 +114,7 @@ function updateStoreSummary(){
 function setStoreSaving(saving,button){
  if(!storeRoot)return;
  storeRoot.querySelectorAll('[data-catalogue-available],[data-catalogue-price],[data-inventory-product]').forEach(control=>{control.disabled=saving;});
+  storeRoot.querySelectorAll('[data-close-store-management]').forEach(control=>{control.disabled=saving;});
  const saveButton=button||storeRoot.querySelector('[data-save-store-management]');
  if(saveButton){saveButton.disabled=saving;saveButton.textContent=saving?'Saving…':'Save prices & inventory';}
 }
