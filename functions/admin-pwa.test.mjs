@@ -32,7 +32,7 @@ assert.ok(storeManagementSource.includes('general messages sent there are not sa
 assert.ok(deliverySchedulingSource.includes("path === '/api/admin/delivery/stores' && request.method === 'GET'"), 'Delivery API must expose stores to Owner UI');
 assert.ok(deliverySchedulingSource.includes('if (inventoryMatch && request.method === \'GET\')'), 'Delivery API must expose per-store stock to Owner UI');
 
-assert.ok(sourceHtml.includes('account-deletions.js?v=20261024-anonymized-history-v1'), 'Owner app must reference the updated account-deletion click handler');
+assert.ok(sourceHtml.includes('account-deletions.js?v=20261105-owner-refresh-v1'), 'Owner app must reference the updated account-deletion click handler');
 const deletionSource = readRepoFile('frontend/admin/account-deletions.js').toString('utf8');
 assert.ok(deletionSource.includes('individual request record, and keeps only an aggregate completion count and the latest completion date'), 'Deletion confirmation must explain that the per-request record is removed');
 assert.ok(deletionSource.includes('Confirmed retention review for applicable invoice/transaction records; operational customer data redacted.'), 'The completion acknowledgement is validated but not persisted as a customer-linked note');
