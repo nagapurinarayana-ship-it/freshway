@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v62';
+const CACHE = 'fw-owner-v63';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -16,7 +16,7 @@ const SHELL = [
   '/admin/frontend/phone-display.js?v=20261009-phone-display-v1',
   '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2',
   '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2',
-  '/admin/frontend/admin/store-management.js?v=20261104-store-stock-workspace-v1',
+  '/admin/frontend/admin/store-management.js?v=20261104-store-stock-workspace-v2',
   '/admin/frontend/admin/customer-messages.js?v=20261027-customer-messages-v1',
   '/admin/frontend/catalogue-media.js?v=20261008-ui-media-v1',
   '/admin/frontend/admin/catalogue.js?v=20261029-promo-alttext-v1',
@@ -43,7 +43,7 @@ const REQUIRED_SHELL = [
   '/admin/frontend/admin/catalogue.js?v=20261029-promo-alttext-v1',
   '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2',
   '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2',
-  '/admin/frontend/admin/store-management.js?v=20261104-store-stock-workspace-v1',
+  '/admin/frontend/admin/store-management.js?v=20261104-store-stock-workspace-v2',
   '/admin/frontend/admin/customer-messages.js?v=20261027-customer-messages-v1',
   '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2',
   '/admin/owner-lifecycle.js?v=20261103-assigned-store-lifecycle-v1'

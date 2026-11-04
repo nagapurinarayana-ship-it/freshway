@@ -2,7 +2,7 @@
 const storeRoot=document.querySelector('#storeManagement'),requestRoot=document.querySelector('#customerRequestsManagement');
 const esc=v=>String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const api=async(path,opt={})=>{const r=await fetch('/api'+path,{...opt,credentials:'include',cache:'no-store',headers:{'Content-Type':'application/json',...(opt.headers||{})}});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||d.message||'Request failed.');return d};
-let stores=[],editing=null,selectedStoreId=null,inventory=[],storeCatalogue=[],requests=[],storeBusy=false,requestBusy=false,storeRequestVersion=0,storeSaving=false,storeStockFilter='all';
+let stores=[],editing=null,selectedStoreId=null,inventory=[],storeCatalogue=[],requests=[],storeBusy=false,requestBusy=false,storeRequestVersion=0,storeSaving=false,storeDetailLoading=false,storeStockFilter='all';
 const money=n=>'₹'+Math.max(0,Number(n)||0).toLocaleString('en-IN',{maximumFractionDigits:0});
 const note=(root,msg,sel)=>{const el=root&&root.querySelector(sel);if(el)el.textContent=msg};
 const storeForm=s=>({id:s&&s.id||'',name:s&&s.name||'',address:s&&s.address||'',latitude:s&&s.latitude!=null?s.latitude:'',longitude:s&&s.longitude!=null?s.longitude:'',radius:s&&s.service_radius_km!=null?s.service_radius_km:5,active:s?Number(s.is_active)!==0:false});
@@ -56,25 +56,26 @@ function renderStores(){
  }).join('');
  const inventoryOnlyCount=inventory.filter(p=>(Number(p.stock_managed)===1||p.stock_managed===true)&&!catalogueProductIds.has(String(p.id))).length;
  const productRows=catalogueRows+inventoryOnlyRows; let management='';
+ const productContent=storeDetailLoading?'<p class="muted" role="status">Loading products and stock…</p>':(productRows||'<p class="muted">No products are available to manage for this store.</p>');
  if(selectedStoreId){
   const selectedStore=stores.find(item=>String(item.id)===String(selectedStoreId))||{};
   management='<section class="panel fw-store-management-panel"><div class="fw-store-management-heading"><div><span class="eyebrow">STORE PRODUCTS &amp; STOCK</span><h2>'+esc(selectedStore.name||'Store')+'</h2><p>Prices, availability and physical inventory are managed independently for this store.</p></div><div class="fw-store-management-actions"><span class="fw-store-state '+(Number(selectedStore.is_active)===1?'is-active':'is-inactive')+'">'+(Number(selectedStore.is_active)===1?'Active':'Inactive')+'</span><button class="ghost" type="button" data-close-store-management data-close-catalogue data-close-inventory>Back to stores</button></div></div>'+
    '<p data-store-management-status class="muted" role="status" aria-live="polite">Loading this store&#39;s catalogue and inventory…</p>'+
-   '<div class="fw-inventory-summary"><div><strong data-store-summary-products>'+(storeCatalogue.length+inventoryOnlyCount)+'</strong><span>Products</span></div><div><strong data-store-summary-low>'+lowStockCount+'</strong><span>Low stock</span></div><div><strong data-store-summary-out>'+outOfStockCount+'</strong><span>Out of stock</span></div></div>'+
+   '<div class="fw-inventory-summary"><div><strong data-store-summary-products>'+(storeCatalogue.length+inventoryOnlyCount)+'</strong><span>Products</span></div><div><strong data-store-summary-low>'+(storeDetailLoading?'—':lowStockCount)+'</strong><span>Low stock</span></div><div><strong data-store-summary-out>'+(storeDetailLoading?'—':outOfStockCount)+'</strong><span>Out of stock</span></div></div>'+
    '<div class="fw-inventory-toolbar"><label class="fw-inventory-search"><span class="sr-only">Search products</span><input type="search" data-store-product-search placeholder="Search product or category" autocomplete="off"></label><div class="fw-stock-filters"><button type="button" class="is-active" aria-pressed="true" data-stock-filter="all">All</button><button type="button" aria-pressed="false" data-stock-filter="low">Low stock</button><button type="button" aria-pressed="false" data-stock-filter="out">Out of stock</button><button type="button" aria-pressed="false" data-stock-filter="untracked">Not tracked</button></div></div>'+
-   '<div class="fw-managed-products">'+(productRows||'<p class="muted">No products are available to manage for this store.</p>')+'</div>'+(productRows?'<p class="muted" data-store-filter-empty hidden>No products match these filters.</p>':'')+
+   '<div class="fw-managed-products">'+productContent+'</div>'+(productRows?'<p class="muted" data-store-filter-empty hidden>No products match these filters.</p>':'')+
    '<div class="fw-store-management-save"><p class="muted">Saving updates this store only. Reserved quantities are protected from being reduced.</p><button class="primary" type="button" data-save-store-management data-save-catalogue data-save-inventory>Save prices &amp; inventory</button></div></section>';
  }
 
  const storesView='<div class="fw-admin-section-head"><div><span class="eyebrow">DELIVERY SETUP</span><h2>Stores</h2><p>Manage locations, 5 km delivery areas and stock by location.</p></div><button class="primary" type="button" data-add-store>+ Add store</button></div><p data-store-status class="muted fw-admin-status" role="status" aria-live="polite">'+stores.length+' store'+(stores.length===1?'':'s')+' loaded.</p>'+form+'<div class="fw-store-grid">'+cards+'</div>';
  storeRoot.innerHTML=selectedStoreId?management:storesView;
 }
-async function loadStores(){if(!storeRoot||storeBusy)return;storeRequestVersion++;selectedStoreId=null;editing=null;inventory=[];storeCatalogue=[];storeSaving=false;storeStockFilter='all';storeBusy=true;storeRoot.innerHTML='<p class="muted">Loading stores…</p>';try{const d=await api('/admin/delivery/stores');stores=Array.isArray(d.stores)?d.stores:[];renderStores()}catch(e){storeRoot.innerHTML='<section class="panel"><h2>Could not load stores</h2><p class="muted">'+esc(e.message)+'</p><button class="primary" type="button" data-retry-stores>Try again</button></section>'}finally{storeBusy=false}}
+async function loadStores(){if(!storeRoot||storeBusy)return;storeRequestVersion++;selectedStoreId=null;editing=null;inventory=[];storeCatalogue=[];storeSaving=false;storeDetailLoading=false;storeStockFilter='all';storeBusy=true;storeRoot.innerHTML='<p class="muted">Loading stores…</p>';try{const d=await api('/admin/delivery/stores');stores=Array.isArray(d.stores)?d.stores:[];renderStores()}catch(e){storeRoot.innerHTML='<section class="panel"><h2>Could not load stores</h2><p class="muted">'+esc(e.message)+'</p><button class="primary" type="button" data-retry-stores>Try again</button></section>'}finally{storeBusy=false}}
 async function openStoreManagement(id){
  const storeId=String(id||'');
  if(!storeId||!stores.some(store=>String(store.id)===storeId))return;
  const version=++storeRequestVersion;
- selectedStoreId=storeId;editing=null;inventory=[];storeCatalogue=[];storeSaving=false;storeStockFilter='all';
+ selectedStoreId=storeId;editing=null;inventory=[];storeCatalogue=[];storeSaving=false;storeDetailLoading=true;storeStockFilter='all';
  renderStores();
  const storeStatus=storeRoot.querySelector('[data-store-management-status]');
  if(storeStatus)storeStatus.textContent="Loading this store's prices and inventory…";
@@ -84,17 +85,19 @@ async function openStoreManagement(id){
   if(version!==storeRequestVersion||selectedStoreId!==storeId)return;
   storeCatalogue=Array.isArray(results[0].items)?results[0].items:[];
   inventory=Array.isArray(results[1].inventory)?results[1].inventory:[];
+  storeDetailLoading=false;
   renderStores();
   note(storeRoot,'Store prices and inventory loaded.','[data-store-management-status]');
  }catch(error){
   if(version!==storeRequestVersion||selectedStoreId!==storeId)return;
+  storeDetailLoading=false;
   renderStores();
   note(storeRoot,error.message,'[data-store-management-status]');
  }
 }
 function closeStoreManagement(){
  storeRequestVersion++;
- selectedStoreId=null;inventory=[];storeCatalogue=[];storeSaving=false;storeStockFilter='all';
+ selectedStoreId=null;inventory=[];storeCatalogue=[];storeSaving=false;storeDetailLoading=false;storeStockFilter='all';
  renderStores();
 }
 function updateStoreSummary(){
@@ -191,10 +194,10 @@ async function saveStoreManagement(button){
  }
 }
 storeRoot&&storeRoot.addEventListener('click',async e=>{
- if(e.target.closest('[data-add-store]')){storeRequestVersion++;selectedStoreId=null;inventory=[];storeCatalogue=[];storeSaving=false;editing=storeForm(null);renderStores();storeRoot.querySelector('[name="name"]')?.focus();return}
+ if(e.target.closest('[data-add-store]')){storeRequestVersion++;selectedStoreId=null;inventory=[];storeCatalogue=[];storeSaving=false;storeDetailLoading=false;editing=storeForm(null);renderStores();storeRoot.querySelector('[name="name"]')?.focus();return}
  if(e.target.closest('[data-retry-stores]')){await loadStores();return}
  if(e.target.closest('[data-store-cancel]')){editing=null;renderStores();return}
- const ed=e.target.closest('[data-edit-store]');if(ed){const s=stores.find(x=>x.id===ed.dataset.editStore);if(s){storeRequestVersion++;selectedStoreId=null;inventory=[];storeCatalogue=[];storeSaving=false;editing=storeForm(s);renderStores();storeRoot.querySelector('[name="name"]')?.focus()}return}
+ const ed=e.target.closest('[data-edit-store]');if(ed){const s=stores.find(x=>x.id===ed.dataset.editStore);if(s){storeRequestVersion++;selectedStoreId=null;inventory=[];storeCatalogue=[];storeSaving=false;storeDetailLoading=false;editing=storeForm(s);renderStores();storeRoot.querySelector('[name="name"]')?.focus()}return}
  const manage=e.target.closest('[data-manage-store],[data-edit-inventory],[data-edit-catalogue]');if(manage){await openStoreManagement(manage.dataset.manageStore||manage.dataset.editInventory||manage.dataset.editCatalogue);return}
  if(e.target.closest('[data-close-store-management]')){closeStoreManagement();return}
  const filter=e.target.closest('[data-stock-filter]');if(filter){storeStockFilter=filter.dataset.stockFilter||'all';applyStoreFilters();return}
@@ -218,7 +221,7 @@ storeRoot&&storeRoot.addEventListener('input',e=>{
 storeRoot&&storeRoot.addEventListener('change',e=>{
  if(e.target.matches('[data-inventory-product]'))applyStoreFilters();
 });
-storeRoot&&storeRoot.addEventListener('submit',async e=>{if(e.target.id!=='fwStoreForm')return;e.preventDefault();const creating=!editing.id;const f=new FormData(e.target),payload={name:String(f.get('name')||'').trim(),address:String(f.get('address')||'').trim(),latitude:Number(f.get('latitude')),longitude:Number(f.get('longitude')),serviceRadiusKm:Number(f.get('radius'))};if(editing.id)payload.isActive=f.get('active')==='1';if(!payload.name||!Number.isFinite(payload.latitude)||Math.abs(payload.latitude)>90||!Number.isFinite(payload.longitude)||Math.abs(payload.longitude)>180||!Number.isFinite(payload.serviceRadiusKm)||payload.serviceRadiusKm<.1||payload.serviceRadiusKm>100){note(storeRoot,'Enter a name, valid coordinates and radius between 0.1 and 100 km.','[data-store-status]');return}if(editing.id&&editing.active&&!payload.isActive){const current=stores.find(s=>s.id===editing.id),pending=Number(current?.pending_order_count||0);if(pending&&!window.confirm('This store has '+pending+' existing order'+(pending===1?'':'s')+' still assigned. Deactivation will not cancel or move them. Continue?'))return}const btn=e.target.querySelector('[type="submit"]');btn.disabled=true;try{if(editing.id)await api('/admin/delivery/stores/'+encodeURIComponent(editing.id),{method:'PATCH',body:JSON.stringify(payload)});else await api('/admin/delivery/stores',{method:'POST',body:JSON.stringify(payload)});editing=null;selectedStoreId=null;inventory=[];storeCatalogue=[];storeRequestVersion++;storeSaving=false;await loadStores();note(storeRoot,creating?'Store created inactive. Add inventory and activate it when ready.':'Store saved. Existing orders and reservations were left unchanged.','[data-store-status]')}catch(err){note(storeRoot,err.message,'[data-store-status]');btn.disabled=false}});
+storeRoot&&storeRoot.addEventListener('submit',async e=>{if(e.target.id!=='fwStoreForm')return;e.preventDefault();const creating=!editing.id;const f=new FormData(e.target),payload={name:String(f.get('name')||'').trim(),address:String(f.get('address')||'').trim(),latitude:Number(f.get('latitude')),longitude:Number(f.get('longitude')),serviceRadiusKm:Number(f.get('radius'))};if(editing.id)payload.isActive=f.get('active')==='1';if(!payload.name||!Number.isFinite(payload.latitude)||Math.abs(payload.latitude)>90||!Number.isFinite(payload.longitude)||Math.abs(payload.longitude)>180||!Number.isFinite(payload.serviceRadiusKm)||payload.serviceRadiusKm<.1||payload.serviceRadiusKm>100){note(storeRoot,'Enter a name, valid coordinates and radius between 0.1 and 100 km.','[data-store-status]');return}if(editing.id&&editing.active&&!payload.isActive){const current=stores.find(s=>s.id===editing.id),pending=Number(current?.pending_order_count||0);if(pending&&!window.confirm('This store has '+pending+' existing order'+(pending===1?'':'s')+' still assigned. Deactivation will not cancel or move them. Continue?'))return}const btn=e.target.querySelector('[type="submit"]');btn.disabled=true;try{if(editing.id)await api('/admin/delivery/stores/'+encodeURIComponent(editing.id),{method:'PATCH',body:JSON.stringify(payload)});else await api('/admin/delivery/stores',{method:'POST',body:JSON.stringify(payload)});editing=null;selectedStoreId=null;inventory=[];storeCatalogue=[];storeRequestVersion++;storeSaving=false;storeDetailLoading=false;await loadStores();note(storeRoot,creating?'Store created inactive. Add inventory and activate it when ready.':'Store saved. Existing orders and reservations were left unchanged.','[data-store-status]')}catch(err){note(storeRoot,err.message,'[data-store-status]');btn.disabled=false}});
 function typeName(t){return ({cancellation:'Cancellation',reschedule:'Delivery date change',return:'Return',issue:'Order issue'})[t]||'Customer request'}
 function renderRequests(){if(!requestRoot)return;const cards=requests.map(r=>'<article class="panel fw-request-card"><div class="section-head"><div><span class="eyebrow">'+esc(typeName(r.request_type))+'</span><h3>Order '+esc(r.order_id)+'</h3><p>'+esc(r.customer_name||'Customer')+(r.customer_phone?' · '+esc(r.customer_phone):'')+'</p></div><span class="fw-store-state '+(r.status==='approved'?'is-active':'is-pending')+'">'+(r.status==='approved'?'Reviewed — resolve':'Pending')+'</span></div><p>'+esc(r.reason||'No additional details provided.')+'</p>'+(r.requested_delivery_date?'<p class="muted">Requested date: <strong>'+esc(r.requested_delivery_date)+'</strong></p>':'')+'<div class="fw-store-actions"><button class="ghost" type="button" data-open-request-order="'+esc(r.order_id)+'">View order</button>'+(r.customer_phone?'<a class="ghost" href="tel:'+esc(r.customer_phone.replace(/[^\d+]/g,''))+'">Call customer</a>':'')+(r.request_type==='issue'&&r.status==='approved'?'<button class="primary" type="button" data-resolve-request="'+esc(r.id)+'" data-decision="complete">Mark resolved</button>':'<button class="primary" type="button" data-resolve-request="'+esc(r.id)+'" data-decision="approve">'+(r.request_type==='issue'?'Mark reviewed':'Approve')+'</button><button class="ghost" type="button" data-resolve-request="'+esc(r.id)+'" data-decision="reject">'+(r.request_type==='issue'?'Close request':'Reject')+'</button>')+'</div></article>').join('');
  requestRoot.innerHTML='<div class="fw-admin-section-head"><div><span class="eyebrow">CUSTOMER CARE</span><h2>Customer requests</h2><p>Order-related help requests submitted through FreshWay.</p></div><button class="ghost" type="button" data-refresh-requests>Refresh</button></div><p data-request-status class="muted fw-admin-status" role="status" aria-live="polite">'+requests.length+' pending request'+(requests.length===1?'':'s')+'.</p><div class="fw-request-list">'+(cards||'<section class="panel"><h3>No pending requests</h3><p class="muted">New order-related requests will appear here.</p></section>')+'</div><p class="fw-contact-note"><strong>Note:</strong> This list contains order-related requests only. The customer Contact FreshWay page displays contact details; general messages sent there are not saved to an inbox yet.</p>'}
