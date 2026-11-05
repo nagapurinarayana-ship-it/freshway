@@ -93,7 +93,7 @@ function drawRupee(page,x,baseline,size,color){
 }
 async function createReceiptPdf(invoice){
   const doc=await PDFDocument.create();
-  doc.setTitle('FreshWay '+invoice.documentType.replaceAll('_',' ')+' '+invoice.invoiceNumber);
+  doc.setTitle('FreshWay commercial order record '+invoice.invoiceNumber);
   doc.setAuthor(safe(invoice.seller.legalName||invoice.seller.storeName||'FreshWay'));
   doc.setSubject('Order '+invoice.orderId);
   const regular=await doc.embedFont(StandardFonts.Helvetica),bold=await doc.embedFont(StandardFonts.HelveticaBold);
@@ -133,12 +133,12 @@ async function createReceiptPdf(invoice){
   const totalItems=(invoice.items||[]).reduce((sum,item)=>sum+Math.max(0,Number(item.qty)||0),0);
   const sellerName=invoice.seller.legalName||invoice.seller.storeName||'FreshWay';
   const sellerPhone=formatSellerPhone(invoice.seller.phone);
-  const title='COMMERCIAL INVOICE';
+  const title='COMMERCIAL RECEIPT / ORDER RECORD';
   let page,y,pageNo=0;
 
   const footer=()=>{
     line(page,MARGIN,43,PAGE_W-MARGIN,43,LINE,0.7);
-    drawText(page,'FreshWay | Commercial invoice - order record',MARGIN,29,7,regular,MUTED);
+    drawText(page,'FreshWay | Non-GST commercial order record',MARGIN,29,7,regular,MUTED);
     drawRight(page,'Page '+pageNo,PAGE_W-MARGIN,29,7,regular,MUTED);
   };
   const newPage=(continued=false)=>{
@@ -273,7 +273,7 @@ async function createReceiptPdf(invoice){
   drawText(page,paymentStatusLabel==='Not Collected'?'Collect on delivery':'No balance due',paymentCol2,y-42,7.4,regular,MUTED);
   y-=paymentBoxHeight+13;
 
-  const noteText='Commercial invoice / order record. '+(invoice.seller.footer||'Thank you for shopping with FreshWay.');
+  const noteText='NON-GST COMMERCIAL ORDER RECORD - NOT A GST TAX INVOICE OR BILL OF SUPPLY. '+(invoice.seller.footer||'Thank you for shopping with FreshWay.');
   const noteLines=wrap(noteText,regular,7.6,contentWidth-22).slice(0,2);
   const noteHeight=23+noteLines.length*10;
   rect(page,MARGIN,y-noteHeight,contentWidth,noteHeight,PALE);
