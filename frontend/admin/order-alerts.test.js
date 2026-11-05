@@ -32,6 +32,11 @@ assert.match(source, /\/admin\/order-alerts\?limit=3/);
 assert.match(source, /\/admin\/order-alerts\?limit=20/);
 assert.match(source, /const cursor = historyBefore \? `&before=\$\{encodeURIComponent\(historyBefore\)\}` : ''/);
 assert.match(source, /historyHasMore = Boolean\(data\.hasMore && alerts\.length\)/);
+assert.match(source, /function syncHistoryControls\(\)/, 'empty history actions must be synchronised after loading');
+assert.match(source, /clear\.disabled = historyLoading \|\| !hasRecords/, 'Delete all must be disabled when there are no stored records');
+assert.match(source, /more\.classList\.toggle\('hidden', !visible\)/, 'Load more must use the shared hidden utility because .load-more sets display:block');
+assert.match(source, /syncHistoryControls\(\);\s*}\s*finally\s*\{\s*list\.removeAttribute\('aria-busy'\)/, 'history controls must be resynchronised when loading completes');
+
 assert.match(source, /\$\('#ownerAlertHistoryMore'\)\?\.addEventListener\('click', \(\) => void loadOwnerAlertHistory\(\)\)/);
 assert.match(source, /Disable alerts on this device/);
 assert.match(worker, /addEventListener\('push'/);
