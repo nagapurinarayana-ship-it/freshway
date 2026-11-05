@@ -254,6 +254,22 @@
     }
   }
 
+  function syncHistoryControls() {
+    const list = $('#ownerAlertHistoryList');
+    const more = $('#ownerAlertHistoryMore');
+    const clear = $('#clearOwnerAlertHistory');
+    const hasRecords = Boolean(list?.querySelector('.fw-order-alert'));
+    if (clear) clear.disabled = historyLoading || !hasRecords;
+    if (more) {
+      const visible = historyHasMore && hasRecords;
+      more.hidden = !visible;
+      // The global .load-more rule sets display:block, which can override
+      // the browser's default [hidden] styling. Keep the utility .hidden class in sync.
+      more.classList.toggle('hidden', !visible);
+      more.disabled = historyLoading;
+    }
+  }
+
   async function loadOwnerAlertHistory({ reset = false } = {}) {
     const list = $('#ownerAlertHistoryList');
     const more = $('#ownerAlertHistoryMore');
@@ -264,9 +280,9 @@
       historyHasMore = true;
       list.innerHTML = '';
     }
-    if (!historyHasMore) return;
+    if (!historyHasMore) { syncHistoryControls(); return; }
     historyLoading = true;
-    if (more) more.disabled = true;
+    syncHistoryControls();
     list.setAttribute('aria-busy', 'true');
     if (status) status.textContent = reset ? 'Loading notification history…' : 'Loading more notifications…';
     try {
@@ -288,7 +304,7 @@
     } finally {
       list.removeAttribute('aria-busy');
       historyLoading = false;
-      if (more) { more.hidden = !historyHasMore; more.disabled = false; }
+      syncHistoryControls();
     }
   }
 
@@ -323,7 +339,7 @@
     } catch (error) {
       if (status) status.textContent = error.message || 'Could not delete Owner notification history.';
     } finally {
-      if (button) button.disabled = false;
+      syncHistoryControls();
     }
   }
 
