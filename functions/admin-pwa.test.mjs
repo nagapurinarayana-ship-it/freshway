@@ -58,12 +58,12 @@ assert.ok(ownerLiveSmokeSource.includes("const OLDEST_OWNER_CACHE = 'fw-owner-v6
 assert.ok(ownerLiveSmokeSource.includes("'fw-owner-v62', 'fw-owner-v61', 'fw-owner-v60', 'fw-owner-v58', 'fw-owner-v57', 'fw-owner-v56']"), 'production Owner smoke must retain support for the older pre-v57 cache during rollout');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT = '/admin/frontend/admin/invoice-settings.js?v=20261105-auto-non-gst-disclosure-v1';"), 'production Owner smoke must demand the current optional invoice settings script');
 
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261105-owner-push-diagnostics-v2';"), 'production Owner smoke must demand the current push setup version');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261105-history-empty-actions-v1';"), 'production Owner smoke must demand the current push setup version');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2';"), 'production Owner smoke must demand the current business profile and shop pin editor');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_DELIVERY_SCRIPT = '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2';"), 'production Owner smoke must demand the delivery scheduling and exception management module');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT = '/admin/frontend/admin/store-management.js?v=20261104-store-stock-workspace-v3';"), 'production Owner smoke must demand Store Manager and Customer Requests');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261103-assigned-store-lifecycle-v1';"), 'production Owner smoke must demand the cache-busted order lifecycle map handler');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v69';"), 'production Owner smoke must demand the current service-worker cache');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v70';"), 'production Owner smoke must demand the current service-worker cache');
 assert.ok(ownerLiveSmokeSource.includes('assert.match(deployedSource, /function readProfileResponse\\(data\\)/'), 'production Owner smoke must verify deployed Store Profile response guard code, not only a matching URL');
 assert.ok(ownerLiveSmokeSource.includes('incomplete Store Profile'), 'production Owner smoke must verify malformed profile payload protection is deployed');
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerAppShell/);
@@ -283,7 +283,7 @@ for (const asset of requiredOwnerAssets) {
     assert.ok(ownerWorkerSource.includes("'" + path + "'") || ownerWorkerSource.includes("'" + path + "?") || path === '/admin/', 'Owner service worker must cache in-scope asset ' + path);
   }
   assert.match(ownerWorkerSource, /const CACHE = 'fw-owner-v\d+'/);
-  assert.ok(ownerWorkerSource.includes("const CACHE = 'fw-owner-v69';"), 'Owner service worker cache must advance when shell assets change');
+  assert.ok(ownerWorkerSource.includes("const CACHE = 'fw-owner-v70';"), 'Owner service worker cache must advance when shell assets change');
   assert.ok(ownerWorkerSource.includes('/admin/frontend/admin/invoice-settings.js?v=20261105-auto-non-gst-disclosure-v1'), 'Owner service worker must cache the same invoice settings release as Owner HTML');
   assert.match(ownerWorkerSource, /key\.startsWith\('fw-owner-'\)/);
   assert.doesNotMatch(ownerWorkerSource, /caches\.delete\(key\).*freshway-/);
