@@ -44,7 +44,9 @@ async function signIn(page) {
 }
 
 async function navigateToStores(page) {
-  const storesButton = page.locator('.side nav button[data-screen="stores"]');
+  const more = page.locator('.side nav details.owner-nav-more');
+  if (!(await more.evaluate(element => element.open))) await more.locator('summary').click();
+  const storesButton = more.locator('button[data-screen="stores"]');
   await expect(storesButton).toBeVisible();
   await storesButton.click();
   await expect(page.locator('#stores')).toHaveClass(/active/);
