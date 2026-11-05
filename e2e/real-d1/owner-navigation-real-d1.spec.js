@@ -279,12 +279,12 @@ test('Owner browser Back, Forward and refresh preserve the correct screen and re
     await expect(page.locator('#appView')).toBeVisible();
     await expect(page.locator('#overview')).toHaveClass(/active/);
 
-    const sequence = ['orders', 'delivery', 'stores', 'catalogue', 'offers', 'settings'];
+    const sequence = ['orders', 'delivery', 'stores', 'requests', 'messages', 'cash', 'customers', 'catalogue', 'notifications', 'reports', 'offers', 'settings'];
     for (const screen of sequence) await navigateTo(screen);
 
     // Every Back action must restore the screen represented by the popped history
     // entry, without adding another entry or leaving the URL and active screen apart.
-    for (const screen of ['offers', 'catalogue', 'stores', 'delivery', 'orders', 'overview']) {
+    for (const screen of ['offers', 'reports', 'notifications', 'catalogue', 'customers', 'cash', 'messages', 'requests', 'stores', 'delivery', 'orders', 'overview']) {
       await page.evaluate(() => history.back());
       await expectHistoryScreen(screen);
     }
@@ -302,26 +302,92 @@ test('Owner browser Back, Forward and refresh preserve the correct screen and re
     await expectHistoryScreen('settings');
     await expect(page.locator('#storeProfileForm')).toBeVisible();
 
-    // The global refresh action must also reload secondary management screens,
-    // not silently do nothing outside the original Overview/Orders/Delivery set.
-    const refreshChecks = [
-      { screen: 'stores', endpoint: '/api/admin/delivery/stores' },
-      { screen: 'requests', endpoint: '/api/admin/delivery/requests' },
-      { screen: 'messages', endpoint: '/api/admin/customer-messages' },
-      { screen: 'offers', endpoint: '/api/admin/delivery-offers' },
-      { screen: 'settings', endpoint: '/api/admin/store-profile' }
+    // First verify Stores refresh while editing a store's products and stock.
+    // Refresh must preserve the selected store, but must never silently discard edits.
+    await navigateTo('stores');
+    const storeManageButton = page.locator('#storeManagement [data-manage-store="store-d1"]');
+    await expect(storeManageButton).toBeVisible();
+    await storeManageButton.click();
+    await expect(page.locator('#storeManagement .fw-store-management-heading h2')).toHaveText('D1 Store');
+    const groundnutStock = page.locator('#storeManagement [data-inventory-product="oil-d1"]');
+    await expect(groundnutStock).toHaveValue('10');
+    await groundnutStock.fill('7');
+
+    let storeRefreshPrompt = '';
+    page.once('dialog', async dialog => {
+      storeRefreshPrompt = dialog.message();
+      await dialog.dismiss();
+    });
+    await page.locator('#refreshBtn').click();
+    expect(storeRefreshPrompt).toContain('unsaved Store changes');
+    await expect(page.locator('#storeManagement .fw-store-management-heading h2')).toHaveText('D1 Store');
+    await expect(groundnutStock).toHaveValue('7');
+
+    const storeListReload = page.waitForResponse(response =>
+      new URL(response.url()).pathname === '/api/admin/delivery/stores' &&
+      response.request().method() === 'GET'
+    );
+    const storeCatalogueReload = page.waitForResponse(response =>
+      new URL(response.url()).pathname === '/api/admin/delivery/stores/store-d1/catalogue' &&
+      response.request().method() === 'GET'
+    );
+    const storeInventoryReload = page.waitForResponse(response =>
+      new URL(response.url()).pathname === '/api/admin/delivery/stores/store-d1/inventory' &&
+      response.request().method() === 'GET'
+    );
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#refreshBtn').click();
+    const storeReloadResponses = await Promise.all([storeListReload, storeCatalogueReload, storeInventoryReload]);
+    expect(storeReloadResponses.map(response => response.status())).toEqual([200, 200, 200]);
+    await expect(page.locator('#storeManagement .fw-store-management-heading h2')).toHaveText('D1 Store');
+    await expect(groundnutStock).toHaveValue('10');
+
+    // Exercise the global Refresh button on every Owner screen, with Stores first.
+    const refreshScreens = [
+      'stores', 'overview', 'orders', 'delivery', 'requests', 'messages',
+      'cash', 'customers', 'catalogue', 'notifications', 'reports', 'offers', 'settings'
     ];
-    for (const check of refreshChecks) {
-      await navigateTo(check.screen);
+    for (const screen of refreshScreens) {
+      await navigateTo(screen);
       await page.waitForLoadState('networkidle');
       const refreshed = page.waitForResponse(response =>
-        new URL(response.url()).pathname === check.endpoint &&
+        new URL(response.url()).pathname.startsWith('/api/admin/') &&
         response.request().method() === 'GET'
       );
       await page.locator('#refreshBtn').click();
       expect((await refreshed).status()).toBe(200);
-      await expect(page.locator('#' + check.screen)).toHaveClass(/active/);
+      await expect(page.locator('#' + screen)).toHaveClass(/active/);
+      await page.waitForLoadState('networkidle');
     }
+
+    // Owner notification history is nested under Notifications, so verify its refresh too.
+    await navigateTo('notifications');
+    await page.locator('#ownerOrderAlertsViewAll').click();
+    await expect(page.locator('#owner-alert-history')).toHaveClass(/active/);
+    await page.waitForLoadState('networkidle');
+    const historyRefresh = page.waitForResponse(response =>
+      new URL(response.url()).pathname.startsWith('/api/admin/') &&
+      response.request().method() === 'GET'
+    );
+    await page.locator('#refreshBtn').click();
+    expect((await historyRefresh).status()).toBe(200);
+    await expect(page.locator('#owner-alert-history')).toHaveClass(/active/);
+
+    // A browser-level hard refresh must restore every Owner screen from its route.
+    for (const screen of refreshScreens) {
+      await navigateTo(screen);
+      await page.reload();
+      await expect(page.locator('#appView')).toBeVisible();
+      await expectHistoryScreen(screen);
+      await page.waitForLoadState('networkidle');
+    }
+    await navigateTo('notifications');
+    await page.locator('#ownerOrderAlertsViewAll').click();
+    await expect(page.locator('#owner-alert-history')).toHaveClass(/active/);
+    await page.reload();
+    await expect(page.locator('#appView')).toBeVisible();
+    await expectHistoryScreen('owner-alert-history');
+    await page.waitForLoadState('networkidle');
 
     // Catalogue is the screen that previously erased history state. Confirm its
     // content rehydrates after a direct route load and a full refresh.
