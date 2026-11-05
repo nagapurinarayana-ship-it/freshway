@@ -61,7 +61,7 @@ test('customer storefront uses the selected store catalogue and checks out at it
   );
   expect(visibleCatalogue.status()).toBe(200);
   const visibleProducts = (await visibleCatalogue.json()).products;
-  expect(visibleProducts.map(product => product.id)).toEqual(['oil-d1']);
+  expect(visibleProducts.map(product => product.id)).toEqual(['oil-d1', 'rice-d1']);
   expect(visibleProducts[0].price).toBe(189);
 
   const customerPage = await context.newPage();
@@ -73,9 +73,10 @@ test('customer storefront uses the selected store catalogue and checks out at it
   await expect(customerPage.locator('[data-fw-category="cat-oils-d1"]')).toBeVisible({ timeout: 20000 });
   await expect(customerPage.locator('#fwCategoryCatalogue')).toContainText('D1 Store');
   await customerPage.locator('[data-fw-category="cat-oils-d1"]').click();
-  await expect(customerPage.locator('#productGrid .product-card')).toContainText('Groundnut Oil');
-  await expect(customerPage.locator('#productGrid .product-price').first()).toContainText('₹189');
-  await expect(customerPage.locator('#productGrid .product-card')).not.toContainText('Basmati Rice');
+  const oilCard = customerPage.locator('#productGrid .product-card').filter({ hasText: 'Groundnut Oil' });
+  const riceCard = customerPage.locator('#productGrid .product-card').filter({ hasText: 'Basmati Rice' });
+  await expect(oilCard).toContainText('₹189');
+  await expect(riceCard).toContainText('₹233');
   await customerPage.locator('#productGrid [data-add="oil-d1"]').click();
   await customerPage.locator('#viewCartBtn').click();
   await expect(customerPage.locator('#cartItems')).toContainText('Groundnut Oil');
@@ -84,6 +85,9 @@ test('customer storefront uses the selected store catalogue and checks out at it
   await customerPage.locator('#checkoutBtn').click();
   await expect(customerPage.locator('#checkoutView')).toBeVisible();
   await expect(customerPage.locator('#fwCheckoutPricing')).toContainText('₹189');
+  await expect(customerPage.locator('#fwCheckoutPricing')).toContainText('₹30');
+  await expect(customerPage.locator('#fwCheckoutPricing')).toContainText('₹219');
+  await expect(customerPage.locator('#checkoutTotal')).toHaveText('₹219');
   await expect(customerPage.locator('[data-fw-delivery-availability]')).toContainText('D1 Store', { timeout: 20000 });
 
   const orderResponsePromise = customerPage.waitForResponse(response =>
@@ -97,9 +101,239 @@ test('customer storefront uses the selected store catalogue and checks out at it
   expect(placed.items[0].id).toBe('oil-d1');
   expect(placed.items[0].price).toBe(189);
   expect(placed.itemsSubtotal).toBe(189);
+  expect(placed.deliveryFee).toBe(30);
+  expect(placed.couponDiscount).toBe(0);
+  expect(placed.total).toBe(219);
   await expect(customerPage.locator('#confirmationView')).toBeVisible();
   await expect(customerPage.locator('#confirmationView')).toContainText('₹' + placed.total.toLocaleString('en-IN'));
   expect(pageErrors).toEqual([]);
+
+  await context.close();
+
+});
+
+
+test('customer mobile UI applies a fixed coupon to a multi-item store basket and persists the exact threshold price in D1', async ({ browser }) => {
+  test.setTimeout(60000);
+  const context = await browser.newContext({
+    serviceWorkers: 'block',
+    viewport: { width: 390, height: 844 }
+  });
+  const setup = await context.request.post(workerOrigin + '/api/auth/register', {
+    headers: { Origin: origin },
+    data: { name: 'D1 Money E2E Customer', phone: '9999999997', passcode: '123456' }
+  });
+  expect(setup.status()).toBe(200);
+  const account = await setup.json();
+  expect(account.customerId).toBeTruthy();
+  await addLocalSessionCookie(context, setup, 'freshway-customer-session', 'None');
+
+  const addressResponse = await context.request.post(workerOrigin + '/api/addresses', {
+    headers: { Origin: origin },
+    data: {
+      label: 'Home',
+      recipientName: 'D1 Money E2E Customer',
+      deliveryPhone: '9999999997',
+      houseFlat: '24',
+      area: 'Test Colony',
+      city: 'Hyderabad',
+      pincode: '500072',
+      latitude: 17.385044,
+      longitude: 78.486671,
+      isDefault: true
+    }
+  });
+  expect(addressResponse.status()).toBe(201);
+
+  const page = await context.newPage();
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await proxyWorkerApi(page);
+  const home = await page.goto('/');
+  expect(home?.status()).toBe(200);
+
+  await expect(page.locator('[data-fw-category="cat-oils-d1"]')).toBeVisible({ timeout: 20000 });
+  await page.locator('[data-fw-category="cat-oils-d1"]').click();
+  const oilAdd = page.locator('#productGrid [data-add="oil-d1"]');
+  await expect(oilAdd).toBeVisible();
+  await expect(page.locator('#productGrid .product-price').first()).toContainText('₹189');
+  await oilAdd.click();
+  const oilPlus = page.locator('#productGrid [data-plus="oil-d1"]');
+  await expect(oilPlus).toBeVisible();
+  await oilPlus.click();
+  await oilPlus.click();
+
+  // The customer must return to the category list before choosing Rice.
+  await page.locator('#fwCategoryBack button').click();
+  await expect(page.locator('[data-fw-category="cat-rice-d1"]')).toBeVisible();
+  await page.locator('[data-fw-category="cat-rice-d1"]').click();
+  const riceCard = page.locator('#productGrid .product-card').filter({ hasText: 'Basmati Rice' });
+  const riceAdd = riceCard.locator('[data-add="rice-d1"]');
+  await expect(riceCard).toContainText('₹233');
+  await expect(riceAdd).toBeVisible();
+  await riceAdd.click();
+
+  await page.locator('#viewCartBtn').click();
+  await expect(page.locator('#cartItems')).toContainText('Groundnut Oil');
+  await expect(page.locator('#cartItems')).toContainText('Basmati Rice');
+  await expect(page.locator('#cartItems')).toContainText('₹567');
+  await expect(page.locator('#cartItems')).toContainText('₹233');
+
+  // Exact threshold: 3 × ₹189 + ₹233 = ₹800. A ₹50 fixed coupon
+  // reduces the payable amount to ₹750 and free delivery remains earned.
+  await expect(page.locator('#fwDeliveryPricing')).toContainText('₹800');
+  await expect(page.locator('#fwDeliveryPricing')).toContainText('Free');
+
+  await expect(page.locator('#fwAvailableCoupons')).toContainText('WELCOME50');
+  await page.locator('#fwCouponCode').fill('WELCOME50');
+  await page.locator('[data-fw-apply-coupon]').click();
+  await expect(page.locator('#fwCouponStatus')).toContainText('Coupon applied');
+  await expect(page.locator('#fwDeliveryPricing')).toContainText('₹50');
+  await expect(page.locator('#fwDeliveryPricing')).toContainText('₹750');
+
+  await page.locator('#checkoutBtn').click();
+  await expect(page.locator('#checkoutView')).toBeVisible();
+  await expect(page.locator('#fwCheckoutPricing')).toContainText('₹800');
+  await expect(page.locator('#fwCheckoutPricing')).toContainText('₹50');
+  await expect(page.locator('#fwCheckoutPricing')).toContainText('₹750');
+  await expect(page.locator('#checkoutTotal')).toHaveText('₹750');
+  await expect(page.locator('[data-fw-delivery-availability]')).toContainText('D1 Store', { timeout: 20000 });
+
+  const responsive = await page.evaluate(() => ({
+    viewport: window.innerWidth,
+    documentWidth: document.documentElement.scrollWidth,
+    bodyWidth: document.body.scrollWidth
+  }));
+  expect(responsive.documentWidth).toBeLessThanOrEqual(responsive.viewport + 1);
+  expect(responsive.bodyWidth).toBeLessThanOrEqual(responsive.viewport + 1);
+  await page.screenshot({ path: 'test-results/real-d1/customer-money-check-mobile.png', fullPage: true });
+
+  const orderResponsePromise = page.waitForResponse(response =>
+    new URL(response.url()).pathname === '/api/orders' && response.request().method() === 'POST'
+  );
+  await page.locator('#checkoutForm button[type="submit"]').click();
+  const orderResponse = await orderResponsePromise;
+  expect(orderResponse.status()).toBe(201);
+  const placed = await orderResponse.json();
+
+  expect(placed.assignedStoreId).toBe('store-d1');
+  expect(placed.itemsSubtotal).toBe(800);
+  expect(placed.deliveryFee).toBe(0);
+  expect(placed.couponCode).toBe('WELCOME50');
+  expect(placed.couponDiscount).toBe(50);
+  expect(placed.total).toBe(750);
+  expect(placed.pricingBreakdownKnown).toBe(true);
+  expect(placed.items).toHaveLength(2);
+  const oil = placed.items.find(item => item.id === 'oil-d1');
+  const rice = placed.items.find(item => item.id === 'rice-d1');
+  expect(oil).toMatchObject({ qty: 3, price: 189, lineTotal: 567 });
+  expect(rice).toMatchObject({ qty: 1, price: 233, lineTotal: 233 });
+
+  // Re-read the order through the authenticated customer API, proving that
+  // D1 saved the same money snapshot that the UI and create-order response showed.
+  const savedResponse = await context.request.get(
+    workerOrigin + '/api/orders?customerId=' + encodeURIComponent(account.customerId),
+    { headers: { Origin: origin } }
+  );
+  expect(savedResponse.status()).toBe(200);
+  const savedPayload = await savedResponse.json();
+  const savedOrder = savedPayload.orders.find(order => order.id === placed.id);
+  expect(savedOrder).toBeTruthy();
+  expect(savedOrder).toMatchObject({
+    total: 750,
+    pricingBreakdownKnown: true,
+    itemsSubtotal: 800,
+    deliveryFee: 0,
+    couponCode: 'WELCOME50',
+    couponDiscount: 50
+  });
+  expect(savedOrder.items).toHaveLength(2);
+  expect(savedOrder.items.find(item => item.id === 'oil-d1')).toMatchObject({ qty: 3, price: 189, lineTotal: 567 });
+  expect(savedOrder.items.find(item => item.id === 'rice-d1')).toMatchObject({ qty: 1, price: 233, lineTotal: 233 });
+  expect(pageErrors).toEqual([]);
+
+  // Verify that the same persisted order and money snapshot are displayed in the
+  // authenticated Owner UI, then issue and download its commercial receipt.
+  const ownerPage = await context.newPage();
+  await ownerPage.setViewportSize({ width: 1440, height: 1000 });
+  const ownerPageErrors = [];
+  ownerPage.on('pageerror', error => ownerPageErrors.push(error.message));
+  await proxyWorkerApi(ownerPage);
+  const ownerHome = await ownerPage.goto('/admin.html#orders');
+  expect(ownerHome?.status()).toBe(200);
+  await expect(ownerPage.locator('#loginView')).toBeVisible();
+  const ownerLogin = ownerPage.waitForResponse(response =>
+    new URL(response.url()).pathname === '/api/admin/login' &&
+    response.request().method() === 'POST'
+  );
+  await ownerPage.locator('#adminToken').fill('isolated-admin-token');
+  await ownerPage.locator('#connectBtn').click();
+  expect((await ownerLogin).status()).toBe(200);
+  await expect(ownerPage.locator('#appView')).toBeVisible();
+
+  const ownerCard = ownerPage.locator('#ordersList .order-card').filter({ hasText: placed.id });
+  await expect(ownerCard).toBeVisible({ timeout: 20000 });
+  await expect(ownerCard).toContainText('₹750');
+  await expect(ownerCard).toContainText('Items ₹800');
+  await expect(ownerCard).toContainText('₹50');
+  await expect(ownerCard).toContainText('Delivery Free');
+  await ownerCard.click();
+  await expect(ownerPage.locator('#modalBody')).toContainText('₹750');
+  await expect(ownerPage.locator('#modalBody')).toContainText('Groundnut Oil ×3 litre');
+  await expect(ownerPage.locator('#modalBody')).toContainText('Basmati Rice ×1 kg');
+
+  // Moving the isolated order to the dispatch state triggers the configured
+  // local commercial receipt flow; it does not dispatch or alter any live order.
+  const dispatch = await ownerPage.evaluate(async orderId => {
+    const response = await fetch('/api/admin/orders/' + encodeURIComponent(orderId), {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'Out for Delivery' })
+    });
+    return { status: response.status, data: await response.json() };
+  }, placed.id);
+  expect(dispatch.status).toBe(200);
+  expect(dispatch.data.invoice?.number).toBeTruthy();
+
+  await ownerPage.reload();
+  await expect(ownerPage.locator('#appView')).toBeVisible();
+  const refreshedOwnerCard = ownerPage.locator('#ordersList .order-card').filter({ hasText: placed.id });
+  await expect(refreshedOwnerCard).toBeVisible({ timeout: 20000 });
+  await expect(refreshedOwnerCard).toContainText('₹750');
+  await expect(refreshedOwnerCard).toContainText('Items ₹800');
+  await expect(refreshedOwnerCard).toContainText('₹50');
+  await expect(refreshedOwnerCard).toContainText('Delivery Free');
+  await refreshedOwnerCard.click();
+  await expect(ownerPage.locator('#modalBody')).toContainText('₹750');
+  await expect(ownerPage.locator('#modalBody')).toContainText('Groundnut Oil ×3 litre');
+  await expect(ownerPage.locator('#modalBody')).toContainText('Basmati Rice ×1 kg');
+
+  // The Lifecycle panel currently omits an invoice control, so verify the
+  // issued document through the same authenticated Owner PDF endpoint.
+  const invoiceDownload = await ownerPage.evaluate(async orderId => {
+    const response = await fetch('/api/admin/orders/' + encodeURIComponent(orderId) + '/invoice', {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { Accept: 'application/pdf' }
+    });
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return {
+      status: response.status,
+      contentType: response.headers.get('content-type') || '',
+      disposition: response.headers.get('content-disposition') || '',
+      signature: String.fromCharCode(...bytes.subarray(0, 5)),
+      byteLength: bytes.length
+    };
+  }, placed.id);
+  expect(invoiceDownload.status).toBe(200);
+  expect(invoiceDownload.contentType).toContain('application/pdf');
+  expect(invoiceDownload.disposition).toContain(dispatch.data.invoice.number.replace(/[^A-Za-z0-9_-]/g, '-'));
+  expect(invoiceDownload.signature).toBe('%PDF-');
+  expect(invoiceDownload.byteLength).toBeGreaterThan(1000);
+  expect(ownerPageErrors).toEqual([]);
+
 
   await context.close();
 });
