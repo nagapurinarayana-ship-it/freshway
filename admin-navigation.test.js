@@ -42,7 +42,7 @@ assert.match(html,/data-more-screen="offers">🎟 Delivery & offers/,'mobile Mor
 const lifecycle=fs.readFileSync('owner-lifecycle.js','utf8');
 const freshness=fs.readFileSync('owner-address-final.js','utf8');
 const catalogue=fs.readFileSync('frontend/admin/catalogue.js','utf8');
-assert.doesNotMatch(lifecycle,/history\\.replaceState\\(null,'',`#\\$\\{id\\}`\\)/,'the lifecycle module must not erase Owner history state for Catalogue');
-assert.match(catalogue,/function\\(id,options\\)\\{const result=baseNavigate\\(id,options\\)/,'Catalogue navigation must forward historyMode so popstate does not create a new entry');
-assert.match(freshness,/function\\(id,options\\)\\{clearOwnerScreenForFreshLoad\\(id\\);return baseFreshNavigate\\(id,options\\)\\}/,'fresh-load navigation must preserve historyMode through its wrapper');
+assert.equal(lifecycle.includes("history.replaceState(null,'',`#${id}`)"),false,'the lifecycle module must not erase Owner history state for Catalogue');
+assert.ok(catalogue.includes('window.navigateAdminScreen=function(id,options){const result=baseNavigate(id,options)'), 'Catalogue navigation must forward historyMode so popstate does not create a new entry');
+assert.ok(freshness.includes('const freshNavigate=function(id,options){clearOwnerScreenForFreshLoad(id);return baseFreshNavigate(id,options)}'), 'fresh-load navigation must preserve historyMode through its wrapper');
 console.log('owner navigation history and safe initial settings bootstrap OK');
