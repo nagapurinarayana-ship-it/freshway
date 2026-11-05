@@ -913,7 +913,7 @@ test('Owner admin navigation, store prices and inventory stay reliable through r
 
   // Store 1 retains its own override and physical stock.
   await ownerPage.locator('#storeManagement [data-close-store-management]').click();
-  const storeOneCard = ownerPage.locator('#storeManagement .fw-store-card').filter({ hasText: 'D1 Store' });
+  const storeOneCard = ownerPage.locator('#storeManagement .fw-store-card:has(button[data-manage-store="store-d1"])');
   await expect(storeOneCard).toHaveCount(1);
   await storeOneCard.locator('[data-manage-store]').click();
   await expect(ownerPage.locator('#storeManagement [data-catalogue-price="oil-d1"]')).toHaveValue('189');
