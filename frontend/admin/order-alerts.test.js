@@ -14,7 +14,7 @@ assert.match(html, /View all notifications/);
 assert.match(html, /id="owner-alert-history"/);
 assert.match(source, /data-delete-owner-alert/);
 assert.match(source, /method: 'DELETE'/);
-assert.match(html, /frontend\/admin\/order-alerts\.js\?v=20261021-owner-push-diagnostics-v1/);
+assert.match(html, /frontend\/admin\/order-alerts\.js\?v=20261105-owner-refresh-v1/);
 assert.match(source, /Notification\.requestPermission\(\)/);
 assert.match(source, /pushManager\.subscribe/);
 assert.doesNotMatch(source, /Notification\.permission === 'granted' && !automaticSetupAttempted/);
@@ -35,7 +35,7 @@ assert.match(source, /\$\('#ownerAlertHistoryMore'\)\?\.addEventListener\('click
 assert.match(source, /Disable alerts on this device/);
 assert.match(worker, /addEventListener\('push'/);
 assert.match(worker, /addEventListener\('notificationclick'/);
-assert.match(worker, /const CACHE = 'fw-owner-v66'/, 'Owner notification test must expect the current Owner PWA cache version');
+assert.match(worker, /const CACHE = 'fw-owner-v67'/, 'Owner notification test must expect the current Owner PWA cache version');
 assert.match(route, /\/api\/admin\/push\/public-key/);
 assert.match(route, /\/api\/admin\/push\/subscribe/);
 assert.match(route, /\/api\/admin\/order-alerts/);
