@@ -291,7 +291,7 @@ for (const asset of requiredOwnerAssets) {
 console.log('Owner PWA complete route, asset scope, manifest, service-worker and security contracts OK');
 const customerLiveSmokeSource = readRepoFile('pwa-live-smoke.mjs').toString('utf8');
 const liveSmokeWorkflowSource = readRepoFile('.github/workflows/pwa-live-smoke.yml').toString('utf8');
-assert.ok(customerLiveSmokeSource.includes("const CUSTOMER_CATALOGUE_PATH = '/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v1';"), 'live customer smoke must use the current store-aware catalogue script');
+assert.ok(customerLiveSmokeSource.includes("const CUSTOMER_CATALOGUE_PATH = '/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v2';"), 'live customer smoke must use the current store-aware catalogue script');
 assert.doesNotMatch(customerLiveSmokeSource, /catalogue\\.js\\?v=img1/, 'custom-domain customer smoke must not assert the stale catalogue script');
 assert.ok(liveSmokeWorkflowSource.includes('GH_BEFORE_SHA: ${{ github.event.before }}'), 'production PWA smoke must compare the pushed commit with its actual base SHA');
 assert.ok(liveSmokeWorkflowSource.includes('compare/$GH_BEFORE_SHA...$GH_COMMIT_SHA'), 'production PWA smoke must detect Worker changes from the commit diff before running live checks');
