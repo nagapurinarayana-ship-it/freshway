@@ -45,7 +45,9 @@ async function signIn(page) {
 
 async function navigateTo(page, screen) {
   const primary = page.locator('.side nav button[data-screen="' + screen + '"]');
-  if (await primary.count()) {
+  // Secondary destinations also exist in the DOM while the More <details> is closed.
+  // Check visibility, not count, before deciding this is a primary navigation item.
+  if (await primary.isVisible()) {
     await primary.click();
   } else {
     const more = page.locator('.side nav details.owner-nav-more');
