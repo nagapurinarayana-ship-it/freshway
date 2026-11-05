@@ -181,7 +181,7 @@ test('customer mobile UI applies a fixed coupon to a multi-item store basket and
   // Exact threshold: 3 × ₹189 + ₹233 = ₹800. A ₹50 fixed coupon
   // reduces the payable amount to ₹750 and free delivery remains earned.
   await expect(page.locator('#fwDeliveryPricing')).toContainText('₹800');
-  await expect(page.locator('#fwDeliveryPricing')).toContainText('₹0');
+  await expect(page.locator('#fwDeliveryPricing')).toContainText('Free');
 
   await expect(page.locator('#fwAvailableCoupons')).toContainText('WELCOME50');
   await page.locator('#fwCouponCode').fill('WELCOME50');
