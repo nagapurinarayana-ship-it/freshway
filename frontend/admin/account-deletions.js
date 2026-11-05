@@ -96,65 +96,168 @@
       if (refresh) refresh.disabled = false;
     }
   }
+  function showCompletionForm(card) {
+    let form = card.querySelector('[data-deletion-form]');
+    if (!form) {
+      form = document.createElement('form');
+      form.className = 'account-deletion-confirmation';
+      form.noValidate = true;
+      form.dataset.deletionForm = 'true';
+      form.innerHTML =
+        '<div><strong>Confirm account deletion</strong><p class="muted">This disables the account, clears login credentials and push subscriptions, and redacts operational customer/address details. Issued invoice snapshots remain unchanged.</p></div>' +
+        '<label class="settings-field full"><span>Required audit note</span><textarea data-deletion-note maxlength="1000" rows="4" aria-label="Required deletion audit note" placeholder="Describe the operational data to be removed, which invoice/transaction records remain, and the confirmed retention basis."></textarea></label>' +
+        '<p class="muted">Use at least 20 characters and identify invoice or transaction records plus the confirmed retention basis. Do not include customer phone numbers or unnecessary personal data.</p>' +
+        '<label class="account-deletion-retention-check"><input data-deletion-retention-confirm type="checkbox"><span>I have reviewed the retention decision and am authorised to complete this request.</span></label>' +
+        '<p class="account-deletion-form-error" data-deletion-form-error role="alert" hidden></p>' +
+        '<div class="owner-alert-control-actions"><button class="primary full" data-deletion-submit type="submit">Confirm and complete deletion</button><button class="ghost full" data-deletion-cancel type="button">Cancel</button></div>';
+      const actions = card.querySelector('.owner-alert-control-actions');
+      if (actions) actions.after(form);
+      else card.append(form);
+    }
+    form.hidden = false;
+    const error = form.querySelector('[data-deletion-form-error]');
+    if (error) error.hidden = true;
+    const note = form.querySelector('[data-deletion-note]');
+    if (note) note.focus({ preventScroll: true });
+    form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function showFormError(form, message) {
+    const error = form.querySelector('[data-deletion-form-error]');
+    if (error) {
+      error.textContent = message;
+      error.hidden = false;
+    }
+    setMessage(message, true);
+  }
+
+  function hasUnsavedDeletionSettings() {
+    const unsavedSettings = [];
+    if (window.FreshWayOwnerStoreProfile?.hasUnsavedChanges?.()) unsavedSettings.push('Store Profile');
+    if (window.FreshWayOwnerInvoiceSettings?.hasUnsavedChanges?.()) unsavedSettings.push('Billing & Tax');
+    if (!unsavedSettings.length) return false;
+    const message = 'Deletion was not submitted. Save your unsaved ' + unsavedSettings.join(' and ') + ' changes first. Account deletion does not save these settings; reloading would discard them.';
+    setMessage(message, true);
+    $('#accountDeletionStatusMessage')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return true;
+  }
+
   document.addEventListener('click', async event => {
-    let button;
-    try { button = event.target instanceof Element ? event.target.closest('[data-deletion-action]') : null; }
+    let target;
+    try { target = event.target instanceof Element ? event.target : null; }
     catch (_) { return; }
+    if (!target) return;
+
+    const cancel = target.closest('[data-deletion-cancel]');
+    if (cancel) {
+      event.preventDefault();
+      event.stopPropagation();
+      const form = cancel.closest('[data-deletion-form]');
+      if (form) {
+        form.hidden = true;
+        const trigger = form.closest('[data-deletion-request]')?.querySelector('[data-deletion-action="completed"]');
+        if (trigger) trigger.focus();
+      }
+      return;
+    }
+
+    const button = target.closest('[data-deletion-action]');
     if (!button) return;
     event.preventDefault();
     event.stopPropagation();
     if (button.dataset.busy === '1') return;
     const card = button.closest('[data-deletion-request]');
-    if (!card) { setMessage('Could not identify this request. Refresh the queue and try again.', true); return; }
+    if (!card) {
+      setMessage('Could not identify this request. Refresh the queue and try again.', true);
+      return;
+    }
     const status = button.dataset.deletionAction;
     const isReject = status === 'rejected';
     const isComplete = status === 'completed';
-    try {
+
     if (isComplete) {
-      const unsavedSettings = [];
-      if (window.FreshWayOwnerStoreProfile?.hasUnsavedChanges?.()) unsavedSettings.push('Store Profile');
-      if (window.FreshWayOwnerInvoiceSettings?.hasUnsavedChanges?.()) unsavedSettings.push('Billing & Tax');
-      if (unsavedSettings.length) {
-        const message = 'Deletion was not submitted. Save your unsaved ' + unsavedSettings.join(' and ') + ' changes first. Account deletion does not save these settings; reloading would discard them.';
-        setMessage(message, true);
-        window.alert(message);
-        $('#accountDeletionStatusMessage')?.scrollIntoView({behavior:'smooth', block:'center'});
-        return;
-      }
-      if (!window.confirm('Confirm that you reviewed the applicable invoice/transaction retention decision. This removes login access and operational customer data, deletes the individual request record, and keeps only an aggregate completion count and the latest completion date. Existing issued invoice snapshots are not changed by this action, so continue only if the approved retention policy permits that.')) return;
-    }
-    const note = isComplete
-      ? 'Confirmed retention review for applicable invoice/transaction records; operational customer data redacted.'
-      : window.prompt(isReject
-        ? 'Why is this deletion request being rejected? Explain the reason to the customer through the approved support channel.'
-        : 'Optional review note (do not include unnecessary personal data):', '');
-    if (note === null) return;
-    if (isReject && note.trim().length < 10) {
-      const message = 'Add a clear rejection reason of at least 10 characters before submitting.';
-      setMessage(message, true);
-      window.alert(message);
-      $('#accountDeletionStatusMessage')?.scrollIntoView({behavior:'smooth', block:'center'});
+      if (hasUnsavedDeletionSettings()) return;
+      // Opening the form is non-destructive. No API request occurs until explicit submission.
+      showCompletionForm(card);
       return;
     }
+
+    const note = window.prompt(isReject
+      ? 'Why is this deletion request being rejected? Explain the reason to the customer through the approved support channel.'
+      : 'Optional review note (do not include unnecessary personal data):', '');
+    if (note === null) return;
+    if (isReject && note.trim().length < 10) {
+      setMessage('Add a clear rejection reason of at least 10 characters before submitting.', true);
+      $('#accountDeletionStatusMessage')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
     button.disabled = true;
     button.dataset.busy = '1';
-    setMessage(isComplete ? 'Submitting deletion request…' : isReject ? 'Submitting rejection…' : 'Updating request…');
+    setMessage(isReject ? 'Submitting rejection…' : 'Updating request…');
     try {
       await request('/api/admin/account-deletion-requests/' + encodeURIComponent(card.dataset.deletionRequest), {
-        method:'PATCH',
-        body:JSON.stringify({status,adminNote:note.trim()})
+        method: 'PATCH',
+        body: JSON.stringify({ status, adminNote: note.trim() })
       });
-      setMessage(isReject ? 'Request rejected. Ensure the customer is informed through the approved support channel.' : isComplete ? 'Deletion completed: login credentials and operational customer/address data were redacted.' : 'Request moved to in review.');
       await load();
+      setMessage(isReject
+        ? 'Request rejected. Ensure the customer is informed through the approved support channel.'
+        : 'Request moved to in review.');
     } catch (error) {
       setMessage(error.message || 'Could not update this request.', true);
       button.disabled = false;
       delete button.dataset.busy;
     }
-    } catch (error) {
-      setMessage('Action could not start: ' + (error?.message || 'unknown browser error'), true);
-    }
   }, true);
+
+  document.addEventListener('submit', async event => {
+    const form = event.target instanceof Element ? event.target.closest('form[data-deletion-form]') : null;
+    if (!form) return;
+    event.preventDefault();
+    if (form.dataset.busy === '1') return;
+
+    const card = form.closest('[data-deletion-request]');
+    if (!card) {
+      showFormError(form, 'Could not identify this request. Refresh the queue and try again.');
+      return;
+    }
+    if (hasUnsavedDeletionSettings()) {
+      showFormError(form, 'Save your unsaved Store Profile or Billing & Tax changes before completing this request.');
+      return;
+    }
+
+    const note = String(form.querySelector('[data-deletion-note]')?.value || '').trim();
+    const retentionConfirmed = !!form.querySelector('[data-deletion-retention-confirm]')?.checked;
+    if (!retentionConfirmed) {
+      showFormError(form, 'Confirm that you reviewed the record-retention decision before continuing.');
+      return;
+    }
+    if (note.length < 20 || !/(invoice|transaction)/i.test(note) || !/(retain|retention|accounting|tax|legal)/i.test(note)) {
+      showFormError(form, 'Use a 20-character-or-longer note identifying invoice/transaction records and the confirmed retention basis.');
+      return;
+    }
+
+    const submit = form.querySelector('[data-deletion-submit]');
+    const cancel = form.querySelector('[data-deletion-cancel]');
+    form.dataset.busy = '1';
+    if (submit) submit.disabled = true;
+    if (cancel) cancel.disabled = true;
+    setMessage('Completing account deletion…');
+    try {
+      await request('/api/admin/account-deletion-requests/' + encodeURIComponent(card.dataset.deletionRequest), {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'completed', adminNote: note })
+      });
+      await load();
+      setMessage('Deletion completed. Login access and operational customer/address details were redacted.');
+    } catch (error) {
+      delete form.dataset.busy;
+      showFormError(form, error.message || 'Could not safely complete deletion. The request remains unresolved.');
+      if (submit) submit.disabled = false;
+      if (cancel) cancel.disabled = false;
+    }
+  });
   $('#accountDeletionRefresh')?.addEventListener('click', () => void load());
   window.addEventListener('freshway:admin-authenticated', () => { if ($('#settings')?.classList.contains('active')) void load(); });
   $('#accountDeletionStatus')?.addEventListener('change', () => void load());
