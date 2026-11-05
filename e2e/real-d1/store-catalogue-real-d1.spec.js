@@ -329,7 +329,7 @@ test('customer mobile UI applies a fixed coupon to a multi-item store basket and
   }, placed.id);
   expect(invoiceDownload.status).toBe(200);
   expect(invoiceDownload.contentType).toContain('application/pdf');
-  expect(invoiceDownload.disposition).toContain(dispatch.data.invoice.number);
+  expect(invoiceDownload.disposition).toContain(dispatch.data.invoice.number.replace(/[^A-Za-z0-9_-]/g, '-'));
   expect(invoiceDownload.signature).toBe('%PDF-');
   expect(invoiceDownload.byteLength).toBeGreaterThan(1000);
   expect(ownerPageErrors).toEqual([]);
