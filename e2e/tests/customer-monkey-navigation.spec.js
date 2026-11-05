@@ -32,7 +32,19 @@ test('customer navigation monkey run survives random navigation, reload and hist
 
   for (let step = 0; step < 48; step++) {
     const route = routes[random(routes.length)];
-    const nav = page.locator('[data-nav="' + route + '"]').first();
+    let nav = page.locator('[data-nav="' + route + '"]').first();
+
+    // About and Contact are intentionally nested under Profile, not the
+    // persistent bottom navigation. Open their parent before exercising them.
+    if ((route === 'about' || route === 'contact') && !(await nav.isVisible().catch(() => false))) {
+      const profileNav = page.locator('[data-nav="profile"]').first();
+      if (await profileNav.isVisible().catch(() => false)) {
+        await profileNav.click();
+        await expect(page.locator('#profileView')).toHaveClass(/active-view/);
+        nav = page.locator('[data-nav="' + route + '"]').first();
+      }
+    }
+
     if (await nav.isVisible().catch(() => false)) {
       await nav.click();
       await expect(page.locator('#' + route + 'View')).toHaveClass(/active-view/);
