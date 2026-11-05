@@ -952,3 +952,135 @@ test('Owner admin navigation, store prices and inventory stay reliable through r
   expect(apiFailures).toEqual([]);
   await context.close();
 });
+
+
+test('Owner catalogue UI blocks deletion while store stock remains and deletes a zero-stock product', async ({ browser }) => {
+  test.setTimeout(90000);
+  const context = await browser.newContext({
+    serviceWorkers: 'block',
+    viewport: { width: 1280, height: 900 }
+  });
+  const ownerPage = await context.newPage();
+  const pageErrors = [];
+  ownerPage.on('pageerror', error => pageErrors.push(error.message));
+  ownerPage.on('dialog', dialog => dialog.accept());
+  await proxyWorkerApi(ownerPage);
+
+  const home = await ownerPage.goto('/admin.html#overview');
+  expect(home?.status()).toBe(200);
+  await expect(ownerPage.locator('#loginView')).toBeVisible();
+  const loginResponse = ownerPage.waitForResponse(response =>
+    new URL(response.url()).pathname === '/api/admin/login' &&
+    response.request().method() === 'POST'
+  );
+  await ownerPage.locator('#adminToken').fill('isolated-admin-token');
+  await ownerPage.locator('#connectBtn').click();
+  expect((await loginResponse).status()).toBe(200);
+  await expect(ownerPage.locator('#appView')).toBeVisible();
+
+  const stockedName = 'UI Stock Delete Check ' + Date.now();
+  const stockCreate = await ownerPage.evaluate(async ({ name }) => {
+    const catalogueResponse = await fetch('/api/admin/catalogue', {
+      credentials: 'include', cache: 'no-store'
+    });
+    const catalogue = await catalogueResponse.json();
+    const categoryId = catalogue.categories[0]?.id;
+    if (!categoryId) return { status: catalogueResponse.status, error: 'No fixture category available.' };
+    const response = await fetch('/api/admin/catalogue/products', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name, unit: 'kg', price: 99, categoryId, stockManaged: true,
+        stockQuantity: 0, lowStockThreshold: 1
+      })
+    });
+    return { status: response.status, data: await response.json(), categoryId };
+  }, { name: stockedName });
+  expect(stockCreate.status).toBe(201);
+  const stockedProductId = stockCreate.data.product.id;
+  const stockedCategoryId = stockCreate.categoryId;
+  expect(stockedProductId).toBeTruthy();
+
+  // Give this newly-created, unreferenced product on-hand stock in one store.
+  // It has no order items or reservation history, so the API must reach the
+  // positive-stock guard rather than a separate historical-order guard.
+  const stockSave = await ownerPage.evaluate(async productId => {
+    const path = '/api/admin/delivery/stores/store-d1/inventory';
+    const currentResponse = await fetch(path, { credentials: 'include', cache: 'no-store' });
+    const current = await currentResponse.json();
+    if (!currentResponse.ok) return { status: currentResponse.status, data: current };
+    // This endpoint returns raw inventory rows in snake_case.
+    // Include every stock-managed product, preserving each product's store on-hand quantity.
+    const items = (current.inventory || []).filter(item => Number(item.stock_managed) === 1).map(item => ({
+      productId: item.id,
+      stockQuantity: item.id === productId ? 5 : Number(item.on_hand || 0)
+    }));
+    const response = await fetch(path, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items })
+    });
+    return { status: response.status, data: await response.json() };
+  }, stockedProductId);
+  expect(stockSave.status).toBe(200);
+
+  await ownerPage.locator('.side nav details.owner-nav-more').evaluate(element => { element.open = true; });
+  await ownerPage.locator('.side nav button[data-screen="catalogue"]').click();
+  await expect(ownerPage.locator('#catalogue')).toHaveClass(/active/);
+  await ownerPage.locator('#fwCategoryList [data-fw-manage="' + stockedCategoryId + '"]').click();
+  await expect(ownerPage.locator('#fwProductsArea')).toContainText(stockedName);
+
+  const blockedDelete = ownerPage.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.pathname === '/api/admin/catalogue/products/' + encodeURIComponent(stockedProductId) &&
+      response.request().method() === 'DELETE';
+  });
+  await ownerPage.locator('#fwProductsArea [data-fw-delete-product="' + stockedProductId + '"]').click();
+  const blockedResponse = await blockedDelete;
+  expect(blockedResponse.status()).toBe(400);
+  await expect(ownerPage.locator('#toast')).toContainText('still has stock');
+  await expect(ownerPage.locator('#fwProductsArea')).toContainText(stockedName);
+
+  const uniqueName = 'UI Delete Check ' + Date.now();
+  const createResult = await ownerPage.evaluate(async ({ categoryId, name }) => {
+    const response = await fetch('/api/admin/catalogue/products', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name, unit: 'kg', price: 99, categoryId, stockManaged: true,
+        stockQuantity: 0, lowStockThreshold: 1
+      })
+    });
+    return { status: response.status, data: await response.json() };
+  }, { categoryId: stockedCategoryId, name: uniqueName });
+  expect(createResult.status).toBe(201);
+  const safeProductId = createResult.data.product.id;
+  expect(safeProductId).toBeTruthy();
+
+  await ownerPage.evaluate(async () => {
+    if (typeof window.freshWayCatalogueRefresh !== 'function') throw new Error('Owner catalogue refresh hook is unavailable.');
+    await window.freshWayCatalogueRefresh();
+  });
+  await ownerPage.locator('#fwCategoryList [data-fw-manage="' + stockedCategoryId + '"]').click();
+  const safeDelete = ownerPage.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.pathname === '/api/admin/catalogue/products/' + encodeURIComponent(safeProductId) &&
+      response.request().method() === 'DELETE';
+  });
+  await ownerPage.locator('#fwProductsArea [data-fw-delete-product="' + safeProductId + '"]').click();
+  expect((await safeDelete).status()).toBe(200);
+  await expect(ownerPage.locator('#toast')).toContainText('Product deleted');
+  await expect(ownerPage.locator('#fwProductsArea')).not.toContainText(uniqueName);
+
+  const verify = await ownerPage.evaluate(async productId => {
+    const response = await fetch('/api/admin/catalogue', { credentials: 'include', cache: 'no-store' });
+    const data = await response.json();
+    return { status: response.status, exists: data.products.some(product => product.id === productId) };
+  }, safeProductId);
+  expect(verify).toEqual({ status: 200, exists: false });
+  expect(pageErrors).toEqual([]);
+  await context.close();
+});
