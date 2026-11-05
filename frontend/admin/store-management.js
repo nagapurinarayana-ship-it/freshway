@@ -71,6 +71,70 @@ function renderStores(){
  storeRoot.innerHTML=selectedStoreId?management:storesView;
 }
 async function loadStores(){if(!storeRoot||storeBusy||storeSaving)return;storeRequestVersion++;selectedStoreId=null;editing=null;inventory=[];storeCatalogue=[];storeSaving=false;storeDetailLoading=false;storeLoadError='';storeStockFilter='all';storeBusy=true;storeRoot.innerHTML='<p class="muted">Loading stores…</p>';try{const d=await api('/admin/delivery/stores');stores=Array.isArray(d.stores)?d.stores:[];renderStores()}catch(e){storeRoot.innerHTML='<section class="panel"><h2>Could not load stores</h2><p class="muted">'+esc(e.message)+'</p><button class="primary" type="button" data-retry-stores>Try again</button></section>'}finally{storeBusy=false}}
+function hasUnsavedStoreChanges(){
+ if(!storeRoot)return false;
+ if(editing!==null){
+  const form=storeRoot.querySelector('#fwStoreForm');
+  if(!form)return false;
+  const values=new FormData(form);
+  for(const field of ['name','address','latitude','longitude'])if(String(values.get(field)??'')!==String(editing[field]??''))return true;
+  if(Number(values.get('radius'))!==Number(editing.radius))return true;
+  if(editing.id&&(values.get('active')==='1')!==!!editing.active)return true;
+  return false;
+ }
+ if(!selectedStoreId)return false;
+ for(const product of storeCatalogue){
+  const available=storeRoot.querySelector('[data-catalogue-available="'+CSS.escape(String(product.id))+'"]');
+  if(available&&available.checked!==!!product.isAvailable)return true;
+  const price=storeRoot.querySelector('[data-catalogue-price="'+CSS.escape(String(product.id))+'"]');
+  if(price){
+   const raw=String(price.value??'').trim(),next=raw===''?null:Number(raw),saved=product.priceOverride==null?null:Number(product.priceOverride);
+   if(next!==saved)return true;
+  }
+ }
+ for(const item of inventory){
+  if(Number(item.stock_managed)!==1&&item.stock_managed!==true)continue;
+  const input=storeRoot.querySelector('[data-inventory-product="'+CSS.escape(String(item.id))+'"]');
+  if(input&&Number(input.value)!==Number(item.on_hand||0))return true;
+ }
+ return false;
+}
+async function refreshStores(){
+ if(!storeRoot||storeBusy||storeSaving)return;
+ const previousStoreId=selectedStoreId;
+ const previousEditing=editing===null?null:{...editing};
+ const previousSearch=storeRoot.querySelector('[data-store-product-search]')?.value||'';
+ const previousFilter=storeStockFilter;
+ if(hasUnsavedStoreChanges()&&!window.confirm('Discard unsaved Store changes and reload from the server?'))return;
+ const version=++storeRequestVersion;
+ storeBusy=true;
+ try{
+  const data=await api('/admin/delivery/stores');
+  if(version!==storeRequestVersion)return;
+  stores=Array.isArray(data.stores)?data.stores:[];
+  if(previousStoreId&&stores.some(store=>String(store.id)===String(previousStoreId))){
+   storeBusy=false;
+   await openStoreManagement(previousStoreId);
+   if(selectedStoreId!==previousStoreId)return;
+   const search=storeRoot.querySelector('[data-store-product-search]');
+   if(search)search.value=previousSearch;
+   storeStockFilter=previousFilter;
+   applyStoreFilters();
+  }else{
+   selectedStoreId=null;inventory=[];storeCatalogue=[];storeDetailLoading=false;storeLoadError='';
+   if(previousEditing!==null){
+    const latest=previousEditing.id?stores.find(store=>String(store.id)===String(previousEditing.id)):null;
+    editing=previousEditing.id?(latest?storeForm(latest):null):storeForm(null);
+   }else editing=null;
+   renderStores();
+   if(previousEditing!==null)note(storeRoot,'Store details refreshed. Any discarded form edits were replaced with the latest saved values.','[data-store-status]');
+  }
+ }catch(error){
+  if(version!==storeRequestVersion)return;
+  note(storeRoot,'Could not refresh stores: '+(error.message||'Request failed.'),'[data-store-management-status]');
+  note(storeRoot,'Could not refresh stores: '+(error.message||'Request failed.'),'[data-store-status]');
+ }finally{storeBusy=false}
+}
 async function openStoreManagement(id){
   if(storeSaving)return;
  const storeId=String(id||'');
@@ -231,5 +295,5 @@ function renderRequests(){if(!requestRoot)return;const cards=requests.map(r=>'<a
  requestRoot.innerHTML='<div class="fw-admin-section-head"><div><span class="eyebrow">CUSTOMER CARE</span><h2>Customer requests</h2><p>Order-related help requests submitted through FreshWay.</p></div><button class="ghost" type="button" data-refresh-requests>Refresh</button></div><p data-request-status class="muted fw-admin-status" role="status" aria-live="polite">'+requests.length+' pending request'+(requests.length===1?'':'s')+'.</p><div class="fw-request-list">'+(cards||'<section class="panel"><h3>No pending requests</h3><p class="muted">New order-related requests will appear here.</p></section>')+'</div><p class="fw-contact-note"><strong>Note:</strong> This list contains order-related requests only. The customer Contact FreshWay page displays contact details; general messages sent there are not saved to an inbox yet.</p>'}
 async function loadRequests(){if(!requestRoot||requestBusy)return;requestBusy=true;requestRoot.innerHTML='<p class="muted">Loading customer requests…</p>';try{const d=await api('/admin/delivery/requests');requests=Array.isArray(d.requests)?d.requests:[];renderRequests()}catch(e){requestRoot.innerHTML='<section class="panel"><h2>Could not load requests</h2><p class="muted">'+esc(e.message)+'</p><button class="primary" type="button" data-refresh-requests>Try again</button></section>'}finally{requestBusy=false}}
 requestRoot&&requestRoot.addEventListener('click',async e=>{if(e.target.closest('[data-refresh-requests]')){await loadRequests();return}const o=e.target.closest('[data-open-request-order]');if(o){if(window.navigateAdminScreen)window.navigateAdminScreen('orders');const search=document.querySelector('#orderSearch');if(search){search.value=o.dataset.openRequestOrder;search.dispatchEvent(new Event('input',{bubbles:true}))}return}const a=e.target.closest('[data-resolve-request]');if(!a)return;const buttons=a.closest('.fw-request-card')?.querySelectorAll('[data-resolve-request]');buttons?.forEach(b=>b.disabled=true);try{await api('/admin/delivery/requests/'+encodeURIComponent(a.dataset.resolveRequest),{method:'PATCH',body:JSON.stringify({decision:a.dataset.decision})});await loadRequests()}catch(err){note(requestRoot,err.message,'[data-request-status]');buttons?.forEach(b=>b.disabled=false)}});
-window.FreshWayOwnerStoreManagement={load:loadStores,open:openStoreManagement,close:closeStoreManagement};window.FreshWayOwnerCustomerRequests={load:loadRequests};
+window.FreshWayOwnerStoreManagement={load:loadStores,refresh:refreshStores,open:openStoreManagement,close:closeStoreManagement};window.FreshWayOwnerCustomerRequests={load:loadRequests};
 })();
