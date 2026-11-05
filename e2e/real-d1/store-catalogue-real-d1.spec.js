@@ -404,3 +404,128 @@ test('customer mobile UI applies a fixed coupon to a multi-item store basket and
 
   await context.close();
 });
+
+
+test('Owner cancellation releases only the assigned store reservation and delivery fulfils it once', async ({ browser }) => {
+  test.setTimeout(90000);
+  const context = await browser.newContext({ serviceWorkers: 'block' });
+  const phone = '9' + String(Date.now()).slice(-9);
+  const customer = await context.request.post(workerOrigin + '/api/auth/register', {
+    headers: { Origin: origin },
+    data: { name: 'D1 Operations E2E', phone, passcode: '123456' }
+  });
+  expect(customer.status()).toBe(200);
+  const account = await customer.json();
+  const customerSession = (customer.headers()['set-cookie'] || '').match(/freshway-customer-session=([^;,\s]+)/);
+  expect(customerSession).toBeTruthy();
+
+  const login = await context.request.post(workerOrigin + '/api/admin/login', {
+    headers: { Origin: origin },
+    data: { token: 'isolated-admin-token' }
+  });
+  expect(login.status()).toBe(200);
+  const ownerSession = (login.headers()['set-cookie'] || '').match(/__Host-freshway-admin-session=([^;,\s]+)/);
+  expect(ownerSession).toBeTruthy();
+  const ownerApi = (path, method = 'GET', data) => context.request.fetch(workerOrigin + path, {
+    method,
+    headers: { Origin: origin, 'X-Freshway-Admin-Session': ownerSession[1], 'Content-Type': 'application/json' },
+    ...(data === undefined ? {} : { data })
+  });
+  const customerApi = (path, data) => context.request.fetch(workerOrigin + path, {
+    method: 'POST',
+    headers: { Origin: origin, Cookie: 'freshway-customer-session=' + customerSession[1], 'Content-Type': 'application/json' },
+    data
+  });
+  const inventory = async storeId => {
+    const response = await ownerApi('/api/admin/delivery/stores/' + encodeURIComponent(storeId) + '/inventory');
+    expect(response.status()).toBe(200);
+    return (await response.json()).inventory;
+  };
+  const stock = (rows, id = 'oil-d1') => {
+    const item = rows.find(row => row.id === id);
+    expect(item).toBeTruthy();
+    return { onHand: Number(item.on_hand), reserved: Number(item.reserved_qty) };
+  };
+
+  const newStoreResponse = await ownerApi('/api/admin/delivery/stores', 'POST', {
+    name: 'D1 Operations Store 2',
+    address: 'Isolated test fixture',
+    latitude: 17.385044,
+    longitude: 78.486671,
+    serviceRadiusKm: 5
+  });
+  expect(newStoreResponse.status()).toBe(201);
+  const secondStore = (await newStoreResponse.json()).store;
+  const initialInventory = await inventory(secondStore.id);
+  const seeded = await ownerApi('/api/admin/delivery/stores/' + encodeURIComponent(secondStore.id) + '/inventory', 'PATCH', {
+    items: initialInventory.filter(row => Number(row.stock_managed) === 1)
+      .map(row => ({ productId: row.id, stockQuantity: row.id === 'oil-d1' ? 7 : 6 }))
+  });
+  expect(seeded.status()).toBe(200);
+  const activated = await ownerApi('/api/admin/delivery/stores/' + encodeURIComponent(secondStore.id), 'PATCH', { isActive: true });
+  expect(activated.status()).toBe(200);
+
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(new Date());
+  const [y, m, d] = today.split('-').map(Number);
+  const deliveryDate = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+  const createOrder = async storeId => {
+    const response = await customerApi('/api/orders', {
+      customerId: account.customerId,
+      customer: { name: 'D1 Operations E2E', phone },
+      address: {
+        recipientName: 'D1 Operations E2E', house: '12', area: 'Operations Test Colony', city: 'Hyderabad', pincode: '500072',
+        latitude: 17.385044, longitude: 78.486671, deliveryPhone: phone
+      },
+      storeId, preferredDeliveryDate: deliveryDate, items: [{ id: 'oil-d1', qty: 1 }]
+    });
+    expect(response.status()).toBe(201);
+    const order = await response.json();
+    expect(order.assignedStoreId).toBe(storeId);
+    return order;
+  };
+  const setStatus = async (orderId, status) => {
+    const response = await ownerApi('/api/admin/orders/' + encodeURIComponent(orderId), 'PATCH', { status });
+    expect(response.status()).toBe(200);
+    expect((await response.json()).status).toBe(status);
+  };
+
+  const storeOneBefore = stock(await inventory('store-d1'));
+  const storeTwoBefore = stock(await inventory(secondStore.id));
+  expect(storeTwoBefore).toEqual({ onHand: 7, reserved: 0 });
+
+  const cancelled = await createOrder('store-d1');
+  expect(stock(await inventory('store-d1'))).toEqual({
+    onHand: storeOneBefore.onHand, reserved: storeOneBefore.reserved + 1
+  });
+  expect(stock(await inventory(secondStore.id))).toEqual(storeTwoBefore);
+  await setStatus(cancelled.id, 'Cancelled');
+  expect(stock(await inventory('store-d1'))).toEqual(storeOneBefore);
+  expect(stock(await inventory(secondStore.id))).toEqual(storeTwoBefore);
+
+  // A repeated cancellation must not release the same reservation twice.
+  await setStatus(cancelled.id, 'Cancelled');
+  expect(stock(await inventory('store-d1'))).toEqual(storeOneBefore);
+
+  // Store 2 has its own stock and central-price fallback; Store 1 remains unchanged.
+  const delivered = await createOrder(secondStore.id);
+  expect(delivered.items[0].price).toBe(220);
+  expect(stock(await inventory(secondStore.id))).toEqual({ onHand: 7, reserved: 1 });
+  expect(stock(await inventory('store-d1'))).toEqual(storeOneBefore);
+  for (const status of ['Confirmed', 'Processing', 'Ready', 'Out for Delivery', 'Delivered']) {
+    await setStatus(delivered.id, status);
+  }
+  expect(stock(await inventory(secondStore.id))).toEqual({ onHand: 6, reserved: 0 });
+  expect(stock(await inventory('store-d1'))).toEqual(storeOneBefore);
+
+  const customerHistory = await context.request.get(workerOrigin + '/api/orders?customerId=' + encodeURIComponent(account.customerId), {
+    headers: { Origin: origin, Cookie: 'freshway-customer-session=' + customerSession[1] }
+  });
+  expect(customerHistory.status()).toBe(200);
+  const orders = (await customerHistory.json()).orders;
+  expect(orders.find(order => order.id === cancelled.id)?.status).toBe('Cancelled');
+  expect(orders.find(order => order.id === delivered.id)?.status).toBe('Delivered');
+
+  await context.close();
+});
