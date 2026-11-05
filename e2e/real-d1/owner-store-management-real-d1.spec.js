@@ -154,6 +154,17 @@ test('Owner manages prices and inventory together without mixing store data', as
     const firstStockInput = page.locator('#storeManagement [data-inventory-product="' + firstTracked.id + '"]');
     await expect(firstStockInput).toHaveValue(String(firstStockBefore));
 
+    // A browser/Android Back press from store products must return to the Stores list,
+    // not leave Stores for the previously visited admin screen. Forward restores the same store.
+    await expect.poll(() => page.evaluate(() => history.state?.storeId || null)).toBe('store-d1');
+    await page.evaluate(() => history.back());
+    await expect(page.locator('#storeManagement [data-manage-store="store-d1"]')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => history.state?.screen)).toBe('stores');
+    await expect.poll(() => page.evaluate(() => history.state?.storeId || null)).toBeNull();
+    await page.evaluate(() => history.forward());
+    await expect(page.locator('#storeManagement .fw-store-management-heading h2')).toHaveText('D1 Store');
+    await expect.poll(() => page.evaluate(() => history.state?.storeId || null)).toBe('store-d1');
+
     await page.locator('#storeManagement [data-close-store-management]').click();
 
     // Store Two must show its own price and stock, not the values from Store One.
@@ -183,6 +194,18 @@ test('Owner manages prices and inventory together without mixing store data', as
     await page.locator('#storeManagement [data-manage-store="' + secondStoreId + '"]').click();
     await expect(page.locator('#storeManagement [data-catalogue-price="oil-d1"]')).toHaveValue('309');
     await expect(page.locator('#storeManagement [data-inventory-product="' + secondTracked.id + '"]')).toHaveValue('25');
+
+    // The nested route also survives a hard refresh and browser Back/Forward for Store Two.
+    await page.reload();
+    await expect(page.locator('#appView')).toBeVisible();
+    await expect(page.locator('#storeManagement .fw-store-management-heading h2')).toContainText('D1 Store Two');
+    await expect.poll(() => page.evaluate(() => history.state?.storeId || null)).toBe(secondStoreId);
+    await page.evaluate(() => history.back());
+    await expect(page.locator('#storeManagement [data-manage-store="' + secondStoreId + '"]')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => history.state?.screen)).toBe('stores');
+    await page.evaluate(() => history.forward());
+    await expect(page.locator('#storeManagement .fw-store-management-heading h2')).toContainText('D1 Store Two');
+    await expect.poll(() => page.evaluate(() => history.state?.storeId || null)).toBe(secondStoreId);
 
     await page.locator('#storeManagement [data-close-store-management]').click();
     await page.locator('#storeManagement [data-manage-store="store-d1"]').click();
