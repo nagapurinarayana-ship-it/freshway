@@ -76,18 +76,22 @@ test('Owner Refresh preserves the selected Store workspace and protects unsaved 
     await expect(stock).toHaveValue('10');
     await stock.fill('17');
 
-    const dialogPromise = page.waitForEvent('dialog', { timeout: 5000 }).catch(() => null);
-    await page.locator('#refreshBtn').click();
+    // Start the click without awaiting it: Playwright keeps the click pending
+    // until the native confirmation dialog is handled.
+    const dialogPromise = page.waitForEvent('dialog', { timeout: 5000 });
+    const refreshClick = page.locator('#refreshBtn').click();
     const dialog = await dialogPromise;
-    expect(dialog, 'Refresh must ask before discarding unsaved Store inventory edits').not.toBeNull();
+    expect(dialog.message()).toContain('Discard unsaved Store changes');
     expect(dialog.type()).toBe('confirm');
     await dialog.dismiss();
+    await refreshClick;
 
     await expect(page.locator('#storeManagement .fw-store-management-panel')).toBeVisible();
     await expect(stock).toHaveValue('17');
     await expect(page.locator('#stores')).toHaveClass(/active/);
     expect(pageErrors).toEqual([]);
   } finally {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
     await context.close();
   }
 });
