@@ -126,6 +126,7 @@ test('Owner can navigate every implemented management screen against the real Wo
     });
   } finally {
     checkingNavigation = false;
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
     await context.close();
   }
 });
@@ -227,6 +228,7 @@ test('Owner mobile More menu reopens after selecting secondary destinations repe
     });
   } finally {
     checkingNavigation = false;
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
     await context.close();
   }
 });
