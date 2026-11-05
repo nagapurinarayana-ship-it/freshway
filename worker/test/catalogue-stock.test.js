@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
-import { createProduct, updateProduct } from '../src/catalogue-api.js';
+import { createProduct, updateProduct, handleCatalogueRequest } from '../src/catalogue-api.js';
 import { addProduct as addLegacyProduct, updateProduct as updateLegacyProduct } from '../src/index.js';
 
 class SQLiteD1 {
@@ -23,18 +23,28 @@ class SQLiteD1 {
         id TEXT PRIMARY KEY, is_active INTEGER NOT NULL DEFAULT 1
       );
       CREATE TABLE delivery_store_catalogue (
-        store_id TEXT NOT NULL REFERENCES delivery_stores(id),
-        product_id TEXT NOT NULL REFERENCES products(id),
+        store_id TEXT NOT NULL REFERENCES delivery_stores(id) ON DELETE CASCADE,
+        product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
         is_available INTEGER NOT NULL DEFAULT 1,
         price_override INTEGER,
         PRIMARY KEY (store_id,product_id)
       );
       CREATE TABLE delivery_store_inventory (
-        store_id TEXT NOT NULL REFERENCES delivery_stores(id),
-        product_id TEXT NOT NULL REFERENCES products(id),
+        store_id TEXT NOT NULL REFERENCES delivery_stores(id) ON DELETE RESTRICT,
+        product_id TEXT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
         stock_quantity INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (store_id,product_id)
+      );
+      -- Production order_items intentionally keeps the product id as a snapshot
+      -- value (rather than an FK), so deletion safety must check it in the API.
+      CREATE TABLE order_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_id TEXT NOT NULL
+      );
+      CREATE TABLE delivery_store_inventory_reservations (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL REFERENCES products(id) ON DELETE RESTRICT
       );
       INSERT INTO categories (id,name,active) VALUES ('cat-1','Pantry',1);
     `);
@@ -193,5 +203,104 @@ test('legacy product endpoint also seeds store inventory and keeps tracked stock
     assert.equal(result.stockQuantity,9);
     assert.equal(db.product('legacy-product').stock_quantity,9);
     assert.equal(db.inventory('legacy-product').find(row=>row.store_id==='store-a').stock_quantity,9);
+  } finally { db.close(); }
+});
+
+
+async function deleteProductThroughOwnerRoute(db, productId) {
+  const response = await handleCatalogueRequest(
+    new Request('https://freshway.test/api/admin/catalogue/products/' + encodeURIComponent(productId), {
+      method: 'DELETE'
+    }),
+    { DB: db }
+  );
+  return { response, body: await response.json() };
+}
+
+test('Owner catalogue deletion removes zero-stock store allocations and cascades store catalogue rows atomically', async () => {
+  const db = new SQLiteD1();
+  try {
+    db.seedStore('store-active', 1);
+    db.seedStore('store-paused', 0);
+    const created = await createProduct({ DB: db }, newProduct({ stockQuantity: 0 }));
+    const productId = created.product.id;
+    assert.equal(db.inventory(productId).length, 2);
+    assert.equal(Number(db.db.prepare('SELECT COUNT(*) count FROM delivery_store_catalogue WHERE product_id=?').get(productId).count), 2);
+    assert.ok(db.inventory(productId).every(row => row.stock_quantity === 0));
+
+    const { response, body } = await deleteProductThroughOwnerRoute(db, productId);
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(body, { ok: true });
+    assert.equal(db.product(productId), undefined);
+    assert.deepEqual(db.inventory(productId), []);
+    assert.equal(Number(db.db.prepare('SELECT COUNT(*) count FROM delivery_store_catalogue WHERE product_id=?').get(productId).count), 0);
+  } finally { db.close(); }
+});
+
+test('Owner catalogue deletion refuses a product with on-hand stock and preserves every store allocation', async () => {
+  const db = new SQLiteD1();
+  try {
+    db.seedStore('store-active', 1);
+    db.seedStore('store-paused', 0);
+    const created = await createProduct({ DB: db }, newProduct({ stockQuantity: 8 }));
+    const productId = created.product.id;
+    const beforeInventory = db.inventory(productId);
+    const beforeCatalogue = db.db.prepare('SELECT store_id,is_available,price_override FROM delivery_store_catalogue WHERE product_id=? ORDER BY store_id').all(productId).map(row => ({ ...row }));
+
+    const { response, body } = await deleteProductThroughOwnerRoute(db, productId);
+
+    assert.equal(response.status, 400);
+    assert.match(body.error, /still has stock/i);
+    assert.ok(db.product(productId));
+    assert.deepEqual(db.inventory(productId), beforeInventory);
+    assert.deepEqual(db.db.prepare('SELECT store_id,is_available,price_override FROM delivery_store_catalogue WHERE product_id=? ORDER BY store_id').all(productId).map(row => ({ ...row })), beforeCatalogue);
+  } finally { db.close(); }
+});
+
+test('Owner catalogue deletion refuses products referenced by historical order items without changing store data', async () => {
+  const db = new SQLiteD1();
+  try {
+    db.seedStore('store-active', 1);
+    const created = await createProduct({ DB: db }, newProduct({ stockQuantity: 0 }));
+    const productId = created.product.id;
+    const beforeInventory = db.inventory(productId);
+    db.db.prepare('INSERT INTO order_items (product_id) VALUES (?)').run(productId);
+
+    const { response, body } = await deleteProductThroughOwnerRoute(db, productId);
+
+    assert.equal(response.status, 400);
+    assert.match(body.error, /part of existing orders/i);
+    assert.ok(db.product(productId));
+    assert.deepEqual(db.inventory(productId), beforeInventory);
+    assert.equal(Number(db.db.prepare('SELECT COUNT(*) count FROM delivery_store_catalogue WHERE product_id=?').get(productId).count), 1);
+  } finally { db.close(); }
+});
+
+test('Owner catalogue deletion refuses products with any reservation history and preserves store data', async () => {
+  const db = new SQLiteD1();
+  try {
+    db.seedStore('store-active', 1);
+    const created = await createProduct({ DB: db }, newProduct({ stockQuantity: 0 }));
+    const productId = created.product.id;
+    const beforeInventory = db.inventory(productId);
+    db.db.prepare('INSERT INTO delivery_store_inventory_reservations (id,product_id) VALUES (?,?)').run('released-reservation', productId);
+
+    const { response, body } = await deleteProductThroughOwnerRoute(db, productId);
+
+    assert.equal(response.status, 400);
+    assert.match(body.error, /delivery reservation history/i);
+    assert.ok(db.product(productId));
+    assert.deepEqual(db.inventory(productId), beforeInventory);
+    assert.equal(Number(db.db.prepare('SELECT COUNT(*) count FROM delivery_store_catalogue WHERE product_id=?').get(productId).count), 1);
+  } finally { db.close(); }
+});
+
+test('Owner catalogue deletion returns a clear not-found result for a missing product', async () => {
+  const db = new SQLiteD1();
+  try {
+    const { response, body } = await deleteProductThroughOwnerRoute(db, 'missing-product');
+    assert.equal(response.status, 400);
+    assert.equal(body.error, 'Product not found.');
   } finally { db.close(); }
 });
