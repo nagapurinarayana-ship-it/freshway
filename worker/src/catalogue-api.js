@@ -291,4 +291,4 @@ async function deleteProduct(env,productId){
   return{ok:true};
 }
 
-export { createProduct, updateProduct };
+export { createProduct, updateProduct, deleteProduct };
