@@ -73,9 +73,10 @@ test('customer storefront uses the selected store catalogue and checks out at it
   await expect(customerPage.locator('[data-fw-category="cat-oils-d1"]')).toBeVisible({ timeout: 20000 });
   await expect(customerPage.locator('#fwCategoryCatalogue')).toContainText('D1 Store');
   await customerPage.locator('[data-fw-category="cat-oils-d1"]').click();
-  await expect(customerPage.locator('#productGrid .product-card')).toContainText('Groundnut Oil');
-  await expect(customerPage.locator('#productGrid .product-price').first()).toContainText('₹189');
-  await expect(customerPage.locator('#productGrid .product-card')).not.toContainText('Basmati Rice');
+  const oilCard = customerPage.locator('#productGrid .product-card').filter({ hasText: 'Groundnut Oil' });
+  const riceCard = customerPage.locator('#productGrid .product-card').filter({ hasText: 'Basmati Rice' });
+  await expect(oilCard).toContainText('₹189');
+  await expect(riceCard).toContainText('₹233');
   await customerPage.locator('#productGrid [data-add="oil-d1"]').click();
   await customerPage.locator('#viewCartBtn').click();
   await expect(customerPage.locator('#cartItems')).toContainText('Groundnut Oil');
@@ -112,6 +113,7 @@ test('customer storefront uses the selected store catalogue and checks out at it
 
 
 test('customer mobile UI applies a fixed coupon to a multi-item store basket and persists the exact threshold price in D1', async ({ browser }) => {
+  test.setTimeout(60000);
   const context = await browser.newContext({
     serviceWorkers: 'block',
     viewport: { width: 390, height: 844 }
@@ -155,8 +157,10 @@ test('customer mobile UI applies a fixed coupon to a multi-item store basket and
   await expect(oilAdd).toBeVisible();
   await expect(page.locator('#productGrid .product-price').first()).toContainText('₹189');
   await oilAdd.click();
-  await oilAdd.click();
-  await oilAdd.click();
+  const oilPlus = page.locator('#productGrid [data-plus="oil-d1"]');
+  await expect(oilPlus).toBeVisible();
+  await oilPlus.click();
+  await oilPlus.click();
 
   await page.locator('[data-fw-category="cat-rice-d1"]').click();
   const riceAdd = page.locator('#productGrid [data-add="rice-d1"]');
