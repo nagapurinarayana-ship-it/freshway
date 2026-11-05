@@ -14,7 +14,7 @@ assert.match(html, /View all notifications/);
 assert.match(html, /id="owner-alert-history"/);
 assert.match(source, /data-delete-owner-alert/);
 assert.match(source, /method: 'DELETE'/);
-assert.match(html, /frontend\/admin\/order-alerts\.js\?v=20261021-owner-push-diagnostics-v1/);
+assert.match(html, /frontend\/admin\/order-alerts\.js\?v=20261105-owner-push-diagnostics-v2/);
 assert.match(source, /Notification\.requestPermission\(\)/);
 assert.match(source, /pushManager\.subscribe/);
 assert.doesNotMatch(source, /Notification\.permission === 'granted' && !automaticSetupAttempted/);
@@ -23,6 +23,7 @@ assert.match(source, /\/admin\/push\/test/);
 assert.match(source, /ownerSubscriptionCount/);
 assert.match(source, /latestSummary/);
 assert.match(source, /freshway:admin-authenticated/);
+assert.match(source, /if \(!button \|\| !status \|\| !ownerAuthHint\(\)\) return;/, 'push status must not call the API before Owner sign-in');
 assert.match(adminUi, /freshway:admin-authenticated/);
 assert.match(source, /Finish enabling Owner alerts/);
 assert.match(source, /customer app's subscription is separate/);
@@ -35,7 +36,7 @@ assert.match(source, /\$\('#ownerAlertHistoryMore'\)\?\.addEventListener\('click
 assert.match(source, /Disable alerts on this device/);
 assert.match(worker, /addEventListener\('push'/);
 assert.match(worker, /addEventListener\('notificationclick'/);
-assert.match(worker, /const CACHE = 'fw-owner-v67'/, 'Owner notification test must expect the current Owner PWA cache version');
+assert.match(worker, /const CACHE = 'fw-owner-v68'/, 'Owner notification test must expect the current Owner PWA cache version');
 assert.match(route, /\/api\/admin\/push\/public-key/);
 assert.match(route, /\/api\/admin\/push\/subscribe/);
 assert.match(route, /\/api\/admin\/order-alerts/);
@@ -75,6 +76,9 @@ assert.match(route, /\/api\/admin\/order-alerts/);
     }
   };
   const testNotification = { permission: 'granted', requestPermission: async () => 'granted' };
+  const authStorage = {
+    getItem(key) { return key === 'freshway-admin-auth' && authenticated ? '1' : null; }
+  };
   const window = {
     PushManager: function PushManager() {},
     Notification: testNotification,
@@ -99,6 +103,8 @@ assert.match(route, /\/api\/admin\/order-alerts/);
   };
   vm.runInNewContext(source, {
     document, window, navigator,
+    sessionStorage: authStorage,
+    localStorage: authStorage,
     Notification: testNotification,
     MutationObserver: class { observe() {} },
     atob: value => Buffer.from(value, 'base64').toString('binary'),
@@ -106,6 +112,7 @@ assert.match(route, /\/api\/admin\/order-alerts/);
   });
   await new Promise(resolve => setTimeout(resolve, 20));
   assert.equal(button.dataset.enabled, '0', 'Owner alerts must wait until a signed-in session exists');
+  assert.equal(calls.length, 0, 'unauthenticated Owner shell must not issue push or alert API requests');
   authenticated = true;
   const signedInHandler = windowListeners.get('freshway:admin-authenticated');
   assert.equal(typeof signedInHandler, 'function', 'successful Owner sign-in must trigger an alert setup retry');

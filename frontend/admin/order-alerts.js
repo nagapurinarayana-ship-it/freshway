@@ -6,6 +6,15 @@
     if (typeof window.api !== 'function') return Promise.reject(new Error('Owner session is not ready. Sign in and try again.'));
     return window.api(path, options);
   };
+  const ownerAuthHint = () => {
+    try {
+      return sessionStorage.getItem('freshway-admin-auth') === '1' ||
+        localStorage.getItem('freshway-admin-auth') === '1';
+    } catch (_) {
+      return false;
+    }
+  };
+
   const statusText = status => ({
     sent: 'Accepted by push service', partial: 'Partially accepted', failed: 'Delivery failed',
     no_subscriptions: 'No enabled Owner devices', not_configured: 'Push is not configured',
@@ -76,7 +85,7 @@
     const button = $('#ownerOrderAlertToggle');
     const status = $('#ownerOrderAlertStatus');
     const testButton = $('#ownerOrderAlertTest');
-    if (!button || !status) return;
+    if (!button || !status || !ownerAuthHint()) return;
     try {
       const info = await api('/admin/push/public-key');
       const latest = info.latestAlert;
@@ -226,7 +235,7 @@
 
   async function loadAlerts() {
     const list = $('#ownerOrderAlertList');
-    if (!list || previewLoading) return;
+    if (!list || previewLoading || !ownerAuthHint()) return;
     previewLoading = true;
     list.setAttribute('aria-busy', 'true');
     try {
@@ -249,7 +258,7 @@
     const list = $('#ownerAlertHistoryList');
     const more = $('#ownerAlertHistoryMore');
     const status = $('#ownerAlertHistoryStatus');
-    if (!list || historyLoading) return;
+    if (!list || historyLoading || !ownerAuthHint()) return;
     if (reset) {
       historyBefore = null;
       historyHasMore = true;
@@ -334,13 +343,14 @@
     const notifications = $('#notifications');
     const historyScreen = $('#owner-alert-history');
     if (notifications) new MutationObserver(() => {
-      if (notifications.classList.contains('active')) { void loadStatus(); void loadAlerts(); }
+      if (ownerAuthHint() && notifications.classList.contains('active')) { void loadStatus(); void loadAlerts(); }
     }).observe(notifications, { attributes: true, attributeFilter: ['class'] });
     if (historyScreen) new MutationObserver(() => {
       if (historyScreen.classList.contains('active')) void loadOwnerAlertHistory({ reset: true });
     }).observe(historyScreen, { attributes: true, attributeFilter: ['class'] });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) return;
+      if (!ownerAuthHint()) return;
       if (notifications?.classList.contains('active')) { void loadStatus(); void loadAlerts(); }
       if (historyScreen?.classList.contains('active')) void loadOwnerAlertHistory({ reset: true });
     });
@@ -349,9 +359,13 @@
       void loadAlerts();
       if (historyScreen?.classList.contains('active')) void loadOwnerAlertHistory({ reset: true });
     });
-    void loadStatus();
-    if (notifications?.classList.contains('active')) void loadAlerts();
-    if (historyScreen?.classList.contains('active')) void loadOwnerAlertHistory({ reset: true });
+    // The Owner shell is also visible before sign-in. Do not call authenticated
+    // endpoints during that state; saveToken emits the authenticated event later.
+    if (ownerAuthHint()) {
+      void loadStatus();
+      if (notifications?.classList.contains('active')) void loadAlerts();
+      if (historyScreen?.classList.contains('active')) void loadOwnerAlertHistory({ reset: true });
+    }
   }
 
   window.FreshWayOwnerOrderAlerts=Object.freeze({
