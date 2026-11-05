@@ -280,6 +280,27 @@ test('Owner browser Back, Forward and refresh preserve the correct screen and re
     await expectHistoryScreen('settings');
     await expect(page.locator('#storeProfileForm')).toBeVisible();
 
+    // The global refresh action must also reload secondary management screens,
+    // not silently do nothing outside the original Overview/Orders/Delivery set.
+    const refreshChecks = [
+      { screen: 'stores', endpoint: '/api/admin/delivery/stores' },
+      { screen: 'requests', endpoint: '/api/admin/delivery/requests' },
+      { screen: 'messages', endpoint: '/api/admin/customer-messages' },
+      { screen: 'offers', endpoint: '/api/admin/delivery-offers' },
+      { screen: 'settings', endpoint: '/api/admin/store-profile' }
+    ];
+    for (const check of refreshChecks) {
+      await navigateTo(check.screen);
+      await page.waitForLoadState('networkidle');
+      const refreshed = page.waitForResponse(response =>
+        new URL(response.url()).pathname === check.endpoint &&
+        response.request().method() === 'GET'
+      );
+      await page.locator('#refreshBtn').click();
+      expect((await refreshed).status()).toBe(200);
+      await expect(page.locator('#' + check.screen)).toHaveClass(/active/);
+    }
+
     // Catalogue is the screen that previously erased history state. Confirm its
     // content rehydrates after a direct route load and a full refresh.
     await page.goto('/admin.html#catalogue');
