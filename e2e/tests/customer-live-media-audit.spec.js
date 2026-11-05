@@ -21,6 +21,21 @@ async function expectDecodedImages(locator, description) {
 
 test('LIVE production media audit: real catalogue, category artwork and configured promotions', async ({ page, request }) => {
   test.setTimeout(150000);
+  // PR runs use the live production domain because Pages previews are Access-protected.
+  // Do not attribute an old deployed shell's stale JavaScript errors to this branch;
+  // wait until the new cache-busted app and its service-worker shell are actually live.
+  const [shellResponse, serviceWorkerResponse] = await Promise.all([
+    request.get(LIVE_BASE_URL + '/?freshway-deploy-check=' + Date.now(), { timeout: 20000 }),
+    request.get(LIVE_BASE_URL + '/sw.js?freshway-deploy-check=' + Date.now(), { timeout: 20000 })
+  ]);
+  expect(shellResponse.status(), 'live customer shell must be reachable').toBe(200);
+  expect(serviceWorkerResponse.status(), 'live customer service worker must be reachable').toBe(200);
+  const [liveShell, liveServiceWorker] = await Promise.all([
+    shellResponse.text(), serviceWorkerResponse.text()
+  ]);
+  if (!liveShell.includes('app.js?v=106') || !liveServiceWorker.includes("freshway-v122") || !liveServiceWorker.includes('/app.js?v=106')) {
+    test.skip(true, 'Live production has not deployed the current customer app/service-worker versions yet.');
+  }
   await mkdir(OUTPUT_DIR, { recursive: true });
 
   // These are read-only public GETs against the currently deployed site.

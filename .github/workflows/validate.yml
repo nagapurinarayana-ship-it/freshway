@@ -122,7 +122,7 @@ jobs:
           const contact = fs.readFileSync('frontend/customer/store-info.js', 'utf8');
           const messages = fs.readFileSync('frontend/customer/messages.js', 'utf8');
           const requiredHtml = [
-            'app.js?v=105',
+            'app.js?v=106',
             'frontend/customer/store-info.js?v=msg1',
             'frontend/customer/messages.js?v=msg1'
           ];

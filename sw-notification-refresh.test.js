@@ -83,9 +83,14 @@ async function dispatchPush(payload) {
 
   const app = fs.readFileSync('app.js', 'utf8');
   const index = fs.readFileSync('index.html', 'utf8');
+  const sw = fs.readFileSync('sw.js', 'utf8');
   assert.match(app, /freshway:order-updated/);
   assert.match(app, /customerOrderData\.load\(\)/);
-  assert.match(index, /app\.js\?v=105/);
+  assert.match(index, /app\.js\?v=106/);
+  assert.match(sw, /const CACHE = 'freshway-v122';/);
+  assert.ok(sw.includes('/app.js?v=106'), 'service worker must precache the same cache-busted customer app asset');
+  assert.doesNotMatch(app, /customerSearch\.bind\(/, 'customer app must not bind the removed customer search module');
+  assert.match(app, /customerCartActions\.bind\(/, 'cart click handlers must remain registered after app startup');
   assert.match(index, /frontend\/customer\/orders-data\.js\?v=orders3/);
   assert.match(index, /frontend\/customer\/messages\.js\?v=msg1/);
   assert.match(index, /frontend\/customer\/store-info\.js\?v=msg1/);
