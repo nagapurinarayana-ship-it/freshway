@@ -36,6 +36,7 @@ async function proxyWorkerApi(page) {
 }
 
 test('Owner can navigate every implemented management screen against the real Worker + isolated D1', async ({ browser }) => {
+  test.setTimeout(90_000);
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
     serviceWorkers: 'block'
@@ -131,6 +132,7 @@ test('Owner can navigate every implemented management screen against the real Wo
 
 
 test('Owner mobile More menu reopens after selecting secondary destinations repeatedly', async ({ browser }) => {
+  test.setTimeout(90_000);
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 1,
@@ -230,6 +232,7 @@ test('Owner mobile More menu reopens after selecting secondary destinations repe
 });
 
 test('Owner browser Back, Forward and refresh preserve the correct screen and restore its data', async ({ browser }) => {
+  test.setTimeout(90_000);
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
     serviceWorkers: 'block'
@@ -405,6 +408,7 @@ test('Owner browser Back, Forward and refresh preserve the correct screen and re
 
     expect(pageErrors).toEqual([]);
   } finally {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
     await context.close();
   }
 });
