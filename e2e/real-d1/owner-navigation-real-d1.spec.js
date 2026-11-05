@@ -190,6 +190,26 @@ test('Owner mobile More menu reopens after selecting secondary destinations repe
     await page.locator('#mobileMoreBtn').click();
     await expect(page.locator('#mobileMoreMenu')).toBeVisible();
 
+    // A transient Owner toast must not cover More-sheet actions on a phone.
+    await page.evaluate(() => window.toast('Temporary visual-overlap check'));
+    await expect(page.locator('#toast')).toHaveCSS('opacity', '0');
+    const moreCard = page.locator('#mobileMoreMenu .mobile-more-card');
+    const moreCardBox = await moreCard.boundingBox();
+    expect(moreCardBox).toBeTruthy();
+    const viewport = page.viewportSize();
+    expect(moreCardBox.y).toBeGreaterThanOrEqual(0);
+    expect(moreCardBox.y + moreCardBox.height).toBeLessThanOrEqual(viewport.height);
+    const moreDestinations = page.locator('#mobileMoreMenu [data-more-screen]');
+    await expect(moreDestinations).toHaveCount(9);
+    for (let index = 0; index < await moreDestinations.count(); index++) {
+      const destination = moreDestinations.nth(index);
+      await expect(destination).toBeVisible();
+      const bounds = await destination.boundingBox();
+      expect(bounds).toBeTruthy();
+      expect(bounds.y).toBeGreaterThanOrEqual(moreCardBox.y);
+      expect(bounds.y + bounds.height).toBeLessThanOrEqual(moreCardBox.y + moreCardBox.height);
+    }
+
     const layout = await page.evaluate(() => ({
       viewportWidth: window.innerWidth,
       documentWidth: document.documentElement.scrollWidth,
@@ -205,6 +225,120 @@ test('Owner mobile More menu reopens after selecting secondary destinations repe
     });
   } finally {
     checkingNavigation = false;
+    await context.close();
+  }
+});
+
+test('Owner browser Back, Forward and refresh preserve the correct screen and restore its data', async ({ browser }) => {
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  const page = await context.newPage();
+  const pageErrors = [];
+
+  page.on('pageerror', error => pageErrors.push(error.message));
+
+  const navigateTo = async screen => {
+    const primary = page.locator('.side nav button[data-screen="' + screen + '"]');
+    if (await primary.isVisible()) {
+      await primary.click();
+    } else {
+      const more = page.locator('.side nav details.owner-nav-more');
+      if (!(await more.evaluate(el => el.open))) await more.locator('summary').click();
+      const secondary = more.locator('button[data-screen="' + screen + '"]');
+      await expect(secondary).toBeVisible();
+      await secondary.click();
+    }
+    await expect(page.locator('#' + screen)).toHaveClass(/active/);
+    await expect(page).toHaveURL(new RegExp('#' + screen + '$'));
+    await expect.poll(() => page.evaluate(() => history.state?.screen)).toBe(screen);
+  };
+
+  const expectHistoryScreen = async screen => {
+    await expect(page.locator('#' + screen)).toHaveClass(/active/);
+    await expect(page).toHaveURL(new RegExp('#' + screen + '$'));
+    await expect.poll(() => page.evaluate(() => history.state?.screen)).toBe(screen);
+  };
+
+  try {
+    await proxyOwnerAssets(page);
+    await proxyWorkerApi(page);
+
+    const home = await page.goto('/admin.html#overview');
+    expect(home?.status()).toBe(200);
+    await expect(page.locator('#loginView')).toBeVisible();
+
+    const loginResponse = page.waitForResponse(response =>
+      new URL(response.url()).pathname === '/api/admin/login' &&
+      response.request().method() === 'POST'
+    );
+    await page.locator('#adminToken').fill('isolated-admin-token');
+    await page.locator('#connectBtn').click();
+    expect((await loginResponse).status()).toBe(200);
+    await expect(page.locator('#appView')).toBeVisible();
+    await expect(page.locator('#overview')).toHaveClass(/active/);
+
+    const sequence = ['orders', 'delivery', 'stores', 'catalogue', 'offers', 'settings'];
+    for (const screen of sequence) await navigateTo(screen);
+
+    // Every Back action must restore the screen represented by the popped history
+    // entry, without adding another entry or leaving the URL and active screen apart.
+    for (const screen of ['offers', 'catalogue', 'stores', 'delivery', 'orders', 'overview']) {
+      await page.evaluate(() => history.back());
+      await expectHistoryScreen(screen);
+    }
+
+    // Forward must replay the same screen sequence exactly once.
+    for (const screen of sequence) {
+      await page.evaluate(() => history.forward());
+      await expectHistoryScreen(screen);
+    }
+
+    // A hard refresh must reopen the same authenticated screen, not flash Overview
+    // or silently fall back to a stale route.
+    await page.reload();
+    await expect(page.locator('#appView')).toBeVisible();
+    await expectHistoryScreen('settings');
+    await expect(page.locator('#storeProfileForm')).toBeVisible();
+
+    // The global refresh action must also reload secondary management screens,
+    // not silently do nothing outside the original Overview/Orders/Delivery set.
+    const refreshChecks = [
+      { screen: 'stores', endpoint: '/api/admin/delivery/stores' },
+      { screen: 'requests', endpoint: '/api/admin/delivery/requests' },
+      { screen: 'messages', endpoint: '/api/admin/customer-messages' },
+      { screen: 'offers', endpoint: '/api/admin/delivery-offers' },
+      { screen: 'settings', endpoint: '/api/admin/store-profile' }
+    ];
+    for (const check of refreshChecks) {
+      await navigateTo(check.screen);
+      await page.waitForLoadState('networkidle');
+      const refreshed = page.waitForResponse(response =>
+        new URL(response.url()).pathname === check.endpoint &&
+        response.request().method() === 'GET'
+      );
+      await page.locator('#refreshBtn').click();
+      expect((await refreshed).status()).toBe(200);
+      await expect(page.locator('#' + check.screen)).toHaveClass(/active/);
+    }
+
+    // Catalogue is the screen that previously erased history state. Confirm its
+    // content rehydrates after a direct route load and a full refresh.
+    await page.goto('/admin.html#catalogue');
+    await expect(page.locator('#appView')).toBeVisible();
+    await expect(page.locator('#catalogue')).toHaveClass(/active/);
+    await expect(page.locator('#fwCategoryList')).toBeVisible();
+    await expect.poll(() => page.locator('#fwCategoryList').innerText()).toContain('Oils');
+
+    await page.reload();
+    await expect(page.locator('#appView')).toBeVisible();
+    await expect(page.locator('#catalogue')).toHaveClass(/active/);
+    await expect(page.locator('#fwCategoryList')).toBeVisible();
+    await expect.poll(() => page.locator('#fwCategoryList').innerText()).toContain('Oils');
+
+    expect(pageErrors).toEqual([]);
+  } finally {
     await context.close();
   }
 });

@@ -39,4 +39,16 @@ assert.match(html,/mobile-more-label">Reports & settings/,'less-used options sho
 assert.match(source,/else if\(target==='offers'\)\{await window\.FreshWayOwnerDeliveryOffers\?\.load\(\);\}/,'direct refresh on #offers must load delivery settings and coupons');
 assert.ok(html.indexOf('frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5') < html.indexOf('admin.js?v=20261103-assigned-store-label-v1'), 'Delivery & Offers must load before Owner bootstrap so a direct #offers route can call its loader');
 assert.match(html,/data-more-screen="offers">🎟 Delivery & offers/,'mobile More menu must expose Delivery & Offers');
+const lifecycle=fs.readFileSync('owner-lifecycle.js','utf8');
+const freshness=fs.readFileSync('owner-address-final.js','utf8');
+const catalogue=fs.readFileSync('frontend/admin/catalogue.js','utf8');
+assert.equal(lifecycle.includes("history.replaceState(null,'',`#${id}`)"),false,'the lifecycle module must not erase Owner history state for Catalogue');
+assert.ok(catalogue.includes('window.navigateAdminScreen=function(id,options){const result=baseNavigate(id,options)'), 'Catalogue navigation must forward historyMode so popstate does not create a new entry');
+assert.ok(freshness.includes('const freshNavigate=function(id,options){clearOwnerScreenForFreshLoad(id);return baseFreshNavigate(id,options)}'), 'fresh-load navigation must preserve historyMode through its wrapper');
+assert.match(lifecycle,/FreshWayOwnerStoreManagement\?\.load\(\)/,'global refresh must reload the selected store workspace');
+assert.match(lifecycle,/FreshWayOwnerCustomerRequests\?\.load\(\)/,'global refresh must reload Customer Requests');
+assert.match(lifecycle,/FreshWayOwnerCustomerMessages\?\.load\(\)/,'global refresh must reload Customer Messages');
+assert.match(lifecycle,/FreshWayOwnerDeliveryOffers\?\.load\(\)/,'global refresh must reload Delivery & Offers');
+assert.match(lifecycle,/loadStoreProfileSettings\(\)/,'global refresh must reload Settings without bypassing its dirty-form guard');
+assert.match(lifecycle,/FreshWayOwnerOrderAlerts\?\.refreshHistory\(\)/,'global refresh must reload Owner notification history');
 console.log('owner navigation history and safe initial settings bootstrap OK');

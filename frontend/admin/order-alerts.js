@@ -354,6 +354,10 @@
     if (historyScreen?.classList.contains('active')) void loadOwnerAlertHistory({ reset: true });
   }
 
+  window.FreshWayOwnerOrderAlerts=Object.freeze({
+    refreshNotifications:async()=>{await loadStatus();await loadAlerts();},
+    refreshHistory:()=>loadOwnerAlertHistory({reset:true})
+  });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup, { once: true });
   else setup();
 })();
