@@ -375,9 +375,15 @@ test('customer mobile UI applies a fixed coupon to a multi-item store basket and
   await expect(ownerPage.locator('#cash')).toHaveClass(/active/);
   const cashCards = ownerPage.locator('#cashSummary .cash-summary-grid .report');
   await expect(cashCards).toHaveCount(2);
-  await expect(cashCards.nth(0)).toContainText('₹0', { timeout: 20000 });
+  // The preceding customer-store test leaves one independent ₹219 COD order
+  // unpaid in this same isolated D1 database; it must remain visible as pending.
+  // The current ₹750 order must be in collected cash, not pending cash.
+  await expect(cashCards.nth(0)).toContainText('₹219', { timeout: 20000 });
+  await expect(cashCards.nth(0)).toContainText('1 orders still outstanding');
   await expect(cashCards.nth(1)).toContainText('₹750', { timeout: 20000 });
-  await expect(ownerPage.locator('#cashList')).toContainText('All clear');
+  await expect(cashCards.nth(1)).toContainText('1 collections today');
+  await expect(ownerPage.locator('#cashList')).toContainText('₹219');
+  await expect(ownerPage.locator('#cashList')).not.toContainText(placed.id);
 
   // Keep the Cash screen usable at phone and narrow-tablet widths as well.
   await ownerPage.setViewportSize({ width: 390, height: 844 });
