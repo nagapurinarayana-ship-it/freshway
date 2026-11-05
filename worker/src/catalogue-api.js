@@ -267,6 +267,28 @@ async function updateProduct(env,productId,p){
   return{ok:true,stockAllocationRequired,stock_managed:stockManaged?1:0,stock_quantity:stockQuantity,
     low_stock_threshold:lowStockThreshold,hsn_code:hsnCode,gst_rate_bps:gstRateBps,gst_rate_confirmed:gstRateConfirmed};
 }
-async function deleteProduct(env,productId){const used=Number((await env.DB.prepare('SELECT COUNT(*) count FROM order_items WHERE product_id=?').bind(productId).first())?.count||0);if(used)throw new Error('This product is part of existing orders. Hide it instead of deleting it.');const result=await env.DB.prepare('DELETE FROM products WHERE id=?').bind(productId).run();if(!result.meta?.changes)throw new Error('Product not found.');return{ok:true}}
+async function deleteProduct(env,productId){
+  const current=await env.DB.prepare('SELECT id FROM products WHERE id=? LIMIT 1').bind(productId).first();
+  if(!current)throw new Error('Product not found.');
+
+  const used=Number((await env.DB.prepare('SELECT COUNT(*) count FROM order_items WHERE product_id=?').bind(productId).first())?.count||0);
+  if(used)throw new Error('This product is part of existing orders. Hide it instead of deleting it.');
+
+  const reservations=Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_store_inventory_reservations WHERE product_id=?').bind(productId).first())?.count||0);
+  if(reservations)throw new Error('This product has delivery reservation history. Hide it instead of deleting it.');
+
+  const stocked=Number((await env.DB.prepare('SELECT COUNT(*) count FROM delivery_store_inventory WHERE product_id=? AND stock_quantity>0').bind(productId).first())?.count||0);
+  if(stocked)throw new Error('This product still has stock in one or more stores. Set each store quantity to zero before deleting it.');
+
+  // Store stock rows use ON DELETE RESTRICT. Remove zero-stock allocations and
+  // the central product in one D1 batch so a failed product delete rolls back
+  // the inventory cleanup. Store catalogue rows are removed by their FK cascade.
+  const results=await env.DB.batch([
+    env.DB.prepare('DELETE FROM delivery_store_inventory WHERE product_id=?').bind(productId),
+    env.DB.prepare('DELETE FROM products WHERE id=?').bind(productId)
+  ]);
+  if(!results?.[1]?.meta?.changes)throw new Error('Product not found.');
+  return{ok:true};
+}
 
 export { createProduct, updateProduct };
