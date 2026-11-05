@@ -3,6 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { createProduct, updateProduct, handleCatalogueRequest } from '../src/catalogue-api.js';
 import { addProduct as addLegacyProduct, updateProduct as updateLegacyProduct } from '../src/index.js';
+import { deleteProduct as deleteLegacyProduct } from '../src/admin-products.js';
 
 class SQLiteD1 {
   constructor() {
@@ -302,5 +303,55 @@ test('Owner catalogue deletion returns a clear not-found result for a missing pr
     const { response, body } = await deleteProductThroughOwnerRoute(db, 'missing-product');
     assert.equal(response.status, 400);
     assert.equal(body.error, 'Product not found.');
+  } finally { db.close(); }
+});
+
+
+test('legacy Owner product endpoint shares safe zero-stock deletion policy', async () => {
+  const db = new SQLiteD1();
+  try {
+    db.seedStore('store-active', 1);
+    db.seedStore('store-paused', 0);
+    const created = await createProduct({ DB: db }, newProduct({ stockQuantity: 0 }));
+    const productId = created.product.id;
+    assert.equal(db.inventory(productId).length, 2);
+    assert.ok(db.inventory(productId).every(row => row.stock_quantity === 0));
+
+    const result = await deleteLegacyProduct({ DB: db }, productId);
+
+    assert.deepEqual(result, { ok: true });
+    assert.equal(db.product(productId), undefined);
+    assert.deepEqual(db.inventory(productId), []);
+    assert.equal(Number(db.db.prepare('SELECT COUNT(*) count FROM delivery_store_catalogue WHERE product_id=?').get(productId).count), 0);
+  } finally { db.close(); }
+});
+
+test('legacy Owner product endpoint refuses positive stock and historical order or reservation history', async () => {
+  const db = new SQLiteD1();
+  try {
+    db.seedStore('store-active', 1);
+    const stocked = await createProduct({ DB: db }, newProduct({ stockQuantity: 5 }));
+    await assert.rejects(
+      () => deleteLegacyProduct({ DB: db }, stocked.product.id),
+      /still has stock/i
+    );
+    assert.ok(db.product(stocked.product.id));
+    assert.deepEqual(db.inventory(stocked.product.id), [{ store_id: 'store-active', stock_quantity: 5 }]);
+
+    const ordered = await createProduct({ DB: db }, newProduct({ stockQuantity: 0 }));
+    db.db.prepare('INSERT INTO order_items (product_id) VALUES (?)').run(ordered.product.id);
+    await assert.rejects(
+      () => deleteLegacyProduct({ DB: db }, ordered.product.id),
+      /part of existing orders/i
+    );
+    assert.ok(db.product(ordered.product.id));
+
+    const reserved = await createProduct({ DB: db }, newProduct({ stockQuantity: 0 }));
+    db.db.prepare('INSERT INTO delivery_store_inventory_reservations (id,product_id) VALUES (?,?)').run('legacy-released-reservation', reserved.product.id);
+    await assert.rejects(
+      () => deleteLegacyProduct({ DB: db }, reserved.product.id),
+      /delivery reservation history/i
+    );
+    assert.ok(db.product(reserved.product.id));
   } finally { db.close(); }
 });
