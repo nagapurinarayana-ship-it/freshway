@@ -208,3 +208,94 @@ test('Owner mobile More menu reopens after selecting secondary destinations repe
     await context.close();
   }
 });
+
+test('Owner browser Back, Forward and refresh preserve the correct screen and restore its data', async ({ browser }) => {
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    serviceWorkers: 'block'
+  });
+  const page = await context.newPage();
+  const pageErrors = [];
+
+  page.on('pageerror', error => pageErrors.push(error.message));
+
+  const navigateTo = async screen => {
+    const primary = page.locator('.side nav button[data-screen="' + screen + '"]');
+    if (await primary.count()) {
+      await primary.click();
+    } else {
+      const more = page.locator('.side nav details.owner-nav-more');
+      if (!(await more.evaluate(el => el.open))) await more.locator('summary').click();
+      await more.locator('button[data-screen="' + screen + '"]').click();
+    }
+    await expect(page.locator('#' + screen)).toHaveClass(/active/);
+    await expect(page).toHaveURL(new RegExp('#' + screen + '$'));
+    await expect.poll(() => page.evaluate(() => history.state?.screen)).toBe(screen);
+  };
+
+  const expectHistoryScreen = async screen => {
+    await expect(page.locator('#' + screen)).toHaveClass(/active/);
+    await expect(page).toHaveURL(new RegExp('#' + screen + '$'));
+    await expect.poll(() => page.evaluate(() => history.state?.screen)).toBe(screen);
+  };
+
+  try {
+    await proxyOwnerAssets(page);
+    await proxyWorkerApi(page);
+
+    const home = await page.goto('/admin.html#overview');
+    expect(home?.status()).toBe(200);
+    await expect(page.locator('#loginView')).toBeVisible();
+
+    const loginResponse = page.waitForResponse(response =>
+      new URL(response.url()).pathname === '/api/admin/login' &&
+      response.request().method() === 'POST'
+    );
+    await page.locator('#adminToken').fill('isolated-admin-token');
+    await page.locator('#connectBtn').click();
+    expect((await loginResponse).status()).toBe(200);
+    await expect(page.locator('#appView')).toBeVisible();
+    await expect(page.locator('#overview')).toHaveClass(/active/);
+
+    const sequence = ['orders', 'delivery', 'stores', 'catalogue', 'offers', 'settings'];
+    for (const screen of sequence) await navigateTo(screen);
+
+    // Every Back action must restore the screen represented by the popped history
+    // entry, without adding another entry or leaving the URL and active screen apart.
+    for (const screen of ['offers', 'catalogue', 'stores', 'delivery', 'orders', 'overview']) {
+      await page.evaluate(() => history.back());
+      await expectHistoryScreen(screen);
+    }
+
+    // Forward must replay the same screen sequence exactly once.
+    for (const screen of sequence) {
+      await page.evaluate(() => history.forward());
+      await expectHistoryScreen(screen);
+    }
+
+    // A hard refresh must reopen the same authenticated screen, not flash Overview
+    // or silently fall back to a stale route.
+    await page.reload();
+    await expect(page.locator('#appView')).toBeVisible();
+    await expectHistoryScreen('settings');
+    await expect(page.locator('#storeProfileForm')).toBeVisible();
+
+    // Catalogue is the screen that previously erased history state. Confirm its
+    // content rehydrates after a direct route load and a full refresh.
+    await page.goto('/admin.html#catalogue');
+    await expect(page.locator('#appView')).toBeVisible();
+    await expect(page.locator('#catalogue')).toHaveClass(/active/);
+    await expect(page.locator('#fwCategoryList')).toBeVisible();
+    await expect.poll(() => page.locator('#fwCategoryList').innerText()).toContain('Oils');
+
+    await page.reload();
+    await expect(page.locator('#appView')).toBeVisible();
+    await expect(page.locator('#catalogue')).toHaveClass(/active/);
+    await expect(page.locator('#fwCategoryList')).toBeVisible();
+    await expect.poll(() => page.locator('#fwCategoryList').innerText()).toContain('Oils');
+
+    expect(pageErrors).toEqual([]);
+  } finally {
+    await context.close();
+  }
+});
