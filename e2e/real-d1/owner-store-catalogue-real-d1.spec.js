@@ -54,12 +54,12 @@ test('Owner can edit, save and reload store-specific catalogue using real Worker
     await expect(oilVisible).toBeVisible();
     await expect(oilVisible).toBeChecked();
     await expect(oilPrice).toHaveValue('189');
-    await expect(riceVisible).not.toBeChecked();
-    await expect(ricePrice).toHaveValue('');
+    await expect(riceVisible).toBeChecked();
+    await expect(ricePrice).toHaveValue('233');
 
     try {
       await oilPrice.fill('199');
-      await riceVisible.check();
+      await riceVisible.uncheck();
 
       const saveResponse = page.waitForResponse(response =>
         new URL(response.url()).pathname === '/api/admin/delivery/stores/store-d1/catalogue' &&
@@ -75,10 +75,10 @@ test('Owner can edit, save and reload store-specific catalogue using real Worker
 
       await expect(page.locator('#storeManagement [data-catalogue-available="oil-d1"]')).toBeChecked();
       await expect(page.locator('#storeManagement [data-catalogue-price="oil-d1"]')).toHaveValue('199');
-      await expect(page.locator('#storeManagement [data-catalogue-available="rice-d1"]')).toBeChecked();
+      await expect(page.locator('#storeManagement [data-catalogue-available="rice-d1"]')).not.toBeChecked();
     } finally {
       // Restore the isolated fixture to its original state so the customer checkout
-      // test always starts with oil at ₹189 and rice hidden, even after an assertion fails.
+      // tests start with oil at ₹189 and rice visible, even after an assertion fails.
       const close = page.locator('#storeManagement [data-close-catalogue]');
       if (await close.count()) {
         await close.click();
@@ -94,7 +94,7 @@ test('Owner can edit, save and reload store-specific catalogue using real Worker
         await expect(originalRiceVisible).toBeVisible({ timeout: 10000 });
         await originalOilVisible.check();
         await originalOilPrice.fill('189');
-        await originalRiceVisible.uncheck();
+        await originalRiceVisible.check();
         const restoreResponse = page.waitForResponse(response =>
           new URL(response.url()).pathname === '/api/admin/delivery/stores/store-d1/catalogue' &&
           response.request().method() === 'PATCH'
