@@ -11,7 +11,6 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/d1-schema-audit.yml"
-      - "worker/scripts/audit-invoice-integrity.mjs"
   workflow_dispatch:
 
 permissions:
