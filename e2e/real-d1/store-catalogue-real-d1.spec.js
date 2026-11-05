@@ -978,30 +978,68 @@ test('Owner catalogue UI blocks deletion while store stock remains and deletes a
   expect((await loginResponse).status()).toBe(200);
   await expect(ownerPage.locator('#appView')).toBeVisible();
 
-  const catalogueResponse = await ownerPage.evaluate(async () => {
-    const response = await fetch('/api/admin/catalogue', { credentials: 'include', cache: 'no-store' });
+  const stockedName = 'UI Stock Delete Check ' + Date.now();
+  const stockCreate = await ownerPage.evaluate(async ({ name }) => {
+    const catalogueResponse = await fetch('/api/admin/catalogue', {
+      credentials: 'include', cache: 'no-store'
+    });
+    const catalogue = await catalogueResponse.json();
+    const categoryId = catalogue.categories[0]?.id;
+    if (!categoryId) return { status: catalogueResponse.status, error: 'No fixture category available.' };
+    const response = await fetch('/api/admin/catalogue/products', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name, unit: 'kg', price: 99, categoryId, stockManaged: true,
+        stockQuantity: 0, lowStockThreshold: 1
+      })
+    });
+    return { status: response.status, data: await response.json(), categoryId };
+  }, { name: stockedName });
+  expect(stockCreate.status).toBe(201);
+  const stockedProductId = stockCreate.data.product.id;
+  const stockedCategoryId = stockCreate.categoryId;
+  expect(stockedProductId).toBeTruthy();
+
+  // Give this newly-created, unreferenced product on-hand stock in one store.
+  // It has no order items or reservation history, so the API must reach the
+  // positive-stock guard rather than a separate historical-order guard.
+  const stockSave = await ownerPage.evaluate(async productId => {
+    const path = '/api/admin/delivery/stores/store-d1/inventory';
+    const currentResponse = await fetch(path, { credentials: 'include', cache: 'no-store' });
+    const current = await currentResponse.json();
+    if (!currentResponse.ok) return { status: currentResponse.status, data: current };
+    const items = (current.inventory || []).filter(item => item.stockManaged).map(item => ({
+      productId: item.id,
+      stockQuantity: item.id === productId ? 5 : Number(item.onHand || 0)
+    }));
+    const response = await fetch(path, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items })
+    });
     return { status: response.status, data: await response.json() };
-  });
-  expect(catalogueResponse.status).toBe(200);
-  const stockedProduct = catalogueResponse.data.products.find(product => product.id === 'oil-d1');
-  expect(stockedProduct).toBeTruthy();
+  }, stockedProductId);
+  expect(stockSave.status).toBe(200);
 
   await ownerPage.locator('.side nav details.owner-nav-more').evaluate(element => { element.open = true; });
   await ownerPage.locator('.side nav button[data-screen="catalogue"]').click();
   await expect(ownerPage.locator('#catalogue')).toHaveClass(/active/);
-  await ownerPage.locator('#fwCategoryList [data-fw-manage="' + stockedProduct.category_id + '"]').click();
-  const stockedCard = ownerPage.locator('#fwProductsArea [data-fw-delete-product="oil-d1"]').locator('..').locator('..');
-  await expect(stockedCard).toContainText(stockedProduct.name);
+  await ownerPage.locator('#fwCategoryList [data-fw-manage="' + stockedCategoryId + '"]').click();
+  await expect(ownerPage.locator('#fwProductsArea')).toContainText(stockedName);
 
   const blockedDelete = ownerPage.waitForResponse(response => {
     const url = new URL(response.url());
-    return url.pathname === '/api/admin/catalogue/products/oil-d1' && response.request().method() === 'DELETE';
+    return url.pathname === '/api/admin/catalogue/products/' + encodeURIComponent(stockedProductId) &&
+      response.request().method() === 'DELETE';
   });
-  await ownerPage.locator('#fwProductsArea [data-fw-delete-product="oil-d1"]').click();
+  await ownerPage.locator('#fwProductsArea [data-fw-delete-product="' + stockedProductId + '"]').click();
   const blockedResponse = await blockedDelete;
   expect(blockedResponse.status()).toBe(400);
   await expect(ownerPage.locator('#toast')).toContainText('still has stock');
-  await expect(ownerPage.locator('#fwProductsArea')).toContainText(stockedProduct.name);
+  await expect(ownerPage.locator('#fwProductsArea')).toContainText(stockedName);
 
   const uniqueName = 'UI Delete Check ' + Date.now();
   const createResult = await ownerPage.evaluate(async ({ categoryId, name }) => {
