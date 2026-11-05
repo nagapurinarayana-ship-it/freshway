@@ -56,7 +56,7 @@ assert.ok(ownerLiveSmokeSource.includes("const LEGACY_OWNER_CACHE = 'fw-owner-v6
 assert.ok(ownerLiveSmokeSource.includes("const OLDER_OWNER_CACHE = 'fw-owner-v65';"), 'production Owner smoke must also accept the older supported cache during rollout');
 assert.ok(ownerLiveSmokeSource.includes("const OLDEST_OWNER_CACHE = 'fw-owner-v64';"), 'production Owner smoke must also accept the oldest supported cache during rollout');
 assert.ok(ownerLiveSmokeSource.includes("'fw-owner-v62', 'fw-owner-v61', 'fw-owner-v60', 'fw-owner-v58', 'fw-owner-v57', 'fw-owner-v56']"), 'production Owner smoke must retain support for the older pre-v57 cache during rollout');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT = '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2';"), 'production Owner smoke must demand the current optional invoice settings script');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT = '/admin/frontend/admin/invoice-settings.js?v=20261105-auto-non-gst-disclosure-v1';"), 'production Owner smoke must demand the current optional invoice settings script');
 
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261105-owner-push-diagnostics-v2';"), 'production Owner smoke must demand the current push setup version');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2';"), 'production Owner smoke must demand the current business profile and shop pin editor');
