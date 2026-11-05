@@ -195,7 +195,7 @@ window.addEventListener('popstate',event=>{
   if(ownerOverlayElement()){closeOwnerOverlayNow();return}
   const s=event.state;
   const current=document.querySelector('.screen.active')?.id||location.hash.slice(1)||'overview';
-  const requested=s?.__freshwayOwner?(s.screen||'overview'):'overview';
+  const requested=s?.__freshwayOwner?(s.screen||location.hash.slice(1)||'overview'):(location.hash.slice(1)||'overview');
   navigateAdminScreen(requested,{historyMode:'none'});
   const activeAfter=document.querySelector('.screen.active')?.id||'overview';
   // Browser back changes the URL before the confirmation guard runs. If the
