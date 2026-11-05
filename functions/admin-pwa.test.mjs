@@ -35,10 +35,11 @@ assert.ok(deliverySchedulingSource.includes('if (inventoryMatch && request.metho
 assert.ok(sourceHtml.includes('account-deletions.js?v=20261106-account-deletion-form-v1'), 'Owner app must reference the updated account-deletion click handler');
 const deletionSource = readRepoFile('frontend/admin/account-deletions.js').toString('utf8');
 
-assert.match(deletionSource, /function showCompletionForm\\(card\\)/, 'account deletion must use an in-page mobile confirmation form');
-assert.match(deletionSource, /data-deletion-retention-confirm/, 'account deletion must require an explicit retention review checkbox');
-assert.match(deletionSource, /document\\.addEventListener\\('submit'/, 'account deletion must submit from the explicit in-page form');
-assert.match(deletionSource, /data-deletion-note/, 'account deletion must collect a case-specific audit note');
+assert.ok(deletionSource.includes('function showCompletionForm(card)'), 'account deletion must use an in-page mobile confirmation form');
+assert.ok(deletionSource.includes('data-deletion-retention-confirm'), 'account deletion must require an explicit retention review checkbox');
+assert.ok(deletionSource.includes("document.addEventListener('submit'"), 'account deletion must submit from the explicit in-page form');
+assert.ok(deletionSource.includes('data-deletion-note'), 'account deletion must collect a case-specific audit note');
+assert.ok(!deletionSource.includes('window.confirm('), 'account deletion completion must not depend on a native confirmation dialog');
 
 assert.ok(deletionSource.includes('individual request record, and keeps only an aggregate completion count and the latest completion date'), 'Deletion confirmation must explain that the per-request record is removed');
 assert.ok(deletionSource.includes('Confirmed retention review for applicable invoice/transaction records; operational customer data redacted.'), 'The completion acknowledgement is validated but not persisted as a customer-linked note');
