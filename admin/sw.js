@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v68';
+const CACHE = 'fw-owner-v69';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -9,7 +9,7 @@ const SHELL = [
   '/admin/owner-pwa-install.css?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261104-store-stock-workspace-v3',
   '/admin/admin.js?v=20261105-store-refresh-preserve-v1',
-  '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2',
+  '/admin/frontend/admin/invoice-settings.js?v=20261105-auto-non-gst-disclosure-v1',
   '/admin/frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5',
   '/admin/frontend/admin/account-deletions.js?v=20261024-anonymized-history-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261105-owner-push-diagnostics-v2',
@@ -45,7 +45,7 @@ const REQUIRED_SHELL = [
   '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2',
   '/admin/frontend/admin/store-management.js?v=20261104-store-stock-workspace-v3',
   '/admin/frontend/admin/customer-messages.js?v=20261027-customer-messages-v1',
-  '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2',
+  '/admin/frontend/admin/invoice-settings.js?v=20261105-auto-non-gst-disclosure-v1',
   '/admin/owner-lifecycle.js?v=20261103-assigned-store-lifecycle-v1'
 ];
 
