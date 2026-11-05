@@ -47,6 +47,8 @@ test('customer storefront shows only the selected store catalogue and its sellin
   page.on('pageerror',error=>pageErrors.push(error.message));
   const response=await page.goto('/');
   expect(response?.status()).toBe(200);
+  await expect(page.locator('#searchInput')).toHaveCount(0);
+  await expect(page.locator('.search-wrap')).toHaveCount(0);
   await expect(page.locator('[data-fw-category="cat-oils"]')).toBeVisible({timeout:20000});
   await expect(page.locator('#fwCategoryCatalogue')).toContainText('Store A');
   await page.locator('[data-fw-category="cat-oils"]').click();

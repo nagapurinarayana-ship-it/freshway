@@ -102,22 +102,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   font-size: 13px;
   font-weight: 750;
 }
-#app .search-wrap {
-  height: auto;
-  min-height: 48px;
-  margin-bottom: 16px;
-  padding-inline: 14px;
-  border-radius: 15px;
-  border-color: #dfe8e1;
-  box-shadow: 0 2px 8px rgba(20, 70, 45, 0.025);
-}
-#app .search-wrap span {
-  font-size: 22px;
-}
-#app .search-wrap input {
-  min-height: 46px;
-  font-size: 15px;
-}
 #app .hero-banner {
   min-height: 152px;
   margin-bottom: 26px;
@@ -1028,9 +1012,6 @@ body.fw-category-selected #app .product-action-control > .qty-control span {
   #app .location-card {
     margin-bottom: 18px;
     padding: 14px 18px;
-  }
-  #app .search-wrap {
-    margin-bottom: 20px;
   }
   #app .hero-banner {
     min-height: 190px;

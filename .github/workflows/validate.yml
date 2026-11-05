@@ -288,7 +288,7 @@ jobs:
           grep -qF '<main id="main-content">' index.html
           grep -qF '.skip-link:focus-visible' styles.css
           grep -qF 'button:focus-visible' styles.css
-          grep -qF 'aria-label="Search products"' index.html
+          grep -qF 'class="fw-category-card" data-fw-category="' frontend/customer/catalogue.js
           echo 'Security and accessibility baseline OK'
 
       - name: Check critical frontend asset budgets
