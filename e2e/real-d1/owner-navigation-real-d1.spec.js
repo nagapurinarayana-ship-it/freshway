@@ -221,12 +221,14 @@ test('Owner browser Back, Forward and refresh preserve the correct screen and re
 
   const navigateTo = async screen => {
     const primary = page.locator('.side nav button[data-screen="' + screen + '"]');
-    if (await primary.count()) {
+    if (await primary.isVisible()) {
       await primary.click();
     } else {
       const more = page.locator('.side nav details.owner-nav-more');
       if (!(await more.evaluate(el => el.open))) await more.locator('summary').click();
-      await more.locator('button[data-screen="' + screen + '"]').click();
+      const secondary = more.locator('button[data-screen="' + screen + '"]');
+      await expect(secondary).toBeVisible();
+      await secondary.click();
     }
     await expect(page.locator('#' + screen)).toHaveClass(/active/);
     await expect(page).toHaveURL(new RegExp('#' + screen + '$'));
