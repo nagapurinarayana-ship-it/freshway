@@ -789,3 +789,166 @@ test('Owner dispatch invoice is idempotent and cash reconciliation handles multi
 
   await context.close();
 });
+
+
+test('Owner admin navigation, store prices and inventory stay reliable through refresh and responsive stress', async ({ browser }) => {
+  test.setTimeout(180000);
+  const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 1440, height: 1000 } });
+  const ownerPage = await context.newPage();
+  const pageErrors = [];
+  const apiFailures = [];
+  let captureApiFailures = false;
+  ownerPage.on('pageerror', error => pageErrors.push(error.message));
+  ownerPage.on('response', response => {
+    if (!captureApiFailures || response.status() < 400) return;
+    const url = new URL(response.url());
+    if (url.pathname.startsWith('/api/')) {
+      apiFailures.push({ status: response.status(), method: response.request().method(), path: url.pathname });
+    }
+  });
+  await proxyWorkerApi(ownerPage);
+
+  const home = await ownerPage.goto('/admin.html#overview');
+  expect(home?.status()).toBe(200);
+  await expect(ownerPage.locator('#loginView')).toBeVisible();
+  const loginResponse = ownerPage.waitForResponse(response =>
+    new URL(response.url()).pathname === '/api/admin/login' &&
+    response.request().method() === 'POST'
+  );
+  await ownerPage.locator('#adminToken').fill('isolated-admin-token');
+  await ownerPage.locator('#connectBtn').click();
+  expect((await loginResponse).status()).toBe(200);
+  await expect(ownerPage.locator('#appView')).toBeVisible();
+  captureApiFailures = true;
+  await expect(ownerPage.locator('#kpis .kpi')).toHaveCount(4, { timeout: 20000 });
+
+  // Exercise every Owner screen through the desktop navigation, then use the
+  // built-in refresh action while each screen is active.
+  const screens = [
+    'orders', 'delivery', 'customers', 'stores', 'catalogue', 'cash',
+    'offers', 'notifications', 'reports', 'settings', 'requests', 'messages'
+  ];
+  await ownerPage.locator('.side nav details.owner-nav-more').evaluate(element => { element.open = true; });
+  for (const screen of screens) {
+    const navButton = ownerPage.locator('.side nav button[data-screen="' + screen + '"]');
+    await expect(navButton).toBeVisible();
+    await navButton.click();
+    await expect(ownerPage.locator('#' + screen)).toHaveClass(/active/);
+    await ownerPage.locator('#refreshBtn').click();
+    await expect(ownerPage.locator('#refreshBtn')).toBeEnabled();
+    await expect(ownerPage.locator('#' + screen)).toHaveClass(/active/);
+  }
+
+  // Store 2 is edited only through the Owner workspace. This checks that its
+  // price override, availability and physical inventory save together.
+  await ownerPage.locator('.side nav button[data-screen="stores"]').click();
+  await expect(ownerPage.locator('#stores')).toHaveClass(/active/);
+  const storeTwoCard = ownerPage.locator('#storeManagement .fw-store-card').filter({ hasText: 'D1 Operations Store 2' });
+  await expect(storeTwoCard).toHaveCount(1, { timeout: 20000 });
+  const storeTwoId = await storeTwoCard.locator('[data-manage-store]').getAttribute('data-manage-store');
+  expect(storeTwoId).toBeTruthy();
+  await storeTwoCard.locator('[data-manage-store]').click();
+  await expect(ownerPage.locator('#storeManagement .fw-managed-product')).toHaveCount(2, { timeout: 20000 });
+
+  const oilPrice = ownerPage.locator('#storeManagement [data-catalogue-price="oil-d1"]');
+  const oilOnHand = ownerPage.locator('#storeManagement [data-inventory-product="oil-d1"]');
+  const riceAvailable = ownerPage.locator('#storeManagement [data-catalogue-available="rice-d1"]');
+  const originalOilPrice = await oilPrice.inputValue();
+  const originalOilStock = Number(await oilOnHand.inputValue());
+  const originalRiceAvailability = await riceAvailable.isChecked();
+  expect(originalOilStock).toBeGreaterThan(0);
+
+  // Search and filters must work without removing products or switching stores.
+  await ownerPage.locator('#storeManagement [data-store-product-search]').fill('Groundnut');
+  await expect(ownerPage.locator('#storeManagement [data-managed-product]:visible')).toHaveCount(1);
+  await expect(ownerPage.locator('#storeManagement [data-managed-product]:visible').first()).toContainText('Groundnut Oil');
+  await ownerPage.locator('#storeManagement [data-store-product-search]').fill('');
+  await ownerPage.locator('#storeManagement [data-stock-filter="all"]').click();
+
+  await oilPrice.fill('218');
+  await oilOnHand.fill(String(originalOilStock - 1));
+  await riceAvailable.setChecked(false);
+  await ownerPage.locator('#storeManagement [data-save-store-management]').click();
+  await expect(ownerPage.locator('#storeManagement [data-store-management-status]')).toContainText('saved for this store', { timeout: 20000 });
+  await expect(ownerPage.locator('#storeManagement [data-catalogue-price="oil-d1"]')).toHaveValue('218');
+  await expect(ownerPage.locator('#storeManagement [data-inventory-product="oil-d1"]')).toHaveValue(String(originalOilStock - 1));
+  await expect(ownerPage.locator('#storeManagement [data-catalogue-available="rice-d1"]')).not.toBeChecked();
+
+  // A hard Owner refresh must retain the selected store and re-read saved values.
+  await ownerPage.locator('#refreshBtn').click();
+  await expect(ownerPage.locator('#refreshBtn')).toBeEnabled();
+  await expect(ownerPage.locator('#storeManagement [data-catalogue-price="oil-d1"]')).toHaveValue('218', { timeout: 20000 });
+  await expect(ownerPage.locator('#storeManagement [data-inventory-product="oil-d1"]')).toHaveValue(String(originalOilStock - 1));
+  await expect(ownerPage.locator('#storeManagement [data-catalogue-available="rice-d1"]')).not.toBeChecked();
+
+  // Store 2's customer catalogue reflects these changes; Store 1 remains intact.
+  const storeTwoCatalogue = await ownerPage.evaluate(async storeId => {
+    const response = await fetch('/api/products?storeId=' + encodeURIComponent(storeId), { cache: 'no-store' });
+    const data = await response.json();
+    return { status: response.status, products: data.products || [] };
+  }, storeTwoId);
+  expect(storeTwoCatalogue.status).toBe(200);
+  expect(storeTwoCatalogue.products.map(product => product.id)).toEqual(['oil-d1']);
+  expect(storeTwoCatalogue.products[0].price).toBe(218);
+  const storeOneCatalogue = await ownerPage.evaluate(async () => {
+    const response = await fetch('/api/products?storeId=store-d1', { cache: 'no-store' });
+    const data = await response.json();
+    return { status: response.status, products: data.products || [] };
+  });
+  expect(storeOneCatalogue.status).toBe(200);
+  expect(storeOneCatalogue.products.map(product => product.id)).toEqual(['oil-d1', 'rice-d1']);
+  expect(storeOneCatalogue.products[0].price).toBe(189);
+  expect(storeOneCatalogue.products[1].price).toBe(233);
+
+  // Restore the isolated fixture so this UI test leaves no changes for later tests.
+  await ownerPage.locator('#storeManagement [data-catalogue-price="oil-d1"]').fill(originalOilPrice);
+  await ownerPage.locator('#storeManagement [data-inventory-product="oil-d1"]').fill(String(originalOilStock));
+  await ownerPage.locator('#storeManagement [data-catalogue-available="rice-d1"]').setChecked(originalRiceAvailability);
+  await ownerPage.locator('#storeManagement [data-save-store-management]').click();
+  await expect(ownerPage.locator('#storeManagement [data-store-management-status]')).toContainText('saved for this store', { timeout: 20000 });
+  await expect(ownerPage.locator('#storeManagement [data-catalogue-price="oil-d1"]')).toHaveValue(originalOilPrice);
+  await expect(ownerPage.locator('#storeManagement [data-inventory-product="oil-d1"]')).toHaveValue(String(originalOilStock));
+  if (originalRiceAvailability) await expect(ownerPage.locator('#storeManagement [data-catalogue-available="rice-d1"]')).toBeChecked();
+  else await expect(ownerPage.locator('#storeManagement [data-catalogue-available="rice-d1"]')).not.toBeChecked();
+
+  // Store 1 retains its own override and physical stock.
+  await ownerPage.locator('#storeManagement [data-close-store-management]').click();
+  const storeOneCard = ownerPage.locator('#storeManagement .fw-store-card:has(button[data-manage-store="store-d1"])');
+  await expect(storeOneCard).toHaveCount(1);
+  await storeOneCard.locator('[data-manage-store]').click();
+  await expect(ownerPage.locator('#storeManagement [data-catalogue-price="oil-d1"]')).toHaveValue('189');
+  await expect(ownerPage.locator('#storeManagement [data-catalogue-price="rice-d1"]')).toHaveValue('233');
+  await expect(ownerPage.locator('#storeManagement [data-inventory-product="oil-d1"]')).toHaveValue('10');
+
+  // Stress mobile navigation and repeat key screens at phone, tablet and desktop widths.
+  await ownerPage.setViewportSize({ width: 390, height: 844 });
+  await ownerPage.locator('#mobileMoreBtn').click();
+  await expect(ownerPage.locator('#mobileMoreMenu')).toBeVisible();
+  await ownerPage.locator('#mobileMoreMenu [data-more-screen="stores"]').click();
+  await expect(ownerPage.locator('#stores')).toHaveClass(/active/);
+  await expect(ownerPage.locator('#storeManagement .fw-store-card').filter({ hasText: 'D1 Store' })).not.toHaveCount(0, { timeout: 20000 });
+  await expect(ownerPage.locator('#storeManagement .fw-store-card').filter({ hasText: 'D1 Operations Store 2' })).not.toHaveCount(0, { timeout: 20000 });
+  for (const width of [390, 810, 1440]) {
+    await ownerPage.setViewportSize({ width, height: 900 });
+    for (const screen of ['overview', 'orders', 'stores', 'cash', 'reports']) {
+      await ownerPage.evaluate(id => window.navigateAdminScreen(id), screen);
+      await expect(ownerPage.locator('#' + screen)).toHaveClass(/active/);
+      const layout = await ownerPage.evaluate(() => ({
+        viewport: window.innerWidth,
+        document: document.documentElement.scrollWidth
+      }));
+      expect(layout.document, screen + ' overflows at ' + width + 'px').toBeLessThanOrEqual(layout.viewport + 1);
+    }
+  }
+
+  // Repeated navigation and refresh should not strand the UI or fail API calls.
+  for (const screen of ['stores', 'orders', 'delivery', 'stores', 'cash', 'reports', 'overview']) {
+    await ownerPage.evaluate(id => window.navigateAdminScreen(id), screen);
+    await expect(ownerPage.locator('#' + screen)).toHaveClass(/active/);
+    await ownerPage.locator('#refreshBtn').click();
+    await expect(ownerPage.locator('#refreshBtn')).toBeEnabled();
+  }
+  expect(pageErrors).toEqual([]);
+  expect(apiFailures).toEqual([]);
+  await context.close();
+});
