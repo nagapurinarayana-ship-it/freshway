@@ -146,6 +146,9 @@ test('Owner can navigate every implemented management screen against the real Wo
     await expect(page.locator('#owner-alert-history')).toHaveClass(/active/);
     expect((await alertHistoryResponse).status()).toBe(200);
     await expect(page.locator('#ownerAlertHistoryList')).toBeVisible();
+    await expect(page.locator('#ownerAlertHistoryList .fw-order-alert')).toHaveCount(0);
+    await expect(page.locator('#clearOwnerAlertHistory')).toBeDisabled();
+    await expect(page.locator('#ownerAlertHistoryMore')).toBeHidden();
 
     const historyRefreshResponse = page.waitForResponse(response => {
       const url = new URL(response.url());
