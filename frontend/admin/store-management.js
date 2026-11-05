@@ -162,6 +162,8 @@ async function openStoreManagement(id){
 }
 function closeStoreManagement(){
   if(storeSaving)return;
+  const state=window.history?.state;
+  if(state?.__freshwayOwner&&state.screen==='stores'&&state.storeId&&typeof window.history.back==='function'){window.history.back();return}
  storeRequestVersion++;
  selectedStoreId=null;inventory=[];storeCatalogue=[];storeSaving=false;storeDetailLoading=false;storeLoadError='';storeStockFilter='all';
  renderStores();
@@ -266,7 +268,7 @@ storeRoot&&storeRoot.addEventListener('click',async e=>{
  if(e.target.closest('[data-retry-store-management]')){const id=selectedStoreId;if(id)await openStoreManagement(id);return}
  if(e.target.closest('[data-store-cancel]')){editing=null;renderStores();return}
  const ed=e.target.closest('[data-edit-store]');if(ed){const s=stores.find(x=>x.id===ed.dataset.editStore);if(s){storeRequestVersion++;selectedStoreId=null;inventory=[];storeCatalogue=[];storeSaving=false;storeDetailLoading=false;storeLoadError='';editing=storeForm(s);renderStores();storeRoot.querySelector('[name="name"]')?.focus()}return}
- const manage=e.target.closest('[data-manage-store]');if(manage){e.preventDefault?.();e.stopPropagation?.();const storeId=manage.dataset.storeId||manage.dataset.manageStore;await openStoreManagement(storeId);return}
+ const manage=e.target.closest('[data-manage-store]');if(manage){e.preventDefault?.();e.stopPropagation?.();const storeId=String(manage.dataset.storeId||manage.dataset.manageStore||'');const state=window.history?.state||{};if(storeId&&window.history?.pushState&&!(state.__freshwayOwner&&state.screen==='stores'&&String(state.storeId||'')===storeId)){window.history.pushState({...state,__freshwayOwner:true,screen:'stores',storeId,storeView:'management'},'',window.location?.href||undefined)}await openStoreManagement(storeId);return}
  if(e.target.closest('[data-close-store-management]')){closeStoreManagement();return}
  const filter=e.target.closest('[data-stock-filter]');if(filter){storeStockFilter=filter.dataset.stockFilter||'all';applyStoreFilters();return}
  const save=e.target.closest('[data-save-store-management],[data-save-catalogue],[data-save-inventory]');if(save){try{await saveStoreManagement(save)}catch(error){note(storeRoot,error.message,'[data-store-management-status]')}return}
