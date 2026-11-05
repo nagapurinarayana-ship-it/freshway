@@ -133,8 +133,9 @@ assert.match(adminSource,/else if\(id==='orders'\)await Promise\.all\(\[loadSumm
 
 assert.match(source,/All categories/);
 assert.match(source,/heading\.classList\.remove\('fw-category-home-hidden'\)/);
-assert.match(source,/const insertAfter=hero\|\|searchWrap/,'the promotional banner is the stable anchor for category placement');
-assert.match(source,/home\.insertBefore\(c,\s*insertAfter\.nextSibling\)/,'category tiles stay below the promotional banner so adding categories cannot move it');
+assert.match(source,/const hero=\$\('\.hero-banner'\)/,'the promotional banner remains the stable category anchor after customer search is removed');
+assert.match(source,/home\.insertBefore\(c,\s*hero\.nextSibling\)/,'category tiles stay below the promotional banner so adding categories cannot move it');
+assert.doesNotMatch(source,/search-wrap|searchInput/,'category placement no longer depends on the removed customer search control');
 assert.match(source,/heading\.classList\.add\('fw-category-home-hidden'\)/,'product heading stays hidden before selecting a category');
 assert.match(source,/if\(!selected\)\{grid\.classList\.add\('fw-category-home-hidden'\);return\}/,'products stay hidden until category selection');
 assert.match(source,/fw-category-grid'\+\(usable\.length===1\?' is-single':''\)/,'single category uses a compact full-width tile');
