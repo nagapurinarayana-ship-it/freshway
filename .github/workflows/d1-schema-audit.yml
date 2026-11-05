@@ -11,6 +11,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/d1-schema-audit.yml"
+      - "worker/scripts/audit-invoice-integrity.mjs"
   workflow_dispatch:
 
 permissions:
@@ -60,3 +61,9 @@ jobs:
         run: |
           npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "SELECT legal_name, business_address, CASE WHEN LOWER(TRIM(legal_name)) = 'sunshine enterprises (freshway)' THEN 1 ELSE 0 END AS legal_name_matches, CASE WHEN TRIM(business_address) = '1-1-LA0022, Road No 2, Laxminagar, Mancherial 504208' THEN 1 ELSE 0 END AS business_address_matches FROM invoice_settings WHERE id=1" --json
           npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "SELECT store_name, address, CASE WHEN TRIM(address) = '1-1-LA0022, Road No 2, Laxminagar, Mancherial 504208' THEN 1 ELSE 0 END AS address_matches, CASE WHEN LENGTH(REPLACE(REPLACE(REPLACE(phone, '+', ''), ' ', ''), '-', '')) >= 10 THEN 1 ELSE 0 END AS phone_present FROM store_profile WHERE id=1" --json
+      - name: Reconcile issued invoices against saved orders without writes
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/audit-invoice-integrity.mjs
