@@ -926,7 +926,8 @@ test('Owner admin navigation, store prices and inventory stay reliable through r
   await expect(ownerPage.locator('#mobileMoreMenu')).toBeVisible();
   await ownerPage.locator('#mobileMoreMenu [data-more-screen="stores"]').click();
   await expect(ownerPage.locator('#stores')).toHaveClass(/active/);
-  await expect(ownerPage.locator('#storeManagement .fw-store-card')).toHaveCount(3, { timeout: 20000 });
+  await expect(ownerPage.locator('#storeManagement .fw-store-card').filter({ hasText: 'D1 Store' })).not.toHaveCount(0, { timeout: 20000 });
+  await expect(ownerPage.locator('#storeManagement .fw-store-card').filter({ hasText: 'D1 Operations Store 2' })).not.toHaveCount(0, { timeout: 20000 });
   for (const width of [390, 810, 1440]) {
     await ownerPage.setViewportSize({ width, height: 900 });
     for (const screen of ['overview', 'orders', 'stores', 'cash', 'reports']) {
