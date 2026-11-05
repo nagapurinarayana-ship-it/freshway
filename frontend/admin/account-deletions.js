@@ -104,7 +104,7 @@
       form.noValidate = true;
       form.dataset.deletionForm = 'true';
       form.innerHTML =
-        '<div><strong>Confirm account deletion</strong><p class="muted">This disables the account, clears login credentials and push subscriptions, and redacts operational customer/address details. Issued invoice snapshots remain unchanged.</p></div>' +
+        '<div><strong>Confirm account deletion</strong><p class="muted">This disables the account, clears login credentials and push subscriptions, redacts operational customer/address details, deletes the individual request record, and keeps only an aggregate completion count and the latest completion date. Issued invoice snapshots remain unchanged.</p></div>' +
         '<label class="settings-field full"><span>Required audit note</span><textarea data-deletion-note maxlength="1000" rows="4" aria-label="Required deletion audit note" placeholder="Describe the operational data to be removed, which invoice/transaction records remain, and the confirmed retention basis."></textarea></label>' +
         '<p class="muted">Use at least 20 characters and identify invoice or transaction records plus the confirmed retention basis. Do not include customer phone numbers or unnecessary personal data.</p>' +
         '<label class="account-deletion-retention-check"><input data-deletion-retention-confirm type="checkbox"><span>I have reviewed the retention decision and am authorised to complete this request.</span></label>' +
