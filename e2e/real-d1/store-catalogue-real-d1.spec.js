@@ -162,6 +162,10 @@ test('customer mobile UI applies a fixed coupon to a multi-item store basket and
   await oilPlus.click();
   await oilPlus.click();
 
+  // The customer must return to the category list before choosing Rice.
+  await page.locator('#fwCategoryBack button').click();
+  await expect(page.locator('[data-fw-category="cat-rice-d1"]')).toBeVisible();
+  await page.locator('[data-fw-category="cat-rice-d1"]').click();
   const riceCard = page.locator('#productGrid .product-card').filter({ hasText: 'Basmati Rice' });
   const riceAdd = riceCard.locator('[data-add="rice-d1"]');
   await expect(riceCard).toContainText('₹233');
