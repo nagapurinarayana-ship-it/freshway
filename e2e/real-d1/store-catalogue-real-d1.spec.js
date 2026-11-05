@@ -529,3 +529,263 @@ test('Owner cancellation releases only the assigned store reservation and delive
 
   await context.close();
 });
+
+
+test('Owner dispatch invoice is idempotent and cash reconciliation handles multiple stores, refunds and cancelled orders', async ({ browser }) => {
+  test.setTimeout(150000);
+  const context = await browser.newContext({ serviceWorkers: 'block' });
+  const phone = '9' + String(Date.now()).slice(-9);
+  const customer = await context.request.post(workerOrigin + '/api/auth/register', {
+    headers: { Origin: origin },
+    data: { name: 'D1 Cash Reconciliation E2E', phone, passcode: '123456' }
+  });
+  expect(customer.status()).toBe(200);
+  const account = await customer.json();
+  const customerSession = (customer.headers()['set-cookie'] || '').match(/freshway-customer-session=([^;,\s]+)/);
+  expect(customerSession).toBeTruthy();
+
+  const login = await context.request.post(workerOrigin + '/api/admin/login', {
+    headers: { Origin: origin },
+    data: { token: 'isolated-admin-token' }
+  });
+  expect(login.status()).toBe(200);
+  const ownerSession = (login.headers()['set-cookie'] || '').match(/__Host-freshway-admin-session=([^;,\s]+)/);
+  expect(ownerSession).toBeTruthy();
+
+  const ownerApi = (path, method = 'GET', data) => context.request.fetch(workerOrigin + path, {
+    method,
+    headers: {
+      Origin: origin,
+      'X-FreshWay-Admin-Session': ownerSession[1],
+      'Content-Type': 'application/json'
+    },
+    ...(data === undefined ? {} : { data })
+  });
+  const customerApi = (path, data) => context.request.fetch(workerOrigin + path, {
+    method: 'POST',
+    headers: {
+      Origin: origin,
+      Cookie: 'freshway-customer-session=' + customerSession[1],
+      'Content-Type': 'application/json'
+    },
+    data
+  });
+  const readReports = async () => {
+    const response = await ownerApi('/api/admin/reports?range=today');
+    expect(response.status()).toBe(200);
+    return response.json();
+  };
+  const readOwnerOrder = async orderId => {
+    const response = await ownerApi('/api/admin/orders?search=' + encodeURIComponent(orderId) + '&limit=1&testOrders=0');
+    expect(response.status()).toBe(200);
+    const data = await response.json();
+    const order = data.orders.find(item => item.id === orderId);
+    expect(order).toBeTruthy();
+    return order;
+  };
+  const patchOrder = async (orderId, payload) => {
+    const response = await ownerApi('/api/admin/orders/' + encodeURIComponent(orderId), 'PATCH', payload);
+    const data = await response.json();
+    expect(response.status(), 'Owner update must succeed: ' + JSON.stringify(payload) + ' — ' + JSON.stringify(data)).toBe(200);
+    return data;
+  };
+  const readHistory = async orderId => {
+    const response = await ownerApi('/api/admin/delivery/orders/' + encodeURIComponent(orderId) + '/history');
+    expect(response.status()).toBe(200);
+    return response.json();
+  };
+  const inventory = async storeId => {
+    const response = await ownerApi('/api/admin/delivery/stores/' + encodeURIComponent(storeId) + '/inventory');
+    expect(response.status()).toBe(200);
+    return (await response.json()).inventory;
+  };
+  const stock = (rows, productId = 'oil-d1') => {
+    const row = rows.find(item => item.id === productId);
+    expect(row).toBeTruthy();
+    return { onHand: Number(row.on_hand), reserved: Number(row.reserved_qty) };
+  };
+
+  const baseline = await readReports();
+  const storeOneBefore = stock(await inventory('store-d1'));
+  const newStore = await ownerApi('/api/admin/delivery/stores', 'POST', {
+    name: 'D1 Reconciliation Store 2',
+    address: 'Isolated cash and invoice test store',
+    latitude: 17.385044,
+    longitude: 78.486671,
+    serviceRadiusKm: 5
+  });
+  expect(newStore.status()).toBe(201);
+  const secondStore = (await newStore.json()).store;
+  const emptyInventory = await inventory(secondStore.id);
+  const seeded = await ownerApi('/api/admin/delivery/stores/' + encodeURIComponent(secondStore.id) + '/inventory', 'PATCH', {
+    items: emptyInventory.filter(item => Number(item.stock_managed) === 1)
+      .map(item => ({ productId: item.id, stockQuantity: item.id === 'oil-d1' ? 7 : 6 }))
+  });
+  expect(seeded.status()).toBe(200);
+  const activated = await ownerApi('/api/admin/delivery/stores/' + encodeURIComponent(secondStore.id), 'PATCH', { isActive: true });
+  expect(activated.status()).toBe(200);
+  expect(Number((await activated.json()).store.is_active)).toBe(1);
+  const storeTwoBefore = stock(await inventory(secondStore.id));
+  expect(storeTwoBefore).toEqual({ onHand: 7, reserved: 0 });
+
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(new Date());
+  const [year, month, day] = today.split('-').map(Number);
+  const deliveryDate = new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
+  const createOrder = async storeId => {
+    const response = await customerApi('/api/orders', {
+      customerId: account.customerId,
+      customer: { name: 'D1 Cash Reconciliation E2E', phone },
+      address: {
+        recipientName: 'D1 Cash Reconciliation E2E',
+        house: '22', area: 'Cash Test Colony', city: 'Hyderabad', pincode: '500072',
+        latitude: 17.385044, longitude: 78.486671, deliveryPhone: phone
+      },
+      storeId,
+      preferredDeliveryDate: deliveryDate,
+      items: [{ id: 'oil-d1', qty: 1 }]
+    });
+    const data = await response.json();
+    expect(response.status(), 'customer order must be accepted: ' + JSON.stringify(data)).toBe(201);
+    expect(data.assignedStoreId).toBe(storeId);
+    return data;
+  };
+
+  // One COD order from each store. Store 1 has a ₹189 override; Store 2 falls
+  // back to the central ₹220 price. Both include the configured ₹30 delivery fee.
+  const cancelledOrder = await createOrder('store-d1');
+  const dispatchedOrder = await createOrder(secondStore.id);
+  expect(cancelledOrder).toMatchObject({ itemsSubtotal: 189, deliveryFee: 30, total: 219 });
+  expect(dispatchedOrder).toMatchObject({ itemsSubtotal: 220, deliveryFee: 30, total: 250 });
+  expect(dispatchedOrder.items[0]).toMatchObject({ id: 'oil-d1', qty: 1, price: 220, lineTotal: 220 });
+  const afterCreation = await readReports();
+  expect(afterCreation.cashPending - baseline.cashPending).toBe(469);
+  expect(afterCreation.cashPendingOrders - baseline.cashPendingOrders).toBe(2);
+  expect(stock(await inventory('store-d1'))).toEqual({ onHand: storeOneBefore.onHand, reserved: storeOneBefore.reserved + 1 });
+  expect(stock(await inventory(secondStore.id))).toEqual({ onHand: 7, reserved: 1 });
+
+  // The Store 1 order is cancelled before fulfilment. Its reserved stock is
+  // released, its payment stays uncollected, and it must not remain in pending cash.
+  const cancellation = await patchOrder(cancelledOrder.id, { status: 'Cancelled' });
+  expect(cancellation.status).toBe('Cancelled');
+  expect(stock(await inventory('store-d1'))).toEqual(storeOneBefore);
+  const afterCancellation = await readReports();
+  expect(afterCancellation.cashPending).toBe(baseline.cashPending + dispatchedOrder.total);
+  expect(afterCancellation.cashPendingOrders).toBe(baseline.cashPendingOrders + 1);
+  expect(afterCancellation.cancelled).toBe(baseline.cancelled + 1);
+  expect(afterCancellation.cancelledValue).toBe(baseline.cancelledValue + cancelledOrder.total);
+
+  // Dispatch must issue exactly one commercial invoice. Repeating dispatch and
+  // progressing to Delivered must return the same invoice, not allocate another.
+  for (const status of ['Confirmed', 'Processing', 'Ready', 'Out for Delivery']) {
+    const saved = await patchOrder(dispatchedOrder.id, { status });
+    expect(saved.status).toBe(status);
+  }
+  const dispatched = await readOwnerOrder(dispatchedOrder.id);
+  expect(dispatched.status).toBe('Out for Delivery');
+  expect(dispatched.invoice).toMatchObject({ documentType: 'commercial_invoice' });
+  const invoiceNumber = dispatched.invoice.number;
+  expect(invoiceNumber).toBeTruthy();
+
+  const repeatedDispatch = await patchOrder(dispatchedOrder.id, { status: 'Out for Delivery' });
+  expect(repeatedDispatch.status).toBe('Out for Delivery');
+  expect(repeatedDispatch.invoice?.number).toBe(invoiceNumber);
+  const afterRepeatedDispatch = await readOwnerOrder(dispatchedOrder.id);
+  expect(afterRepeatedDispatch.invoice).toMatchObject({
+    number: invoiceNumber,
+    documentType: 'commercial_invoice'
+  });
+
+  const invoicePath = '/api/admin/orders/' + encodeURIComponent(dispatchedOrder.id) + '/invoice';
+  const invoicePdf = await ownerApi(invoicePath);
+  expect(invoicePdf.status()).toBe(200);
+  expect(invoicePdf.headers()['content-type']).toContain('application/pdf');
+  expect(invoicePdf.headers()['content-disposition']).toContain(
+    invoiceNumber.replace(/[^A-Za-z0-9_-]/g, '-')
+  );
+  const invoiceBytes = await invoicePdf.body();
+  expect(invoiceBytes.subarray(0, 5).toString('ascii')).toBe('%PDF-');
+  expect(invoiceBytes.length).toBeGreaterThan(1000);
+
+  const delivered = await patchOrder(dispatchedOrder.id, { status: 'Delivered' });
+  expect(delivered.status).toBe('Delivered');
+  expect(delivered.invoice?.number).toBe(invoiceNumber);
+  const afterDelivered = await readOwnerOrder(dispatchedOrder.id);
+  expect(afterDelivered).toMatchObject({
+    status: 'Delivered',
+    total: 250,
+    itemsSubtotal: 220,
+    deliveryFee: 30,
+    payment: 'Not Collected',
+    invoice: { number: invoiceNumber, documentType: 'commercial_invoice' }
+  });
+  expect(stock(await inventory(secondStore.id))).toEqual({ onHand: 6, reserved: 0 });
+  expect(stock(await inventory('store-d1'))).toEqual(storeOneBefore);
+
+  // Collection adds this Store 2 order exactly once to the cash total.
+  const collected = await patchOrder(dispatchedOrder.id, { payment: 'Collected' });
+  expect(collected.payment).toBe('Collected');
+  const afterCollection = await readOwnerOrder(dispatchedOrder.id);
+  expect(afterCollection.payment).toBe('Collected');
+  expect(afterCollection.paymentCollectedAt).toBeTruthy();
+  const originalCollectedAt = afterCollection.paymentCollectedAt;
+  const historyAfterCollection = await readHistory(dispatchedOrder.id);
+  const eventCountAfterCollection = historyAfterCollection.events.length;
+
+  // A duplicate collection request is a successful no-op: timestamp and audit
+  // history remain exactly as they were after the first collection.
+  const repeatedCollection = await patchOrder(dispatchedOrder.id, { payment: 'Collected' });
+  expect(repeatedCollection).toMatchObject({
+    ok: true, noChange: true, payment: 'Collected'
+  });
+  const afterRepeatedCollection = await readOwnerOrder(dispatchedOrder.id);
+  expect(afterRepeatedCollection.paymentCollectedAt).toBe(originalCollectedAt);
+  const historyAfterRepeatedCollection = await readHistory(dispatchedOrder.id);
+  expect(historyAfterRepeatedCollection.events).toHaveLength(eventCountAfterCollection);
+
+  const afterCollectionReports = await readReports();
+  expect(afterCollectionReports.cashPending).toBe(baseline.cashPending);
+  expect(afterCollectionReports.cashPendingOrders).toBe(baseline.cashPendingOrders);
+  expect(afterCollectionReports.cashCollected - baseline.cashCollected).toBe(dispatchedOrder.total);
+  expect(afterCollectionReports.cashCollectedOrders - baseline.cashCollectedOrders).toBe(1);
+
+  // Refund clears the current collection state. Refunded money is neither
+  // counted as cash still due nor as cash currently retained by FreshWay.
+  const refund = await patchOrder(dispatchedOrder.id, { payment: 'Refunded' });
+  expect(refund.payment).toBe('Refunded');
+  const refundedOrder = await readOwnerOrder(dispatchedOrder.id);
+  expect(refundedOrder).toMatchObject({ status: 'Delivered', payment: 'Refunded', paymentCollectedAt: null });
+  const afterRefund = await readReports();
+  expect(afterRefund.cashPending).toBe(baseline.cashPending);
+  expect(afterRefund.cashPendingOrders).toBe(baseline.cashPendingOrders);
+  expect(afterRefund.cashCollected).toBe(baseline.cashCollected);
+  expect(afterRefund.cashCollectedOrders).toBe(baseline.cashCollectedOrders);
+
+  const historyAfterRefund = await readHistory(dispatchedOrder.id);
+  const repeatedRefund = await patchOrder(dispatchedOrder.id, { payment: 'Refunded' });
+  expect(repeatedRefund).toMatchObject({ ok: true, noChange: true, payment: 'Refunded' });
+  expect((await readHistory(dispatchedOrder.id)).events).toHaveLength(historyAfterRefund.events.length);
+
+  // The same issued invoice remains downloadable after refund; the PDF endpoint
+  // reads the current payment state but does not create or renumber the invoice.
+  const refundedInvoicePdf = await ownerApi(invoicePath);
+  expect(refundedInvoicePdf.status()).toBe(200);
+  expect(refundedInvoicePdf.headers()['content-type']).toContain('application/pdf');
+  expect((await readOwnerOrder(dispatchedOrder.id)).invoice.number).toBe(invoiceNumber);
+
+  // The customer-facing order history must show the cancellation and the
+  // delivered/refunded state independently.
+  const customerHistory = await context.request.get(
+    workerOrigin + '/api/orders?customerId=' + encodeURIComponent(account.customerId),
+    { headers: { Origin: origin, Cookie: 'freshway-customer-session=' + customerSession[1] } }
+  );
+  expect(customerHistory.status()).toBe(200);
+  const orders = (await customerHistory.json()).orders;
+  expect(orders.find(order => order.id === cancelledOrder.id)?.status).toBe('Cancelled');
+  expect(orders.find(order => order.id === dispatchedOrder.id)).toMatchObject({
+    status: 'Delivered', payment: 'Refunded'
+  });
+
+  await context.close();
+});
