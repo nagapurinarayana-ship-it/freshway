@@ -190,6 +190,26 @@ test('Owner mobile More menu reopens after selecting secondary destinations repe
     await page.locator('#mobileMoreBtn').click();
     await expect(page.locator('#mobileMoreMenu')).toBeVisible();
 
+    // A transient Owner toast must not cover More-sheet actions on a phone.
+    await page.evaluate(() => window.toast('Temporary visual-overlap check'));
+    await expect(page.locator('#toast')).toHaveCSS('opacity', '0');
+    const moreCard = page.locator('#mobileMoreMenu .mobile-more-card');
+    const moreCardBox = await moreCard.boundingBox();
+    expect(moreCardBox).toBeTruthy();
+    const viewport = page.viewportSize();
+    expect(moreCardBox.y).toBeGreaterThanOrEqual(0);
+    expect(moreCardBox.y + moreCardBox.height).toBeLessThanOrEqual(viewport.height);
+    const moreDestinations = page.locator('#mobileMoreMenu [data-more-screen]');
+    await expect(moreDestinations).toHaveCount(9);
+    for (let index = 0; index < await moreDestinations.count(); index++) {
+      const destination = moreDestinations.nth(index);
+      await expect(destination).toBeVisible();
+      const bounds = await destination.boundingBox();
+      expect(bounds).toBeTruthy();
+      expect(bounds.y).toBeGreaterThanOrEqual(moreCardBox.y);
+      expect(bounds.y + bounds.height).toBeLessThanOrEqual(moreCardBox.y + moreCardBox.height);
+    }
+
     const layout = await page.evaluate(() => ({
       viewportWidth: window.innerWidth,
       documentWidth: document.documentElement.scrollWidth,
