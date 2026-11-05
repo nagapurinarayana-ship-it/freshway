@@ -285,7 +285,13 @@ test('real customer app browses live products and preserves cart without creatin
     throw new Error('Checkout entry did not automatically request delivery availability; manual diagnostic: '+JSON.stringify(diagnostic));
   }
   const availability=await response.json();
-  expect(availabilityRequests[0]?.postDataJSON()?.items).toHaveLength(1);
+  // Assert against the request attached to the actual response. A page-level request
+  // event can be missed when the browser hands the request through its service worker.
+  // The response waiter above is authoritative for the availability call we just awaited.
+  const availabilityRequestBody=response.request().postDataJSON();
+  expect(availabilityRequestBody?.items).toHaveLength(1);
+  expect(availabilityRequestBody?.address?.latitude).toBe(latitude);
+  expect(availabilityRequestBody?.address?.longitude).toBe(longitude);
   expect(availability.available).toBe(true);
   expect(availability.code).toBe('AVAILABLE');
   expect(availability.store?.id).toBe(storeId);

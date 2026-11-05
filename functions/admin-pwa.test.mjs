@@ -46,7 +46,7 @@ assert.ok(invoiceSettingsSource.includes('You can leave unfinished billing and t
 assert.ok(invoiceServiceSource.includes('let enableWarning=') && invoiceServiceSource.includes('enableWarning?{enableWarning}:{}'), 'Worker must save partial settings and return a safe activation warning');
 const ownerLiveSmokeSource = readRepoFile('pwa-owner-live-smoke.mjs').toString('utf8');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261104-store-stock-workspace-v3';"), 'production Owner smoke must demand the current Owner CSS version');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261103-assigned-store-label-v1';"), 'production Owner smoke must demand the current admin.js version');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261105-store-refresh-preserve-v1';"), 'production Owner smoke must demand the current admin.js version');
 assert.ok(ownerLiveSmokeSource.includes("const LEGACY_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261029-order-shortcuts-v1';"), 'production Owner smoke must accept the previously deployed Owner script during rollout');
 assert.ok(ownerLiveSmokeSource.includes("const OLDER_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261028-nav-refresh-v1';"), 'production Owner smoke must also accept the older Owner script during rollout');
 assert.ok(ownerLiveSmokeSource.includes("const OLDEST_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-owner-offers-route-v1';"), 'production Owner smoke must also accept the oldest supported Owner script during rollout');
@@ -63,7 +63,7 @@ assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_PROFILE_SCRI
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_DELIVERY_SCRIPT = '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2';"), 'production Owner smoke must demand the delivery scheduling and exception management module');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT = '/admin/frontend/admin/store-management.js?v=20261104-store-stock-workspace-v3';"), 'production Owner smoke must demand Store Manager and Customer Requests');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261103-assigned-store-lifecycle-v1';"), 'production Owner smoke must demand the cache-busted order lifecycle map handler');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v66';"), 'production Owner smoke must demand the current service-worker cache');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v67';"), 'production Owner smoke must demand the current service-worker cache');
 assert.ok(ownerLiveSmokeSource.includes('assert.match(deployedSource, /function readProfileResponse\\(data\\)/'), 'production Owner smoke must verify deployed Store Profile response guard code, not only a matching URL');
 assert.ok(ownerLiveSmokeSource.includes('incomplete Store Profile'), 'production Owner smoke must verify malformed profile payload protection is deployed');
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerAppShell/);
@@ -291,7 +291,7 @@ for (const asset of requiredOwnerAssets) {
 console.log('Owner PWA complete route, asset scope, manifest, service-worker and security contracts OK');
 const customerLiveSmokeSource = readRepoFile('pwa-live-smoke.mjs').toString('utf8');
 const liveSmokeWorkflowSource = readRepoFile('.github/workflows/pwa-live-smoke.yml').toString('utf8');
-assert.ok(customerLiveSmokeSource.includes("const CUSTOMER_CATALOGUE_PATH = '/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v1';"), 'live customer smoke must use the current store-aware catalogue script');
+assert.ok(customerLiveSmokeSource.includes("const CUSTOMER_CATALOGUE_PATH = '/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v2';"), 'live customer smoke must use the current store-aware catalogue script');
 assert.doesNotMatch(customerLiveSmokeSource, /catalogue\\.js\\?v=img1/, 'custom-domain customer smoke must not assert the stale catalogue script');
 assert.ok(liveSmokeWorkflowSource.includes('GH_BEFORE_SHA: ${{ github.event.before }}'), 'production PWA smoke must compare the pushed commit with its actual base SHA');
 assert.ok(liveSmokeWorkflowSource.includes('compare/$GH_BEFORE_SHA...$GH_COMMIT_SHA'), 'production PWA smoke must detect Worker changes from the commit diff before running live checks');

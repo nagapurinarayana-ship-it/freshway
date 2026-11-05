@@ -33,7 +33,7 @@ test('LIVE production media audit: real catalogue, category artwork and configur
   const [liveShell, liveServiceWorker] = await Promise.all([
     shellResponse.text(), serviceWorkerResponse.text()
   ]);
-  if (!liveShell.includes('app.js?v=106') || !liveServiceWorker.includes("freshway-v122") || !liveServiceWorker.includes('/app.js?v=106')) {
+  if (!liveShell.includes('app.js?v=106') || !liveServiceWorker.includes("freshway-v123") || !liveServiceWorker.includes('/app.js?v=106')) {
     test.skip(true, 'Live production has not deployed the current customer app/service-worker versions yet.');
   }
   await mkdir(OUTPUT_DIR, { recursive: true });

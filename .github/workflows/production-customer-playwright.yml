@@ -57,18 +57,24 @@ jobs:
           html_file="$(mktemp)"
           sw_file="$(mktemp)"
           app_file="$(mktemp)"
-          trap 'rm -f "$html_file" "$sw_file" "$app_file"' EXIT
+          catalogue_file="$(mktemp)"
+          trap 'rm -f "$html_file" "$sw_file" "$app_file" "$catalogue_file"' EXIT
           for attempt in $(seq 1 60); do
             probe="${GITHUB_SHA}-${attempt}"
             if curl --silent --show-error --fail "$BASE_URL/?freshway-deploy-check=$probe" -o "$html_file" \
               && curl --silent --show-error --fail "$BASE_URL/sw.js?freshway-deploy-check=$probe" -o "$sw_file"; then
               if grep -qF 'app.js?v=106' "$html_file" &&
-                grep -qF "freshway-v122" "$sw_file" &&
+                grep -qF "frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v2" "$html_file" &&
+                grep -qF "freshway-v123" "$sw_file" &&
                 grep -qF '/app.js?v=106' "$sw_file" &&
+                grep -qF "/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v2" "$sw_file" &&
                 curl --silent --show-error --fail "$BASE_URL/app.js?v=106" -o "$app_file" &&
+                curl --silent --show-error --fail "$BASE_URL/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v2" -o "$catalogue_file" &&
                 grep -qF 'customerCartActions.bind({document,changeQty,toast});' "$app_file" &&
-                ! grep -qF 'customerSearch.bind(' "$app_file"; then
-                echo "Current customer PWA shell is deployed: app.js?v=106 / freshway-v122."
+                ! grep -qF 'customerSearch.bind(' "$app_file" &&
+                ! grep -qF 'searchInput' "$catalogue_file" &&
+                ! grep -qF 'search-wrap' "$catalogue_file"; then
+                echo "Current customer PWA shell is deployed: app.js?v=106 / catalogue v2 / freshway-v123."
                 exit 0
               fi
             fi
