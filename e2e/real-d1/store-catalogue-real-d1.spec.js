@@ -475,7 +475,7 @@ test('Owner cancellation releases only the assigned store reservation and delive
       customerId: account.customerId,
       customer: { name: 'D1 Operations E2E', phone },
       address: {
-        house: '12', area: 'Operations Test Colony', city: 'Hyderabad', pincode: '500072',
+        recipientName: 'D1 Operations E2E', house: '12', area: 'Operations Test Colony', city: 'Hyderabad', pincode: '500072',
         latitude: 17.385044, longitude: 78.486671, deliveryPhone: phone
       },
       storeId, preferredDeliveryDate: deliveryDate, items: [{ id: 'oil-d1', qty: 1 }]
