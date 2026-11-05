@@ -76,15 +76,18 @@ test('Owner Refresh preserves the selected Store workspace and protects unsaved 
     await expect(stock).toHaveValue('10');
     await stock.fill('17');
 
-    // Start the click without awaiting it: Playwright keeps the click pending
-    // until the native confirmation dialog is handled.
-    const dialogPromise = page.waitForEvent('dialog', { timeout: 5000 });
-    const refreshClick = page.locator('#refreshBtn').click();
-    const dialog = await dialogPromise;
-    expect(dialog.message()).toContain('Discard unsaved Store changes');
-    expect(dialog.type()).toBe('confirm');
-    await dialog.dismiss();
-    await refreshClick;
+    // Handle the native dialog before triggering the click. A dialog listener
+    // that dismisses immediately prevents the click from waiting on an open modal.
+    let dialogMessage = '';
+    let dialogType = '';
+    page.on('dialog', async dialog => {
+      dialogMessage = dialog.message();
+      dialogType = dialog.type();
+      await dialog.dismiss();
+    });
+    await page.locator('#refreshBtn').click();
+    expect(dialogType).toBe('confirm');
+    expect(dialogMessage).toContain('Discard unsaved Store changes');
 
     await expect(page.locator('#storeManagement .fw-store-management-panel')).toBeVisible();
     await expect(stock).toHaveValue('17');
