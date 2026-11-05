@@ -130,7 +130,7 @@ export async function updateOrder(env,id,payload,actor={}){
   const sets=[],params=[],guards=['id=?'],guardParams=[id];
   if(status){sets.push('delivery_status=?');params.push(status);guards.push('delivery_status IS ?');guardParams.push(current.delivery_status)}
   if(delivering&&!current.delivered_at){sets.push('delivered_at=CURRENT_TIMESTAMP');}
-  if(payment){sets.push('payment_status=?');params.push(payment);sets.push(payment==='Collected'?'payment_collected_at=CURRENT_TIMESTAMP':'payment_collected_at=NULL');guards.push('payment_status IS ?');guardParams.push(current.payment_status)}
+  if(payment&&current.payment_status!==payment){sets.push('payment_status=?');params.push(payment);sets.push(payment==='Collected'?'payment_collected_at=CURRENT_TIMESTAMP':'payment_collected_at=NULL');guards.push('payment_status IS ?');guardParams.push(current.payment_status)}
   if(deliveryPlan){sets.push('delivery_plan=?');params.push(deliveryPlan);guards.push('delivery_plan IS ?');guardParams.push(current.delivery_plan)}
   if(hasTestFlag){guards.push('is_test_order IS ?');guardParams.push(currentTest);if(isTestOrder!==currentTest){sets.push('is_test_order=?');params.push(isTestOrder)}}
   if(cancelling&&(current.assigned_store_id||current.scheduled_slot_id||current.scheduled_delivery_date)){
@@ -142,7 +142,7 @@ export async function updateOrder(env,id,payload,actor={}){
   }else if(currentStatus==='Delivered'&&status==='Cancelled'&&(current.assigned_store_id||current.scheduled_slot_id||current.scheduled_delivery_date)){
     sets.push("schedule_status='conflict'");
   }
-  if(!sets.length)throw new Error('No order change supplied.');
+  if(!sets.length)return {ok:true,status:currentStatus,payment:current.payment_status,deliveryPlan:current.delivery_plan,isTestOrder,testClassificationChanged:false,noChange:true};
   sets.push('updated_at=CURRENT_TIMESTAMP');
   const sql='UPDATE orders SET '+sets.join(',')+' WHERE '+guards.join(' AND ');
   const orderUpdate=env.DB.prepare(sql).bind(...params,...guardParams);
