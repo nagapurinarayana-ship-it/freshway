@@ -1058,7 +1058,10 @@ test('Owner catalogue UI blocks deletion while store stock remains and deletes a
   const safeProductId = createResult.data.product.id;
   expect(safeProductId).toBeTruthy();
 
-  await ownerPage.locator('#fwRefreshCatalogue').click();
+  await ownerPage.evaluate(async () => {
+    if (typeof window.freshWayCatalogueRefresh !== 'function') throw new Error('Owner catalogue refresh hook is unavailable.');
+    await window.freshWayCatalogueRefresh();
+  });
   await ownerPage.locator('#fwCategoryList [data-fw-manage="' + stockedCategoryId + '"]').click();
   const safeDelete = ownerPage.waitForResponse(response => {
     const url = new URL(response.url());
