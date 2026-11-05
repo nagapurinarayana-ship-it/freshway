@@ -183,6 +183,8 @@ async function waitForFullImageFitAssets(base) {
         viewportStylesResponse.text(), appResponse.text(), promotionResponse.text(), customerCatalogueResponse.text(), addressGeocodeResponse.text(), addressSystemResponse.text(), catalogueResponse.text(), installResponse.text()
       ]);
       assert.ok(appSource.includes("function setView(name,options){if(name==='home'&&options?.history!=='none')window.freshWayCustomerCatalogueGoHome?.();navigation.setView(name,options)"), 'home navigation must reset category state for explicit Home actions only');
+      assert.ok(appSource.includes('customerCartActions.bind({document,changeQty,toast});'), 'deployed customer app must register cart click handlers');
+      assert.doesNotMatch(appSource,/customerSearch\.bind\(/, 'deployed customer app must not bind the removed search module');
       assert.ok(customerCatalogueSource.includes("window.freshWayCustomerCatalogueGoHome=()=>{const state=window.history.state;if(state?.__freshwayCustomer&&state.category)window.history.replaceState({...state,category:null},'',window.location.href);setMode(null,{history:'none'})};"), 'category home reset must preserve navigation view history');
       assert.ok(customerCatalogueSource.includes("selected=(window.history.state?.__freshwayCustomer&&window.history.state.view==='home'?window.history.state.category:null)||getStoredCategory()||null"), 'refresh must restore the selected category from history or session state');
       assert.ok(customerCatalogueSource.includes("history:selected?'replace':'none'"), 'removed categories must not remain selected in browser history');
@@ -397,6 +399,8 @@ async function verifyCustomDomain() {
   assert.ok(addressSystemSource.includes('editorCoordinates = previousCoordinates'), 'custom-domain editor must restore the last verified pin on lookup failure');
   assert.doesNotMatch(addressSystemSource,/const preserve = labelFields\\.map/,'custom-domain editor must not retain stale geo fields');
   assert.ok(appSource.includes("function setView(name,options){if(name==='home'&&options?.history!=='none')window.freshWayCustomerCatalogueGoHome?.();navigation.setView(name,options)"), 'custom-domain home navigation resets category state');
+  assert.ok(appSource.includes('customerCartActions.bind({document,changeQty,toast});'), 'deployed customer app must register cart click handlers');
+  assert.doesNotMatch(appSource,/customerSearch\.bind\(/, 'deployed customer app must not bind the removed search module');
   assert.ok(customerCatalogueSource.includes("window.freshWayCustomerCatalogueGoHome=()=>{const state=window.history.state;if(state?.__freshwayCustomer&&state.category)window.history.replaceState({...state,category:null},'',window.location.href);setMode(null,{history:'none'})};"), 'custom-domain category state reset is current');
   assert.ok(customerCatalogueSource.includes("const hero=$('.hero-banner')"), 'category tiles must be anchored below the hero without customer search');
       assert.ok(!customerCatalogueSource.includes('searchInput') && !customerCatalogueSource.includes('search-wrap'), 'customer category navigation must not depend on the removed search control');
