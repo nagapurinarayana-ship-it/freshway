@@ -15,7 +15,7 @@ assert.match(html, /id="owner-alert-history"/);
 assert.match(html, /id="clearOwnerAlertHistory"[^>]*disabled/, 'Delete all must start disabled until history is loaded');
 assert.match(source, /data-delete-owner-alert/);
 assert.match(source, /method: 'DELETE'/);
-assert.match(html, /frontend\/admin\/order-alerts\.js\?v=20261105-owner-push-diagnostics-v2/);
+assert.match(html, /frontend\/admin\/order-alerts\.js\?v=20261105-history-empty-actions-v1/);
 assert.match(source, /Notification\.requestPermission\(\)/);
 assert.match(source, /pushManager\.subscribe/);
 assert.doesNotMatch(source, /Notification\.permission === 'granted' && !automaticSetupAttempted/);
