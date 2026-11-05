@@ -20,7 +20,7 @@ assert.ok(sw.includes('/frontend/customer/pwa-install.js?v=20261106-install-guid
 assert.ok(pwaInstall.includes('await promptEvent.prompt();'),'native PWA install prompt is awaited before checking the user choice');
 assert.ok(pwaInstall.includes('Use Chrome menu → Install app (not Create shortcut).'),'install row distinguishes Chrome Install from Create shortcut');
 assert.ok(pwaInstall.includes('choose <strong>Install</strong>, not <strong>Create shortcut</strong>'),'fallback guidance explicitly distinguishes Install from Create shortcut');
-assert.doesNotMatch(pwaInstall,/Install app<\\/strong> or <strong>Add to Home screen/,'Chrome guidance must not offer the browser shortcut as an install alternative');
+assert.ok(!pwaInstall.includes('Install app</strong> or <strong>Add to Home screen'),'Chrome guidance must not offer the browser shortcut as an install alternative');
 
 assert.doesNotMatch(messages,/button\.setAttribute\('aria-label'/,'Messages button must derive its accessible name from its visible heading and status text');
 assert.ok(index.includes('<span aria-hidden="true">✉️</span>')&&index.includes('<b aria-hidden="true">›</b>'),'Messages navigation decorative icon and chevron must be hidden from screen readers');
