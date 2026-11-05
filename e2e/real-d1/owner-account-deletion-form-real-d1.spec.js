@@ -95,9 +95,9 @@ test('Owner account deletion completion uses an explicit mobile form and never w
     expect((await loginResponse).status()).toBe(200);
     await expect(page.locator('#appView')).toBeVisible();
 
-    // The queue intentionally waits for the Owner auth hint before reading account data.
+    // The deep link has already opened Settings; its item lives inside the collapsed More menu.
+    // The queue intentionally waits for this Owner auth hint before loading account data.
     await page.evaluate(() => sessionStorage.setItem('freshway-admin-auth', '1'));
-    await page.locator('[data-screen="settings"]').first().click();
     await expect(page.locator('#settings')).toHaveClass(/active/);
     await page.locator('#accountDeletionRefresh').click();
     await expect(page.locator('[data-deletion-request="isolated-delete-request"]')).toContainText('Mobile ending 1234');
