@@ -69,7 +69,8 @@ test('Owner can edit, save and reload store-specific catalogue using real Worker
     await expect(page.locator('#stores')).toHaveClass(/active/);
     await expect(page.locator('#storeManagement .fw-store-card')).toContainText('D1 Store');
 
-    await page.locator('#storeManagement [data-edit-catalogue="store-d1"]').click();
+    await page.locator('#storeManagement [data-manage-store="store-d1"]').click();
+    await expect(page.locator('#storeManagement .fw-store-management-heading h2')).toHaveText('D1 Store');
     const oilVisible = page.locator('#storeManagement [data-catalogue-available="oil-d1"]');
     const oilPrice = page.locator('#storeManagement [data-catalogue-price="oil-d1"]');
     const riceVisible = page.locator('#storeManagement [data-catalogue-available="rice-d1"]');
@@ -95,7 +96,7 @@ test('Owner can edit, save and reload store-specific catalogue using real Worker
       await expect(page.locator('#storeManagement [data-store-management-status]')).toContainText('saved');
 
       await page.locator('#storeManagement [data-close-catalogue]').click();
-      await page.locator('#storeManagement [data-edit-catalogue="store-d1"]').click();
+      await page.locator('#storeManagement [data-manage-store="store-d1"]').click();
 
       await expect(page.locator('#storeManagement [data-catalogue-available="oil-d1"]')).toBeChecked();
       await expect(page.locator('#storeManagement [data-catalogue-price="oil-d1"]')).toHaveValue('199');
@@ -107,7 +108,7 @@ test('Owner can edit, save and reload store-specific catalogue using real Worker
       if (await close.count()) {
         await close.click();
       }
-      const open = page.locator('#storeManagement [data-edit-catalogue="store-d1"]');
+      const open = page.locator('#storeManagement [data-manage-store="store-d1"]');
       if (await open.count()) {
         await open.click();
         const originalOilVisible = page.locator('#storeManagement [data-catalogue-available="oil-d1"]');

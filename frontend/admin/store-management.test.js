@@ -159,6 +159,8 @@ async function run() {
   await manager.load();
   assert.ok(root.innerHTML.includes('data-manage-store="store-one"'));
   assert.ok(root.innerHTML.includes('data-manage-store="store-two"'));
+  assert.ok(root.innerHTML.includes('data-store-id="store-two"'));
+  assert.doesNotMatch(root.innerHTML, /data-edit-inventory=|data-edit-catalogue=/);
   const click = root.listeners.get('click');
 
   await click({ target: { closest: selector => selector.includes('[data-manage-store]') ? { dataset: { manageStore: 'store-two' } } : null } });
