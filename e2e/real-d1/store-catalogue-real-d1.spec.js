@@ -332,6 +332,73 @@ test('customer mobile UI applies a fixed coupon to a multi-item store basket and
   expect(invoiceDownload.disposition).toContain(dispatch.data.invoice.number.replace(/[^A-Za-z0-9_-]/g, '-'));
   expect(invoiceDownload.signature).toBe('%PDF-');
   expect(invoiceDownload.byteLength).toBeGreaterThan(1000);
+
+  // Collect the cash-on-delivery payment from the Owner lifecycle control.
+  // The following reads verify the saved D1 value rather than trusting the UI event.
+  const paymentSaveResponse = ownerPage.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.pathname === '/api/admin/orders/' + encodeURIComponent(placed.id) &&
+      response.request().method() === 'PATCH';
+  });
+  await ownerPage.locator('#fwLifePayment').selectOption('Collected');
+  expect((await paymentSaveResponse).status()).toBe(200);
+  await expect(ownerPage.locator('#fwLifeSave')).toHaveText('Saved', { timeout: 20000 });
+
+  const savedPayment = await ownerPage.evaluate(async orderId => {
+    const response = await fetch('/api/admin/orders?search=' + encodeURIComponent(orderId) + '&limit=1&testOrders=0', {
+      credentials: 'include',
+      cache: 'no-store'
+    });
+    const data = await response.json();
+    return { status: response.status, order: data.orders?.find(order => order.id === orderId) || null };
+  }, placed.id);
+  expect(savedPayment.status).toBe(200);
+  expect(savedPayment.order).toMatchObject({ payment: 'Collected' });
+  expect(savedPayment.order.paymentCollectedAt).toBeTruthy();
+
+  // Hard reload must restore the collected state from the Worker/D1 order record.
+  await ownerPage.reload();
+  await expect(ownerPage.locator('#appView')).toBeVisible();
+  const collectedOwnerCard = ownerPage.locator('#ordersList .order-card').filter({ hasText: placed.id });
+  await expect(collectedOwnerCard).toBeVisible({ timeout: 20000 });
+  await collectedOwnerCard.click();
+  await expect(ownerPage.locator('#fwLifeStatus')).toHaveValue('Out for Delivery');
+  await expect(ownerPage.locator('#fwLifePayment')).toHaveValue('Collected');
+
+  // The Cash screen must move this COD order out of pending cash and into
+  // today's collected total, using the persisted payment_collected_at timestamp.
+  await ownerPage.evaluate(() => {
+    const more = document.querySelector('.side nav details.owner-nav-more');
+    if (more) more.open = true;
+    document.querySelector('.side nav button[data-screen="cash"]')?.click();
+  });
+  await expect(ownerPage.locator('#cash')).toHaveClass(/active/);
+  const cashCards = ownerPage.locator('#cashSummary .cash-summary-grid .report');
+  await expect(cashCards).toHaveCount(2);
+  // The preceding customer-store test leaves one independent ₹219 COD order
+  // unpaid in this same isolated D1 database; it must remain visible as pending.
+  // The current ₹750 order must be in collected cash, not pending cash.
+  await expect(cashCards.nth(0)).toContainText('₹219', { timeout: 20000 });
+  await expect(cashCards.nth(0)).toContainText('1 orders still outstanding');
+  await expect(cashCards.nth(1)).toContainText('₹750', { timeout: 20000 });
+  await expect(cashCards.nth(1)).toContainText('1 collections today');
+  await expect(ownerPage.locator('#cashList')).toContainText('₹219');
+  await expect(ownerPage.locator('#cashList')).not.toContainText(placed.id);
+
+  // Keep the Cash screen usable at phone and narrow-tablet widths as well.
+  await ownerPage.setViewportSize({ width: 390, height: 844 });
+  const mobileCashLayout = await ownerPage.evaluate(() => ({
+    viewport: window.innerWidth,
+    document: document.documentElement.scrollWidth
+  }));
+  expect(mobileCashLayout.document).toBeLessThanOrEqual(mobileCashLayout.viewport + 1);
+  await ownerPage.setViewportSize({ width: 810, height: 900 });
+  const tabletCashLayout = await ownerPage.evaluate(() => ({
+    viewport: window.innerWidth,
+    document: document.documentElement.scrollWidth
+  }));
+  expect(tabletCashLayout.document).toBeLessThanOrEqual(tabletCashLayout.viewport + 1);
+
   expect(ownerPageErrors).toEqual([]);
 
 
