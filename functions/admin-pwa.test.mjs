@@ -42,9 +42,9 @@ assert.ok(deletionSource.includes('data-deletion-note'), 'account deletion must 
 assert.ok(!deletionSource.includes('window.confirm('), 'account deletion completion must not depend on a native confirmation dialog');
 
 assert.ok(deletionSource.includes('individual request record, and keeps only an aggregate completion count and the latest completion date'), 'Deletion confirmation must explain that the per-request record is removed');
-assert.ok(deletionSource.includes('Confirmed retention review for applicable invoice/transaction records; operational customer data redacted.'), 'The completion acknowledgement is validated but not persisted as a customer-linked note');
-assert.ok(deletionSource.includes('window.alert(message)'), 'Invalid deletion notes must show a visible message instead of failing silently');
-assert.ok(deletionSource.includes("scrollIntoView({behavior:'smooth', block:'center'})"), 'Validation feedback must be brought into view on mobile');
+assert.ok(deletionSource.includes('adminNote: note'), 'The explicit case-specific retention note must be sent with the completion request');
+assert.ok(deletionSource.includes('data-deletion-form-error') && deletionSource.includes('showFormError(form,'), 'Invalid deletion notes must be shown inline in the form');
+assert.ok(deletionSource.includes("form.scrollIntoView({ behavior: 'smooth', block: 'nearest' })"), 'The confirmation form must be brought into view on mobile');
 assert.ok(sourceHtml.includes('invoice-settings.js?v=20261105-auto-non-gst-disclosure-v1'), 'Owner app must reference the refreshed optional invoice settings script');
 assert.ok(sourceHtml.includes('The receipt uses saved order and Store Profile details. The tax number is optional:'), 'Owner invoice setup must explain receipt data and optional tax-number display');
 assert.doesNotMatch(sourceHtml, /id="invoiceSeriesPrefix"[^>]*\brequired\b/, 'Invoice series prefix must remain optional and default to FW');
