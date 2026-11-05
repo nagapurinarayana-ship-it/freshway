@@ -1053,13 +1053,13 @@ test('Owner catalogue UI blocks deletion while store stock remains and deletes a
       })
     });
     return { status: response.status, data: await response.json() };
-  }, { categoryId: stockedProduct.category_id, name: uniqueName });
+  }, { categoryId: stockedCategoryId, name: uniqueName });
   expect(createResult.status).toBe(201);
   const safeProductId = createResult.data.product.id;
   expect(safeProductId).toBeTruthy();
 
   await ownerPage.locator('#fwRefreshCatalogue').click();
-  await ownerPage.locator('#fwCategoryList [data-fw-manage="' + stockedProduct.category_id + '"]').click();
+  await ownerPage.locator('#fwCategoryList [data-fw-manage="' + stockedCategoryId + '"]').click();
   const safeDelete = ownerPage.waitForResponse(response => {
     const url = new URL(response.url());
     return url.pathname === '/api/admin/catalogue/products/' + encodeURIComponent(safeProductId) &&
