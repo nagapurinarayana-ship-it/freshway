@@ -952,3 +952,92 @@ test('Owner admin navigation, store prices and inventory stay reliable through r
   expect(apiFailures).toEqual([]);
   await context.close();
 });
+
+
+test('Owner catalogue UI blocks deletion while store stock remains and deletes a zero-stock product', async ({ browser }) => {
+  test.setTimeout(90000);
+  const context = await browser.newContext({
+    serviceWorkers: 'block',
+    viewport: { width: 1280, height: 900 }
+  });
+  const ownerPage = await context.newPage();
+  const pageErrors = [];
+  ownerPage.on('pageerror', error => pageErrors.push(error.message));
+  ownerPage.on('dialog', dialog => dialog.accept());
+  await proxyWorkerApi(ownerPage);
+
+  const home = await ownerPage.goto('/admin.html#overview');
+  expect(home?.status()).toBe(200);
+  await expect(ownerPage.locator('#loginView')).toBeVisible();
+  const loginResponse = ownerPage.waitForResponse(response =>
+    new URL(response.url()).pathname === '/api/admin/login' &&
+    response.request().method() === 'POST'
+  );
+  await ownerPage.locator('#adminToken').fill('isolated-admin-token');
+  await ownerPage.locator('#connectBtn').click();
+  expect((await loginResponse).status()).toBe(200);
+  await expect(ownerPage.locator('#appView')).toBeVisible();
+
+  const catalogueResponse = await ownerPage.evaluate(async () => {
+    const response = await fetch('/api/admin/catalogue', { credentials: 'include', cache: 'no-store' });
+    return { status: response.status, data: await response.json() };
+  });
+  expect(catalogueResponse.status).toBe(200);
+  const stockedProduct = catalogueResponse.data.products.find(product => product.id === 'oil-d1');
+  expect(stockedProduct).toBeTruthy();
+
+  await ownerPage.locator('.side nav details.owner-nav-more').evaluate(element => { element.open = true; });
+  await ownerPage.locator('.side nav button[data-screen="catalogue"]').click();
+  await expect(ownerPage.locator('#catalogue')).toHaveClass(/active/);
+  await ownerPage.locator('#fwCategoryList [data-fw-manage="' + stockedProduct.category_id + '"]').click();
+  const stockedCard = ownerPage.locator('#fwProductsArea [data-fw-delete-product="oil-d1"]').locator('..').locator('..');
+  await expect(stockedCard).toContainText(stockedProduct.name);
+
+  const blockedDelete = ownerPage.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.pathname === '/api/admin/catalogue/products/oil-d1' && response.request().method() === 'DELETE';
+  });
+  await ownerPage.locator('#fwProductsArea [data-fw-delete-product="oil-d1"]').click();
+  const blockedResponse = await blockedDelete;
+  expect(blockedResponse.status()).toBe(400);
+  await expect(ownerPage.locator('#toast')).toContainText('still has stock');
+  await expect(ownerPage.locator('#fwProductsArea')).toContainText(stockedProduct.name);
+
+  const uniqueName = 'UI Delete Check ' + Date.now();
+  const createResult = await ownerPage.evaluate(async ({ categoryId, name }) => {
+    const response = await fetch('/api/admin/catalogue/products', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name, unit: 'kg', price: 99, categoryId, stockManaged: true,
+        stockQuantity: 0, lowStockThreshold: 1
+      })
+    });
+    return { status: response.status, data: await response.json() };
+  }, { categoryId: stockedProduct.category_id, name: uniqueName });
+  expect(createResult.status).toBe(201);
+  const safeProductId = createResult.data.product.id;
+  expect(safeProductId).toBeTruthy();
+
+  await ownerPage.locator('#fwRefreshCatalogue').click();
+  await ownerPage.locator('#fwCategoryList [data-fw-manage="' + stockedProduct.category_id + '"]').click();
+  const safeDelete = ownerPage.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.pathname === '/api/admin/catalogue/products/' + encodeURIComponent(safeProductId) &&
+      response.request().method() === 'DELETE';
+  });
+  await ownerPage.locator('#fwProductsArea [data-fw-delete-product="' + safeProductId + '"]').click();
+  expect((await safeDelete).status()).toBe(200);
+  await expect(ownerPage.locator('#toast')).toContainText('Product deleted');
+  await expect(ownerPage.locator('#fwProductsArea')).not.toContainText(uniqueName);
+
+  const verify = await ownerPage.evaluate(async productId => {
+    const response = await fetch('/api/admin/catalogue', { credentials: 'include', cache: 'no-store' });
+    const data = await response.json();
+    return { status: response.status, exists: data.products.some(product => product.id === productId) };
+  }, safeProductId);
+  expect(verify).toEqual({ status: 200, exists: false });
+  expect(pageErrors).toEqual([]);
+  await context.close();
+});
