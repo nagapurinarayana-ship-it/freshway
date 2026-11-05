@@ -101,13 +101,14 @@ assert.match(css,/\.order-map-link/);
 assert.ok(html.includes('admin.css?v=20261104-store-stock-workspace-v3'),'Owner HTML must load the compact location-row styles');
 assert.ok(html.includes('admin.js?v=20261105-store-refresh-preserve-v1'),'Owner HTML must load the cleaned order details');
 const ownerSw=fs.readFileSync('admin/sw.js','utf8');
-assert.ok(ownerSw.includes('fw-owner-v68'),'Owner PWA cache must advance for updated order detail assets');
+assert.ok(ownerSw.includes('fw-owner-v69'),'Owner PWA cache must advance for updated order detail assets');
 assert.ok(html.includes('owner-lifecycle.js?v=20261103-assigned-store-lifecycle-v1'),'Owner HTML must load the cache-busted map fix');
 assert.ok(ownerSw.includes('/admin/owner-lifecycle.js?v=20261103-assigned-store-lifecycle-v1'),'Owner PWA shell must cache the map fix');
 assert.ok(ownerSw.includes('/admin/admin.css?v=20261104-store-stock-workspace-v3'),'Owner PWA shell must cache the current Owner CSS');
 assert.ok(ownerSw.includes('/admin/admin.js?v=20261105-store-refresh-preserve-v1'),'Owner PWA shell must cache the current Owner JS');
 assert.ok(html.includes('frontend/admin/order-alerts.js?v=20261105-owner-push-diagnostics-v2'),'Owner HTML must load the login-aware push setup');
 assert.ok(ownerSw.includes('/admin/frontend/admin/order-alerts.js?v=20261105-owner-push-diagnostics-v2'),'Owner PWA shell must cache the login-aware push setup');
+assert.ok(ownerSw.includes('/admin/frontend/admin/invoice-settings.js?v=20261105-auto-non-gst-disclosure-v1'),'Owner PWA shell must cache the refreshed invoice settings disclosure');
 
 
 assert.match(lifecycle,/id="fwLifeDeliveryDate"/);
