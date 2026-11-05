@@ -108,7 +108,14 @@ assert.ok(index.includes('address-book.css?v=20261027-checkout-ux-v2'), 'HTML mu
 assert.ok(sw.includes('/frontend/customer/address-book.css?v=20261027-checkout-ux-v2'), 'service worker must cache the current address CSS');
 assert.ok(index.includes('notifications.js?v=notif2'), 'HTML must load the notification permission-state module');
 assert.ok(sw.includes('/notifications.js?v=notif2'), 'service worker must cache the notification permission-state module');
-assert.match(sw, /const CACHE = 'freshway-v123'/);
+assert.match(sw, /const CACHE = 'freshway-v124'/);
 assert.match(css, /#toast\s*\{[^}]*white-space:\s*normal/s);
 assert.match(css, /\.fw-address-incomplete\s*\{/);
+assert.ok(
+  source.includes('const auth = window.FreshWayCustomerAuth || window.FreshWayNotifications;') &&
+  source.includes('session = await auth.session();') &&
+  source.includes('if (sessionResolved && !session?.customerId)') &&
+  source.includes('enterGuestAddressMode(options);'),
+  'guest visits must reuse shared auth state before requesting saved addresses'
+);
 console.log('checkout address completion, geocoding preservation, error feedback, accessibility and asset cache tests passed');
