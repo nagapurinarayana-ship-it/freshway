@@ -1,0 +1,33 @@
+name: FreshWay production Owner PWA smoke
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freshway-production-owner-pwa-smoke
+  cancel-in-progress: false
+
+jobs:
+  owner-pwa-live-smoke:
+    name: Verify deployed Owner PWA and API
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify production Owner PWA
+        env:
+          OWNER_PWA_BASE_URL: https://fwcoldpressed.in
+        run: node pwa-owner-live-smoke.mjs
