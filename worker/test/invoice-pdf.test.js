@@ -61,7 +61,7 @@ test('prints seller contact numbers with the India country code and a visible ve
 });
 
 test('uses a branded invoice hierarchy and preserves payment and seller details',()=>{
-  assert.match(invoicePdfSource,/COMMERCIAL INVOICE/);
+  assert.match(invoicePdfSource,/COMMERCIAL RECEIPT \/ ORDER RECORD/);
   assert.match(invoicePdfSource,/ORDER SUMMARY/);
   assert.match(invoicePdfSource,/TOTAL PAYABLE/);
   assert.match(invoicePdfSource,/ISSUED BY/);
@@ -76,7 +76,7 @@ test('uses a branded invoice hierarchy and preserves payment and seller details'
   assert.match(invoicePdfSource,/balanceDuePaise=paymentStatusLabel==='Not Collected'\?totalPaise:0/);
   assert.doesNotMatch(invoicePdfSource,/Cash Received:/,'do not claim actual cash tender when it is not stored');
   assert.doesNotMatch(invoicePdfSource,/Change Amount:/,'do not claim change given when it is not stored');
-  assert.match(invoicePdfSource,/Commercial invoice \/ order record\./);
+  assert.match(invoicePdfSource,/NON-GST COMMERCIAL ORDER RECORD - NOT A GST TAX INVOICE OR BILL OF SUPPLY\./);
 });
 
 test('commercial invoices show only verified pricing breakdowns and keep historical details unknown',()=>{
@@ -88,7 +88,7 @@ test('commercial invoices show only verified pricing breakdowns and keep histori
   assert.match(invoicePdfSource,/\['Order total',totalPaise/);
 });
 
-test('creates a valid one-page commercial invoice PDF',async()=>{
+test('creates a valid one-page non-GST commercial order record PDF',async()=>{
   const bytes=await createInvoicePdf(fixture());
   saveVisualSample('commercial-invoice.pdf', bytes);
   assert.ok(bytes instanceof Uint8Array);
@@ -96,7 +96,7 @@ test('creates a valid one-page commercial invoice PDF',async()=>{
   assert.equal(new TextDecoder().decode(bytes.slice(0,5)),'%PDF-');
   const pdf=await PDFDocument.load(bytes);
   assert.equal(pdf.getPageCount(),1);
-  assert.equal(pdf.getTitle(),'FreshWay commercial invoice FW/26-27/000001');
+  assert.equal(pdf.getTitle(),'FreshWay commercial order record FW/26-27/000001');
   const size=pdf.getPage(0).getSize();
   assert.ok(Math.abs(size.width-595.28)<1,'commercial invoice uses A4 width');
   assert.ok(Math.abs(size.height-841.89)<1,'commercial invoice uses A4 height');

@@ -6,7 +6,7 @@ const html = fs.readFileSync('admin.html', 'utf8');
 const adminSource = fs.readFileSync('admin.js', 'utf8');
 const source = fs.readFileSync('frontend/admin/invoice-settings.js', 'utf8');
 assert.match(html, /admin\.js\?v=20261105-store-refresh-preserve-v1/);
-assert.match(html, /frontend\/admin\/invoice-settings\.js\?v=20261023-available-fields-invoice-v2/);
+assert.match(html, /frontend\/admin\/invoice-settings\.js\?v=20261105-auto-non-gst-disclosure-v1/);
 assert.match(adminSource, /FreshWayOwnerInvoiceSettings\)loads\.push\(window\.FreshWayOwnerInvoiceSettings\.load\(\{api\}\)\)/);
 assert.match(adminSource, /await Promise\.all\(loads\)/);
 assert.match(source, /window\.FreshWayOwnerInvoiceSettingsApi\|\|window\.api/, 'Save must fall back to the shared Owner API if the settings loader has not registered its API yet');
@@ -60,9 +60,9 @@ element('invoiceDocumentType').value = 'gst_tax_invoice';
 element('invoiceDocumentType').handlers.change();
 assert.equal(element('invoiceGstinLabel').textContent, 'GSTIN (required for this document type)');
 assert.equal(sandbox.window.FreshWayOwnerInvoiceSettings.hasUnsavedChanges(), true, 'billing field edits are tracked as unsaved');
-assert.equal(element('invoiceSettingsTaxNoteTitle').textContent, 'GST document requirements:');
-assert.match(element('invoiceSettingsTaxNoteText').textContent, /valid product HSN codes/);
-assert.match(element('invoiceSettingsTaxNoteText').textContent, /will not guess missing tax details/);
+assert.equal(element('invoiceSettingsTaxNoteTitle').textContent, 'Automatic dispatch limitation:');
+assert.match(element('invoiceSettingsTaxNoteText').textContent, /non-GST commercial order records/);
+assert.match(element('invoiceSettingsTaxNoteText').textContent, /GST tax invoices and bills of supply are not issued automatically/);
 // Keep optional seller overrides blank: non-GST records use the saved Store Profile.
 element('invoiceFooter').value = 'Keep this footer';
 element('invoiceFooter').handlers.input();
@@ -78,8 +78,8 @@ element('invoiceFooter').handlers.input();
   assert.match(element('invoiceSettingsStatus').textContent, /non-GST commercial/);
   assert.equal(sandbox.window.FreshWayOwnerInvoiceSettings.hasUnsavedChanges(), false, 'server-confirmed save clears the unsaved flag');
   assert.equal(element('invoiceGstinLabel').textContent, 'Tax number (optional; printed if provided)');
-  assert.equal(element('invoiceSettingsTaxNoteTitle').textContent, 'Commercial receipt note:');
-  assert.match(element('invoiceSettingsTaxNoteText').textContent, /does not trigger GST calculations/);
+  assert.equal(element('invoiceSettingsTaxNoteTitle').textContent, 'Automatic dispatch limitation:');
+  assert.match(element('invoiceSettingsTaxNoteText').textContent, /no GST is calculated or added/);
 
   resolveGet({ invoiceSettings: {
     enabled: false, documentType: 'commercial_invoice', legalName: '',

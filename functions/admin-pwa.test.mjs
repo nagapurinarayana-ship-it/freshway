@@ -38,7 +38,7 @@ assert.ok(deletionSource.includes('individual request record, and keeps only an 
 assert.ok(deletionSource.includes('Confirmed retention review for applicable invoice/transaction records; operational customer data redacted.'), 'The completion acknowledgement is validated but not persisted as a customer-linked note');
 assert.ok(deletionSource.includes('window.alert(message)'), 'Invalid deletion notes must show a visible message instead of failing silently');
 assert.ok(deletionSource.includes("scrollIntoView({behavior:'smooth', block:'center'})"), 'Validation feedback must be brought into view on mobile');
-assert.ok(sourceHtml.includes('invoice-settings.js?v=20261023-available-fields-invoice-v2'), 'Owner app must reference the refreshed optional invoice settings script');
+assert.ok(sourceHtml.includes('invoice-settings.js?v=20261105-auto-non-gst-disclosure-v1'), 'Owner app must reference the refreshed optional invoice settings script');
 assert.ok(sourceHtml.includes('The receipt uses saved order and Store Profile details. The tax number is optional:'), 'Owner invoice setup must explain receipt data and optional tax-number display');
 assert.doesNotMatch(sourceHtml, /id="invoiceSeriesPrefix"[^>]*\brequired\b/, 'Invoice series prefix must remain optional and default to FW');
 assert.ok(invoiceSettingsSource.includes('saved.enableWarning'), 'Owner UI must explain why attempted invoice activation remains disabled');
@@ -56,7 +56,7 @@ assert.ok(ownerLiveSmokeSource.includes("const LEGACY_OWNER_CACHE = 'fw-owner-v6
 assert.ok(ownerLiveSmokeSource.includes("const OLDER_OWNER_CACHE = 'fw-owner-v65';"), 'production Owner smoke must also accept the older supported cache during rollout');
 assert.ok(ownerLiveSmokeSource.includes("const OLDEST_OWNER_CACHE = 'fw-owner-v64';"), 'production Owner smoke must also accept the oldest supported cache during rollout');
 assert.ok(ownerLiveSmokeSource.includes("'fw-owner-v62', 'fw-owner-v61', 'fw-owner-v60', 'fw-owner-v58', 'fw-owner-v57', 'fw-owner-v56']"), 'production Owner smoke must retain support for the older pre-v57 cache during rollout');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT = '/admin/frontend/admin/invoice-settings.js?v=20261023-available-fields-invoice-v2';"), 'production Owner smoke must demand the current optional invoice settings script');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT = '/admin/frontend/admin/invoice-settings.js?v=20261105-auto-non-gst-disclosure-v1';"), 'production Owner smoke must demand the current optional invoice settings script');
 
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261105-owner-push-diagnostics-v2';"), 'production Owner smoke must demand the current push setup version');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2';"), 'production Owner smoke must demand the current business profile and shop pin editor');

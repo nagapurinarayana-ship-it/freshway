@@ -33,28 +33,26 @@
     assign('invoiceFooter',s.footer);
     savedRevision=editRevision;
     syncDocumentTypeHints();
-    setStatus(bool(s.enabled)?'Invoice issuance is enabled. Saving these settings will also generate missing invoices for eligible dispatched and delivered orders.':'Invoice issuance is disabled. Existing invoices remain unchanged.');
+    setStatus(bool(s.enabled)?'Automatic dispatch is enabled. It currently issues non-GST commercial order records only.':'Invoice issuance is disabled. Existing invoices remain unchanged.');
   }
   function syncDocumentTypeHints(){
     const type=$('#invoiceDocumentType')?.value||'commercial_invoice';
     const nonGst=type==='commercial_invoice';
     const hints={
-      invoiceLegalNameHint:nonGst?'Optional for receipts. Leave blank to use the Store Profile name.':'Required by the selected document type.',
-      invoiceBusinessAddressHint:nonGst?'Optional for receipts. Leave blank to use the Store Profile address.':'Required by the selected document type.',
-      invoiceStateNameHint:nonGst?'Not required for non-GST commercial records.':'Required for GST documents.',
-      invoiceStateCodeHint:nonGst?'Not required for non-GST commercial records.':'Required; must match the GSTIN.',
-      invoiceGstinHint:nonGst?'Optional display-only tax number: printed on the receipt if provided. No external verification or GST calculation is performed.':'Required by the selected document type. FreshWay checks the GSTIN format and state-code match, but does not verify it against an external service.',
-      invoicePricesIncludeTaxHint:nonGst?'Does not add a tax amount or alter saved order totals for non-GST records.':'Required for GST documents; FreshWay never changes the saved checkout total.'
+      invoiceLegalNameHint:nonGst?'Optional for receipts. Leave blank to use the Store Profile name.':'Saved for future formal GST documents; not applied to automatic receipts.',
+      invoiceBusinessAddressHint:nonGst?'Optional for receipts. Leave blank to use the Store Profile address.':'Saved for future formal GST documents; not applied to automatic receipts.',
+      invoiceStateNameHint:nonGst?'Not required for non-GST commercial records.':'Saved for future formal GST documents; not applied to automatic receipts.',
+      invoiceStateCodeHint:nonGst?'Not required for non-GST commercial records.':'Saved for future formal GST documents; not applied to automatic receipts.',
+      invoiceGstinHint:nonGst?'Optional display-only tax number: printed on the receipt if provided. No external verification or GST calculation is performed.':'Saved for future formal GST documents. Automatic receipts may show it as display-only text; it is not externally verified.',
+      invoicePricesIncludeTaxHint:nonGst?'Does not add a tax amount or alter saved order totals for non-GST records.':'Saved for future formal GST documents; automatic receipts use saved order totals without calculating GST.'
     };
     for(const [id,message] of Object.entries(hints)){const el=$('#'+id);if(el)el.textContent=message;}
     const gstinLabel=$('#invoiceGstinLabel');
     if(gstinLabel)gstinLabel.textContent=nonGst?'Tax number (optional; printed if provided)':'GSTIN (required for this document type)';
     const noteTitle=$('#invoiceSettingsTaxNoteTitle');
     const noteText=$('#invoiceSettingsTaxNoteText');
-    if(noteTitle)noteTitle.textContent=nonGst?'Commercial receipt note:':'GST document requirements:';
-    if(noteText)noteText.textContent=nonGst
-      ?'The tax number is optional display text for commercial receipts. It is not checked against an external service and does not trigger GST calculations.'
-      :'GST documents require complete seller details and valid product HSN codes. GST tax invoices also require confirmed product tax classifications and rates. FreshWay will not guess missing tax details; affected orders remain unchanged until corrected.';
+    if(noteTitle)noteTitle.textContent='Automatic dispatch limitation:';
+    if(noteText)noteText.textContent='Automatic dispatch and backfill currently issue non-GST commercial order records regardless of the selected document type. GST tax invoices and bills of supply are not issued automatically, and no GST is calculated or added. The tax number is optional display-only text on commercial receipts and is not externally verified. Confirm the correct document type with your accountant before relying on a formal GST document.';
   }
   function collect(){
     return {
@@ -108,7 +106,7 @@
         setStatus('Saved. Invoice issuance is enabled. '+fallbackNotice,false);
       }else{
         setStatus(bool(saved.enabled)
-          ?'Saved. Invoice issuance is enabled.'
+          ?'Saved. Automatic non-GST commercial order records are enabled.'
           :'Saved. Invoice issuance remains off. You can leave unfinished billing and tax details blank and complete them later.');
       }
       const backfill=data?.invoiceBackfill;
@@ -120,9 +118,9 @@
         const fallbackDetails=fallbackIssued?' '+fallbackIssued+' issued as commercial receipts because required GST/HSN details were incomplete. Add those details later if a GST invoice is required.':'';
         if(scanned===0){
           const refunded=Number(backfill.skippedRefunded)||0;
-          setStatus('Invoice issuance is enabled. No eligible missing invoices were found among dispatched/delivered orders. New orders receive invoices when moved to Out for Delivery or Delivered.'+(refunded?' '+refunded+' refunded order'+(refunded===1?' was':'s were')+' left for credit-note review.':''));
+          setStatus('Automatic non-GST commercial order records are enabled. No eligible missing records were found among dispatched/delivered orders. New orders receive a record when moved to Out for Delivery or Delivered.'+(refunded?' '+refunded+' refunded order'+(refunded===1?' was':'s were')+' left for credit-note review.':''));
         }else{
-          const summary='Invoice issuance is enabled'+(failed?' but backfill found validation issues. ':'. ')+issued+' missing invoice'+(issued===1?'':'s')+' generated for eligible dispatched/delivered orders ('+scanned+' checked).';
+          const summary='Automatic non-GST commercial order records are enabled'+(failed?' but backfill found validation issues. ':'. ')+issued+' missing invoice'+(issued===1?'':'s')+' generated for eligible dispatched/delivered orders ('+scanned+' checked).';
           const firstFailure=Array.isArray(backfill.failed)?backfill.failed[0]:null;
           const failureDetails=firstFailure?' First failure: '+String(firstFailure.orderId||'Order')+' — '+String(firstFailure.reason||'Invoice validation failed.'): '';
           const refunded=Number(backfill.skippedRefunded)||0;
