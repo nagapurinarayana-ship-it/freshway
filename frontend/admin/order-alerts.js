@@ -272,7 +272,6 @@
 
   async function loadOwnerAlertHistory({ reset = false } = {}) {
     const list = $('#ownerAlertHistoryList');
-    const more = $('#ownerAlertHistoryMore');
     const status = $('#ownerAlertHistoryStatus');
     if (!list || historyLoading || !ownerAuthHint()) return;
     if (reset) {
