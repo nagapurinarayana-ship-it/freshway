@@ -1010,9 +1010,9 @@ test('Owner catalogue UI blocks deletion while store stock remains and deletes a
     const currentResponse = await fetch(path, { credentials: 'include', cache: 'no-store' });
     const current = await currentResponse.json();
     if (!currentResponse.ok) return { status: currentResponse.status, data: current };
-    const items = (current.inventory || []).filter(item => item.stockManaged).map(item => ({
+    const items = (current.inventory || []).filter(item => Number(item.stock_managed) === 1).map(item => ({
       productId: item.id,
-      stockQuantity: item.id === productId ? 5 : Number(item.onHand || 0)
+      stockQuantity: item.id === productId ? 5 : Number(item.on_hand || 0)
     }));
     const response = await fetch(path, {
       method: 'PATCH',
