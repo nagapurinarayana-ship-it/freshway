@@ -2,6 +2,28 @@ import { test, expect } from '@playwright/test';
 
 const workerOrigin = 'http://localhost:8787';
 
+const pageOrigin = 'http://localhost:4173';
+
+async function proxyOwnerAssets(page) {
+  await page.route(url => url.pathname.startsWith('/admin/'), async route => {
+    const incoming = new URL(route.request().url());
+    let targetPath = incoming.pathname;
+
+    if (targetPath !== '/admin/sw.js' &&
+        targetPath !== '/admin/manifest.webmanifest' &&
+        !targetPath.startsWith('/admin/icons/')) {
+      targetPath = targetPath.replace(/^\/admin(?=\/)/, '');
+    } else if (targetPath.startsWith('/admin/icons/')) {
+      targetPath = targetPath.replace(/^\/admin\/icons\//, '/icons/');
+    }
+
+    const response = await route.fetch({
+      url: pageOrigin + targetPath + incoming.search
+    });
+    await route.fulfill({ response });
+  });
+}
+
 async function proxyWorkerApi(page) {
   await page.route('**/api/**', async route => {
     const incoming = new URL(route.request().url());
@@ -50,6 +72,7 @@ test('Owner manages prices and inventory together without mixing store data', as
   });
 
   try {
+    await proxyOwnerAssets(page);
     await proxyWorkerApi(page);
     const home = await page.goto('/admin.html#stores');
     expect(home?.status()).toBe(200);

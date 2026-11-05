@@ -70,8 +70,20 @@ test('Owner can navigate every implemented management screen against the real Wo
     await proxyOwnerAssets(page);
     await proxyWorkerApi(page);
 
+    const ownerPwaCssResponse = page.waitForResponse(response =>
+      new URL(response.url()).pathname === '/admin/owner-pwa-install.css'
+    );
+    const ownerPwaJsResponse = page.waitForResponse(response =>
+      new URL(response.url()).pathname === '/admin/owner-pwa-install.js'
+    );
+    const alertsScriptResponse = page.waitForResponse(response =>
+      new URL(response.url()).pathname === '/admin/frontend/admin/order-alerts.js'
+    );
     const home = await page.goto('/admin.html#overview');
     expect(home?.status()).toBe(200);
+    const ownerAssetStatuses = await Promise.all([ownerPwaCssResponse, ownerPwaJsResponse, alertsScriptResponse]);
+    expect(ownerAssetStatuses.map(response => response.status())).toEqual([200, 200, 200]);
+    await expect.poll(() => page.evaluate(() => typeof window.FreshWayOwnerOrderAlerts)).toBe('object');
     await expect(page.locator('#loginView')).toBeVisible();
 
     const loginResponse = page.waitForResponse(response =>
@@ -107,12 +119,40 @@ test('Owner can navigate every implemented management screen against the real Wo
       await expect(page.locator('#' + screen)).toHaveClass(/active/);
     }
 
-    // The Owner alert-history screen is intentionally reached from the
-    // Notifications screen rather than being a separate sidebar destination.
+    // Owner alert controls must be backed by the actual script asset, not a
+    // silent 404. Verify the status/list refresh actions use read-only APIs.
     await page.locator('.side nav button[data-screen="notifications"]').click();
     await expect(page.locator('#notifications')).toHaveClass(/active/);
+    await expect(page.locator('#ownerOrderAlertToggle')).toBeVisible();
+    await expect(page.locator('#ownerOrderAlertTest')).toBeVisible();
+
+    const pushStatusResponse = page.waitForResponse(response =>
+      new URL(response.url()).pathname === '/api/admin/push/public-key'
+    );
+    const alertPreviewResponse = page.waitForResponse(response => {
+      const url = new URL(response.url());
+      return url.pathname === '/api/admin/order-alerts' && url.searchParams.get('limit') === '3';
+    });
+    await page.locator('#ownerOrderAlertsRefresh').click();
+    expect((await Promise.all([pushStatusResponse, alertPreviewResponse])).map(response => response.status())).toEqual([200, 200]);
+
+    // The Owner alert-history screen is intentionally reached from the
+    // Notifications screen rather than being a separate sidebar destination.
+    const alertHistoryResponse = page.waitForResponse(response => {
+      const url = new URL(response.url());
+      return url.pathname === '/api/admin/order-alerts' && url.searchParams.get('limit') === '20';
+    });
     await page.locator('#ownerOrderAlertsViewAll').click();
     await expect(page.locator('#owner-alert-history')).toHaveClass(/active/);
+    expect((await alertHistoryResponse).status()).toBe(200);
+    await expect(page.locator('#ownerAlertHistoryList')).toBeVisible();
+
+    const historyRefreshResponse = page.waitForResponse(response => {
+      const url = new URL(response.url());
+      return url.pathname === '/api/admin/order-alerts' && url.searchParams.get('limit') === '20';
+    });
+    await page.locator('#ownerAlertHistoryRefresh').click();
+    expect((await historyRefreshResponse).status()).toBe(200);
 
     await page.waitForLoadState('networkidle');
     checkingNavigation = false;
