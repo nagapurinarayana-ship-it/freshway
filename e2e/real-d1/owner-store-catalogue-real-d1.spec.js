@@ -107,6 +107,9 @@ test('Owner can edit, save and reload store-specific catalogue using real Worker
       const close = page.locator('#storeManagement [data-close-catalogue]');
       if (await close.count()) {
         await close.click();
+        // The in-app Back action now follows the browser history entry. Wait for
+        // the Stores list to finish reloading before checking/restoring the fixture.
+        await expect(page.locator('#storeManagement [data-manage-store="store-d1"]')).toBeVisible({ timeout: 10000 });
       }
       const open = page.locator('#storeManagement [data-manage-store="store-d1"]');
       if (await open.count()) {
