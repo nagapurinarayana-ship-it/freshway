@@ -108,6 +108,72 @@ test('customer storefront uses the selected store catalogue and checks out at it
   await expect(customerPage.locator('#confirmationView')).toContainText('₹' + placed.total.toLocaleString('en-IN'));
   expect(pageErrors).toEqual([]);
 
+  // Verify that the same persisted order and money snapshot are displayed in the
+  // authenticated Owner UI, then issue and download its commercial receipt.
+  const ownerPage = await context.newPage();
+  await ownerPage.setViewportSize({ width: 1440, height: 1000 });
+  const ownerPageErrors = [];
+  ownerPage.on('pageerror', error => ownerPageErrors.push(error.message));
+  await proxyWorkerApi(ownerPage);
+  const ownerHome = await ownerPage.goto('/admin.html#orders');
+  expect(ownerHome?.status()).toBe(200);
+  await expect(ownerPage.locator('#loginView')).toBeVisible();
+  const ownerLogin = ownerPage.waitForResponse(response =>
+    new URL(response.url()).pathname === '/api/admin/login' &&
+    response.request().method() === 'POST'
+  );
+  await ownerPage.locator('#adminToken').fill('isolated-admin-token');
+  await ownerPage.locator('#connectBtn').click();
+  expect((await ownerLogin).status()).toBe(200);
+  await expect(ownerPage.locator('#appView')).toBeVisible();
+
+  const ownerCard = ownerPage.locator('#ordersList .order-card').filter({ hasText: placed.id });
+  await expect(ownerCard).toBeVisible({ timeout: 20000 });
+  await expect(ownerCard).toContainText('₹750');
+  await expect(ownerCard).toContainText('Items ₹800');
+  await expect(ownerCard).toContainText('₹50');
+  await expect(ownerCard).toContainText('Delivery Free');
+  await ownerCard.click();
+  await expect(ownerPage.locator('#modalBody')).toContainText('₹750');
+  await expect(ownerPage.locator('#modalBody')).toContainText('Groundnut Oil ×3 litre');
+  await expect(ownerPage.locator('#modalBody')).toContainText('Basmati Rice ×1 kg');
+
+  // Moving the isolated order to the dispatch state triggers the configured
+  // local commercial receipt flow; it does not dispatch or alter any live order.
+  const dispatch = await ownerPage.evaluate(async orderId => {
+    const response = await fetch('/api/admin/orders/' + encodeURIComponent(orderId), {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'Out for Delivery' })
+    });
+    return { status: response.status, data: await response.json() };
+  }, placed.id);
+  expect(dispatch.status).toBe(200);
+  expect(dispatch.data.invoice?.number).toBeTruthy();
+
+  await ownerPage.reload();
+  await expect(ownerPage.locator('#appView')).toBeVisible();
+  const refreshedOwnerCard = ownerPage.locator('#ordersList .order-card').filter({ hasText: placed.id });
+  await expect(refreshedOwnerCard).toBeVisible({ timeout: 20000 });
+  await refreshedOwnerCard.click();
+  await expect(ownerPage.locator('#modalBody')).toContainText(dispatch.data.invoice.number);
+  const invoiceButton = ownerPage.locator('[data-download-owner-invoice="' + placed.id + '"]');
+  await expect(invoiceButton).toBeVisible();
+  const invoiceResponsePromise = ownerPage.waitForResponse(response =>
+    new URL(response.url()).pathname === '/api/admin/orders/' + placed.id + '/invoice' &&
+    response.request().method() === 'GET'
+  );
+  await invoiceButton.click();
+  const invoiceResponse = await invoiceResponsePromise;
+  expect(invoiceResponse.status()).toBe(200);
+  expect(invoiceResponse.headers()['content-type']).toContain('application/pdf');
+  expect(invoiceResponse.headers()['content-disposition']).toContain(dispatch.data.invoice.number);
+  const invoiceBytes = await invoiceResponse.body();
+  expect(invoiceBytes.subarray(0, 5).toString()).toBe('%PDF-');
+  expect(invoiceBytes.length).toBeGreaterThan(1000);
+  expect(ownerPageErrors).toEqual([]);
+
   await context.close();
 });
 
