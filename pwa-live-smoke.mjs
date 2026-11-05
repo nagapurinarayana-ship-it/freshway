@@ -7,8 +7,8 @@ const CUSTOMER_MESSAGES_PATH = '/frontend/customer/messages.js?v=msg1';
 const CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?v=msg1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261106-guest-session-gate-v1';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v124';
-const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261029-nonintrusive-install-v2';
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v125';
+const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261106-install-guidance-v1';
 const CUSTOMER_CATALOGUE_PATH = '/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v2';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
