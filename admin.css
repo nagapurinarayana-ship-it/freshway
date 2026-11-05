@@ -399,3 +399,14 @@ button,input,textarea,select{touch-action:manipulation}
 @media(min-width:801px) and (max-width:840px){.fw-managed-product-controls{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.fw-managed-availability,.fw-managed-stock-meta{grid-column:1/-1}}
 
 
+
+/* Account deletion confirmation: explicit, touch-friendly and readable on small screens. */
+.account-deletion-confirmation{display:grid;gap:12px;margin-top:14px;padding:15px;border:1px solid var(--line);border-radius:14px;background:#fbfdfb}
+.account-deletion-confirmation[hidden]{display:none!important}
+.account-deletion-confirmation .settings-field>span{font-size:12px}
+.account-deletion-confirmation .settings-field textarea{min-height:116px;font-size:14px;line-height:1.45}
+.account-deletion-retention-check{display:flex;align-items:flex-start;gap:10px;font-size:12px;line-height:1.45}
+.account-deletion-retention-check input{width:20px;height:20px;flex:0 0 auto;margin-top:1px}
+.account-deletion-form-error{color:#a62828;font-weight:800}
+.account-deletion-confirmation .owner-alert-control-actions{display:grid;grid-template-columns:1fr;gap:8px}
+.account-deletion-confirmation .owner-alert-control-actions button{width:100%;min-height:44px}
