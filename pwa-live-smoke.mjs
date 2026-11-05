@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 
 const BASE_URL = process.env.BASE_URL || 'https://freshway-f32.pages.dev';
 const VIEWPORT_STYLES_PATH = '/styles.css?v=20261030-aa-contrast-v1';
-const CUSTOMER_APP_PATH = '/app.js?v=105';
+const CUSTOMER_APP_PATH = '/app.js?v=106';
 const CUSTOMER_MESSAGES_PATH = '/frontend/customer/messages.js?v=msg1';
 const CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?v=msg1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=store-catalogue-pricing-20261102-v1';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v121';
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v122';
 const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261029-nonintrusive-install-v2';
 const CUSTOMER_CATALOGUE_PATH = '/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v1';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -192,8 +192,9 @@ async function waitForFullImageFitAssets(base) {
       assert.match(promotionSource, /sourceImage\.naturalWidth/);
       assert.match(promotionSource, /sourceImage\.naturalHeight/);
       assert.match(promotionSource, /object-fit:contain/);
-      assert.match(customerCatalogueSource,/const insertAfter=hero\|\|searchWrap/);
-      assert.match(customerCatalogueSource,/home\.insertBefore\(c,\s*insertAfter\.nextSibling\)/);
+      assert.ok(customerCatalogueSource.includes("const hero=$('.hero-banner')"), 'category tiles must be anchored below the hero without customer search');
+      assert.ok(!customerCatalogueSource.includes('searchInput') && !customerCatalogueSource.includes('search-wrap'), 'customer category navigation must not depend on the removed search control');
+      assert.ok(customerCatalogueSource.includes('home.insertBefore(c,hero.nextSibling)'), 'category tiles remain directly below the hero banner');
       assert.match(customerCatalogueSource,/heading\.classList\.add\('fw-category-home-hidden'\)/);
       assert.match(customerCatalogueSource,/if\(!selected\)\{grid\.classList\.add\('fw-category-home-hidden'\);return\}/);
       assert.match(addressGeocodeSource,/houseFlat: first\(a\.house_number, a\.house_name\)/);
@@ -397,8 +398,9 @@ async function verifyCustomDomain() {
   assert.doesNotMatch(addressSystemSource,/const preserve = labelFields\\.map/,'custom-domain editor must not retain stale geo fields');
   assert.ok(appSource.includes("function setView(name,options){if(name==='home'&&options?.history!=='none')window.freshWayCustomerCatalogueGoHome?.();navigation.setView(name,options)"), 'custom-domain home navigation resets category state');
   assert.ok(customerCatalogueSource.includes("window.freshWayCustomerCatalogueGoHome=()=>{const state=window.history.state;if(state?.__freshwayCustomer&&state.category)window.history.replaceState({...state,category:null},'',window.location.href);setMode(null,{history:'none'})};"), 'custom-domain category state reset is current');
-  assert.match(customerCatalogueSource,/const insertAfter=hero\|\|searchWrap/);
-      assert.match(customerCatalogueSource,/home\.insertBefore\(c,\s*insertAfter\.nextSibling\)/);
+  assert.ok(customerCatalogueSource.includes("const hero=$('.hero-banner')"), 'category tiles must be anchored below the hero without customer search');
+      assert.ok(!customerCatalogueSource.includes('searchInput') && !customerCatalogueSource.includes('search-wrap'), 'customer category navigation must not depend on the removed search control');
+      assert.ok(customerCatalogueSource.includes('home.insertBefore(c,hero.nextSibling)'), 'category tiles remain directly below the hero banner');
   assert.match(customerCatalogueSource,/heading\.classList\.add\('fw-category-home-hidden'\)/);
   assert.match(customerCatalogueSource,/if\(!selected\)\{grid\.classList\.add\('fw-category-home-hidden'\);return\}/);
   assert.match(shareImageResponse.headers.get('content-type') || '', /^image\/png/i, 'WhatsApp share image must be served as PNG');
