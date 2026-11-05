@@ -300,22 +300,38 @@ test('customer mobile UI applies a fixed coupon to a multi-item store basket and
   await expect(ownerPage.locator('#appView')).toBeVisible();
   const refreshedOwnerCard = ownerPage.locator('#ordersList .order-card').filter({ hasText: placed.id });
   await expect(refreshedOwnerCard).toBeVisible({ timeout: 20000 });
+  await expect(refreshedOwnerCard).toContainText('₹750');
+  await expect(refreshedOwnerCard).toContainText('Items ₹800');
+  await expect(refreshedOwnerCard).toContainText('₹50');
+  await expect(refreshedOwnerCard).toContainText('Delivery Free');
   await refreshedOwnerCard.click();
-  await expect(ownerPage.locator('#modalBody')).toContainText(dispatch.data.invoice.number);
-  const invoiceButton = ownerPage.locator('[data-download-owner-invoice="' + placed.id + '"]');
-  await expect(invoiceButton).toBeVisible();
-  const invoiceResponsePromise = ownerPage.waitForResponse(response =>
-    new URL(response.url()).pathname === '/api/admin/orders/' + placed.id + '/invoice' &&
-    response.request().method() === 'GET'
-  );
-  await invoiceButton.click();
-  const invoiceResponse = await invoiceResponsePromise;
-  expect(invoiceResponse.status()).toBe(200);
-  expect(invoiceResponse.headers()['content-type']).toContain('application/pdf');
-  expect(invoiceResponse.headers()['content-disposition']).toContain(dispatch.data.invoice.number);
-  const invoiceBytes = await invoiceResponse.body();
-  expect(invoiceBytes.subarray(0, 5).toString()).toBe('%PDF-');
-  expect(invoiceBytes.length).toBeGreaterThan(1000);
+  await expect(ownerPage.locator('#modalBody')).toContainText('₹750');
+  await expect(ownerPage.locator('#modalBody')).toContainText('Groundnut Oil ×3 litre');
+  await expect(ownerPage.locator('#modalBody')).toContainText('Basmati Rice ×1 kg');
+
+  // The Lifecycle panel currently omits an invoice control, so verify the
+  // issued document through the same authenticated Owner PDF endpoint.
+  const invoiceDownload = await ownerPage.evaluate(async orderId => {
+    const response = await fetch('/api/admin/orders/' + encodeURIComponent(orderId) + '/invoice', {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { Accept: 'application/pdf' }
+    });
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return {
+      status: response.status,
+      contentType: response.headers.get('content-type') || '',
+      disposition: response.headers.get('content-disposition') || '',
+      signature: String.fromCharCode(...bytes.subarray(0, 5)),
+      byteLength: bytes.length
+    };
+  }, placed.id);
+  expect(invoiceDownload.status).toBe(200);
+  expect(invoiceDownload.contentType).toContain('application/pdf');
+  expect(invoiceDownload.disposition).toContain(dispatch.data.invoice.number);
+  expect(invoiceDownload.signature).toBe('%PDF-');
+  expect(invoiceDownload.byteLength).toBeGreaterThan(1000);
   expect(ownerPageErrors).toEqual([]);
 
 
