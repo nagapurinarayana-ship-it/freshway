@@ -145,6 +145,32 @@ test('customer mobile UI applies a fixed coupon to a multi-item store basket and
   });
   expect(addressResponse.status()).toBe(201);
 
+  // Capture the isolated store's inventory baseline before checkout so the
+  // order-creation assertions prove exactly which store receives reservations.
+  const ownerLoginForInventory = await context.request.post(workerOrigin + '/api/admin/login', {
+    headers: { Origin: origin },
+    data: { token: 'isolated-admin-token' }
+  });
+  expect(ownerLoginForInventory.status()).toBe(200);
+  const ownerSessionForInventory = (ownerLoginForInventory.headers()['set-cookie'] || '')
+    .match(/__Host-freshway-admin-session=([^;,]+)/);
+  expect(ownerSessionForInventory).toBeTruthy();
+  const readStoreInventory = async () => {
+    const response = await context.request.get(
+      workerOrigin + '/api/admin/delivery/stores/store-d1/inventory',
+      { headers: { Origin: origin, 'X-FreshWay-Admin-Session': ownerSessionForInventory[1] } }
+    );
+    expect(response.status()).toBe(200);
+    return (await response.json()).inventory;
+  };
+  const inventoryBeforeOrder = await readStoreInventory();
+  const stockBeforeOrder = new Map(inventoryBeforeOrder.map(item => [String(item.id), {
+    onHand: Number(item.on_hand),
+    reserved: Number(item.reserved_qty)
+  }]));
+  expect(stockBeforeOrder.has('oil-d1')).toBe(true);
+  expect(stockBeforeOrder.has('rice-d1')).toBe(true);
+
   const page = await context.newPage();
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error.message));
@@ -228,6 +254,25 @@ test('customer mobile UI applies a fixed coupon to a multi-item store basket and
   const rice = placed.items.find(item => item.id === 'rice-d1');
   expect(oil).toMatchObject({ qty: 3, price: 189, lineTotal: 567 });
   expect(rice).toMatchObject({ qty: 1, price: 233, lineTotal: 233 });
+
+  // D1 must reserve all four units against Store D1 only. Physical on-hand
+  // remains unchanged while the order is pending fulfilment; available stock
+  // drops by the exact quantity reserved for each product.
+  const inventoryAfterOrder = await readStoreInventory();
+  const stockAfterOrder = new Map(inventoryAfterOrder.map(item => [String(item.id), {
+    onHand: Number(item.on_hand),
+    reserved: Number(item.reserved_qty)
+  }]));
+  for (const [productId, quantity] of [['oil-d1', 3], ['rice-d1', 1]]) {
+    const before = stockBeforeOrder.get(productId);
+    const after = stockAfterOrder.get(productId);
+    expect(after.onHand, productId + ' physical on-hand must not be decremented before fulfilment')
+      .toBe(before.onHand);
+    expect(after.reserved, productId + ' reservation must increase by the ordered quantity')
+      .toBe(before.reserved + quantity);
+    expect(after.onHand - after.reserved, productId + ' available stock must reduce by the reserved quantity')
+      .toBe(before.onHand - before.reserved - quantity);
+  }
 
   // Re-read the order through the authenticated customer API, proving that
   // D1 saved the same money snapshot that the UI and create-order response showed.
