@@ -32,7 +32,7 @@ function parseOrderItems(value) {
   }
 }
 
-function diagnoseUnassignedOrders(orderRows, matrixRows, storeReports, generatedAt) {
+function diagnoseUnassignedOrders(orderRows, matrixRows, storeReports, generatedAt, historyByOrder = new Map()) {
   const productsByStore = new Map();
   for (const row of matrixRows) {
     const storeId = String(row.store_id || '');
@@ -60,6 +60,16 @@ function diagnoseUnassignedOrders(orderRows, matrixRows, storeReports, generated
       quantity: n(item.qty),
       expectedStockReservationQty: n(item.stockReservedQty)
     }));
+    const history = historyByOrder.get(String(row.order_id)) || [];
+    const assignmentEvents = history.filter(event => [
+      'delivery_date_change_approved',
+      'fulfilment_store_reassigned',
+      'fulfilment_store_stock_reconfirmed'
+    ].includes(event.action));
+    const lastAssignmentEvent = assignmentEvents.length ? assignmentEvents[assignmentEvents.length - 1] : null;
+    const likelyUnassignmentCause = lastAssignmentEvent?.action === 'delivery_date_change_approved'
+      ? 'approved-date-only-reschedule-cleared-store-assignment'
+      : (lastAssignmentEvent ? 'store-assignment-event-recorded-needs-follow-up-review' : 'no-store-assignment-event-in-audit-history');
 
     const inRadius = [];
     const fulfilmentStores = [];
@@ -119,12 +129,15 @@ function diagnoseUnassignedOrders(orderRows, matrixRows, storeReports, generated
       inRadiusStores: inRadius,
       fulfilmentStores,
       storeAssessments: assessments,
+      history,
+      lastAssignmentEvent,
+      likelyUnassignmentCause,
       diagnosis
     };
   });
 }
 
-export function buildStoreOperationalAudit(matrixRows, orderRows = [], reservationRows = []) {
+export function buildStoreOperationalAudit(matrixRows, orderRows = [], reservationRows = [], historyRows = []) {
   if (!Array.isArray(matrixRows) || matrixRows.length === 0) {
     throw new Error('Production audit returned no store/product rows; refusing to report an empty database as healthy.');
   }
@@ -216,7 +229,28 @@ export function buildStoreOperationalAudit(matrixRows, orderRows = [], reservati
     reason: !present(row.assigned_store_id) ? 'unassigned' :
       (!present(row.assigned_store_name) ? 'assigned-store-missing' : 'assigned-store-inactive')
   }));
-  const orderDiagnostics = diagnoseUnassignedOrders(orderRows, matrixRows, storeReports, auditTimestamp);
+  const orderEventHistory = (historyRows || []).map(row => ({
+    orderId: String(row.order_id),
+    createdAt: String(row.event_created_at || ''),
+    actorType: String(row.actor_type || ''),
+    action: String(row.action || ''),
+    beforeStatus: row.before_delivery_status ?? null,
+    afterStatus: row.after_delivery_status ?? null,
+    beforeAssignedStoreId: row.before_assigned_store_id ?? null,
+    afterAssignedStoreId: row.after_assigned_store_id ?? null,
+    afterStoreId: row.after_store_id ?? null,
+    afterStoreName: row.after_store_name ?? null,
+    afterDate: row.after_date ?? null,
+    afterScheduleStatus: row.after_schedule_status ?? null,
+    requestStates: String(row.request_states || ''),
+    operationalFlags: String(row.operational_flags || '')
+  }));
+  const historyByOrder = new Map();
+  for (const event of orderEventHistory) {
+    if (!historyByOrder.has(event.orderId)) historyByOrder.set(event.orderId, []);
+    historyByOrder.get(event.orderId).push(event);
+  }
+  const orderDiagnostics = diagnoseUnassignedOrders(orderRows, matrixRows, storeReports, auditTimestamp, historyByOrder);
   const reservationMismatches = (reservationRows || []).map(row => ({
     orderId: String(row.order_id), productId: String(row.product_id),
     productName: String(row.product_name || row.product_id), status: String(row.delivery_status || ''),
@@ -245,7 +279,11 @@ export function buildStoreOperationalAudit(matrixRows, orderRows = [], reservati
     ordersWithFulfilmentCandidate: orderDiagnostics.filter(order => order.fulfilmentStores.length > 0).length,
     ordersWithNoFullBasketStore: orderDiagnostics.filter(order =>
       order.locationPinAvailable && order.itemCount > 0 && order.inRadiusStoreCount > 0 && order.fulfilmentStores.length === 0
-    ).length
+    ).length,
+    ordersWithDateChangeApprovalAsLastStoreAction: orderDiagnostics.filter(order =>
+      order.lastAssignmentEvent?.action === 'delivery_date_change_approved'
+    ).length,
+    ordersWithNoStoreAssignmentEvent: orderDiagnostics.filter(order => !order.lastAssignmentEvent).length
   };
 
   const criticalIssues = [];
@@ -260,6 +298,7 @@ export function buildStoreOperationalAudit(matrixRows, orderRows = [], reservati
     generatedAt: auditTimestamp, summary, stores: storeReports,
     activeOrdersOnUnavailableStores: unavailableOrders,
     orderDiagnostics,
+    orderEventHistory,
     reservationMismatches, criticalIssues, healthy: criticalIssues.length === 0
   };
 }
@@ -285,6 +324,8 @@ export function renderStoreOperationalAuditMarkdown(report) {
     '- Unassigned orders with no active store in radius: ' + s.ordersWithNoInRadiusStore,
     '- Unassigned orders with at least one whole-basket store candidate: ' + s.ordersWithFulfilmentCandidate,
     '- Unassigned orders with no whole-basket store candidate: ' + s.ordersWithNoFullBasketStore,
+    '- Unassigned orders whose latest store action is a date-change approval: ' + s.ordersWithDateChangeApprovalAsLastStoreAction,
+    '- Unassigned orders with no store assignment action in audit history: ' + s.ordersWithNoStoreAssignmentEvent,
     '', '## Store detail', ''
   ];
   for (const store of report.stores) {
@@ -322,7 +363,18 @@ export function renderStoreOperationalAuditMarkdown(report) {
       lines.push('- ' + order.orderId + ': ' + order.status + ' · ' + age + ' · pin ' +
         (order.locationPinAvailable ? 'available' : 'missing') + ' · basket ' + basket +
         ' · in-radius stores ' + order.inRadiusStoreCount + ' · whole-basket candidates ' + candidates +
-        ' · ' + order.diagnosis);
+        ' · ' + order.diagnosis + ' · ' + order.likelyUnassignmentCause);
+      if (order.history.length) {
+        for (const event of order.history) {
+          lines.push('  - History: ' + event.createdAt + ' · ' + event.actorType + ' · ' + event.action +
+            (event.afterDate ? ' · date ' + event.afterDate : '') +
+            (event.afterStoreName ? ' · store ' + event.afterStoreName : '') +
+            (event.requestStates ? ' · requests ' + event.requestStates : '') +
+            (event.operationalFlags ? ' · flags ' + event.operationalFlags : ''));
+        }
+      } else {
+        lines.push('  - No order audit events recorded.');
+      }
       for (const assessment of order.storeAssessments) {
         if (assessment.blockers.length) {
           const blockers = assessment.blockers.map(item => item.product + ':' + item.reason +
@@ -351,8 +403,10 @@ export function renderStoreOperationalAuditMarkdown(report) {
 
 async function main() {
   const args = process.argv.slice(2);
-  if (args.length !== 3) throw new Error('Usage: node scripts/store-operational-audit.mjs <matrix.json> <orders.json> <reservations.json>');
-  const report = buildStoreOperationalAudit(readD1Rows(args[0]), readD1Rows(args[1]), readD1Rows(args[2]));
+  if (args.length !== 4) throw new Error('Usage: node scripts/store-operational-audit.mjs <matrix.json> <orders.json> <reservations.json> <order-history.json>');
+  const report = buildStoreOperationalAudit(
+    readD1Rows(args[0]), readD1Rows(args[1]), readD1Rows(args[2]), readD1Rows(args[3])
+  );
   const markdown = renderStoreOperationalAuditMarkdown(report);
   console.log(JSON.stringify(report, null, 2));
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown);

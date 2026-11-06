@@ -167,3 +167,49 @@ test('diagnoses unassigned baskets against pin radius, store visibility and full
   assert.match(markdown, /FW-NO-PIN.*pin missing/);
   assert.doesNotMatch(JSON.stringify(report.orderDiagnostics), /17\.385044|78\.486671/);
 });
+
+
+test('shows whether a date-only reschedule was the last store action, while preserving later reassignment history', () => {
+  const orders = [
+    {
+      order_id: 'FW-DATE-ONLY', created_at: '2026-11-01 10:00:00',
+      delivery_status: 'New', payment_status: 'Not Collected', delivery_plan: 'Tomorrow',
+      location_latitude: 17.385044, location_longitude: 78.486671, location_source: 'order_snapshot',
+      items_json: JSON.stringify([{ productId: 'oil', name: 'Groundnut Oil', qty: 1, stockReservedQty: 1 }])
+    },
+    {
+      order_id: 'FW-REASSIGNED', created_at: '2026-11-01 10:00:00',
+      delivery_status: 'New', payment_status: 'Not Collected', delivery_plan: 'Tomorrow',
+      location_latitude: 17.385044, location_longitude: 78.486671, location_source: 'order_snapshot',
+      items_json: JSON.stringify([{ productId: 'oil', name: 'Groundnut Oil', qty: 1, stockReservedQty: 1 }])
+    }
+  ];
+  const history = [
+    {
+      order_id: 'FW-DATE-ONLY', event_created_at: '2026-11-02 10:00:00',
+      actor_type: 'owner', action: 'delivery_date_change_approved',
+      after_date: '2026-11-04', request_states: 'reschedule:approved:2026-11-04'
+    },
+    {
+      order_id: 'FW-REASSIGNED', event_created_at: '2026-11-02 10:00:00',
+      actor_type: 'owner', action: 'delivery_date_change_approved',
+      after_date: '2026-11-04'
+    },
+    {
+      order_id: 'FW-REASSIGNED', event_created_at: '2026-11-02 11:00:00',
+      actor_type: 'owner', action: 'fulfilment_store_reassigned',
+      after_store_id: 'store-a', after_store_name: 'Store A'
+    }
+  ];
+  const report = buildStoreOperationalAudit(fullMatrix, orders, [], history);
+  const byId = new Map(report.orderDiagnostics.map(order => [order.orderId, order]));
+
+  assert.equal(byId.get('FW-DATE-ONLY').lastAssignmentEvent.action, 'delivery_date_change_approved');
+  assert.equal(byId.get('FW-DATE-ONLY').likelyUnassignmentCause, 'approved-date-only-reschedule-cleared-store-assignment');
+  assert.equal(byId.get('FW-DATE-ONLY').history[0].requestStates, 'reschedule:approved:2026-11-04');
+  assert.equal(byId.get('FW-REASSIGNED').lastAssignmentEvent.action, 'fulfilment_store_reassigned');
+  assert.equal(byId.get('FW-REASSIGNED').likelyUnassignmentCause, 'store-assignment-event-recorded-needs-follow-up-review');
+  assert.equal(report.summary.ordersWithDateChangeApprovalAsLastStoreAction, 1);
+  assert.equal(report.summary.ordersWithNoStoreAssignmentEvent, 0);
+  assert.match(renderStoreOperationalAuditMarkdown(report), /delivery_date_change_approved/);
+});
