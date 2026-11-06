@@ -8,6 +8,7 @@ assert.match(source,/popstate/);
 assert.ok(source.includes('window.FreshWayCustomerFeedback?.clear?.(document)'),'changing customer screens must clear transient feedback from the previous screen');
 assert.match(source,/history:'none'/);
 assert.match(source,/const preferredInitialView=\(\)=>/,'initial history setup must preserve valid hash or saved routes before seeding Home');
+assert.match(source,/if\(initialView==='home'\)window\.history\.pushState\(state,'',window\.location\.href\)/,'only the Home entry may receive a protective history sentinel; deep-link and restored entries must not be duplicated');
 assert.match(source,/sessionStorage\.getItem\('freshway-current-view-v1'\)/,'first load after an older app version must not overwrite a saved customer screen with Home');
 assert.match(source,/FreshWayCustomerViewState\?\.saveView\(name\)/,'navigation must persist every programmatic view change, not only clicks');
 assert.match(source,/const nextView=state\?\.\[HISTORY_FLAG\]&&validViews\.has\(state\.view\)\?state\.view:'home'/,'Back/Forward must render only a valid view stored on that exact browser-history entry');
