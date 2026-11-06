@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 let savedAddresses = [];
+let deliveryAvailabilityOverride = null;
 
 const products = [{
   id: 'p1',
@@ -16,6 +17,7 @@ const products = [{
 
 test.beforeEach(async ({ page }) => {
   savedAddresses = [];
+  deliveryAvailabilityOverride = null;
   await page.addInitScript(() => {
     // Reset once per isolated test page, not on every reload: selection persistence is part of the customer contract.
     if (sessionStorage.getItem('__freshwayE2EInitialized') !== '1') {
@@ -214,6 +216,13 @@ test.beforeEach(async ({ page }) => {
     }
 
     if (url.pathname === '/api/delivery/availability' && method === 'POST') {
+      if (deliveryAvailabilityOverride) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(deliveryAvailabilityOverride)
+        });
+      }
       const payload=JSON.parse(request.postData()||'{}');
       const latitude=Number(payload.address?.latitude),longitude=Number(payload.address?.longitude);
       if(!Number.isFinite(latitude)||!Number.isFinite(longitude)) {
@@ -1556,4 +1565,69 @@ test('Buy Again merges a delivered order into the cart using current store catal
   await expect(page.locator('#cartItems')).toContainText('3 × kg');
   await expect(page.locator('#cartItems')).toContainText('₹360');
   await expect(page.locator('#cartCount')).toHaveText('3 items');
+});
+
+
+test('customer sees helpful out-of-area options and can contact FreshWay from checkout', async ({ page }) => {
+  deliveryAvailabilityOverride = {
+    available: false,
+    code: 'AREA_UNAVAILABLE',
+    message: 'Sorry, we do not currently deliver to this area.'
+  };
+  // Use a real-looking, confirmed map pin so this tests an out-of-radius address,
+  // not the separate LOCATION_REQUIRED state.
+  savedAddresses = [{
+    id: 'area-unavailable-address',
+    label: 'Home',
+    recipientName: 'E2E Customer',
+    deliveryPhone: '9876543210',
+    houseFlat: '12',
+    area: 'Test Street',
+    city: 'Hyderabad',
+    pincode: '500001',
+    latitude: 17.385044,
+    longitude: 78.486671,
+    isDefault: true
+  }];
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await expect(page.locator('#productGrid .product-card')).toContainText('Basmati Rice');
+  await page.locator('#productGrid .add-btn').click();
+  await page.locator('#viewCartBtn').click();
+  await expect(page.locator('#checkoutBtn')).toBeVisible();
+
+  const availabilityRequest = page.waitForRequest(request =>
+    new URL(request.url()).pathname === '/api/delivery/availability' &&
+    request.method() === 'POST'
+  );
+  await page.locator('#checkoutBtn').click();
+  const request = await availabilityRequest;
+  const payload = JSON.parse(request.postData() || '{}');
+  expect(payload.address.latitude).toBe(17.385044);
+  expect(payload.address.longitude).toBe(78.486671);
+  expect(payload.items).toEqual([{ id: 'p1', qty: 1 }]);
+
+  const help = page.locator('.fw-delivery-area-help');
+  await expect(help).toBeVisible();
+  await expect(help).toContainText('Outside our current delivery area?');
+  await expect(help).toContainText('nearby RTC bus stand');
+  await expect(help).toContainText('postal delivery options');
+  await expect(page.locator('[data-fw-delivery-availability]')).toHaveClass(/is-unavailable/);
+  await expect(page.getByRole('button', { name: 'Contact FreshWay' })).toBeVisible();
+
+  // Check the same help panel is readable at a desktop width and does not
+  // introduce horizontal scrolling, then verify its customer contact action.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(help).toBeVisible();
+  const desktopWidth = await page.evaluate(() => ({
+    viewport: document.documentElement.clientWidth,
+    content: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth)
+  }));
+  expect(desktopWidth.content).toBeLessThanOrEqual(desktopWidth.viewport + 1);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Contact FreshWay' }).click();
+  await expect(page.locator('#contactView')).toHaveClass(/active-view/);
+  await expect(page.locator('#contactTitle')).toBeVisible();
 });
