@@ -122,7 +122,16 @@ test('Owner history restores the exact Store workspace when moving to another sc
 
     // Global Refresh must expose its pending state, restore the button after the
     // selected store's list/detail requests finish, and keep the same workspace.
+    let failStoreRefresh = false;
     await page.route('**/api/admin/delivery/stores', async route => {
+      if (failStoreRefresh) {
+        await route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'Refresh temporarily unavailable' })
+        });
+        return;
+      }
       await new Promise(resolve => setTimeout(resolve, 350));
       const incoming = new URL(route.request().url());
       const response = await route.fetch({ url: workerOrigin + incoming.pathname + incoming.search });
@@ -137,6 +146,23 @@ test('Owner history restores the exact Store workspace when moving to another sc
     expect((await listRefresh).status()).toBe(200);
     await expect(page.locator('#refreshBtn')).toBeEnabled();
     await expect(page.locator('#refreshBtn')).not.toHaveAttribute('aria-busy', 'true');
+    await expect(heading).toHaveText('D1 Store');
+    await expect(price).toHaveValue(expectedPrice);
+    await expect(inventory).toHaveValue(expectedInventory);
+
+    // Failure feedback must also be visible and the global Refresh control
+    // must recover from the error instead of remaining disabled/spinning.
+    failStoreRefresh = true;
+    const failedListRefresh = page.waitForResponse(response =>
+      new URL(response.url()).pathname === '/api/admin/delivery/stores' && response.request().method() === 'GET'
+    );
+    await page.locator('#refreshBtn').click();
+    expect((await failedListRefresh).status()).toBe(503);
+    await expect(page.locator('#refreshBtn')).toBeEnabled();
+    await expect(page.locator('#refreshBtn')).not.toHaveAttribute('aria-busy', 'true');
+    await expect(page.locator('#storeManagement [data-store-management-status]')).toContainText(
+      'Could not refresh stores: Refresh temporarily unavailable'
+    );
     await expect(heading).toHaveText('D1 Store');
     await expect(price).toHaveValue(expectedPrice);
     await expect(inventory).toHaveValue(expectedInventory);
