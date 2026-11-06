@@ -1177,12 +1177,22 @@ test('out-of-area customer sees RTC handover and postal contact help from the re
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(help).toBeVisible();
+  await page.screenshot({ path: 'test-results/real-d1/customer-out-of-area-help-mobile.png', fullPage: true });
+  await help.screenshot({ path: 'test-results/real-d1/customer-out-of-area-help-card-mobile.png' });
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: 'test-results/real-d1/customer-out-of-area-help-desktop.png', fullPage: true });
+
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: 'Contact FreshWay' }).click();
   await expect(page.locator('#contactView')).toHaveClass(/active-view/);
   await expect(page.locator('#contactTitle')).toBeVisible();
+  await expect(page.locator('#contactContent .fw-customer-message-compose')).toBeVisible();
   expect(orderPosts).toBe(0);
   expect(pageErrors).toEqual([]);
-  await page.screenshot({ path: 'test-results/real-d1/customer-out-of-area-help-mobile.png', fullPage: true });
 
   await context.close();
 });
