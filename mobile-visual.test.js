@@ -38,8 +38,8 @@ assert.match(designSystem,/#app \.nav-item[\s\S]*?font-size: 11px/,'bottom navig
 assert.ok(cartView.includes('placeholder="Enter code"'),'coupon placeholder stays short enough for small mobile inputs');
 assert.ok(index.includes('frontend/customer/delivery-offers.css?v=20261028-cart-offers-stable-v1'),'HTML loads delivery/coupon UI styles');
 assert.ok(sw.includes('/frontend/customer/delivery-offers.css?v=20261028-cart-offers-stable-v1'),'service worker caches delivery/coupon UI styles');
-assert.ok(index.includes('frontend/customer/delivery-booking.css?v=20261106-area-unavailable-help-v1')&&sw.includes('/frontend/customer/delivery-booking.css?v=20261106-area-unavailable-help-v1'),'customer shell and service worker load the current non-deliverable help styles');
-assert.ok(index.includes('frontend/customer/delivery-booking.js?v=20261106-area-unavailable-help-v1')&&sw.includes('/frontend/customer/delivery-booking.js?v=20261106-area-unavailable-help-v1'),'customer shell and service worker load the current non-deliverable availability UI');
+assert.ok(index.includes('frontend/customer/delivery-booking.css?v=20261106-area1')&&sw.includes('/frontend/customer/delivery-booking.css?v=20261106-area1'),'customer shell and service worker load the current non-deliverable help styles');
+assert.ok(index.includes('frontend/customer/delivery-booking.js?v=20261106-area1')&&sw.includes('/frontend/customer/delivery-booking.js?v=20261106-area1'),'customer shell and service worker load the current non-deliverable availability UI');
 assert.ok(index.includes('frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2'),'HTML loads the selected-category fold-fit stylesheet');
 assert.ok(categoryFoldStyles.includes('height:100%!important;aspect-ratio:1/1'),'product artwork uses a square contained image box so the complete illustration is visible');
 assert.ok(sw.includes('/styles.css?v=20261030-aa-contrast-v1'),'service worker caches the current mobile viewport stylesheet');
