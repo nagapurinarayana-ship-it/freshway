@@ -46,7 +46,7 @@ assert.match(sw,/if \(isVersionedCode\)/,'versioned assets must prefer a network
 assert.match(sw,/return cached\|\|Response\.error\(\)/,'a cached asset should only be used when the network fails');
 assert.match(sw,/if \(cached\) \{/);
 assert.doesNotMatch(sw,/cached && !freshCode/);
-assert.match(sw,/cache: 'no-store'/);
+assert.match(sw,/cache:\s*'no-store'/,'document navigation must bypass cached HTML and prefer a current network response');
 assert.doesNotMatch(sw,/\.catch\(\(\) => \{\}\)/);
 
 assert.match(auth,/COOKIE='__Host-freshway-admin-session'/);
