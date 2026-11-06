@@ -119,3 +119,51 @@ test('renders a store-by-store audit summary with explicit local prices and low/
   assert.match(markdown, /OUT: Out of Stock Oil/);
   assert.match(markdown, /None detected/);
 });
+
+
+test('diagnoses unassigned baskets against pin radius, store visibility and full-basket stock without exposing coordinates', () => {
+  const orders = [
+    {
+      order_id: 'FW-CANDIDATE', created_at: '2026-11-01 10:00:00',
+      delivery_status: 'New', payment_status: 'Not Collected', delivery_plan: 'Tomorrow',
+      location_latitude: 17.385044, location_longitude: 78.486671, location_source: 'order_snapshot',
+      items_json: JSON.stringify([{ productId: 'oil', name: 'Groundnut Oil', qty: 2, stockReservedQty: 2 }])
+    },
+    {
+      order_id: 'FW-NO-PIN', created_at: '2026-10-01 10:00:00',
+      delivery_status: 'New', payment_status: 'Not Collected', delivery_plan: 'Tomorrow',
+      location_latitude: null, location_longitude: null, location_source: 'missing',
+      items_json: JSON.stringify([{ productId: 'oil', name: 'Groundnut Oil', qty: 1, stockReservedQty: 1 }])
+    },
+    {
+      order_id: 'FW-NO-RADIUS', created_at: '2026-11-05 10:00:00',
+      delivery_status: 'New', payment_status: 'Not Collected', delivery_plan: 'Tomorrow',
+      location_latitude: -40, location_longitude: 100, location_source: 'address_record',
+      items_json: JSON.stringify([{ productId: 'oil', name: 'Groundnut Oil', qty: 1, stockReservedQty: 1 }])
+    },
+    {
+      order_id: 'FW-NO-STOCK', created_at: '2026-11-05 10:00:00',
+      delivery_status: 'New', payment_status: 'Not Collected', delivery_plan: 'Tomorrow',
+      location_latitude: 17.385044, location_longitude: 78.486671, location_source: 'order_snapshot',
+      items_json: JSON.stringify([{ productId: 'out', name: 'Out of Stock Oil', qty: 1, stockReservedQty: 1 }])
+    }
+  ];
+  const report = buildStoreOperationalAudit(fullMatrix, orders);
+  const byId = new Map(report.orderDiagnostics.map(order => [order.orderId, order]));
+
+  assert.equal(byId.get('FW-CANDIDATE').diagnosis, 'eligible-store-found-assignment-needs-manual-review');
+  assert.deepEqual(byId.get('FW-CANDIDATE').fulfilmentStores, ['Store A']);
+  assert.equal(byId.get('FW-CANDIDATE').ageDays >= 0, true);
+  assert.equal(byId.get('FW-CANDIDATE').items[0].quantity, 2);
+
+  assert.equal(byId.get('FW-NO-PIN').diagnosis, 'missing-delivery-pin');
+  assert.equal(byId.get('FW-NO-PIN').locationPinAvailable, false);
+  assert.equal(byId.get('FW-NO-RADIUS').diagnosis, 'no-active-store-within-delivery-radius');
+  assert.equal(byId.get('FW-NO-STOCK').diagnosis, 'no-single-in-radius-store-can-fulfil-whole-basket');
+  assert.equal(byId.get('FW-NO-STOCK').storeAssessments[0].blockers[0].reason, 'insufficient-stock');
+
+  const markdown = renderStoreOperationalAuditMarkdown(report);
+  assert.match(markdown, /Unassigned-order fulfilment diagnosis/);
+  assert.match(markdown, /FW-NO-PIN.*pin missing/);
+  assert.doesNotMatch(JSON.stringify(report.orderDiagnostics), /17\.385044|78\.486671/);
+});

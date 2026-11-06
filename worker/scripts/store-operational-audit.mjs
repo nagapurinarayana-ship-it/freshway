@@ -14,6 +14,116 @@ export function readD1Rows(path) {
   return batches.flatMap(batch => Array.isArray(batch?.results) ? batch.results : []);
 }
 
+function distanceKm(aLat, aLng, bLat, bLng) {
+  const rad = value => value * Math.PI / 180;
+  const dLat = rad(bLat - aLat), dLng = rad(bLng - aLng);
+  const x = Math.sin(dLat / 2) ** 2 +
+    Math.cos(rad(aLat)) * Math.cos(rad(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.min(1, Math.sqrt(x)));
+}
+
+function parseOrderItems(value) {
+  if (Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(String(value || '[]'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function diagnoseUnassignedOrders(orderRows, matrixRows, storeReports, generatedAt) {
+  const productsByStore = new Map();
+  for (const row of matrixRows) {
+    const storeId = String(row.store_id || '');
+    const productId = String(row.product_id || '');
+    if (!storeId || !productId) continue;
+    if (!productsByStore.has(storeId)) productsByStore.set(storeId, new Map());
+    productsByStore.get(storeId).set(productId, row);
+  }
+
+  const now = new Date(generatedAt).getTime();
+  return (orderRows || []).map(row => {
+    const items = parseOrderItems(row.items_json);
+    const parsedLat = row.location_latitude == null ? NaN : Number(row.location_latitude);
+    const parsedLng = row.location_longitude == null ? NaN : Number(row.location_longitude);
+    const hasPin = Number.isFinite(parsedLat) && Number.isFinite(parsedLng) &&
+      Math.abs(parsedLat) <= 90 && Math.abs(parsedLng) <= 180;
+    const createdAt = String(row.created_at || '');
+    const createdMs = Date.parse(createdAt);
+    const ageDays = Number.isFinite(createdMs) && Number.isFinite(now)
+      ? Math.max(0, Math.floor((now - createdMs) / 86400000))
+      : null;
+    const basket = items.map(item => ({
+      productId: String(item.productId || ''),
+      product: String(item.name || item.productId || 'Unknown item'),
+      quantity: n(item.qty),
+      expectedStockReservationQty: n(item.stockReservedQty)
+    }));
+
+    const inRadius = [];
+    const fulfilmentStores = [];
+    const assessments = [];
+    if (hasPin && basket.length) {
+      for (const store of storeReports) {
+        if (!store.active || !store.storeConfigurationValid) continue;
+        const distance = distanceKm(parsedLat, parsedLng, store.latitude, store.longitude);
+        if (distance > store.radiusKm) continue;
+        inRadius.push(store.name);
+        const productRows = productsByStore.get(store.id);
+        const blockers = [];
+        for (const item of basket) {
+          const product = productRows?.get(item.productId);
+          if (!product) {
+            blockers.push({ product: item.product, reason: 'missing-store-catalogue-row' });
+            continue;
+          }
+          if (!yes(product.product_active) || !yes(product.category_active)) {
+            blockers.push({ product: item.product, reason: 'centrally-hidden-or-inactive' });
+            continue;
+          }
+          if (!yes(product.store_product_available)) {
+            blockers.push({ product: item.product, reason: 'disabled-at-store' });
+            continue;
+          }
+          const available = Math.max(0, n(product.on_hand) - n(product.reserved_qty));
+          if (yes(product.stock_managed) && available < item.quantity) {
+            blockers.push({ product: item.product, reason: 'insufficient-stock', available, requested: item.quantity });
+          }
+        }
+        assessments.push({ storeName: store.name, canFulfilWholeBasket: blockers.length === 0, blockers });
+        if (blockers.length === 0) fulfilmentStores.push(store.name);
+      }
+    }
+
+    let diagnosis;
+    if (!hasPin) diagnosis = 'missing-delivery-pin';
+    else if (!basket.length) diagnosis = 'missing-order-items';
+    else if (!inRadius.length) diagnosis = 'no-active-store-within-delivery-radius';
+    else if (!fulfilmentStores.length) diagnosis = 'no-single-in-radius-store-can-fulfil-whole-basket';
+    else diagnosis = 'eligible-store-found-assignment-needs-manual-review';
+
+    return {
+      orderId: String(row.order_id),
+      createdAt,
+      ageDays,
+      status: String(row.delivery_status || ''),
+      paymentStatus: String(row.payment_status || ''),
+      deliveryPlan: String(row.delivery_plan || ''),
+      scheduledDeliveryDate: row.scheduled_delivery_date || null,
+      itemCount: basket.length,
+      items: basket,
+      locationPinAvailable: hasPin,
+      locationSource: String(row.location_source || 'missing'),
+      inRadiusStoreCount: inRadius.length,
+      inRadiusStores: inRadius,
+      fulfilmentStores,
+      storeAssessments: assessments,
+      diagnosis
+    };
+  });
+}
+
 export function buildStoreOperationalAudit(matrixRows, orderRows = [], reservationRows = []) {
   if (!Array.isArray(matrixRows) || matrixRows.length === 0) {
     throw new Error('Production audit returned no store/product rows; refusing to report an empty database as healthy.');
@@ -99,12 +209,14 @@ export function buildStoreOperationalAudit(matrixRows, orderRows = [], reservati
     store.catalogueComplete = store.missingCatalogueRows === 0;
   }
 
+  const auditTimestamp = new Date().toISOString();
   const unavailableOrders = (orderRows || []).map(row => ({
     orderId: String(row.order_id), status: String(row.delivery_status || ''),
     storeId: row.assigned_store_id ?? null, storeName: row.assigned_store_name ?? null,
     reason: !present(row.assigned_store_id) ? 'unassigned' :
       (!present(row.assigned_store_name) ? 'assigned-store-missing' : 'assigned-store-inactive')
   }));
+  const orderDiagnostics = diagnoseUnassignedOrders(orderRows, matrixRows, storeReports, auditTimestamp);
   const reservationMismatches = (reservationRows || []).map(row => ({
     orderId: String(row.order_id), productId: String(row.product_id),
     productName: String(row.product_name || row.product_id), status: String(row.delivery_status || ''),
@@ -127,7 +239,13 @@ export function buildStoreOperationalAudit(matrixRows, orderRows = [], reservati
     reservationMismatches: reservationMismatches.length,
     multiStoreReservationOrders: reservationMismatches.filter(row => row.actualStoreCount > 1).length,
     lowStockProducts: storeReports.reduce((sum, store) => sum + store.lowStock.length, 0),
-    outOfStockProducts: storeReports.reduce((sum, store) => sum + store.outOfStock.length, 0)
+    outOfStockProducts: storeReports.reduce((sum, store) => sum + store.outOfStock.length, 0),
+    ordersMissingLocationPin: orderDiagnostics.filter(order => !order.locationPinAvailable).length,
+    ordersWithNoInRadiusStore: orderDiagnostics.filter(order => order.diagnosis === 'no-active-store-within-delivery-radius').length,
+    ordersWithFulfilmentCandidate: orderDiagnostics.filter(order => order.fulfilmentStores.length > 0).length,
+    ordersWithNoFullBasketStore: orderDiagnostics.filter(order =>
+      order.locationPinAvailable && order.itemCount > 0 && order.inRadiusStoreCount > 0 && order.fulfilmentStores.length === 0
+    ).length
   };
 
   const criticalIssues = [];
@@ -139,8 +257,9 @@ export function buildStoreOperationalAudit(matrixRows, orderRows = [], reservati
   if (summary.reservationMismatches) criticalIssues.push(summary.reservationMismatches + ' active-order stock reservation inconsistencies');
 
   return {
-    generatedAt: new Date().toISOString(), summary, stores: storeReports,
+    generatedAt: auditTimestamp, summary, stores: storeReports,
     activeOrdersOnUnavailableStores: unavailableOrders,
+    orderDiagnostics,
     reservationMismatches, criticalIssues, healthy: criticalIssues.length === 0
   };
 }
@@ -161,7 +280,12 @@ export function renderStoreOperationalAuditMarkdown(report) {
     '- Active-order reservation mismatches: ' + s.reservationMismatches,
     '- Multi-store reservation baskets: ' + s.multiStoreReservationOrders,
     '- Low-stock products: ' + s.lowStockProducts,
-    '- Out-of-stock products: ' + s.outOfStockProducts, '', '## Store detail', ''
+    '- Out-of-stock products: ' + s.outOfStockProducts,
+    '- Unassigned orders missing a delivery pin: ' + s.ordersMissingLocationPin,
+    '- Unassigned orders with no active store in radius: ' + s.ordersWithNoInRadiusStore,
+    '- Unassigned orders with at least one whole-basket store candidate: ' + s.ordersWithFulfilmentCandidate,
+    '- Unassigned orders with no whole-basket store candidate: ' + s.ordersWithNoFullBasketStore,
+    '', '## Store detail', ''
   ];
   for (const store of report.stores) {
     lines.push('### ' + store.name + ' (' + (store.active ? 'Active' : 'Inactive') + ')', '');
@@ -186,6 +310,26 @@ export function renderStoreOperationalAuditMarkdown(report) {
     lines.push('## Active orders requiring store assignment review', '');
     for (const order of report.activeOrdersOnUnavailableStores.slice(0, 50)) {
       lines.push('- ' + order.orderId + ': ' + order.status + ' · ' + order.reason + ' · ' + (order.storeName || order.storeId || 'no store'));
+    }
+    lines.push('');
+  }
+  if (report.orderDiagnostics.length) {
+    lines.push('## Unassigned-order fulfilment diagnosis', '');
+    for (const order of report.orderDiagnostics) {
+      const age = order.ageDays === null ? 'age unknown' : order.ageDays + ' days old';
+      const basket = order.items.map(item => item.product + ' ×' + item.quantity).join(', ') || 'items unavailable';
+      const candidates = order.fulfilmentStores.length ? order.fulfilmentStores.join(', ') : 'none';
+      lines.push('- ' + order.orderId + ': ' + order.status + ' · ' + age + ' · pin ' +
+        (order.locationPinAvailable ? 'available' : 'missing') + ' · basket ' + basket +
+        ' · in-radius stores ' + order.inRadiusStoreCount + ' · whole-basket candidates ' + candidates +
+        ' · ' + order.diagnosis);
+      for (const assessment of order.storeAssessments) {
+        if (assessment.blockers.length) {
+          const blockers = assessment.blockers.map(item => item.product + ':' + item.reason +
+            (item.available === undefined ? '' : ' (' + item.available + '/' + item.requested + ')')).join(', ');
+          lines.push('  - ' + assessment.storeName + ' blockers: ' + blockers);
+        }
+      }
     }
     lines.push('');
   }
