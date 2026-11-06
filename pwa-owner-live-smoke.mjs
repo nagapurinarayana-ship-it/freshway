@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 const BASE_URL = (process.env.OWNER_PWA_BASE_URL || '').replace(/\/$/, '');
 if (!BASE_URL) throw new Error('OWNER_PWA_BASE_URL is required for Owner PWA deployment smoke');
 
-const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261106-account-deletion-form-v1';
+const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261106-store-reconciliation-v1';
 const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261105-store-refresh-preserve-v1';
 const LEGACY_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261029-order-shortcuts-v1';
 const OLDER_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261028-nav-refresh-v1';
@@ -15,12 +15,12 @@ const EXPECTED_OWNER_INVOICE_SETTINGS_SCRIPT = '/admin/frontend/admin/invoice-se
 const EXPECTED_OWNER_ACCOUNT_DELETIONS_SCRIPT = '/admin/frontend/admin/account-deletions.js?v=20261106-account-deletion-form-v1';
 const EXPECTED_OWNER_ALERTS_SCRIPT = '/admin/frontend/admin/order-alerts.js?v=20261105-history-empty-actions-v1';
 const EXPECTED_OWNER_STORE_PROFILE_SCRIPT = '/admin/frontend/admin/store-profile.js?v=20261024-response-guard-v2';
-const EXPECTED_OWNER_DELIVERY_SCRIPT = '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2';
+const EXPECTED_OWNER_DELIVERY_SCRIPT = '/admin/frontend/admin/delivery-management.js?v=20261106-store-reconciliation-v1';
 const EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT = '/admin/frontend/admin/store-management.js?v=20261104-store-stock-workspace-v3';
 const EXPECTED_OWNER_DELIVERY_OFFERS_SCRIPT = '/admin/frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5';
 const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261103-assigned-store-lifecycle-v1';
-const EXPECTED_OWNER_CACHE = 'fw-owner-v71';
-const LEGACY_OWNER_CACHE = 'fw-owner-v68';
+const EXPECTED_OWNER_CACHE = 'fw-owner-v72';
+const LEGACY_OWNER_CACHE = 'fw-owner-v71';
 const OLDER_OWNER_CACHE = 'fw-owner-v67';
 const OLDEST_OWNER_CACHE = 'fw-owner-v65';
 const SUPPORTED_OWNER_CACHES = [EXPECTED_OWNER_CACHE, LEGACY_OWNER_CACHE, OLDER_OWNER_CACHE, OLDEST_OWNER_CACHE, 'fw-owner-v64', 'fw-owner-v63', 'fw-owner-v62', 'fw-owner-v61', 'fw-owner-v60', 'fw-owner-v58', 'fw-owner-v57', 'fw-owner-v56'];
@@ -142,7 +142,7 @@ async function fetchCurrentOwnerServiceWorker(attempts = 60) {
         lastError = new Error('/admin/sw.js returned HTTP ' + response.status);
       } else {
         const worker = await response.text();
-        const currentCache = SUPPORTED_OWNER_CACHES.some(cache => worker.includes("const CACHE = '" + cache + "';"));
+        const currentCache = worker.includes("const CACHE = '" + EXPECTED_OWNER_CACHE + "';");
         const needsCustomerMessages = worker.includes("const CACHE = '" + EXPECTED_OWNER_CACHE + "';");
         const currentCss = worker.includes(EXPECTED_OWNER_CSS);
         const currentAdmin = SUPPORTED_OWNER_ADMIN_SCRIPTS.some(script => worker.includes(script));
@@ -227,7 +227,7 @@ const { response: workerResponse, worker } = await fetchCurrentOwnerServiceWorke
 assertFreshResponse(workerResponse, 'Owner service worker');
 assert.match(workerResponse.headers.get('content-type') || '', /javascript/i);
 assert.equal(workerResponse.headers.get('service-worker-allowed'), '/admin/');
-assert.ok(SUPPORTED_OWNER_CACHES.some(cache => worker.includes("const CACHE = '" + cache + "';")), 'Owner service worker must publish a supported cache version');
+assert.ok(worker.includes("const CACHE = '" + EXPECTED_OWNER_CACHE + "';"), 'Owner service worker must publish the current cache version');
 if (worker.includes("const CACHE = '" + EXPECTED_OWNER_CACHE + "';")) assert.ok(worker.includes(EXPECTED_OWNER_CUSTOMER_MESSAGES_SCRIPT), 'new Owner cache must include Customer Messages');
 assert.ok(worker.includes("icon: data.icon || '/admin/icons/icon-192-brand-v2.png?v=20261026-brand-v2'"), 'Owner notifications must default to the FreshWay brand icon');
 assert.ok(worker.includes("badge: data.badge || '/admin/icons/icon-192-brand-v2.png?v=20261026-brand-v2'"), 'Owner notifications must default to the FreshWay brand badge');

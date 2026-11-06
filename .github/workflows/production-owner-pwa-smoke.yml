@@ -4,12 +4,6 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/production-owner-pwa-smoke.yml'
-      - 'pwa-owner-live-smoke.mjs'
   workflow_dispatch:
 
 permissions:
