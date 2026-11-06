@@ -236,6 +236,7 @@ test('customer mobile UI applies a fixed coupon to a multi-item store basket and
   }));
   expect(responsive.documentWidth).toBeLessThanOrEqual(responsive.viewport + 1);
   expect(responsive.bodyWidth).toBeLessThanOrEqual(responsive.viewport + 1);
+  await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
   await page.screenshot({ path: 'test-results/real-d1/customer-money-check-mobile.png', fullPage: true });
 
   const orderResponsePromise = page.waitForResponse(response =>
