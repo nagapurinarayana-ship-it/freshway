@@ -65,10 +65,10 @@ jobs:
             probe="${GITHUB_SHA}-${attempt}"
             if curl --silent --show-error --fail "$BASE_URL/?freshway-deploy-check=$probe" -o "$html_file" \
               && curl --silent --show-error --fail "$BASE_URL/sw.js?freshway-deploy-check=$probe" -o "$sw_file"; then
-              if grep -qF 'app.js?v=106' "$html_file" &&
+              if grep -qF 'app.js?v=107' "$html_file" &&
                 grep -qF "frontend/customer/catalogue.js?v=20261106-out-of-area-contact-v1" "$html_file" &&
-                grep -qF "freshway-v128" "$sw_file" &&
-                grep -qF '/app.js?v=106' "$sw_file" &&
+                grep -qF "freshway-v129" "$sw_file" &&
+                grep -qF '/app.js?v=107' "$sw_file" &&
                 grep -qF "/frontend/customer/catalogue.js?v=20261106-out-of-area-contact-v1" "$sw_file" &&
                 curl --silent --show-error --fail "$BASE_URL/app.js?v=106" -o "$app_file" &&
                 curl --silent --show-error --fail "$BASE_URL/frontend/customer/catalogue.js?v=20261106-out-of-area-contact-v1" -o "$catalogue_file" &&
