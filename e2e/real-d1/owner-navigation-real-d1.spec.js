@@ -267,7 +267,7 @@ test('Owner mobile More menu reopens after selecting secondary destinations repe
 
     await page.screenshot({
       path: 'test-results/real-d1/owner-mobile-more-menu-reopen.png',
-      fullPage: true
+      fullPage: false
     });
   } finally {
     checkingNavigation = false;
