@@ -63,9 +63,9 @@ jobs:
             echo "::error::Production D1 read credentials are missing. No production data was changed."
             exit 1
           fi
-          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --file scripts/store-operational-matrix.sql --json > "$RUNNER_TEMP/freshway-store-matrix.json"
-          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --file scripts/store-operational-orders.sql --json > "$RUNNER_TEMP/freshway-active-orders.json"
-          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --file scripts/store-operational-reservations.sql --json > "$RUNNER_TEMP/freshway-reservations.json"
+          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "$(cat scripts/store-operational-matrix.sql)" --json > "$RUNNER_TEMP/freshway-store-matrix.json"
+          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "$(cat scripts/store-operational-orders.sql)" --json > "$RUNNER_TEMP/freshway-active-orders.json"
+          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "$(cat scripts/store-operational-reservations.sql)" --json > "$RUNNER_TEMP/freshway-reservations.json"
           node scripts/store-operational-audit.mjs \
             "$RUNNER_TEMP/freshway-store-matrix.json" \
             "$RUNNER_TEMP/freshway-active-orders.json" \
