@@ -156,6 +156,10 @@ test('Owner can edit, save and reload store-specific catalogue using real Worker
     await expect.poll(() => page.evaluate(() => getComputedStyle(document.body, '::before').visibility)).toBe('hidden');
     await page.screenshot({ path: 'test-results/real-d1/owner-store-catalogue.png', fullPage: true });
   } finally {
+    // Drain any route callbacks before disposing the browser context. The
+    // unified catalogue Save also updates inventory, so this avoids tearing
+    // down a proxied Worker request after its response has reached the page.
+    await page.unrouteAll({ behavior: 'wait' });
     await context.close();
   }
 });
