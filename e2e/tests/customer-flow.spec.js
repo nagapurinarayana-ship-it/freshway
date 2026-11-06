@@ -903,11 +903,6 @@ test('captures responsive customer visual review snapshots', async ({ page }) =>
   // Mobile-first review: actual customer shell, product cards, cart, and checkout.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  // Wait for the authenticated saved-address request to complete before
-  // checking availability; otherwise the first request could see no pin.
-  await expect.poll(() => page.evaluate(() =>
-    window.FreshWayAddressSystem?.getSelectedAddress?.()?.latitude ?? null
-  )).toBe(17.385044);
   await expect(page.locator('#productGrid .product-card')).toContainText('Basmati Rice');
   await expect(page.locator('#cartBar')).toBeHidden();
   await capture('mobile-home');
@@ -1600,6 +1595,10 @@ test('customer sees helpful out-of-area options and can contact FreshWay from ch
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
+  // Wait for the saved customer map pin before validating serviceability.
+  await expect.poll(() => page.evaluate(() =>
+    window.FreshWayAddressSystem?.getSelectedAddress?.()?.latitude ?? null
+  )).toBe(17.385044);
   // Home initially shows categories; open Rice before using its product card,
   // matching the real customer navigation path.
   await expect(page.locator('[data-fw-category="cat-rice"]')).toBeVisible();
