@@ -446,3 +446,130 @@ test('checkout creates an order with a server-validated preferred date and reser
     assert.equal(db.db.prepare('SELECT COUNT(*) count FROM delivery_slot_reservations WHERE order_id=?').get(placed.id).count,0);
   } finally { db.close(); }
 });
+
+
+test('Owner reconciliation queue suggests only in-radius stores that can fulfil the whole basket', async () => {
+  const db=new SQLiteD1();
+  try {
+    db.seedOrder('order-review-candidate');
+    db.db.prepare("UPDATE orders SET assigned_store_id=NULL,scheduled_delivery_date=? WHERE id='order-review-candidate'")
+      .run(dateInIndia(-2));
+    const response=await handleAdminDeliveryRequest(new Request(
+      'https://api.example.test/api/admin/delivery/reconciliation'
+    ),{DB:db});
+    assert.equal(response.status,200);
+    const result=await response.json();
+    const review=result.orders.find(order=>order.orderId==='order-review-candidate');
+    assert.ok(review);
+    assert.equal(review.locationAvailable,true);
+    assert.equal(review.scheduledDateExpired,true);
+    assert.equal(review.diagnosis,'eligible-store-found-date-needs-confirmation');
+    assert.deepEqual(review.eligibleStores.map(store=>store.id),['store-1']);
+    assert.equal(review.eligibleStores[0].canFulfilWholeBasket,true);
+    assert.equal(review.items[0].name,'Test Rice');
+    assert.equal(review.items[0].quantity,2);
+    assert.equal(review.urgentDeliveryVerification,false);
+    assert.equal(db.db.prepare("SELECT assigned_store_id FROM orders WHERE id='order-review-candidate'").get().assigned_store_id,null,
+      'loading the reconciliation queue must not change an order');
+    assert.equal(db.db.prepare("SELECT status FROM delivery_store_inventory_reservations WHERE order_id='order-review-candidate'").get().status,'reserved');
+  } finally { db.close(); }
+});
+
+test('Owner reconciliation requires explicit customer confirmation, a future date and a meaningful audit note', async () => {
+  const db=new SQLiteD1();
+  try {
+    db.seedOrder('order-reconcile-guard');
+    db.db.prepare("UPDATE orders SET assigned_store_id=NULL,scheduled_delivery_date=? WHERE id='order-reconcile-guard'")
+      .run(dateInIndia(-1));
+    const request=body=>handleAdminDeliveryRequest(new Request(
+      'https://api.example.test/api/admin/delivery/orders/order-reconcile-guard/reconcile',
+      {method:'PATCH',headers:{'content-type':'application/json','X-Freshway-Owner-Id':'owner-test'},body:JSON.stringify(body)}
+    ),{DB:db});
+    await assert.rejects(request({
+      customerConfirmed:false,storeId:'store-1',deliveryDate:dateInIndia(1),
+      confirmationNote:'Customer confirmed the change.'
+    }),/reconfirmed the delivery location/i);
+    await assert.rejects(request({
+      customerConfirmed:true,storeId:'store-1',deliveryDate:dateInIndia(-1),
+      confirmationNote:'Customer confirmed the change.'
+    }),/between today and the next 60 days/i);
+    await assert.rejects(request({
+      customerConfirmed:true,storeId:'store-1',deliveryDate:dateInIndia(1),
+      confirmationNote:'short'
+    }),/meaningful customer-confirmation note/i);
+
+    const order=db.db.prepare("SELECT assigned_store_id,scheduled_delivery_date FROM orders WHERE id='order-reconcile-guard'").get();
+    assert.equal(order.assigned_store_id,null);
+    assert.equal(order.scheduled_delivery_date,dateInIndia(-1));
+    assert.equal(db.db.prepare("SELECT COUNT(*) count FROM order_audit_events WHERE order_id='order-reconcile-guard'").get().count,0);
+  } finally { db.close(); }
+});
+
+test('Owner reconciliation atomically assigns the eligible store, moves reservations and records customer confirmation', async () => {
+  const db=new SQLiteD1();
+  const tomorrow=dateInIndia(1);
+  try {
+    db.seedOrder('order-reconcile-success');
+    db.db.prepare("UPDATE orders SET assigned_store_id=NULL,scheduled_delivery_date=? WHERE id='order-reconcile-success'")
+      .run(dateInIndia(-3));
+    const response=await handleAdminDeliveryRequest(new Request(
+      'https://api.example.test/api/admin/delivery/orders/order-reconcile-success/reconcile',
+      {method:'PATCH',headers:{'content-type':'application/json','X-Freshway-Owner-Id':'owner-test'},
+        body:JSON.stringify({
+          customerConfirmed:true,storeId:'store-1',deliveryDate:tomorrow,
+          confirmationNote:'Customer reconfirmed the delivery location and tomorrow date by phone.'
+        })}
+    ),{DB:db});
+    assert.equal(response.status,200);
+    const result=await response.json();
+    assert.equal(result.ok,true);
+    assert.equal(result.store.id,'store-1');
+    assert.equal(result.scheduledDelivery.date,tomorrow);
+    const order=db.db.prepare("SELECT assigned_store_id,scheduled_delivery_date,scheduled_slot_id,schedule_status,delivery_plan FROM orders WHERE id='order-reconcile-success'").get();
+    assert.equal(order.assigned_store_id,'store-1');
+    assert.equal(order.scheduled_delivery_date,tomorrow);
+    assert.equal(order.scheduled_slot_id,null);
+    assert.equal(order.schedule_status,'confirmed');
+    assert.equal(order.delivery_plan,tomorrow===dateInIndia(1)?'Tomorrow':'Later');
+    const reservations=db.db.prepare("SELECT status,qty FROM delivery_store_inventory_reservations WHERE order_id='order-reconcile-success' AND store_id='store-1' ORDER BY created_at DESC").all();
+    assert.equal(reservations[0].status,'reserved');
+    assert.equal(reservations[0].qty,2);
+    assert.equal(db.db.prepare("SELECT stock_reserved_qty FROM order_items WHERE order_id='order-reconcile-success'").get().stock_reserved_qty,2);
+    assert.equal(db.db.prepare("SELECT status FROM delivery_slot_reservations WHERE order_id='order-reconcile-success'").get().status,'released');
+    const audit=db.db.prepare("SELECT actor_type,action,reason,after_json FROM order_audit_events WHERE order_id='order-reconcile-success' ORDER BY created_at DESC,id DESC LIMIT 1").get();
+    assert.equal(audit.actor_type,'owner');
+    assert.equal(audit.action,'unassigned_order_reconciled');
+    assert.match(audit.reason,/reconfirmed/);
+    assert.equal(JSON.parse(audit.after_json).customerConfirmed,true);
+    assert.equal(db.db.prepare("SELECT payment_status FROM orders WHERE id='order-reconcile-success'").get().payment_status,'Not Collected',
+      'reconciliation must never alter payment state');
+    assert.equal(db.db.prepare("SELECT delivery_status FROM orders WHERE id='order-reconcile-success'").get().delivery_status,'New',
+      'reconciliation must never silently advance order status');
+  } finally { db.close(); }
+});
+
+test('Owner reconciliation blocks paid Out for Delivery orders until receipt is verified', async () => {
+  const db=new SQLiteD1();
+  try {
+    db.seedOrder('order-reconcile-urgent');
+    db.db.prepare("UPDATE orders SET assigned_store_id=NULL,delivery_status='Out for Delivery',payment_status='Collected' WHERE id='order-reconcile-urgent'").run();
+    const queueResponse=await handleAdminDeliveryRequest(new Request(
+      'https://api.example.test/api/admin/delivery/reconciliation'
+    ),{DB:db});
+    const queue=await queueResponse.json();
+    const item=queue.orders.find(order=>order.orderId==='order-reconcile-urgent');
+    assert.equal(item.urgentDeliveryVerification,true);
+    const response=()=>handleAdminDeliveryRequest(new Request(
+      'https://api.example.test/api/admin/delivery/orders/order-reconcile-urgent/reconcile',
+      {method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({
+        customerConfirmed:true,storeId:'store-1',deliveryDate:dateInIndia(1),
+        confirmationNote:'Customer says delivery still pending and address reconfirmed.'
+      })}
+    ),{DB:db});
+    await assert.rejects(response(),/entered fulfilment/i);
+    const order=db.db.prepare("SELECT assigned_store_id,delivery_status,payment_status FROM orders WHERE id='order-reconcile-urgent'").get();
+    assert.equal(order.assigned_store_id,null);
+    assert.equal(order.delivery_status,'Out for Delivery');
+    assert.equal(order.payment_status,'Collected');
+  } finally { db.close(); }
+});
