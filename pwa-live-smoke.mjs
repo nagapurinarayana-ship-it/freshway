@@ -7,8 +7,8 @@ const CUSTOMER_MESSAGES_PATH = '/frontend/customer/messages.js?v=msg1';
 const CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?v=msg1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261106-guest-session-gate-v1';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v124';
-const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261029-nonintrusive-install-v2';
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v125';
+const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261106-chrome-install-guidance-v1';
 const CUSTOMER_CATALOGUE_PATH = '/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v2';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -78,7 +78,9 @@ function assertResponsiveViewportCss(css, label) {
 
 function assertNativeInstallFlow(source, label) {
   assert.ok(source.includes('beforeinstallprompt'), label + ' must capture Chrome install availability');
-  assert.ok(source.includes('promptEvent.prompt()'), label + ' must invoke Chrome native install');
+  assert.ok(source.includes('await promptEvent.prompt()'), label + ' must await Chrome native install');
+  assert.ok(source.includes('choose <strong>Install</strong>'), label + ' must distinguish app installation from a browser shortcut');
+  assert.ok(!source.includes('Install app</strong> or <strong>Add to Home screen'), label + ' must not describe a shortcut as app installation');
   assert.ok(source.includes('promptEvent.userChoice'), label + ' must handle install outcome');
 }
 
