@@ -187,6 +187,12 @@ test('Owner delivery UI edits dates directly on orders without a separate reques
   assert.ok(!js.includes('Requested date changes'));
   assert.ok(!js.includes('Create delivery windows'));
   assert.ok(!js.includes('Store-level stock'));
+  assert.ok(js.includes('/admin/delivery/reconciliation'),'Owner must see the live unassigned-order reconciliation queue.');
+  assert.ok(js.includes('/reconcile'),'Owner actions must use the guarded reconciliation endpoint.');
+  assert.ok(js.includes('customerConfirmed'),'The UI must require explicit customer confirmation.');
+  assert.ok(js.includes('confirmationNote'),'The UI must capture a meaningful reconciliation note.');
+  assert.ok(js.includes('verify-delivery-before-any-assignment')||js.includes('urgentDeliveryVerification'),
+    'Out-for-delivery records must remain blocked from automatic reassignment.');
 });
 
 test('Owner delivery routes are mounted in the authenticated admin API and keep an audit trail', () => {
@@ -199,6 +205,9 @@ test('Owner delivery routes are mounted in the authenticated admin API and keep 
   assert.ok(delivery.includes('const scheduleMatch'));
   assert.ok(delivery.includes('order_audit_events'));
   assert.ok(delivery.includes('order_operational_flags'));
+  assert.ok(delivery.includes("/api/admin/delivery/reconciliation"));
+  assert.ok(delivery.includes("body.customerConfirmed !== true"));
+  assert.ok(delivery.includes("unassigned_order_reconciled"));
 });
 
 test('store reassignment uses valid reservation SQL and stock-managed products receive per-store inventory rows', () => {
