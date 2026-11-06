@@ -98,7 +98,7 @@ test('customer page Back buttons honour explicit destinations on deep links and 
   // When a real in-app predecessor exists, the control should use that history
   // entry, preserving normal browser Forward behaviour instead of replacing it.
   await page.goto('/?nav-back-sequence=1');
-  await page.locator('#viewCartBtn').click();
+  await page.locator('.bottom-nav [data-nav="cart"]').click();
   await expect(page.locator('#cartView')).toHaveClass(/active-view/);
   await page.evaluate(() => window.setView('checkout'));
   await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
