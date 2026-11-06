@@ -32,12 +32,19 @@ assert.ok(storeManagementSource.includes('general messages sent there are not sa
 assert.ok(deliverySchedulingSource.includes("path === '/api/admin/delivery/stores' && request.method === 'GET'"), 'Delivery API must expose stores to Owner UI');
 assert.ok(deliverySchedulingSource.includes('if (inventoryMatch && request.method === \'GET\')'), 'Delivery API must expose per-store stock to Owner UI');
 
-assert.ok(sourceHtml.includes('account-deletions.js?v=20261024-anonymized-history-v1'), 'Owner app must reference the updated account-deletion click handler');
+assert.ok(sourceHtml.includes('account-deletions.js?v=20261106-account-deletion-form-v1'), 'Owner app must reference the updated account-deletion click handler');
 const deletionSource = readRepoFile('frontend/admin/account-deletions.js').toString('utf8');
+
+assert.ok(deletionSource.includes('function showCompletionForm(card)'), 'account deletion must use an in-page mobile confirmation form');
+assert.ok(deletionSource.includes('data-deletion-retention-confirm'), 'account deletion must require an explicit retention review checkbox');
+assert.ok(deletionSource.includes("document.addEventListener('submit'"), 'account deletion must submit from the explicit in-page form');
+assert.ok(deletionSource.includes('data-deletion-note'), 'account deletion must collect a case-specific audit note');
+assert.ok(!deletionSource.includes('window.confirm('), 'account deletion completion must not depend on a native confirmation dialog');
+
 assert.ok(deletionSource.includes('individual request record, and keeps only an aggregate completion count and the latest completion date'), 'Deletion confirmation must explain that the per-request record is removed');
-assert.ok(deletionSource.includes('Confirmed retention review for applicable invoice/transaction records; operational customer data redacted.'), 'The completion acknowledgement is validated but not persisted as a customer-linked note');
-assert.ok(deletionSource.includes('window.alert(message)'), 'Invalid deletion notes must show a visible message instead of failing silently');
-assert.ok(deletionSource.includes("scrollIntoView({behavior:'smooth', block:'center'})"), 'Validation feedback must be brought into view on mobile');
+assert.ok(deletionSource.includes('adminNote: note'), 'The explicit case-specific retention note must be sent with the completion request');
+assert.ok(deletionSource.includes('data-deletion-form-error') && deletionSource.includes('showFormError(form,'), 'Invalid deletion notes must be shown inline in the form');
+assert.ok(deletionSource.includes("form.scrollIntoView({ behavior: 'smooth', block: 'nearest' })"), 'The confirmation form must be brought into view on mobile');
 assert.ok(sourceHtml.includes('invoice-settings.js?v=20261105-auto-non-gst-disclosure-v1'), 'Owner app must reference the refreshed optional invoice settings script');
 assert.ok(sourceHtml.includes('The receipt uses saved order and Store Profile details. The tax number is optional:'), 'Owner invoice setup must explain receipt data and optional tax-number display');
 assert.doesNotMatch(sourceHtml, /id="invoiceSeriesPrefix"[^>]*\brequired\b/, 'Invoice series prefix must remain optional and default to FW');
@@ -45,7 +52,7 @@ assert.ok(invoiceSettingsSource.includes('saved.enableWarning'), 'Owner UI must 
 assert.ok(invoiceSettingsSource.includes('You can leave unfinished billing and tax details blank and complete them later.'), 'Owner UI must reassure the owner that incomplete settings can be saved');
 assert.ok(invoiceServiceSource.includes('let enableWarning=') && invoiceServiceSource.includes('enableWarning?{enableWarning}:{}'), 'Worker must save partial settings and return a safe activation warning');
 const ownerLiveSmokeSource = readRepoFile('pwa-owner-live-smoke.mjs').toString('utf8');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261104-store-stock-workspace-v3';"), 'production Owner smoke must demand the current Owner CSS version');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261106-account-deletion-form-v1';"), 'production Owner smoke must demand the current Owner CSS version');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261105-store-refresh-preserve-v1';"), 'production Owner smoke must demand the current admin.js version');
 assert.ok(ownerLiveSmokeSource.includes("const LEGACY_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261029-order-shortcuts-v1';"), 'production Owner smoke must accept the previously deployed Owner script during rollout');
 assert.ok(ownerLiveSmokeSource.includes("const OLDER_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261028-nav-refresh-v1';"), 'production Owner smoke must also accept the older Owner script during rollout');
@@ -63,7 +70,7 @@ assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_PROFILE_SCRI
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_DELIVERY_SCRIPT = '/admin/frontend/admin/delivery-management.js?v=20261026-date-only-v2';"), 'production Owner smoke must demand the delivery scheduling and exception management module');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT = '/admin/frontend/admin/store-management.js?v=20261104-store-stock-workspace-v3';"), 'production Owner smoke must demand Store Manager and Customer Requests');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261103-assigned-store-lifecycle-v1';"), 'production Owner smoke must demand the cache-busted order lifecycle map handler');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v70';"), 'production Owner smoke must demand the current service-worker cache');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v71';"), 'production Owner smoke must demand the current service-worker cache');
 assert.ok(ownerLiveSmokeSource.includes('assert.match(deployedSource, /function readProfileResponse\\(data\\)/'), 'production Owner smoke must verify deployed Store Profile response guard code, not only a matching URL');
 assert.ok(ownerLiveSmokeSource.includes('incomplete Store Profile'), 'production Owner smoke must verify malformed profile payload protection is deployed');
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerAppShell/);
@@ -283,7 +290,7 @@ for (const asset of requiredOwnerAssets) {
     assert.ok(ownerWorkerSource.includes("'" + path + "'") || ownerWorkerSource.includes("'" + path + "?") || path === '/admin/', 'Owner service worker must cache in-scope asset ' + path);
   }
   assert.match(ownerWorkerSource, /const CACHE = 'fw-owner-v\d+'/);
-  assert.ok(ownerWorkerSource.includes("const CACHE = 'fw-owner-v70';"), 'Owner service worker cache must advance when shell assets change');
+  assert.ok(ownerWorkerSource.includes("const CACHE = 'fw-owner-v71';"), 'Owner service worker cache must advance when shell assets change');
   assert.ok(ownerWorkerSource.includes('/admin/frontend/admin/invoice-settings.js?v=20261105-auto-non-gst-disclosure-v1'), 'Owner service worker must cache the same invoice settings release as Owner HTML');
   assert.match(ownerWorkerSource, /key\.startsWith\('fw-owner-'\)/);
   assert.doesNotMatch(ownerWorkerSource, /caches\.delete\(key\).*freshway-/);
