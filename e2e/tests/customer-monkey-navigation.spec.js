@@ -71,3 +71,44 @@ test('customer navigation monkey run survives random navigation, reload and hist
   for (const route of routes) expect(visited.has(route), 'route exercised: ' + route).toBeTruthy();
   expect(pageErrors, 'no uncaught browser exceptions during monkey run').toEqual([]);
 });
+
+
+test('customer page Back buttons honour explicit destinations on deep links and after refresh', async ({ page }) => {
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  // A direct checkout route has no trustworthy in-app predecessor. Its own
+  // Back control must still go to Cart rather than replaying the same entry.
+  await page.goto('/?nav-back-deep=1#checkout');
+  await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
+  await expect.poll(() => page.evaluate(() => history.state?.view)).toBe('checkout');
+  await page.locator('#checkoutView .back-btn').click();
+  await expect(page.locator('#cartView')).toHaveClass(/active-view/);
+  await expect.poll(() => page.evaluate(() => history.state?.view)).toBe('cart');
+
+  // Cart Back has its own declared Home destination, even though the entry
+  // now represents a deep-link fallback rather than a previous Home click.
+  await page.reload();
+  await expect(page.locator('#cartView')).toHaveClass(/active-view/);
+  await page.locator('#cartView .back-btn').click();
+  await expect(page.locator('#homeView')).toHaveClass(/active-view/);
+  await expect.poll(() => page.evaluate(() => history.state?.view)).toBe('home');
+
+  // When a real in-app predecessor exists, the control should use that history
+  // entry, preserving normal browser Forward behaviour instead of replacing it.
+  await page.goto('/?nav-back-sequence=1');
+  await page.locator('#viewCartBtn').click();
+  await expect(page.locator('#cartView')).toHaveClass(/active-view/);
+  await page.evaluate(() => window.setView('checkout'));
+  await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
+  await expect.poll(() => page.evaluate(() => history.state?.previousView)).toBe('cart');
+  await page.locator('#checkoutView .back-btn').click();
+  await expect(page.locator('#cartView')).toHaveClass(/active-view/);
+  await page.goBack();
+  await expect(page.locator('#homeView')).toHaveClass(/active-view/);
+  await page.goForward();
+  await expect(page.locator('#cartView')).toHaveClass(/active-view/);
+
+  expect(pageErrors).toEqual([]);
+});
