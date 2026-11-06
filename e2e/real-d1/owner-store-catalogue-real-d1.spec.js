@@ -86,13 +86,21 @@ test('Owner can edit, save and reload store-specific catalogue using real Worker
       await oilPrice.fill('199');
       await riceVisible.uncheck();
 
-      const saveResponse = page.waitForResponse(response =>
+      const catalogueSaveResponse = page.waitForResponse(response =>
         new URL(response.url()).pathname === '/api/admin/delivery/stores/store-d1/catalogue' &&
         response.request().method() === 'PATCH'
       );
+      const inventorySaveResponse = page.waitForResponse(response =>
+        new URL(response.url()).pathname === '/api/admin/delivery/stores/store-d1/inventory' &&
+        response.request().method() === 'PATCH'
+      );
       await page.locator('#storeManagement [data-save-catalogue]').click();
-      const saved = await saveResponse;
-      expect(saved.status()).toBe(200);
+      const [catalogueSaved, inventorySaved] = await Promise.all([
+        catalogueSaveResponse,
+        inventorySaveResponse
+      ]);
+      expect(catalogueSaved.status()).toBe(200);
+      expect(inventorySaved.status()).toBe(200);
       await expect(page.locator('#storeManagement [data-store-management-status]')).toContainText('saved');
 
       await page.locator('#storeManagement [data-close-catalogue]').click();
@@ -123,20 +131,35 @@ test('Owner can edit, save and reload store-specific catalogue using real Worker
         await originalOilVisible.check();
         await originalOilPrice.fill('189');
         await originalRiceVisible.check();
-        const restoreResponse = page.waitForResponse(response =>
+        const restoreCatalogueResponse = page.waitForResponse(response =>
           new URL(response.url()).pathname === '/api/admin/delivery/stores/store-d1/catalogue' &&
           response.request().method() === 'PATCH'
         );
+        const restoreInventoryResponse = page.waitForResponse(response =>
+          new URL(response.url()).pathname === '/api/admin/delivery/stores/store-d1/inventory' &&
+          response.request().method() === 'PATCH'
+        );
         await page.locator('#storeManagement [data-save-catalogue]').click();
-        expect((await restoreResponse).status()).toBe(200);
+        const [catalogueRestored, inventoryRestored] = await Promise.all([
+          restoreCatalogueResponse,
+          restoreInventoryResponse
+        ]);
+        expect(catalogueRestored.status()).toBe(200);
+        expect(inventoryRestored.status()).toBe(200);
       }
     }
 
     expect(inventoryWrites).toHaveLength(2, 'the unified Save button must persist inventory alongside catalogue settings');
     expect(inventoryWrites.every(url => url.includes('/stores/store-d1/inventory'))).toBe(true, 'inventory writes must remain scoped to the selected store');
     expect(pageErrors).toEqual([]);
+    await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.body, '::before').visibility)).toBe('hidden');
     await page.screenshot({ path: 'test-results/real-d1/owner-store-catalogue.png', fullPage: true });
   } finally {
+    // Drain any route callbacks before disposing the browser context. The
+    // unified catalogue Save also updates inventory, so this avoids tearing
+    // down a proxied Worker request after its response has reached the page.
+    await page.unrouteAll({ behavior: 'wait' });
     await context.close();
   }
 });

@@ -216,6 +216,8 @@ test('Owner manages prices and inventory together without mixing store data', as
     expect(inventoryWrites.every(url => url.includes('/stores/' + secondStoreId + '/inventory'))).toBe(true);
     expect(pageErrors).toEqual([]);
     expect(unauthorizedResponses, 'the Owner store flow must not generate unauthorized API responses').toEqual([]);
+    await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.body, '::before').visibility)).toBe('hidden');
     await page.screenshot({ path: 'test-results/real-d1/owner-store-management.png', fullPage: true });
 
     // Mobile: product controls must stack cleanly, the save action must span its footer, and the page must not scroll sideways.
@@ -237,7 +239,15 @@ test('Owner manages prices and inventory together without mixing store data', as
     expect(mobileLayout.documentWidth).toBeLessThanOrEqual(mobileLayout.viewport + 1);
     expect(mobileLayout.panelScrollWidth).toBeLessThanOrEqual(mobileLayout.panelWidth + 1);
     expect(mobileLayout.buttonWidth).toBeGreaterThanOrEqual(mobileLayout.footerWidth - 2);
-    await page.screenshot({ path: 'test-results/real-d1/owner-store-management-mobile.png', fullPage: true });
+    await page.evaluate(() => {
+      document.activeElement?.blur();
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    });
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.body, '::before').visibility)).toBe('hidden');
+    await page.screenshot({ path: 'test-results/real-d1/owner-store-management-mobile.png', fullPage: false });
+    await page.locator('#storeManagement [data-save-store-management]').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: 'test-results/real-d1/owner-store-management-mobile-save.png', fullPage: false });
 
     // Narrow tablet: the desktop three-column minimums must not force horizontal overflow beside the fixed sidebar.
     await page.setViewportSize({ width: 810, height: 900 });
@@ -249,6 +259,8 @@ test('Owner manages prices and inventory together without mixing store data', as
     }));
     expect(tabletLayout.documentWidth).toBeLessThanOrEqual(tabletLayout.viewport + 1);
     expect(tabletLayout.controls).toBeTruthy();
+    await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.body, '::before').visibility)).toBe('hidden');
     await page.screenshot({ path: 'test-results/real-d1/owner-store-management-tablet.png', fullPage: true });
   } finally {
     if (secondStoreId) {
