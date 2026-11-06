@@ -13,6 +13,8 @@ function cookieFrom(response, name) {
 test('account deletion redacts operational records, revokes access and preserves the issued invoice in isolated D1', async ({ browser }) => {
   test.setTimeout(90000);
   const context = await browser.newContext({ serviceWorkers: 'block' });
+  let orderId = '';
+  let ownerHeaders = null;
   try {
     const phone = '9' + String(Date.now()).slice(-9);
     const passcode = String(100000 + (Date.now() % 900000));
@@ -28,6 +30,13 @@ test('account deletion redacts operational records, revokes access and preserves
       name: 'freshway-customer-session', value: customerCookie, url: workerOrigin,
       secure: true, httpOnly: true, sameSite: 'None'
     }]);
+
+    const ownerLogin = await context.request.post(workerOrigin + '/api/admin/login', {
+      headers: { Origin: origin }, data: { token: 'isolated-admin-token' }
+    });
+    expect(ownerLogin.status()).toBe(200);
+    const ownerCookie = cookieFrom(ownerLogin, '__Host-freshway-admin-session');
+    ownerHeaders = { Origin: origin, 'X-FreshWay-Admin-Session': ownerCookie };
 
     const today = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
@@ -50,14 +59,8 @@ test('account deletion redacts operational records, revokes access and preserves
     });
     expect(created.status()).toBe(201);
     const order = await created.json();
+    orderId = order.id;
     expect(order.assignedStoreId).toBe('store-d1');
-
-    const ownerLogin = await context.request.post(workerOrigin + '/api/admin/login', {
-      headers: { Origin: origin }, data: { token: 'isolated-admin-token' }
-    });
-    expect(ownerLogin.status()).toBe(200);
-    const ownerCookie = cookieFrom(ownerLogin, '__Host-freshway-admin-session');
-    const ownerHeaders = { Origin: origin, 'X-FreshWay-Admin-Session': ownerCookie };
 
     for (const status of ['Confirmed', 'Processing', 'Ready', 'Out for Delivery']) {
       const response = await context.request.patch(workerOrigin + '/api/admin/orders/' + encodeURIComponent(order.id), {
@@ -114,8 +117,8 @@ test('account deletion redacts operational records, revokes access and preserves
     expect(ownerOrders.status()).toBe(200);
     const saved = (await ownerOrders.json()).orders.find(item => item.id === order.id);
     expect(saved).toBeTruthy();
-    expect(saved.customerName).toBe('Deleted customer');
-    expect(saved.customerPhone).toBe('');
+    expect(saved.customer?.name).toBe('Deleted customer');
+    expect(saved.customer?.phone).toBe('');
     expect(saved.invoice?.number).toBeTruthy();
 
     const invoiceAfter = await context.request.get(workerOrigin + '/api/admin/orders/' + encodeURIComponent(order.id) + '/invoice', {
@@ -132,6 +135,21 @@ test('account deletion redacts operational records, revokes access and preserves
     expect(queueData.summary.completed).toBe(1);
     expect(queueData.requests.some(item => item.id === deletion.requestId)).toBe(false);
   } finally {
+    // Leave the shared isolated-D1 fixture exactly as it was found. The
+    // created order must not affect later cash totals or reserved-stock tests.
+    if (orderId && ownerHeaders) {
+      const cancellation = await context.request.patch(
+        workerOrigin + '/api/admin/orders/' + encodeURIComponent(orderId),
+        { headers: { ...ownerHeaders, 'Content-Type': 'application/json' }, data: { status: 'Cancelled' } }
+      );
+      expect(cancellation.status(), 'the isolated test order must be cancelled during cleanup').toBe(200);
+      const inventory = await context.request.get(
+        workerOrigin + '/api/admin/delivery/stores/store-d1/inventory', { headers: ownerHeaders }
+      );
+      expect(inventory.status()).toBe(200);
+      const oil = (await inventory.json()).inventory.find(item => item.id === 'oil-d1');
+      expect(Number(oil?.reserved_qty), 'the isolated test order must release its stock reservation').toBe(0);
+    }
     await context.close();
   }
 });
