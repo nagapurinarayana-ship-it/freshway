@@ -1177,6 +1177,11 @@ test('out-of-area customer sees RTC handover and postal contact help from the re
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
+  // Wait for the short branded refresh splash to finish so the artifact records
+  // the actual customer interface rather than the intentional startup animation.
+  await expect.poll(() => page.evaluate(() =>
+    getComputedStyle(document.body, '::before').visibility
+  )).toBe('hidden');
   await page.evaluate(() => window.scrollTo(0, 0));
   await expect(help).toBeVisible();
   await page.screenshot({ path: 'test-results/real-d1/customer-out-of-area-help-mobile.png', fullPage: true });
