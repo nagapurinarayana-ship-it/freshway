@@ -33,14 +33,16 @@ test('LIVE production media audit: real catalogue, category artwork and configur
   const [liveShell, liveServiceWorker] = await Promise.all([
     shellResponse.text(), serviceWorkerResponse.text()
   ]);
-  const customerCatalogueAsset = '/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v2';
+  // The HTML uses a relative script src while the service-worker shell
+  // stores absolute paths. Compare each representation using its actual form.
+  const customerCatalogueAsset = 'frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v2';
   const liveVersionGuard = {
     baseUrl: LIVE_BASE_URL,
     appScriptInHtml: liveShell.includes('app.js?v=106'),
     catalogueScriptInHtml: liveShell.includes(customerCatalogueAsset),
     currentServiceWorkerCache: liveServiceWorker.includes('freshway-v126'),
     appScriptInServiceWorker: liveServiceWorker.includes('/app.js?v=106'),
-    catalogueScriptInServiceWorker: liveServiceWorker.includes(customerCatalogueAsset)
+    catalogueScriptInServiceWorker: liveServiceWorker.includes('/' + customerCatalogueAsset)
   };
   console.log('Live production customer version guard:', JSON.stringify(liveVersionGuard));
   if (Object.values(liveVersionGuard).some(value => value === false)) {
