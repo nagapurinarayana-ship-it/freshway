@@ -15,7 +15,7 @@ assert.ok(deliveryOffersScript,
   'HTML must load the updated delivery-offers module');
 assert.ok(worker.includes('/'+deliveryOffersScript),
   'service worker must cache the exact delivery-offers module URL loaded by HTML');
-assert.match(worker,/const CACHE = 'freshway-v125'/,
+assert.match(worker,/const CACHE = 'freshway-v126'/,
   'the service-worker cache version must match the current customer shell');
 const deliveryBookingScript=index.split('<script src="')
   .map(part=>part.split('"')[0])
@@ -24,6 +24,9 @@ assert.ok(deliveryBookingScript,
   'HTML must load the persistent delivery-day picker');
 assert.ok(worker.includes('/'+deliveryBookingScript),
   'service worker must cache the exact delivery-day picker URL loaded by HTML');
+const deliveryBookingStyles=index.match(/<link rel="stylesheet" href="([^"]*delivery-booking\.css\?v=[^"]+)">/);
+assert.ok(deliveryBookingStyles,'HTML must load delivery-picker styles');
+assert.ok(worker.includes('/'+deliveryBookingStyles[1]),'service worker must cache delivery-picker styles');
 assert.match(source,/function isCouponEligibilityError\(error\)/,
   'only a server-confirmed coupon eligibility error may clear an applied coupon');
 assert.match(source,/!appliedCode \|\| !isCouponEligibilityError\(error\)/,

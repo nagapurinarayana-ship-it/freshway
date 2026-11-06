@@ -7,8 +7,10 @@ const CUSTOMER_MESSAGES_PATH = '/frontend/customer/messages.js?v=msg1';
 const CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?v=msg1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261106-guest-session-gate-v1';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v125';
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v126';
 const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261106-chrome-install-guidance-v1';
+const CUSTOMER_DELIVERY_BOOKING_PATH = '/frontend/customer/delivery-booking.js?v=20261106-area1';
+const CUSTOMER_DELIVERY_BOOKING_CSS_PATH = '/frontend/customer/delivery-booking.css?v=20261106-area1';
 const CUSTOMER_CATALOGUE_PATH = '/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v2';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -342,6 +344,9 @@ async function verifyCustomDomain() {
     assertCurrentScriptReference(homeHtml, homeResponse.url, customStoreInfoPath, 'custom-domain home');
   }
   assertCurrentScriptReference(homeHtml, homeResponse.url, PWA_INSTALL_SCRIPT_PATH, 'custom-domain home');
+  assertCurrentScriptReference(homeHtml, homeResponse.url, CUSTOMER_DELIVERY_BOOKING_PATH, 'custom-domain home');
+  assert.ok(homeHtml.includes(CUSTOMER_DELIVERY_BOOKING_CSS_PATH.slice(1)), 'custom-domain home must reference alternative delivery help styles');
+  assert.ok(sw.includes(CUSTOMER_DELIVERY_BOOKING_PATH) && sw.includes(CUSTOMER_DELIVERY_BOOKING_CSS_PATH), 'custom-domain service worker must precache alternative delivery help assets');
   assertCurrentScriptReference(homeHtml, homeResponse.url, '/frontend/customer/promotions.js?v=20261030-lazy-promo-images-v1', 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, CUSTOMER_CATALOGUE_PATH, 'custom-domain home');
   assertCurrentScriptReference(homeHtml, homeResponse.url, ADDRESS_GEOCODE_PATH, 'custom-domain home');
@@ -358,7 +363,7 @@ async function verifyCustomDomain() {
   assert.ok(shareMatch, 'custom-domain Open Graph image URL must exist');
   const shareImageUrl = new URL(shareMatch[1], customBase);
   assert.equal(shareImageUrl.origin, customBase, 'share image must not point to a different host');
-  const [shareImageResponse, healthResponse, productsResponse, categoriesResponse, customerCatalogueResponse, viewportStylesResponse, appResponse, addressGeocodeResponse, addressSystemResponse, installResponse] = await Promise.all([
+  const [shareImageResponse, healthResponse, productsResponse, categoriesResponse, customerCatalogueResponse, viewportStylesResponse, appResponse, addressGeocodeResponse, addressSystemResponse, installResponse, deliveryBookingResponse, deliveryBookingCssResponse] = await Promise.all([
     fetchWithRetry(shareImageUrl.href, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/api/health`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}/api/products`, { cache: 'no-store' }),
@@ -368,7 +373,9 @@ async function verifyCustomDomain() {
     fetchWithRetry(`${customBase}${customAppPath}`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}${ADDRESS_GEOCODE_PATH}`, { cache: 'no-store' }),
     fetchWithRetry(`${customBase}${ADDRESS_SYSTEM_PATH}`, { cache: 'no-store' }),
-    fetchWithRetry(`${customBase}${PWA_INSTALL_SCRIPT_PATH}`, { cache: 'no-store' })
+    fetchWithRetry(`${customBase}${PWA_INSTALL_SCRIPT_PATH}`, { cache: 'no-store' }),
+    fetchWithRetry(`${customBase}${CUSTOMER_DELIVERY_BOOKING_PATH}`, { cache: 'no-store' }),
+    fetchWithRetry(`${customBase}${CUSTOMER_DELIVERY_BOOKING_CSS_PATH}`, { cache: 'no-store' })
   ]);
   assert.equal(customerCatalogueResponse.status, 200, 'customer catalogue script must load on the custom domain');
   assert.equal(appResponse.status, 200, 'customer app navigation script must load on the custom domain');
@@ -376,13 +383,17 @@ async function verifyCustomDomain() {
   assert.equal(addressGeocodeResponse.status, 200, 'address geocode mapper must load on the custom domain');
   assert.equal(addressSystemResponse.status, 200, 'address editor must load on the custom domain');
   assert.equal(installResponse.status, 200, 'native install script must load on the custom domain');
+  assert.equal(deliveryBookingResponse.status, 200, 'delivery availability UI script must load on the custom domain');
+  assert.equal(deliveryBookingCssResponse.status, 200, 'delivery availability UI styles must load on the custom domain');
   for (const [label, response] of [
     ['custom-domain customer catalogue script', customerCatalogueResponse],
     ['custom-domain viewport stylesheet', viewportStylesResponse],
     ['custom-domain customer app script', appResponse],
     ['custom-domain geocoder script', addressGeocodeResponse],
     ['custom-domain address editor', addressSystemResponse],
-    ['custom-domain native install script', installResponse]
+    ['custom-domain native install script', installResponse],
+    ['custom-domain delivery availability UI script', deliveryBookingResponse],
+    ['custom-domain delivery availability UI styles', deliveryBookingCssResponse]
   ]) assertImmutableCodeCache(response, label);
   const shareCacheControl = shareImageResponse.headers.get('cache-control') || '';
   assert.match(shareCacheControl, /public/i, 'WhatsApp share image must be cacheable');
