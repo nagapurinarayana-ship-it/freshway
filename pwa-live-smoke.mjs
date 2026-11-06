@@ -2,12 +2,13 @@ import assert from 'node:assert/strict';
 
 const BASE_URL = process.env.BASE_URL || 'https://freshway-f32.pages.dev';
 const VIEWPORT_STYLES_PATH = '/styles.css?v=20261030-aa-contrast-v1';
-const CUSTOMER_APP_PATH = '/app.js?v=106';
+const CUSTOMER_APP_PATH = '/app.js?v=107';
 const CUSTOMER_MESSAGES_PATH = '/frontend/customer/messages.js?v=msg1';
 const CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?v=msg1';
+const CUSTOMER_NAVIGATION_PATH = '/frontend/customer/navigation.js?v=20261107-history-back-v1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261106-guest-session-gate-v1';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v128';
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v129';
 const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261106-chrome-install-guidance-v1';
 const CUSTOMER_DELIVERY_BOOKING_PATH = '/frontend/customer/delivery-booking.js?v=20261106-area1';
 const CUSTOMER_DELIVERY_BOOKING_CSS_PATH = '/frontend/customer/delivery-booking.css?v=20261106-area1';
@@ -121,6 +122,7 @@ async function waitForFullImageFitAssets(base) {
         indexResponse.text(), adminResponse.text(), swResponse.text()
       ]);
       assert.ok(indexHtml.includes(CUSTOMER_APP_PATH.slice(1)), 'production home must deploy the current customer app script');
+      assertCurrentScriptReference(indexHtml, indexResponse.url, CUSTOMER_NAVIGATION_PATH, 'production home');
       const usesCustomerMessages = true;
       const messagesPath = CUSTOMER_MESSAGES_PATH;
       const storeInfoPath = CUSTOMER_STORE_INFO_PATH;
@@ -150,13 +152,15 @@ async function waitForFullImageFitAssets(base) {
       assert.ok(sw.includes(addressSystemPath), 'service worker must cache the current address editor');
       assertCurrentScriptReference(adminHtml, adminResponse.url, cataloguePath, 'production Owner');
       assert.ok(sw.includes(appPath), 'service worker does not cache the current app navigation script');
+      assert.ok(sw.includes(CUSTOMER_NAVIGATION_PATH), 'service worker does not cache the current customer Back/history script');
       assert.ok(sw.includes(PWA_INSTALL_SCRIPT_PATH), 'service worker does not cache the current native install script');
       assert.ok(sw.includes(promotionPath), 'service worker does not cache the current promotion script');
       assert.ok(sw.includes(customerCataloguePath), 'service worker does not cache the current customer catalogue script');
 
-      const [viewportStylesResponse, appResponse, promotionResponse, customerCatalogueResponse, addressGeocodeResponse, addressSystemResponse, catalogueResponse, installResponse] = await Promise.all([
+      const [viewportStylesResponse, appResponse, navigationResponse, promotionResponse, customerCatalogueResponse, addressGeocodeResponse, addressSystemResponse, catalogueResponse, installResponse] = await Promise.all([
         fetch(`${base}${viewportStylesPath}`, { cache: 'no-store', redirect: 'follow' }),
         fetch(`${base}${appPath}`, { cache: 'no-store', redirect: 'follow' }),
+        fetch(`${base}${CUSTOMER_NAVIGATION_PATH}`, { cache: 'no-store', redirect: 'follow' }),
         fetch(`${base}${promotionPath}`, { cache: 'no-store', redirect: 'follow' }),
         fetch(`${base}${customerCataloguePath}`, { cache: 'no-store', redirect: 'follow' }),
         fetch(`${base}${addressGeocodePath}`, { cache: 'no-store', redirect: 'follow' }),
@@ -166,6 +170,7 @@ async function waitForFullImageFitAssets(base) {
       ]);
       assert.equal(viewportStylesResponse.status, 200, 'current mobile viewport stylesheet must load');
       assert.equal(appResponse.status, 200, 'current customer navigation app script must load');
+      assert.equal(navigationResponse.status, 200, 'current deterministic customer Back/history module must load');
       assert.equal(promotionResponse.status, 200, 'current customer promotion script must load');
       assert.equal(customerCatalogueResponse.status, 200, 'current customer catalogue script must load');
       assert.equal(addressGeocodeResponse.status, 200, 'current address geocode mapper must load');
@@ -175,6 +180,7 @@ async function waitForFullImageFitAssets(base) {
       for (const [label, response] of [
         ['customer stylesheet', viewportStylesResponse],
         ['customer app script', appResponse],
+        ['customer Back/history script', navigationResponse],
         ['customer promotion script', promotionResponse],
         ['customer catalogue script', customerCatalogueResponse],
         ['address geocoder script', addressGeocodeResponse],
@@ -183,10 +189,12 @@ async function waitForFullImageFitAssets(base) {
         ['customer native install script', installResponse]
       ]) assertImmutableCodeCache(response, label);
 
-      const [viewportStylesSource, appSource, promotionSource, customerCatalogueSource, addressGeocodeSource, addressSystemSource, catalogueSource, installSource] = await Promise.all([
-        viewportStylesResponse.text(), appResponse.text(), promotionResponse.text(), customerCatalogueResponse.text(), addressGeocodeResponse.text(), addressSystemResponse.text(), catalogueResponse.text(), installResponse.text()
+      const [viewportStylesSource, appSource, navigationSource, promotionSource, customerCatalogueSource, addressGeocodeSource, addressSystemSource, catalogueSource, installSource] = await Promise.all([
+        viewportStylesResponse.text(), appResponse.text(), navigationResponse.text(), promotionResponse.text(), customerCatalogueResponse.text(), addressGeocodeResponse.text(), addressSystemResponse.text(), catalogueResponse.text(), installResponse.text()
       ]);
       assert.ok(appSource.includes("function setView(name,options){if(name==='home'&&options?.history!=='none')window.freshWayCustomerCatalogueGoHome?.();navigation.setView(name,options)"), 'home navigation must reset category state for explicit Home actions only');
+      assert.ok(appSource.includes('navigation.goBack(backButton.dataset.back'), 'customer Back buttons must route to their declared destination');
+      assert.ok(navigationSource.includes('state.previousView===target'), 'customer history must use browser Back only when the previous in-app route matches the button destination');
       assert.ok(appSource.includes('customerCartActions.bind({document,changeQty,toast});'), 'deployed customer app must register cart click handlers');
       assert.doesNotMatch(appSource,/customerSearch\.bind\(/, 'deployed customer app must not bind the removed search module');
       assert.ok(customerCatalogueSource.includes("window.freshWayCustomerCatalogueGoHome=()=>{const state=window.history.state;if(state?.__freshwayCustomer&&state.category)window.history.replaceState({...state,category:null},'',window.location.href);setMode(null,{history:'none'})};"), 'category home reset must preserve navigation view history');
@@ -323,6 +331,7 @@ async function verifyCustomDomain() {
   const customMessagesPath = CUSTOMER_MESSAGES_PATH;
   const customStoreInfoPath = CUSTOMER_STORE_INFO_PATH;
   assert.ok(homeHtml.includes(CUSTOMER_APP_PATH.slice(1)), 'custom-domain home must deploy the current customer app script');
+  assertCurrentScriptReference(homeHtml, homeResponse.url, CUSTOMER_NAVIGATION_PATH, 'custom-domain home');
   assert.ok(homeHtml.includes(CUSTOMER_STORE_INFO_PATH.slice(1)), 'custom-domain app must use the current Contact Us module');
   assert.ok(homeHtml.includes(CUSTOMER_MESSAGES_PATH.slice(1)), 'custom-domain app must load the current Messages module');
   assert.ok(sw.includes("const CACHE = '" + EXPECTED_CUSTOMER_CACHE + "';"), 'custom-domain service worker must publish the current cache version');
@@ -353,6 +362,7 @@ async function verifyCustomDomain() {
   assertCurrentScriptReference(homeHtml, homeResponse.url, ADDRESS_SYSTEM_PATH, 'custom-domain home');
   assertCurrentScriptReference(adminHtml, adminResponse.url, '/frontend/admin/catalogue.js?v=20261029-promo-alttext-v1', 'custom-domain Owner');
   assert.ok(sw.includes(customAppPath), 'custom-domain service worker must cache the current app navigation script');
+  assert.ok(sw.includes(CUSTOMER_NAVIGATION_PATH), 'custom-domain service worker must cache the current customer Back/history script');
   assert.ok(sw.includes(PWA_INSTALL_SCRIPT_PATH), 'custom-domain service worker must cache the current native install script');
   assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261030-lazy-promo-images-v1'), 'custom-domain service worker must cache the current promotion script');
   assert.ok(sw.includes(CUSTOMER_CATALOGUE_PATH), 'custom-domain service worker must cache the current customer catalogue script');
@@ -412,6 +422,7 @@ async function verifyCustomDomain() {
   assert.ok(addressSystemSource.includes('editorCoordinates = previousCoordinates'), 'custom-domain editor must restore the last verified pin on lookup failure');
   assert.doesNotMatch(addressSystemSource,/const preserve = labelFields\\.map/,'custom-domain editor must not retain stale geo fields');
   assert.ok(appSource.includes("function setView(name,options){if(name==='home'&&options?.history!=='none')window.freshWayCustomerCatalogueGoHome?.();navigation.setView(name,options)"), 'custom-domain home navigation resets category state');
+  assert.ok(appSource.includes('navigation.goBack(backButton.dataset.back'), 'custom-domain customer Back buttons must honour their declared destination');
   assert.ok(appSource.includes('customerCartActions.bind({document,changeQty,toast});'), 'deployed customer app must register cart click handlers');
   assert.doesNotMatch(appSource,/customerSearch\.bind\(/, 'deployed customer app must not bind the removed search module');
   assert.ok(customerCatalogueSource.includes("window.freshWayCustomerCatalogueGoHome=()=>{const state=window.history.state;if(state?.__freshwayCustomer&&state.category)window.history.replaceState({...state,category:null},'',window.location.href);setMode(null,{history:'none'})};"), 'custom-domain category state reset is current');
