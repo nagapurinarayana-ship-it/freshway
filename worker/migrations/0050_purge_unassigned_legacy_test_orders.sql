@@ -8,7 +8,7 @@
 -- become Delivered/Cancelled, is no longer old, or no longer matches the audited live-order
 -- classification. Do not broaden this whitelist.
 
-CREATE TABLE _freshway_legacy_unassigned_test_orders_0050_0050 (
+CREATE TABLE _freshway_legacy_unassigned_test_orders_0050 (
   id TEXT PRIMARY KEY
 );
 
@@ -26,7 +26,7 @@ INSERT INTO _freshway_legacy_unassigned_test_orders_0050 (id) VALUES
   ('FW-77588644-BHS'),
   ('FW-70361915-UDE');
 
-CREATE TABLE _freshway_legacy_cleanup_guard_0050_0050 (
+CREATE TABLE _freshway_legacy_cleanup_guard_0050 (
   valid INTEGER NOT NULL CHECK (valid = 1)
 );
 
@@ -123,7 +123,7 @@ DELETE FROM orders
 WHERE id IN (SELECT id FROM _freshway_legacy_unassigned_test_orders_0050);
 
 -- Fail the migration rather than leave any target order or child row behind.
-CREATE TABLE _freshway_legacy_cleanup_verify_0050_0050 (
+CREATE TABLE _freshway_legacy_cleanup_verify_0050 (
   valid INTEGER NOT NULL CHECK (valid = 1)
 );
 
