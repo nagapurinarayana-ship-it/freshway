@@ -86,14 +86,21 @@ test('customer page Back buttons honour explicit destinations on deep links and 
   await page.locator('#checkoutView .back-btn').click();
   await expect(page.locator('#cartView')).toHaveClass(/active-view/);
   await expect.poll(() => page.evaluate(() => history.state?.view)).toBe('cart');
+  // Browser Back after the explicit fallback must leave this deep-linked app
+  // entry; it must not reopen a duplicated, stale Checkout history item.
+  await page.goBack();
+  await expect(page).toHaveURL('about:blank');
 
-  // Cart Back has its own declared Home destination, even though the entry
-  // now represents a deep-link fallback rather than a previous Home click.
+  // A directly restored Cart entry has the same rule after refresh.
+  await page.goto('/?nav-back-refresh=1#cart');
+  await expect(page.locator('#cartView')).toHaveClass(/active-view/);
   await page.reload();
   await expect(page.locator('#cartView')).toHaveClass(/active-view/);
   await page.locator('#cartView .back-btn').click();
   await expect(page.locator('#homeView')).toHaveClass(/active-view/);
   await expect.poll(() => page.evaluate(() => history.state?.view)).toBe('home');
+  await page.goBack();
+  await expect(page).toHaveURL('about:blank');
 
   // When a real in-app predecessor exists, the control should use that history
   // entry, preserving normal browser Forward behaviour instead of replacing it.
