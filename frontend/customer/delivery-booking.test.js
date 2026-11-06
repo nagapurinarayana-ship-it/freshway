@@ -20,6 +20,10 @@ const makeContainer=()=>{
   fireDateChoice(choice){
    const node={dataset:{fwDateChoice:choice}};
    listeners.click({target:{closest:selector=>selector==='[data-fw-date-choice]'?node:null}});
+  },
+  fireContact(){
+   const node={dataset:{fwDeliveryContact:''}};
+   listeners.click({target:{closest:selector=>selector==='[data-fw-delivery-contact]'?node:null}});
   }
  };
 };
@@ -85,5 +89,31 @@ console.log('customer checkout delivery-day persistence tests passed');
   await Promise.all(Array.from({length:17},()=>burstBooking.refreshCheckout()));
   assert.equal(burstCalls.length,2,'a changed map pin triggers exactly one new availability request');
   assert.equal(burstCalls[1].body.address.longitude,78.5);
-  console.log('customer store-availability UI states and request coalescing passed');
+  const areaContainer=makeContainer();
+  const areaBooking=create({
+    api:async()=>({available:false,code:'AREA_UNAVAILABLE',message:'Sorry, we do not deliver to this address yet.'}),
+    getItems:()=>[{id:'rice-1',qty:2}],
+    getAddress:()=>({latitude:17.385,longitude:78.4867})
+  });
+  areaBooking.mountCheckout(areaContainer);
+  const unavailableArea=await areaBooking.checkAvailability();
+  assert.equal(unavailableArea.code,'AREA_UNAVAILABLE');
+  assert.match(areaContainer.innerHTML,/Outside our current delivery area\?/);
+  assert.match(areaContainer.innerHTML,/nearby RTC bus stand/);
+  assert.match(areaContainer.innerHTML,/postal delivery/);
+  assert.match(areaContainer.innerHTML,/data-fw-delivery-contact/);
+  areaContainer.fireContact();
+  assert.equal(openedView,'contact','Contact FreshWay opens the existing Contact Us page');
+
+  const stockContainer=makeContainer();
+  const stockBooking=create({
+    api:async()=>({available:false,code:'OUT_OF_STOCK',message:'Some items are unavailable.'}),
+    getItems:()=>[{id:'rice-1',qty:2}],
+    getAddress:()=>({latitude:17.385,longitude:78.4867})
+  });
+  stockBooking.mountCheckout(stockContainer);
+  await stockBooking.checkAvailability();
+  assert.doesNotMatch(stockContainer.innerHTML,/data-fw-delivery-contact/,'stock issues must not show an out-of-area delivery promise');
+
+  console.log('customer store-availability UI states, area-contact help and request coalescing passed');
 })().catch(error=>{console.error(error);process.exitCode=1});
