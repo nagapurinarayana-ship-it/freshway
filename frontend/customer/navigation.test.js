@@ -12,14 +12,14 @@ assert.match(source,/sessionStorage\.getItem\('freshway-current-view-v1'\)/,'fir
 assert.match(source,/FreshWayCustomerViewState\?\.saveView\(name\)/,'navigation must persist every programmatic view change, not only clicks');
 assert.match(source,/const nextView=state\?\.\[HISTORY_FLAG\]\?state\.view\|\|'home':'home'/,'Back/Forward must render the view stored on that exact browser-history entry');
 const app=fs.readFileSync('app.js','utf8');
-assert.match(app,/navigation\.goBack\(\)/);
+assert.match(app,/navigation\.goBack\(backButton\.dataset\.back\|\|'home'\)/,'in-app back buttons must honor their declared destination instead of blindly trusting browser history');
 assert.match(app,/function setView\(name,options\)\{if\(name==='home'&&options\?\.history!=='none'\)window\.freshWayCustomerCatalogueGoHome\?\.\(\);navigation\.setView\(name,options\)\}/,'explicit Home actions reset category selection while popstate restoration preserves the history state');
 const viewState=fs.readFileSync('frontend/customer/view-state.js','utf8');
 assert.match(viewState,/history:'replace'/);
 assert.match(viewState,/window\.history\?\.state\?\.__freshwayCustomer/,'refresh restoration should trust the active history entry before older session storage');
 const html=fs.readFileSync('index.html','utf8');
 assert.match(html,/fw-view-restore-pending #app\{visibility:hidden\}/,'non-home refreshes should remain hidden until the restored route is active');
-assert.ok(html.includes('navigation.js?v=toast1'),'navigation must use the cache-busted toast-clearing module');
+assert.ok(html.includes('navigation.js?v=20261107-history-back-v1'),'navigation must use the cache-busted deterministic history module');
 assert.match(html,/view-state\.js\?v=20261028-nav-restore-v2/);
 console.log('customer navigation history isolation OK');
 
