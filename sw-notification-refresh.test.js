@@ -86,9 +86,11 @@ async function dispatchPush(payload) {
   const sw = fs.readFileSync('sw.js', 'utf8');
   assert.match(app, /freshway:order-updated/);
   assert.match(app, /customerOrderData\.load\(\)/);
-  assert.match(index, /app\.js\?v=106/);
-  assert.match(sw, /const CACHE = 'freshway-v\d+';/, 'customer service worker must publish a numbered cache version');
-  assert.ok(sw.includes('/app.js?v=106'), 'service worker must precache the same cache-busted customer app asset');
+  assert.match(index, /app\.js\?v=107/);
+  assert.match(index, /frontend\\/customer\\/navigation\\.js\\?v=20261107-history-back-v1/, 'customer HTML must load the deterministic history module');
+  assert.match(sw, /const CACHE = 'freshway-v129';/, 'customer service worker must publish the current history-fix cache version');
+  assert.ok(sw.includes('/app.js?v=107'), 'service worker must precache the same cache-busted customer app asset');
+  assert.ok(sw.includes('/frontend/customer/navigation.js?v=20261107-history-back-v1'), 'service worker must precache the exact history-fix module loaded by HTML');
   assert.doesNotMatch(app, /customerSearch\.bind\(/, 'customer app must not bind the removed customer search module');
   assert.match(app, /customerCartActions\.bind\(/, 'cart click handlers must remain registered after app startup');
   assert.match(index, /frontend\/customer\/orders-data\.js\?v=orders3/);
@@ -97,7 +99,7 @@ async function dispatchPush(payload) {
   assert.match(index, /frontend\/customer\/cart-bar\.js\?v=20261029-cartbar-v2/);
   assert.match(index, /frontend\/customer\/delivery-offers\.js\?v=20261103-store-pricing-v1/);
   assert.ok(fs.readFileSync('sw.js', 'utf8').includes('/frontend/customer/delivery-offers.js?v=20261103-store-pricing-v1'), 'service worker must precache the exact store-aware delivery-offers asset URL loaded by HTML');
-  const assetUrl = 'https://fwcoldpressed.in/frontend/customer/navigation.js?v=20261028-nav-restore-v2';
+  const assetUrl = 'https://fwcoldpressed.in/frontend/customer/navigation.js?v=20261107-history-back-v1';
   const oldResponse = { ok: true, body: 'legacy', clone() { return { ...this }; } };
   const freshResponse = { ok: true, body: 'current', clone() { return { ...this }; } };
   cacheEntries.set(assetUrl, oldResponse);
