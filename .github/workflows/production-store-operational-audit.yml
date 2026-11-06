@@ -1,0 +1,72 @@
+name: FreshWay production store operational audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/production-store-operational-audit.yml'
+      - 'worker/scripts/store-operational-audit.mjs'
+      - 'worker/scripts/store-operational-*.sql'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freshway-production-store-operational-audit
+  cancel-in-progress: false
+
+jobs:
+  store-operational-audit:
+    name: Read-only audit of every production store
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install Worker dependencies
+        working-directory: worker
+        run: npm install
+
+      - name: Verify audit logic and read-only SQL
+        working-directory: worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test test/store-operational-audit.test.js
+          for query in scripts/store-operational-matrix.sql scripts/store-operational-orders.sql scripts/store-operational-reservations.sql; do
+            test -s "$query"
+            if grep -Eiq '(^|[^A-Z])(INSERT|UPDATE|DELETE|REPLACE|ALTER|DROP|CREATE)([^A-Z]|$)' "$query"; then
+              echo "::error::Write-capable SQL keyword found in $query"
+              exit 1
+            fi
+          done
+          echo "All production audit queries are read-only SELECT statements."
+
+      - name: Read every store and product configuration from production D1
+        working-directory: worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "\${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "\${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "::error::Production D1 read credentials are missing. No production data was changed."
+            exit 1
+          fi
+          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --file scripts/store-operational-matrix.sql --json > "$RUNNER_TEMP/freshway-store-matrix.json"
+          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --file scripts/store-operational-orders.sql --json > "$RUNNER_TEMP/freshway-active-orders.json"
+          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --file scripts/store-operational-reservations.sql --json > "$RUNNER_TEMP/freshway-reservations.json"
+          node scripts/store-operational-audit.mjs \
+            "$RUNNER_TEMP/freshway-store-matrix.json" \
+            "$RUNNER_TEMP/freshway-active-orders.json" \
+            "$RUNNER_TEMP/freshway-reservations.json"
