@@ -17,7 +17,7 @@ const readySelectors = {
   requests: '#customerRequestsManagement',
   messages: '#customerMessagesManagement',
   stores: '#storeManagement',
-  catalogue: '#productList',
+  catalogue: '#fwCategoryList',
   cash: '#cashSummary',
   offers: '#deliveryOffersAdmin',
   notifications: '#notificationHistory',
