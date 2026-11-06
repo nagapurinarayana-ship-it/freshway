@@ -45,7 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           node --test test/store-operational-audit.test.js
-          for query in scripts/store-operational-matrix.sql scripts/store-operational-orders.sql scripts/store-operational-reservations.sql scripts/store-operational-history.sql scripts/store-operational-history.sql; do
+          for query in scripts/store-operational-matrix.sql scripts/store-operational-orders.sql scripts/store-operational-reservations.sql scripts/store-operational-history.sql; do
             test -s "$query"
             if grep -Eiq '(^|[^A-Z])(INSERT|UPDATE|DELETE|REPLACE|ALTER|DROP|CREATE)([^A-Z]|$)' "$query"; then
               echo "::error::Write-capable SQL keyword found in $query"
