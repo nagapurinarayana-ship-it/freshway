@@ -33,9 +33,9 @@ async function proxyOwnerAssets(page) {
     if (targetPath !== '/admin/sw.js' &&
         targetPath !== '/admin/manifest.webmanifest' &&
         !targetPath.startsWith('/admin/icons/')) {
-      targetPath = targetPath.replace(/^\\/admin(?=\\/)/, '');
+      targetPath = targetPath.replace(/^\/admin(?=\/)/, '');
     } else if (targetPath.startsWith('/admin/icons/')) {
-      targetPath = targetPath.replace(/^\\/admin\\/icons\\//, '/icons/');
+      targetPath = targetPath.replace(/^\/admin\/icons\//, '/icons/');
     }
 
     const response = await route.fetch({
@@ -220,7 +220,7 @@ test('Owner read-only performance audit measures shell, screen readiness and API
       const apiDurations = apiTimings.map(item => item.durationMs);
       const resourceSummary = await page.evaluate(() => {
         const resources = performance.getEntriesByType('resource')
-          .filter(entry => /(?:^|\\/)(?:admin\\.js|admin\\.css|owner-lifecycle\\.js|owner-address-final\\.js|frontend\\/admin\\/)/.test(new URL(entry.name).pathname));
+          .filter(entry => /(?:^|\/)(?:admin\.js|admin\.css|owner-lifecycle\.js|owner-address-final\.js|frontend\/admin\/)/.test(new URL(entry.name).pathname));
         return {
           ownerAssetCount: resources.length,
           ownerAssetTransferBytes: resources.reduce((sum, entry) => sum + (entry.transferSize || 0), 0),
