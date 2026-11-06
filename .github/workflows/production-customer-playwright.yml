@@ -65,7 +65,7 @@ jobs:
               && curl --silent --show-error --fail "$BASE_URL/sw.js?freshway-deploy-check=$probe" -o "$sw_file"; then
               if grep -qF 'app.js?v=106' "$html_file" &&
                 grep -qF "frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v2" "$html_file" &&
-                grep -qF "freshway-v125" "$sw_file" &&
+                grep -qF "freshway-v126" "$sw_file" &&
                 grep -qF '/app.js?v=106' "$sw_file" &&
                 grep -qF "/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v2" "$sw_file" &&
                 curl --silent --show-error --fail "$BASE_URL/app.js?v=106" -o "$app_file" &&
@@ -74,7 +74,7 @@ jobs:
                 ! grep -qF 'customerSearch.bind(' "$app_file" &&
                 ! grep -qF 'searchInput' "$catalogue_file" &&
                 ! grep -qF 'search-wrap' "$catalogue_file"; then
-                echo "Current customer PWA shell is deployed: app.js?v=106 / catalogue v2 / freshway-v125."
+                echo "Current customer PWA shell is deployed: app.js?v=106 / catalogue v2 / freshway-v126."
                 exit 0
               fi
             fi
