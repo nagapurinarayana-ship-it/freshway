@@ -87,7 +87,7 @@ async function dispatchPush(payload) {
   assert.match(app, /freshway:order-updated/);
   assert.match(app, /customerOrderData\.load\(\)/);
   assert.match(index, /app\.js\?v=106/);
-  assert.match(sw, /const CACHE = 'freshway-v123';/);
+  assert.match(sw, /const CACHE = 'freshway-v124';/);
   assert.ok(sw.includes('/app.js?v=106'), 'service worker must precache the same cache-busted customer app asset');
   assert.doesNotMatch(app, /customerSearch\.bind\(/, 'customer app must not bind the removed customer search module');
   assert.match(app, /customerCartActions\.bind\(/, 'cart click handlers must remain registered after app startup');

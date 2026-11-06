@@ -216,12 +216,41 @@
     catch (_) { throw new Error('Address service returned invalid data. Please try again.'); }
   }
 
+  function enterGuestAddressMode(options) {
+    addresses = [];
+    // Keep a temporary guest checkout draft; saved-address management still requires sign-in.
+    if (!(activeAddress && activeAddress.id == null && validCoords(activeAddress.latitude, activeAddress.longitude))) activeAddress = null;
+    guestAddressMode = true;
+    addressLoadError = 'Sign in to load and manage your saved delivery addresses.';
+    renderDisplays();
+    if ($('#addressModal') && !$('#addressModal').classList.contains('hidden') && !(options && options.deferRender)) renderManager();
+  }
+
   async function loadSaved(options) {
     const preserveSelection = !options || options.preserveSelection !== false;
     // Only an explicitly selected/saved address is persisted. With no selection, always use the current default.
     const previousId = preserveSelection ? persistedAddressId() : null;
     const revisionAtStart = selectionRevision;
     try {
+      // Reuse the shared authentication request and skip a predictable 401 address request for guests.
+      const auth = window.FreshWayCustomerAuth || window.FreshWayNotifications;
+      if (auth && typeof auth.session === 'function') {
+        let session = null;
+        let sessionResolved = false;
+        try {
+          session = await auth.session();
+          sessionResolved = true;
+        } catch (error) {
+          if ([401, 403].includes(Number(error && error.status))) {
+            enterGuestAddressMode(options);
+            return false;
+          }
+        }
+        if (sessionResolved && !session?.customerId) {
+          enterGuestAddressMode(options);
+          return false;
+        }
+      }
       const r = await fetch('/api/addresses', { credentials: 'include', cache: 'no-store' });
       if (!r.ok) {
         if (r.status === 401) {
