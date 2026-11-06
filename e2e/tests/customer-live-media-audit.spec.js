@@ -34,13 +34,16 @@ test('LIVE production media audit: real catalogue, category artwork and configur
     shellResponse.text(), serviceWorkerResponse.text()
   ]);
   const customerCatalogueAsset = '/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v2';
-  if (
-    !liveShell.includes('app.js?v=106') ||
-    !liveShell.includes(customerCatalogueAsset) ||
-    !liveServiceWorker.includes("freshway-v126") ||
-    !liveServiceWorker.includes('/app.js?v=106') ||
-    !liveServiceWorker.includes(customerCatalogueAsset)
-  ) {
+  const liveVersionGuard = {
+    baseUrl: LIVE_BASE_URL,
+    appScriptInHtml: liveShell.includes('app.js?v=106'),
+    catalogueScriptInHtml: liveShell.includes(customerCatalogueAsset),
+    currentServiceWorkerCache: liveServiceWorker.includes('freshway-v126'),
+    appScriptInServiceWorker: liveServiceWorker.includes('/app.js?v=106'),
+    catalogueScriptInServiceWorker: liveServiceWorker.includes(customerCatalogueAsset)
+  };
+  console.log('Live production customer version guard:', JSON.stringify(liveVersionGuard));
+  if (Object.values(liveVersionGuard).some(value => value === false)) {
     test.skip(true, 'Live production has not deployed the current customer app/service-worker versions yet.');
   }
   await mkdir(OUTPUT_DIR, { recursive: true });
