@@ -193,6 +193,18 @@ test('Owner delivery UI edits dates directly on orders without a separate reques
   assert.ok(js.includes('confirmationNote'),'The UI must capture a meaningful reconciliation note.');
   assert.ok(js.includes('verify-delivery-before-any-assignment')||js.includes('urgentDeliveryVerification'),
     'Out-for-delivery records must remain blocked from automatic reassignment.');
+  const ownerHtml = read('../../admin.html');
+  const ownerSw = read('../../admin/sw.js');
+  const ownerSmoke = read('../../pwa-owner-live-smoke.mjs');
+  const deliveryAsset = '/admin/frontend/admin/delivery-management.js?v=20261106-store-reconciliation-v1';
+  const cssAsset = '/admin/admin.css?v=20261106-store-reconciliation-v1';
+  assert.ok(ownerHtml.includes('frontend/admin/delivery-management.js?v=20261106-store-reconciliation-v1'));
+  assert.ok(ownerHtml.includes('admin.css?v=20261106-store-reconciliation-v1'));
+  assert.ok(!ownerHtml.includes('delivery-management.js?v=20261026-date-only-v2'));
+  assert.ok(ownerSw.includes("const CACHE = 'fw-owner-v72';"));
+  assert.ok(ownerSw.includes(deliveryAsset) && ownerSw.includes(cssAsset));
+  assert.ok(ownerSmoke.includes(deliveryAsset) && ownerSmoke.includes(cssAsset));
+  assert.ok(ownerSmoke.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v72';"));
 });
 
 test('Owner delivery routes are mounted in the authenticated admin API and keep an audit trail', () => {
