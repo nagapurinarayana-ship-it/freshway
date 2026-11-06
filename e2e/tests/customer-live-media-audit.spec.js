@@ -40,7 +40,7 @@ test('LIVE production media audit: real catalogue, category artwork and configur
     baseUrl: LIVE_BASE_URL,
     appScriptInHtml: liveShell.includes('app.js?v=106'),
     catalogueScriptInHtml: liveShell.includes(customerCatalogueAsset),
-    currentServiceWorkerCache: liveServiceWorker.includes('freshway-v127'),
+    currentServiceWorkerCache: liveServiceWorker.includes('freshway-v128'),
     appScriptInServiceWorker: liveServiceWorker.includes('/app.js?v=106'),
     catalogueScriptInServiceWorker: liveServiceWorker.includes('/' + customerCatalogueAsset)
   };
