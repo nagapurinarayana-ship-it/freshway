@@ -5,6 +5,7 @@ assert.match(source,/__freshwayCustomer/);
 assert.match(source,/history\.pushState/);
 assert.match(source,/history\.back/);
 assert.match(source,/popstate/);
+assert.ok(source.includes('window.FreshWayCustomerFeedback?.clear?.(document)'),'changing customer screens must clear transient feedback from the previous screen');
 assert.match(source,/history:'none'/);
 assert.match(source,/const preferredInitialView=\(\)=>/,'initial history setup must preserve valid hash or saved routes before seeding Home');
 assert.match(source,/sessionStorage\.getItem\('freshway-current-view-v1'\)/,'first load after an older app version must not overwrite a saved customer screen with Home');
@@ -18,7 +19,7 @@ assert.match(viewState,/history:'replace'/);
 assert.match(viewState,/window\.history\?\.state\?\.__freshwayCustomer/,'refresh restoration should trust the active history entry before older session storage');
 const html=fs.readFileSync('index.html','utf8');
 assert.match(html,/fw-view-restore-pending #app\{visibility:hidden\}/,'non-home refreshes should remain hidden until the restored route is active');
-assert.match(html,/navigation\.js\?v=20261028-nav-restore-v2/);
+assert.ok(html.includes('navigation.js?v=20261106-toast-nav-clear-v1'),'navigation must use the cache-busted toast-clearing module');
 assert.match(html,/view-state\.js\?v=20261028-nav-restore-v2/);
 console.log('customer navigation history isolation OK');
 
