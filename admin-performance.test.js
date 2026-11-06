@@ -55,7 +55,7 @@ assert.doesNotMatch(auth,/response\(\{ok:true,version:ADMIN_AUTH_VERSION,session
 assert.match(auth,/SameSite=Lax/);
 assert.match(response,/SameSite=Lax/);
 
-assert.match(ownerSw,/const CACHE = 'fw-owner-v72'/);
+assert.match(ownerSw,/const CACHE = 'fw-owner-v73'/);
 assert.match(ownerSw,/delivery-management\.js\?v=20261106-store-reconciliation-v1/);
 assert.match(ownerSw,/admin\.css\?v=20261106-store-reconciliation-v1/);
 assert.match(ownerSw,/if \(cached && isVersionedCode\) return cached/);
