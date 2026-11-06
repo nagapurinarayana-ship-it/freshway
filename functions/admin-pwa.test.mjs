@@ -53,7 +53,7 @@ assert.ok(invoiceSettingsSource.includes('You can leave unfinished billing and t
 assert.ok(invoiceServiceSource.includes('let enableWarning=') && invoiceServiceSource.includes('enableWarning?{enableWarning}:{}'), 'Worker must save partial settings and return a safe activation warning');
 const ownerLiveSmokeSource = readRepoFile('pwa-owner-live-smoke.mjs').toString('utf8');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CSS = '/admin/admin.css?v=20261106-store-reconciliation-v1';"), 'production Owner smoke must demand the current Owner CSS version');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261105-store-refresh-preserve-v1';"), 'production Owner smoke must demand the current admin.js version');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261107-history-dedup-v1';"), 'production Owner smoke must demand the current admin.js version');
 assert.ok(ownerLiveSmokeSource.includes("const LEGACY_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261029-order-shortcuts-v1';"), 'production Owner smoke must accept the previously deployed Owner script during rollout');
 assert.ok(ownerLiveSmokeSource.includes("const OLDER_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261028-nav-refresh-v1';"), 'production Owner smoke must also accept the older Owner script during rollout');
 assert.ok(ownerLiveSmokeSource.includes("const OLDEST_OWNER_ADMIN_SCRIPT = '/admin/admin.js?v=20261027-owner-offers-route-v1';"), 'production Owner smoke must also accept the oldest supported Owner script during rollout');
@@ -70,7 +70,7 @@ assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_PROFILE_SCRI
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_DELIVERY_SCRIPT = '/admin/frontend/admin/delivery-management.js?v=20261106-store-reconciliation-v1';"), 'production Owner smoke must demand the delivery scheduling and exception management module');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_STORE_MANAGEMENT_SCRIPT = '/admin/frontend/admin/store-management.js?v=20261104-store-stock-workspace-v3';"), 'production Owner smoke must demand Store Manager and Customer Requests');
 assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_LIFECYCLE_SCRIPT = '/admin/owner-lifecycle.js?v=20261103-assigned-store-lifecycle-v1';"), 'production Owner smoke must demand the cache-busted order lifecycle map handler');
-assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v72';"), 'production Owner smoke must demand the current service-worker cache');
+assert.ok(ownerLiveSmokeSource.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v73';"), 'production Owner smoke must demand the current service-worker cache');
 assert.ok(ownerLiveSmokeSource.includes('assert.match(deployedSource, /function readProfileResponse\\(data\\)/'), 'production Owner smoke must verify deployed Store Profile response guard code, not only a matching URL');
 assert.ok(ownerLiveSmokeSource.includes('incomplete Store Profile'), 'production Owner smoke must verify malformed profile payload protection is deployed');
 assert.match(ownerLiveSmokeSource, /fetchCurrentOwnerAppShell/);
@@ -290,7 +290,7 @@ for (const asset of requiredOwnerAssets) {
     assert.ok(ownerWorkerSource.includes("'" + path + "'") || ownerWorkerSource.includes("'" + path + "?") || path === '/admin/', 'Owner service worker must cache in-scope asset ' + path);
   }
   assert.match(ownerWorkerSource, /const CACHE = 'fw-owner-v\d+'/);
-  assert.ok(ownerWorkerSource.includes("const CACHE = 'fw-owner-v72';"), 'Owner service worker cache must advance when shell assets change');
+  assert.ok(ownerWorkerSource.includes("const CACHE = 'fw-owner-v73';"), 'Owner service worker cache must advance when shell assets change');
   assert.ok(ownerWorkerSource.includes('/admin/frontend/admin/invoice-settings.js?v=20261105-auto-non-gst-disclosure-v1'), 'Owner service worker must cache the same invoice settings release as Owner HTML');
   assert.match(ownerWorkerSource, /key\.startsWith\('fw-owner-'\)/);
   assert.doesNotMatch(ownerWorkerSource, /caches\.delete\(key\).*freshway-/);
