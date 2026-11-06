@@ -77,7 +77,7 @@ test('legacy cleanup is restricted to the 12 owner-confirmed test order IDs and 
   assert.match(migration, /is_test_order = 0/);
   assert.match(migration, /created_at < '2026-11-03'/);
   assert.match(migration, /delivery_status NOT IN \('Delivered','Cancelled'\)/);
-  assert.match(migration, /SELECT COUNT\(o\.id\)/);
+  assert.match(migration, /COUNT\(o\.id\) = 12/);
 });
 
 test('migration hard-deletes the target orders and linked records while preserving shared data', () => {
@@ -104,7 +104,7 @@ test('migration fails closed and changes nothing if any whitelisted order has si
   const db = makeDatabase({assignOneTarget:true});
   try {
     db.exec('BEGIN');
-    assert.throws(() => db.exec(migration), /FW_LEGACY_ORDER_CLEANUP_GUARD_FAILED/);
+    assert.throws(() => db.exec(migration), /CHECK constraint failed/);
     db.exec('ROLLBACK');
     assert.equal(Number(db.prepare('SELECT COUNT(*) count FROM orders').get().count),12);
     assert.equal(Number(db.prepare("SELECT stock_quantity FROM products WHERE id='cleanup-product'").get().stock_quantity),4);
