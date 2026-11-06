@@ -19,11 +19,11 @@ assert.doesNotMatch(messages,/button\.setAttribute\('aria-label'/,'Messages butt
 assert.ok(index.includes('<span aria-hidden="true">✉️</span>')&&index.includes('<b aria-hidden="true">›</b>'),'Messages navigation decorative icon and chevron must be hidden from screen readers');
 assert.ok(index.includes('frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'customer app loads the fixed floating cart behavior');
 assert.ok(sw.includes('/frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'service worker caches the fixed floating cart behavior');
-assert.ok(sw.includes("const CACHE = 'freshway-v128'"),'service worker refreshes the app shell after the current customer shell asset update');
-assert.ok(productionCustomerWorkflow.includes('grep -qF "freshway-v128" "$sw_file"'),'production customer Playwright deployment gate must wait for the same customer shell cache');
+assert.ok(sw.includes("const CACHE = 'freshway-v129'"),'service worker refreshes the app shell after the current customer shell asset update');
+assert.ok(productionCustomerWorkflow.includes('grep -qF "freshway-v129" "$sw_file"'),'production customer Playwright deployment gate must wait for the same customer shell cache');
 assert.ok(index.includes('frontend/customer/orders.js?v=ba')&&sw.includes('/frontend/customer/orders.js?v=ba'),'Buy Again helper is versioned and included in the customer app shell');
 assert.ok(index.includes('frontend/customer/orders-view.js?v=ba')&&sw.includes('/frontend/customer/orders-view.js?v=ba'),'Buy Again order-card action is loaded from the current app shell');
-assert.ok(index.includes('app.js?v=106')&&sw.includes('/app.js?v=106'),'Buy Again cart action is loaded from the current app shell');
+assert.ok(index.includes('app.js?v=107')&&sw.includes('/app.js?v=107'),'Buy Again cart action is loaded from the current app shell');
 assert.ok(index.includes('frontend/customer/delivery-offers.js?v=20261103-store-pricing-v1'),'customer HTML loads the store-aware checkout quote module');
 assert.ok(sw.includes('/frontend/customer/delivery-offers.js?v=20261103-store-pricing-v1'),'service worker precaches the same store-aware checkout quote module');
 assert.match(privacyPage,/grid-template-columns: minmax\(145px, \.36fr\) minmax\(0, 1fr\)/,'privacy contact details use a clear desktop label/value layout');
