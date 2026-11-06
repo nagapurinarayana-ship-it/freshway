@@ -43,9 +43,9 @@ const isVersionedCode = ['script','style'].includes(destination) && url.searchPa
 const request=isLogo?new Request(event.request,{cache:'reload'}):new Request(event.request,{cache:'no-store'});
 const cache = await caches.open(CACHE);
 if (isNavigation && ['/', '/index.html'].includes(url.pathname)) {
-const key = url.pathname === '/index.html' ? '/index.html' : '/';
+const key=url.pathname==='/index.html'?'/index.html':'/';
 try {
-const response = await fetch(new Request(event.request, { cache: 'no-store' }));
+const response=await fetch(new Request(event.request,{cache:'no-store'}));
 if (response.ok) cache.put(key, response.clone()).catch(error => console.error('FreshWay document cache update failed:', error));
 return response;
 } catch (error) {
