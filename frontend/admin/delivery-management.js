@@ -97,7 +97,7 @@
         stores:Array.isArray(data.stores)?data.stores:[],
         reconciliation:Array.isArray(reconciliation.orders)?reconciliation.orders:[]
       };
-      render();show('Delivery reconciliation and active orders loaded.');
+      render();show('Delivery dates and reconciliation queue loaded.');
     }catch(e){show(e.message||'Could not load delivery dates.',true)}
     finally{busy=false}
   }
