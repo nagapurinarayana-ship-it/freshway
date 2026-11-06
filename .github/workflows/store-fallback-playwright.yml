@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - '.github/workflows/store-fallback-playwright.yml'
+      - '.github/actions/setup-playwright/**'
+      - 'e2e/package-lock.json'
       - 'e2e/isolated/**'
       - 'e2e/playwright.store-fallback.config.js'
       - 'worker/src/delivery-scheduling.js'
@@ -12,6 +14,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/store-fallback-playwright.yml'
+      - '.github/actions/setup-playwright/**'
       - 'e2e/isolated/**'
       - 'e2e/playwright.store-fallback.config.js'
       - 'worker/src/delivery-scheduling.js'
@@ -28,7 +31,7 @@ jobs:
   store-fallback:
     name: Isolated customer store fallback Playwright
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -38,9 +41,8 @@ jobs:
       - name: Install Worker dependencies
         working-directory: worker
         run: npm install
-      - name: Install Playwright
-        working-directory: e2e
-        run: npm install
+      - name: Prepare cached Playwright browser
+        uses: ./.github/actions/setup-playwright
       - name: Run isolated store fallback Playwright
         working-directory: e2e
         run: npx playwright test --config=playwright.store-fallback.config.js

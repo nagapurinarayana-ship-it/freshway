@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/production-customer-playwright.yml'
+      - '.github/actions/setup-playwright/**'
+      - 'e2e/package-lock.json'
       - 'app.js'
       - 'index.html'
       - 'frontend/customer/**'
@@ -318,13 +320,8 @@ jobs:
           else console.log('No safe same-store two-product fixture exists; multi-item production test will be explicitly skipped.');
           NODE
 
-      - name: Install Playwright dependencies
-        working-directory: e2e
-        run: npm install
-
-      - name: Install Chromium
-        working-directory: e2e
-        run: npx playwright install --with-deps chromium
+      - name: Prepare cached Playwright browser
+        uses: ./.github/actions/setup-playwright
 
       - name: Run customer-only production Playwright tests
         working-directory: e2e
