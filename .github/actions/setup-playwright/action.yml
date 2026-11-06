@@ -15,13 +15,9 @@ runs:
       working-directory: e2e
       run: timeout 8m npm ci --no-audit --no-fund
 
-    - name: Install Chromium system dependencies (best effort)
-      shell: bash
-      working-directory: e2e
-      run: |
-        if ! timeout 2m npx playwright install-deps chromium; then
-          echo "::warning::Chromium system-dependency installation did not complete within two minutes. Continue to the browser tests, which will verify whether the GitHub-hosted runner already has the required libraries."
-        fi
+    # GitHub-hosted Ubuntu runners already provide the browser system libraries.
+    # Let the actual Playwright launch validate that contract instead of running
+    # an apt package installation on every E2E job.
 
     - name: Install Chromium browser binaries on cache miss
       if: steps.playwright-cache.outputs.cache-hit != 'true'
