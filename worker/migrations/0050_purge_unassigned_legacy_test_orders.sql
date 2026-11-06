@@ -30,32 +30,18 @@ CREATE TABLE _freshway_legacy_cleanup_guard_0050 (
   valid INTEGER NOT NULL CHECK (valid = 1)
 );
 
-CREATE TRIGGER _freshway_legacy_cleanup_guard_0050_before_insert
-BEFORE INSERT ON _freshway_legacy_cleanup_guard_0050
-WHEN NOT (
-  (SELECT COUNT(o.id)
-   FROM _freshway_legacy_unassigned_test_orders_0050 target
-   LEFT JOIN orders o ON o.id = target.id) = 12
-  AND (SELECT SUM(CASE WHEN o.assigned_store_id IS NULL THEN 1 ELSE 0 END)
-       FROM _freshway_legacy_unassigned_test_orders_0050 target
-       LEFT JOIN orders o ON o.id = target.id) = 12
-  AND (SELECT SUM(CASE WHEN o.is_test_order = 0 THEN 1 ELSE 0 END)
-       FROM _freshway_legacy_unassigned_test_orders_0050 target
-       LEFT JOIN orders o ON o.id = target.id) = 12
-  AND (SELECT SUM(CASE WHEN o.created_at < '2026-11-03' THEN 1 ELSE 0 END)
-       FROM _freshway_legacy_unassigned_test_orders_0050 target
-       LEFT JOIN orders o ON o.id = target.id) = 12
-  AND (SELECT SUM(CASE WHEN o.delivery_status NOT IN ('Delivered','Cancelled') THEN 1 ELSE 0 END)
-       FROM _freshway_legacy_unassigned_test_orders_0050 target
-       LEFT JOIN orders o ON o.id = target.id) = 12
-)
-BEGIN
-  SELECT RAISE(ABORT, 'FW_LEGACY_ORDER_CLEANUP_GUARD_FAILED');
-END;
+INSERT INTO _freshway_legacy_cleanup_guard_0050 (valid)
+SELECT CASE
+  WHEN COUNT(o.id) = 12
+   AND SUM(CASE WHEN o.assigned_store_id IS NULL THEN 1 ELSE 0 END) = 12
+   AND SUM(CASE WHEN o.is_test_order = 0 THEN 1 ELSE 0 END) = 12
+   AND SUM(CASE WHEN o.created_at < '2026-11-03' THEN 1 ELSE 0 END) = 12
+   AND SUM(CASE WHEN o.delivery_status NOT IN ('Delivered','Cancelled') THEN 1 ELSE 0 END) = 12
+  THEN 1 ELSE 0
+END
+FROM _freshway_legacy_unassigned_test_orders_0050 target
+LEFT JOIN orders o ON o.id = target.id;
 
-INSERT INTO _freshway_legacy_cleanup_guard_0050 (valid) VALUES (1);
-
-DROP TRIGGER _freshway_legacy_cleanup_guard_0050_before_insert;
 DROP TABLE _freshway_legacy_cleanup_guard_0050;
 
 -- Restore stock_reserved_qty for legacy unassigned orders before removing order_items.
