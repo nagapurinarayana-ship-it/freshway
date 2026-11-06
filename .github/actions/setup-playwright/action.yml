@@ -1,0 +1,39 @@
+name: Setup cached Playwright browser
+description: Install the locked E2E dependencies and reuse a Playwright Chromium cache keyed to the exact browser package lock.
+runs:
+  using: composite
+  steps:
+    - name: Restore Playwright Chromium cache
+      id: playwright-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ hashFiles('e2e/package-lock.json') }}-chromium-v1
+
+    - name: Install locked E2E dependencies
+      shell: bash
+      working-directory: e2e
+      run: npm ci --no-audit --no-fund
+
+    - name: Install Chromium system dependencies
+      shell: bash
+      working-directory: e2e
+      timeout-minutes: 8
+      run: npx playwright install-deps chromium
+
+    - name: Install Chromium browser binaries on cache miss
+      if: steps.playwright-cache.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: e2e
+      timeout-minutes: 10
+      env:
+        PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: '120000'
+      run: npx playwright install chromium
+
+    - name: Save Playwright Chromium cache
+      if: steps.playwright-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      continue-on-error: true
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ hashFiles('e2e/package-lock.json') }}-chromium-v1
