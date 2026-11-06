@@ -135,6 +135,7 @@ test('Owner can edit, save and reload store-specific catalogue using real Worker
     expect(inventoryWrites).toHaveLength(2, 'the unified Save button must persist inventory alongside catalogue settings');
     expect(inventoryWrites.every(url => url.includes('/stores/store-d1/inventory'))).toBe(true, 'inventory writes must remain scoped to the selected store');
     expect(pageErrors).toEqual([]);
+    await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
     await page.screenshot({ path: 'test-results/real-d1/owner-store-catalogue.png', fullPage: true });
   } finally {
     await context.close();
