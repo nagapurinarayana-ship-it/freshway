@@ -87,7 +87,7 @@ async function dispatchPush(payload) {
   assert.match(app, /freshway:order-updated/);
   assert.match(app, /customerOrderData\.load\(\)/);
   assert.match(index, /app\.js\?v=107/);
-  assert.match(index, /frontend\\/customer\\/navigation\\.js\\?v=20261107-history-back-v1/, 'customer HTML must load the deterministic history module');
+  assert.ok(index.includes('frontend/customer/navigation.js?v=20261107-history-back-v1'), 'customer HTML must load the deterministic history module');
   assert.match(sw, /const CACHE = 'freshway-v129';/, 'customer service worker must publish the current history-fix cache version');
   assert.ok(sw.includes('/app.js?v=107'), 'service worker must precache the same cache-busted customer app asset');
   assert.ok(sw.includes('/frontend/customer/navigation.js?v=20261107-history-back-v1'), 'service worker must precache the exact history-fix module loaded by HTML');
