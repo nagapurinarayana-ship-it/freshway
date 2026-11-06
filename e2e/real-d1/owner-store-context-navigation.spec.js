@@ -167,6 +167,26 @@ test('Owner history restores the exact Store workspace when moving to another sc
     await expect(price).toHaveValue(expectedPrice);
     await expect(inventory).toHaveValue(expectedInventory);
 
+    // Repeat the nested workspace history flow at phone width through the
+    // actual Owner More sheet. This catches mobile-only menu/history regressions.
+    failStoreRefresh = false;
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('#mobileMoreBtn').click();
+    await expect(page.locator('#mobileMoreMenu')).toBeVisible();
+    await page.locator('#mobileMoreMenu [data-more-screen="stores"]').click();
+    await expect(page.locator('#stores')).toHaveClass(/active/);
+    await expect(page.locator('#storeManagement [data-manage-store="store-d1"]')).toBeVisible();
+    await page.goBack();
+    await expect.poll(() => page.evaluate(() => history.state?.storeId)).toBe('store-d1');
+    await expect(heading).toHaveText('D1 Store');
+    await expect(price).toHaveValue(expectedPrice);
+    await expect(inventory).toHaveValue(expectedInventory);
+    await page.reload();
+    await expect(page.locator('#stores')).toHaveClass(/active/);
+    await expect(heading).toHaveText('D1 Store');
+    await expect(price).toHaveValue(expectedPrice);
+    await expect(inventory).toHaveValue(expectedInventory);
+
     expect(pageErrors).toEqual([]);
     expect(nonReadRequests).toEqual([]);
   } finally {
