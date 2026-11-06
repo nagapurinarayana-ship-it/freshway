@@ -1,6 +1,11 @@
 name: FreshWay production store operational audit
 
 on:
+  # Re-run the SELECT-only audit after every successful production Worker release.
+  # The workflow_run trigger prevents racing D1 migrations and Worker deployment.
+  workflow_run:
+    workflows: ["FreshWay Worker release"]
+    types: [completed]
   push:
     branches: [main]
     paths:
@@ -18,6 +23,7 @@ concurrency:
 
 jobs:
   store-operational-audit:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     name: Read-only audit of every production store
     runs-on: ubuntu-latest
     environment: production
@@ -28,6 +34,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
