@@ -236,9 +236,16 @@ test('customer mobile UI applies a fixed coupon to a multi-item store basket and
   }));
   expect(responsive.documentWidth).toBeLessThanOrEqual(responsive.viewport + 1);
   expect(responsive.bodyWidth).toBeLessThanOrEqual(responsive.viewport + 1);
-  await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
-    await expect.poll(() => page.evaluate(() => getComputedStyle(document.body, '::before').visibility)).toBe('hidden');
-  await page.screenshot({ path: 'test-results/real-d1/customer-money-check-mobile.png', fullPage: true });
+  await page.evaluate(() => {
+    document.activeElement?.blur();
+    document.querySelector('.skip-link')?.blur();
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  });
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.body, '::before').visibility)).toBe('hidden');
+  await page.screenshot({ path: 'test-results/real-d1/customer-money-check-mobile.png', fullPage: false });
+  await page.locator('#checkoutForm button[type="submit"]').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'test-results/real-d1/customer-money-check-mobile-submit.png', fullPage: false });
 
   const orderResponsePromise = page.waitForResponse(response =>
     new URL(response.url()).pathname === '/api/orders' && response.request().method() === 'POST'
