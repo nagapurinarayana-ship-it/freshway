@@ -184,6 +184,8 @@ test('customer mobile UI applies a fixed coupon to a multi-item store basket and
   await expect(oilAdd).toBeVisible();
   await expect(page.locator('#productGrid .product-price').first()).toContainText('₹189');
   await oilAdd.click();
+  await expect(page.locator('#toast')).toHaveText('Added to cart');
+  await expect(page.locator('#toast')).toHaveClass(/show/);
   const oilPlus = page.locator('#productGrid [data-plus="oil-d1"]');
   await expect(oilPlus).toBeVisible();
   await oilPlus.click();
@@ -200,6 +202,7 @@ test('customer mobile UI applies a fixed coupon to a multi-item store basket and
   await riceAdd.click();
 
   await page.locator('#viewCartBtn').click();
+  await expect(page.locator('#toast')).not.toHaveClass(/show/);
   await expect(page.locator('#cartItems')).toContainText('Groundnut Oil');
   await expect(page.locator('#cartItems')).toContainText('Basmati Rice');
   await expect(page.locator('#cartItems')).toContainText('₹567');
@@ -219,6 +222,7 @@ test('customer mobile UI applies a fixed coupon to a multi-item store basket and
 
   await page.locator('#checkoutBtn').click();
   await expect(page.locator('#checkoutView')).toBeVisible();
+  await expect(page.locator('#toast')).not.toHaveClass(/show/);
   await expect(page.locator('#fwCheckoutPricing')).toContainText('₹800');
   await expect(page.locator('#fwCheckoutPricing')).toContainText('₹50');
   await expect(page.locator('#fwCheckoutPricing')).toContainText('₹750');

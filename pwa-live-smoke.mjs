@@ -7,7 +7,7 @@ const CUSTOMER_MESSAGES_PATH = '/frontend/customer/messages.js?v=msg1';
 const CUSTOMER_STORE_INFO_PATH = '/frontend/customer/store-info.js?v=msg1';
 const ADDRESS_GEOCODE_PATH = '/frontend/customer/address-geocode.js?v=20261021-guest-address-map-search-v3';
 const ADDRESS_SYSTEM_PATH = '/address-system-final.js?v=20261106-guest-session-gate-v1';
-const EXPECTED_CUSTOMER_CACHE = 'freshway-v127';
+const EXPECTED_CUSTOMER_CACHE = 'freshway-v128';
 const PWA_INSTALL_SCRIPT_PATH = '/frontend/customer/pwa-install.js?v=20261106-chrome-install-guidance-v1';
 const CUSTOMER_DELIVERY_BOOKING_PATH = '/frontend/customer/delivery-booking.js?v=20261106-area1';
 const CUSTOMER_DELIVERY_BOOKING_CSS_PATH = '/frontend/customer/delivery-booking.css?v=20261106-area1';

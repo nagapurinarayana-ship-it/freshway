@@ -86,6 +86,7 @@ jobs:
           node frontend/customer/notifications-permissions.test.js
           node frontend/customer/keyboard.test.js
           node frontend/customer/cart-actions.test.js
+          node frontend/customer/feedback.test.js
           node frontend/customer/cart-bar.test.js
           node frontend/customer/delivery-offers.test.js
           node worker/test/store-profile.test.js

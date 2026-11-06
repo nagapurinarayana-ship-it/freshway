@@ -40,6 +40,7 @@
        [...document.querySelectorAll('.view')].forEach(v=>v.classList.remove('active-view'));
        const view=document.querySelector(`#${name}View`);
        if(!view)return;
+       window.FreshWayCustomerFeedback?.clear?.(document);
        view.classList.add('active-view');
        [...document.querySelectorAll('.nav-item')].forEach(b=>b.classList.toggle('active',b.dataset.nav===name));
        if(history==='push')window.history.pushState({[HISTORY_FLAG]:true,view:name},'',window.location.href);
