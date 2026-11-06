@@ -19,11 +19,13 @@
   };
   const ensureHistory=()=>{
     if(window.history.state?.[HISTORY_FLAG])return;
-    const state={[HISTORY_FLAG]:true,view:preferredInitialView()};
+    const initialView=preferredInitialView();
+    const state={[HISTORY_FLAG]:true,view:initialView};
     window.history.replaceState(state,'',window.location.href);
-    // Keep an in-app entry behind the first screen so the first browser Back
-    // does not unexpectedly leave the installed PWA.
-    window.history.pushState(state,'',window.location.href);
+    // Only add the protective in-app sentinel on the actual Home entry.
+    // Duplicating a deep-linked/restored Cart or Checkout entry would make a
+    // later browser Back reopen the stale route after its explicit page Back.
+    if(initialView==='home')window.history.pushState(state,'',window.location.href);
   };
   const visibleModal=()=>document.querySelector('.modal:not(.hidden)');
   const closeVisibleModal=modal=>{
