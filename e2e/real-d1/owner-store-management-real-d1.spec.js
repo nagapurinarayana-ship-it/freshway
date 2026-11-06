@@ -239,9 +239,15 @@ test('Owner manages prices and inventory together without mixing store data', as
     expect(mobileLayout.documentWidth).toBeLessThanOrEqual(mobileLayout.viewport + 1);
     expect(mobileLayout.panelScrollWidth).toBeLessThanOrEqual(mobileLayout.panelWidth + 1);
     expect(mobileLayout.buttonWidth).toBeGreaterThanOrEqual(mobileLayout.footerWidth - 2);
-    await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
+    await page.evaluate(() => {
+      document.activeElement?.blur();
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    });
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
     await expect.poll(() => page.evaluate(() => getComputedStyle(document.body, '::before').visibility)).toBe('hidden');
-    await page.screenshot({ path: 'test-results/real-d1/owner-store-management-mobile.png', fullPage: true });
+    await page.screenshot({ path: 'test-results/real-d1/owner-store-management-mobile.png', fullPage: false });
+    await page.locator('#storeManagement [data-save-store-management]').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: 'test-results/real-d1/owner-store-management-mobile-save.png', fullPage: false });
 
     // Narrow tablet: the desktop three-column minimums must not force horizontal overflow beside the fixed sidebar.
     await page.setViewportSize({ width: 810, height: 900 });
