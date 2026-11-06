@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 
 let savedAddresses = [];
 let deliveryAvailabilityOverride = null;
+let deliveryAvailabilityCalls = [];
 
 const products = [{
   id: 'p1',
@@ -18,6 +19,7 @@ const products = [{
 test.beforeEach(async ({ page }) => {
   savedAddresses = [];
   deliveryAvailabilityOverride = null;
+  deliveryAvailabilityCalls = [];
   await page.addInitScript(() => {
     // Reset once per isolated test page, not on every reload: selection persistence is part of the customer contract.
     if (sessionStorage.getItem('__freshwayE2EInitialized') !== '1') {
@@ -216,6 +218,7 @@ test.beforeEach(async ({ page }) => {
     }
 
     if (url.pathname === '/api/delivery/availability' && method === 'POST') {
+      deliveryAvailabilityCalls.push(JSON.parse(request.postData() || '{}'));
       if (deliveryAvailabilityOverride) {
         return route.fulfill({
           status: 200,
@@ -1607,13 +1610,18 @@ test('customer sees helpful out-of-area options and can contact FreshWay from ch
   await page.locator('#viewCartBtn').click();
   await expect(page.locator('#checkoutBtn')).toBeVisible();
 
-  const availabilityRequest = page.waitForRequest(request =>
-    new URL(request.url()).pathname === '/api/delivery/availability' &&
-    request.method() === 'POST'
-  );
   await page.locator('#checkoutBtn').click();
-  const request = await availabilityRequest;
-  const payload = JSON.parse(request.postData() || '{}');
+  await expect(page.locator('#checkoutView')).toHaveClass(/active-view/);
+
+  // Drive the mounted checkout delivery checker and await its real UI state.
+  // The API response is intercepted by this isolated customer fixture below.
+  const availability = await page.evaluate(async () =>
+    window.FreshWayCustomerDeliveryBookingInstance?.checkAvailability?.()
+  );
+  expect(availability?.status).toBe('unavailable');
+  expect(availability?.code).toBe('AREA_UNAVAILABLE');
+  expect(deliveryAvailabilityCalls.length).toBeGreaterThan(0);
+  const payload = deliveryAvailabilityCalls[deliveryAvailabilityCalls.length - 1];
   expect(payload.address.latitude).toBe(17.385044);
   expect(payload.address.longitude).toBe(78.486671);
   expect(payload.items).toEqual([{ id: 'p1', qty: 1 }]);
