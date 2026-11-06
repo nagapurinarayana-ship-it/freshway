@@ -19,7 +19,7 @@ assert.match(viewState,/history:'replace'/);
 assert.match(viewState,/window\.history\?\.state\?\.__freshwayCustomer/,'refresh restoration should trust the active history entry before older session storage');
 const html=fs.readFileSync('index.html','utf8');
 assert.match(html,/fw-view-restore-pending #app\{visibility:hidden\}/,'non-home refreshes should remain hidden until the restored route is active');
-assert.ok(html.includes('navigation.js?v=20261106-toast-nav-clear-v1'),'navigation must use the cache-busted toast-clearing module');
+assert.ok(html.includes('navigation.js?v=toast1'),'navigation must use the cache-busted toast-clearing module');
 assert.match(html,/view-state\.js\?v=20261028-nav-restore-v2/);
 console.log('customer navigation history isolation OK');
 
