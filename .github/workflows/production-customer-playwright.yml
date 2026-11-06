@@ -67,7 +67,7 @@ jobs:
               && curl --silent --show-error --fail "$BASE_URL/sw.js?freshway-deploy-check=$probe" -o "$sw_file"; then
               if grep -qF 'app.js?v=106' "$html_file" &&
                 grep -qF "frontend/customer/catalogue.js?v=20261106-out-of-area-contact-v1" "$html_file" &&
-                grep -qF "freshway-v127" "$sw_file" &&
+                grep -qF "freshway-v128" "$sw_file" &&
                 grep -qF '/app.js?v=106' "$sw_file" &&
                 grep -qF "/frontend/customer/catalogue.js?v=20261106-out-of-area-contact-v1" "$sw_file" &&
                 curl --silent --show-error --fail "$BASE_URL/app.js?v=106" -o "$app_file" &&
