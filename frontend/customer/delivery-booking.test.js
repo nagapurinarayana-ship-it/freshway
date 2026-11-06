@@ -3,7 +3,8 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 
 const data=new Map();
-const context={window:{localStorage:{
+let openedView='';
+const context={window:{setView:name=>{openedView=name},localStorage:{
   getItem:key=>data.has(key)?data.get(key):null,
   setItem:(key,value)=>data.set(key,String(value)),
   removeItem:key=>data.delete(key)
