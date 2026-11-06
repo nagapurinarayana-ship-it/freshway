@@ -1597,6 +1597,11 @@ test('customer sees helpful out-of-area options and can contact FreshWay from ch
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
+  // Home initially shows categories; open Rice before using its product card,
+  // matching the real customer navigation path.
+  await expect(page.locator('[data-fw-category="cat-rice"]')).toBeVisible();
+  await page.locator('[data-fw-category="cat-rice"]').click();
+  await expect(page.locator('#productGrid')).toBeVisible();
   await expect(page.locator('#productGrid .product-card')).toContainText('Basmati Rice');
   await page.locator('#productGrid .add-btn').click();
   await page.locator('#viewCartBtn').click();
