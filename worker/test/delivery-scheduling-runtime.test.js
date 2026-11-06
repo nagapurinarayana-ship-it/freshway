@@ -531,9 +531,12 @@ test('Owner reconciliation atomically assigns the eligible store, moves reservat
     assert.equal(order.scheduled_slot_id,null);
     assert.equal(order.schedule_status,'confirmed');
     assert.equal(order.delivery_plan,tomorrow===dateInIndia(1)?'Tomorrow':'Later');
-    const reservations=db.db.prepare("SELECT status,qty FROM delivery_store_inventory_reservations WHERE order_id='order-reconcile-success' AND store_id='store-1' ORDER BY created_at DESC").all();
-    assert.equal(reservations[0].status,'reserved');
-    assert.equal(reservations[0].qty,2);
+    const reservations=db.db.prepare("SELECT status,qty FROM delivery_store_inventory_reservations WHERE order_id='order-reconcile-success' AND store_id='store-1'").all();
+    const activeReservations=reservations.filter(row=>row.status==='reserved');
+    const releasedReservations=reservations.filter(row=>row.status==='released');
+    assert.equal(activeReservations.length,1);
+    assert.equal(activeReservations[0].qty,2);
+    assert.equal(releasedReservations.length,1);
     assert.equal(db.db.prepare("SELECT stock_reserved_qty FROM order_items WHERE order_id='order-reconcile-success'").get().stock_reserved_qty,2);
     assert.equal(db.db.prepare("SELECT status FROM delivery_slot_reservations WHERE order_id='order-reconcile-success'").get().status,'released');
     const audit=db.db.prepare("SELECT actor_type,action,reason,after_json FROM order_audit_events WHERE order_id='order-reconcile-success' ORDER BY created_at DESC,id DESC LIMIT 1").get();
