@@ -265,6 +265,7 @@ test('Owner mobile More menu reopens after selecting secondary destinations repe
     expect(pageErrors).toEqual([]);
     expect(apiFailures).toEqual([]);
 
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.body, '::before').visibility)).toBe('hidden');
     await page.screenshot({
       path: 'test-results/real-d1/owner-mobile-more-menu-reopen.png',
       fullPage: false
