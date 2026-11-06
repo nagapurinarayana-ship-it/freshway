@@ -1084,3 +1084,103 @@ test('Owner catalogue UI blocks deletion while store stock remains and deletes a
   expect(pageErrors).toEqual([]);
   await context.close();
 });
+
+
+
+test('out-of-area customer sees RTC handover and postal contact help from the real Worker response', async ({ browser }) => {
+  const context = await browser.newContext({
+    serviceWorkers: 'block',
+    viewport: { width: 390, height: 844 }
+  });
+  const setup = await context.request.post(workerOrigin + '/api/auth/register', {
+    headers: { Origin: origin },
+    data: { name: 'D1 Out-of-area E2E Customer', phone: '9999999996', passcode: '123456' }
+  });
+  expect(setup.status()).toBe(200);
+  const account = await setup.json();
+  expect(account.customerId).toBeTruthy();
+  await addLocalSessionCookie(context, setup, 'freshway-customer-session', 'None');
+
+  // This valid Hyderabad map pin is outside the only active store's 5 km radius.
+  // The request is a real Worker store-resolution check against the isolated D1.
+  const outsideAddress = {
+    label: 'Home',
+    recipientName: 'D1 Out-of-area E2E Customer',
+    deliveryPhone: '9999999996',
+    houseFlat: '24',
+    area: 'Test Colony',
+    city: 'Hyderabad',
+    pincode: '500072',
+    latitude: 17.50,
+    longitude: 78.486671,
+    isDefault: true
+  };
+  const addressResponse = await context.request.post(workerOrigin + '/api/addresses', {
+    headers: { Origin: origin },
+    data: outsideAddress
+  });
+  expect(addressResponse.status()).toBe(201);
+
+  const page = await context.newPage();
+  const pageErrors = [];
+  let orderPosts = 0;
+  page.on('pageerror', error => pageErrors.push(error.message));
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (url.pathname === '/api/orders' && request.method() === 'POST') orderPosts++;
+  });
+  await proxyWorkerApi(page);
+
+  const home = await page.goto('/');
+  expect(home?.status()).toBe(200);
+  await expect.poll(() => page.evaluate(() =>
+    window.FreshWayAddressSystem?.getSelectedAddress?.()?.latitude ?? null
+  )).toBe(17.50);
+
+  const resolutionResponse = page.waitForResponse(response => {
+    const url = new URL(response.url());
+    if (url.pathname !== '/api/delivery/store' || response.request().method() !== 'POST') return false;
+    const payload = response.request().postDataJSON() || {};
+    return Number(payload.address?.latitude) === 17.50 &&
+      Number(payload.address?.longitude) === 78.486671;
+  });
+  await page.evaluate(async () => {
+    await window.freshWayCustomerCatalogueRefresh();
+  });
+  const resolution = await (await resolutionResponse).json();
+  expect(resolution).toMatchObject({
+    available: false,
+    code: 'AREA_UNAVAILABLE',
+    message: 'Sorry, we do not deliver to this address yet.'
+  });
+
+  const help = page.locator('#fwCategoryCatalogue .fw-area-unavailable');
+  await expect(help).toBeVisible();
+  await expect(help).toContainText('Outside our current delivery area?');
+  await expect(help).toContainText('nearby RTC bus stand');
+  await expect(help).toContainText('postal delivery options');
+  await expect(help).toContainText('We’ll confirm what is possible with you.');
+  await expect(page.getByRole('button', { name: 'Contact FreshWay' })).toBeVisible();
+  // Do not expose a central/default catalogue when no store can fulfil the address.
+  await expect(page.locator('#productGrid')).toHaveClass(/fw-category-home-hidden/);
+
+  for (const width of [390, 1280]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 800 });
+    const layout = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      document: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth)
+    }));
+    expect(layout.document, 'out-of-area help must not overflow at ' + width + 'px').toBeLessThanOrEqual(layout.viewport + 1);
+    await expect(help).toBeVisible();
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: 'Contact FreshWay' }).click();
+  await expect(page.locator('#contactView')).toHaveClass(/active-view/);
+  await expect(page.locator('#contactTitle')).toBeVisible();
+  expect(orderPosts).toBe(0);
+  expect(pageErrors).toEqual([]);
+  await page.screenshot({ path: 'test-results/real-d1/customer-out-of-area-help-mobile.png', fullPage: true });
+
+  await context.close();
+});
