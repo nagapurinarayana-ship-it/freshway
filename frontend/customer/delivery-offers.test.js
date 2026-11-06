@@ -15,7 +15,7 @@ assert.ok(deliveryOffersScript,
   'HTML must load the updated delivery-offers module');
 assert.ok(worker.includes('/'+deliveryOffersScript),
   'service worker must cache the exact delivery-offers module URL loaded by HTML');
-assert.match(worker,/const CACHE = 'freshway-v126'/,
+assert.match(worker,/const CACHE = 'freshway-v127'/,
   'the service-worker cache version must match the current customer shell');
 const deliveryBookingScript=index.split('<script src="')
   .map(part=>part.split('"')[0])
@@ -24,6 +24,13 @@ assert.ok(deliveryBookingScript,
   'HTML must load the persistent delivery-day picker');
 assert.ok(worker.includes('/'+deliveryBookingScript),
   'service worker must cache the exact delivery-day picker URL loaded by HTML');
+const customerCatalogueScript=index.split('<script src="')
+  .map(part=>part.split('"')[0])
+  .find(path=>path.startsWith('frontend/customer/catalogue.js?v='));
+assert.equal(customerCatalogueScript,'frontend/customer/catalogue.js?v=20261106-out-of-area-contact-v1',
+  'HTML must load the cache-busted out-of-area customer catalogue');
+assert.ok(worker.includes('/'+customerCatalogueScript),
+  'service worker must cache the exact out-of-area customer catalogue URL loaded by HTML');
 const deliveryBookingStyles=index.match(/<link rel="stylesheet" href="([^"]*delivery-booking\.css\?v=[^"]+)">/);
 assert.ok(deliveryBookingStyles,'HTML must load delivery-picker styles');
 assert.ok(worker.includes('/'+deliveryBookingStyles[1]),'service worker must cache delivery-picker styles');
