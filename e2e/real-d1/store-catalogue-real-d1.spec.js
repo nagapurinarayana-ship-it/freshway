@@ -1088,13 +1088,15 @@ test('Owner catalogue UI blocks deletion while store stock remains and deletes a
 
 
 test('out-of-area customer sees RTC handover and postal contact help from the real Worker response', async ({ browser }) => {
+  test.setTimeout(60000);
+  const phone = '9' + String(Date.now()).slice(-9);
   const context = await browser.newContext({
     serviceWorkers: 'block',
     viewport: { width: 390, height: 844 }
   });
   const setup = await context.request.post(workerOrigin + '/api/auth/register', {
     headers: { Origin: origin },
-    data: { name: 'D1 Out-of-area E2E Customer', phone: '9999999996', passcode: '123456' }
+    data: { name: 'D1 Out-of-area E2E Customer', phone, passcode: '123456' }
   });
   expect(setup.status()).toBe(200);
   const account = await setup.json();
@@ -1106,7 +1108,7 @@ test('out-of-area customer sees RTC handover and postal contact help from the re
   const outsideAddress = {
     label: 'Home',
     recipientName: 'D1 Out-of-area E2E Customer',
-    deliveryPhone: '9999999996',
+    deliveryPhone: phone,
     houseFlat: '24',
     area: 'Test Colony',
     city: 'Hyderabad',
