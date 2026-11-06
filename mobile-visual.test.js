@@ -19,8 +19,8 @@ assert.doesNotMatch(messages,/button\.setAttribute\('aria-label'/,'Messages butt
 assert.ok(index.includes('<span aria-hidden="true">✉️</span>')&&index.includes('<b aria-hidden="true">›</b>'),'Messages navigation decorative icon and chevron must be hidden from screen readers');
 assert.ok(index.includes('frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'customer app loads the fixed floating cart behavior');
 assert.ok(sw.includes('/frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'service worker caches the fixed floating cart behavior');
-assert.ok(sw.includes("const CACHE = 'freshway-v125'"),'service worker refreshes the app shell after the current customer shell asset update');
-assert.ok(productionCustomerWorkflow.includes('grep -qF "freshway-v125" "$sw_file"'),'production customer Playwright deployment gate must wait for the same customer shell cache');
+assert.ok(sw.includes("const CACHE = 'freshway-v126'"),'service worker refreshes the app shell after the current customer shell asset update');
+assert.ok(productionCustomerWorkflow.includes('grep -qF "freshway-v126" "$sw_file"'),'production customer Playwright deployment gate must wait for the same customer shell cache');
 assert.ok(index.includes('frontend/customer/orders.js?v=ba')&&sw.includes('/frontend/customer/orders.js?v=ba'),'Buy Again helper is versioned and included in the customer app shell');
 assert.ok(index.includes('frontend/customer/orders-view.js?v=ba')&&sw.includes('/frontend/customer/orders-view.js?v=ba'),'Buy Again order-card action is loaded from the current app shell');
 assert.ok(index.includes('app.js?v=106')&&sw.includes('/app.js?v=106'),'Buy Again cart action is loaded from the current app shell');
@@ -38,6 +38,8 @@ assert.match(designSystem,/#app \.nav-item[\s\S]*?font-size: 11px/,'bottom navig
 assert.ok(cartView.includes('placeholder="Enter code"'),'coupon placeholder stays short enough for small mobile inputs');
 assert.ok(index.includes('frontend/customer/delivery-offers.css?v=20261028-cart-offers-stable-v1'),'HTML loads delivery/coupon UI styles');
 assert.ok(sw.includes('/frontend/customer/delivery-offers.css?v=20261028-cart-offers-stable-v1'),'service worker caches delivery/coupon UI styles');
+assert.ok(index.includes('frontend/customer/delivery-booking.css?v=20261106-area-unavailable-help-v1')&&sw.includes('/frontend/customer/delivery-booking.css?v=20261106-area-unavailable-help-v1'),'customer shell and service worker load the current non-deliverable help styles');
+assert.ok(index.includes('frontend/customer/delivery-booking.js?v=20261106-area-unavailable-help-v1')&&sw.includes('/frontend/customer/delivery-booking.js?v=20261106-area-unavailable-help-v1'),'customer shell and service worker load the current non-deliverable availability UI');
 assert.ok(index.includes('frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2'),'HTML loads the selected-category fold-fit stylesheet');
 assert.ok(categoryFoldStyles.includes('height:100%!important;aspect-ratio:1/1'),'product artwork uses a square contained image box so the complete illustration is visible');
 assert.ok(sw.includes('/styles.css?v=20261030-aa-contrast-v1'),'service worker caches the current mobile viewport stylesheet');
