@@ -13,7 +13,7 @@ runs:
     - name: Install locked E2E dependencies
       shell: bash
       working-directory: e2e
-      run: npm ci --no-audit --no-fund
+      run: timeout 8m npm ci --no-audit --no-fund
 
     - name: Install Chromium system dependencies
       shell: bash
