@@ -67,7 +67,8 @@ function makeDatabase({ assignOneTarget = false } = {}) {
   return db;
 }
 
-test('legacy cleanup is restricted to the 12 owner-confirmed test order IDs', () => {
+test('legacy cleanup is restricted to the 12 owner-confirmed test order IDs and avoids D1 temporary tables', () => {
+  assert.doesNotMatch(migration, /CREATE TEMP TABLE/i);
   const targetBlock = migration.match(/INSERT INTO _freshway_legacy_unassigned_test_orders \(id\) VALUES([\s\S]*?);/);
   assert.ok(targetBlock, 'Migration must define a fixed target whitelist');
   const ids = [...targetBlock[1].matchAll(/'((?:FW)-[A-Z0-9-]+)'/g)].map(match => match[1]);
@@ -140,5 +141,5 @@ test('cleanup never deletes shared customer, address, product or store master da
     assert.doesNotMatch(migration, new RegExp('DELETE\\s+FROM\\s+' + table + '\\b','i'));
   }
   assert.match(migration, /CREATE TABLE _freshway_legacy_cleanup_verify/);
-  assert.match(migration, /DROP TABLE _freshway_legacy_unassigned_test_orders/);
+  assert.match(migration, /DROP TABLE _freshway_legacy_unassigned_test_orders_0050/);
 });
