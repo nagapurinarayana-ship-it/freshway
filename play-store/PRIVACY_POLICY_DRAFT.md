@@ -53,10 +53,10 @@ Do not claim that analytics, advertising or payment providers are absent until t
 
 The current implementation has these code-level behaviours; they are not a substitute for an approved retention schedule:
 
-- Customer support messages are assigned a 90-day expiry. A reply resets that message's expiry to 90 days from the reply. The scheduled/production execution cadence for the cleanup routine still needs to be confirmed.
+- Customer support messages are assigned a 90-day expiry. A reply resets that message's expiry to 90 days from the reply. The production Worker has an hourly cron trigger, and its scheduled handler invokes the customer-message cleanup routine.
 - For order-linked issue requests, the operational request row is retained with order history while its free-text Owner reply is cleared after 90 days. The row's reason and remaining linked order data need an approved retention period.
 - Authentication rate-limit windows have a cleanup routine targeting entries older than 24 hours.
-- Message-related notification events are cleaned after 90 days by the message cleanup routine. A complete retention schedule for other transactional notification events and Owner notification-log history has not yet been verified.
+- Message-related notification events are cleaned after 90 days by the message cleanup routine. The production Worker invokes that cleanup hourly. A complete retention schedule for other transactional notification events and Owner notification-log history has not yet been verified.
 - On a completed account-deletion request, the application disables the account, clears authentication credentials and push subscriptions, removes general customer messages and relevant notification events, redacts operational address and customer contact details in order-linked records, and removes the individual deletion-request row. Aggregate completion metrics remain.
 - Issued invoice buyer snapshots are intentionally preserved unchanged during account deletion. These can contain buyer name, phone, recipient/delivery contact and delivery-address details. The lawful basis, exact retention period, access restriction and eventual disposal process must be approved and documented before publication.
 - Provider-side retention, backups, exports and any records outside the application database must be checked separately.
