@@ -52,6 +52,7 @@ on:
       - 'e2e/**'
       - 'worker/**'
       - '.github/workflows/customer-e2e.yml'
+      - '.github/actions/setup-playwright/**'
 
 # Deterministic browser regression gate.
 jobs:
@@ -235,13 +236,8 @@ jobs:
           echo "::error::Real Worker with isolated D1 did not become ready."
           exit 1
 
-      - name: Install Playwright dependencies
-        working-directory: e2e
-        run: npm install
-
-      - name: Install Chromium
-        working-directory: e2e
-        run: npx playwright install --with-deps chromium
+      - name: Prepare cached Playwright browser
+        uses: ./.github/actions/setup-playwright
 
       - name: Run customer storefront and checkout against real Worker + isolated D1
         working-directory: e2e
