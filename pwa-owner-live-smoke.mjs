@@ -142,7 +142,7 @@ async function fetchCurrentOwnerServiceWorker(attempts = 60) {
         lastError = new Error('/admin/sw.js returned HTTP ' + response.status);
       } else {
         const worker = await response.text();
-        const currentCache = SUPPORTED_OWNER_CACHES.some(cache => worker.includes("const CACHE = '" + cache + "';"));
+        const currentCache = worker.includes("const CACHE = '" + EXPECTED_OWNER_CACHE + "';");
         const needsCustomerMessages = worker.includes("const CACHE = '" + EXPECTED_OWNER_CACHE + "';");
         const currentCss = worker.includes(EXPECTED_OWNER_CSS);
         const currentAdmin = SUPPORTED_OWNER_ADMIN_SCRIPTS.some(script => worker.includes(script));
@@ -227,7 +227,7 @@ const { response: workerResponse, worker } = await fetchCurrentOwnerServiceWorke
 assertFreshResponse(workerResponse, 'Owner service worker');
 assert.match(workerResponse.headers.get('content-type') || '', /javascript/i);
 assert.equal(workerResponse.headers.get('service-worker-allowed'), '/admin/');
-assert.ok(SUPPORTED_OWNER_CACHES.some(cache => worker.includes("const CACHE = '" + cache + "';")), 'Owner service worker must publish a supported cache version');
+assert.ok(worker.includes("const CACHE = '" + EXPECTED_OWNER_CACHE + "';"), 'Owner service worker must publish the current cache version');
 if (worker.includes("const CACHE = '" + EXPECTED_OWNER_CACHE + "';")) assert.ok(worker.includes(EXPECTED_OWNER_CUSTOMER_MESSAGES_SCRIPT), 'new Owner cache must include Customer Messages');
 assert.ok(worker.includes("icon: data.icon || '/admin/icons/icon-192-brand-v2.png?v=20261026-brand-v2'"), 'Owner notifications must default to the FreshWay brand icon');
 assert.ok(worker.includes("badge: data.badge || '/admin/icons/icon-192-brand-v2.png?v=20261026-brand-v2'"), 'Owner notifications must default to the FreshWay brand badge');
