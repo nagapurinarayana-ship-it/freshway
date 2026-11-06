@@ -33,7 +33,14 @@ test('LIVE production media audit: real catalogue, category artwork and configur
   const [liveShell, liveServiceWorker] = await Promise.all([
     shellResponse.text(), serviceWorkerResponse.text()
   ]);
-  if (!liveShell.includes('app.js?v=106') || !liveServiceWorker.includes("freshway-v123") || !liveServiceWorker.includes('/app.js?v=106')) {
+  const customerCatalogueAsset = '/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v2';
+  if (
+    !liveShell.includes('app.js?v=106') ||
+    !liveShell.includes(customerCatalogueAsset) ||
+    !liveServiceWorker.includes("freshway-v126") ||
+    !liveServiceWorker.includes('/app.js?v=106') ||
+    !liveServiceWorker.includes(customerCatalogueAsset)
+  ) {
     test.skip(true, 'Live production has not deployed the current customer app/service-worker versions yet.');
   }
   await mkdir(OUTPUT_DIR, { recursive: true });
