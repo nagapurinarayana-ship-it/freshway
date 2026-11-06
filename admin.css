@@ -270,6 +270,21 @@ button,input,textarea,select{touch-action:manipulation}
 .fw-delivery-request .section-head small{margin-top:4px;color:var(--muted);font-size:9px}
 .fw-delivery-request p{margin:0;font-size:10px;line-height:1.5;overflow-wrap:anywhere}
 .fw-delivery-request .fw-slot-actions button{flex:1 1 110px}
+
+.fw-delivery-review-list{display:grid;gap:10px;min-width:0}
+.fw-delivery-review-card.candidate{border-color:#b8d9c5;background:#fbfefc}
+.fw-delivery-review-card.urgent{border-color:#e2a36b;background:#fffaf5}
+.fw-delivery-review-card .fw-delivery-review-diagnosis{padding:9px 10px;border-radius:8px;background:#f3f6f4;color:var(--ink);font-size:10px;line-height:1.5}
+.fw-delivery-review-card .fw-delivery-review-warning{color:#a34e13;font-size:10px;font-weight:800}
+.fw-delivery-review-candidates{color:#17613e;font-size:10px;font-weight:800}
+.fw-delivery-review-hold{padding:9px 10px;border-radius:8px;background:#fff2e7;color:#8e4a16;font-size:10px;line-height:1.5}
+.fw-delivery-review-form{display:grid;gap:9px;padding:12px;border:1px solid #c9dfd0;border-radius:10px;background:#fff}
+.fw-delivery-review-form button:disabled{opacity:.48;cursor:not-allowed}
+.fw-delivery-review-form small{font-size:9px;color:var(--muted);line-height:1.5}
+.fw-delivery-review-details{font-size:10px;color:var(--muted)}
+.fw-delivery-review-details summary{cursor:pointer;font-weight:800;color:var(--ink)}
+.fw-delivery-review-details ul{display:grid;gap:5px;padding-left:18px;line-height:1.5}
+
 .fw-weekdays{display:flex;gap:9px;flex-wrap:wrap;padding:8px 0}
 .fw-weekdays label{display:flex;align-items:center;gap:4px;font-size:10px}
 .fw-weekdays input{accent-color:var(--g)}
