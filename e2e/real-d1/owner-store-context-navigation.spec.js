@@ -71,6 +71,15 @@ test('Owner history restores the exact Store workspace when moving to another sc
     await signIn(page);
     auditWrites = true;
 
+    // Repeating the active destination should refresh it without creating
+    // indistinguishable browser-history entries.
+    await page.locator('.side nav button[data-screen="orders"]').click();
+    await expect(page.locator('#orders')).toHaveClass(/active/);
+    const historyLength = await page.evaluate(() => history.length);
+    await page.locator('.side nav button[data-screen="orders"]').click();
+    await expect(page.locator('#orders')).toHaveClass(/active/);
+    expect(await page.evaluate(() => history.length)).toBe(historyLength);
+
     await navigateToStores(page);
     await page.locator('#storeManagement [data-manage-store="store-d1"]').click();
     const heading = page.locator('#storeManagement .fw-store-management-heading h2');
