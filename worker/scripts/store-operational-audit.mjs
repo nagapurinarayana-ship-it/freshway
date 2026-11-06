@@ -52,6 +52,7 @@ export function buildStoreOperationalAudit(matrixRows, orderRows = [], reservati
     const centralPrice = n(row.central_price);
     const override = row.price_override == null || row.price_override === '' ? null : n(row.price_override);
     const effectivePrice = override === null ? centralPrice : override;
+    const reportedEffective = n(row.effective_price);
 
     if (override !== null) store.localPriceOverrides.push({
       product: String(row.product_name || row.product_id),
@@ -60,9 +61,20 @@ export function buildStoreOperationalAudit(matrixRows, orderRows = [], reservati
     });
     if (!Number.isSafeInteger(centralPrice) || centralPrice < 0 ||
         (override !== null && (!Number.isSafeInteger(override) || override < 0 || override > 10000000)) ||
-        !Number.isSafeInteger(effectivePrice) || effectivePrice < 0) {
+        !Number.isSafeInteger(effectivePrice) || effectivePrice < 0 ||
+        reportedEffective !== effectivePrice) {
       store.invalidPrices.push({ product: String(row.product_name || row.product_id),
         centralPrice: row.central_price, priceOverride: row.price_override, effectivePrice: row.effective_price });
+    }
+
+    const available = Math.max(0, n(row.on_hand) - n(row.reserved_qty));
+    if (tracked) {
+      const threshold = Math.max(0, n(row.low_stock_threshold));
+      const item = { product: String(row.product_name || row.product_id),
+        onHand: n(row.on_hand), reserved: n(row.reserved_qty), available,
+        lowStockThreshold: threshold, storePrice: effectivePrice };
+      if (available <= 0) store.outOfStock.push(item);
+      else if (threshold > 0 && available <= threshold) store.lowStock.push(item);
     }
 
     if (!centralActive) {
@@ -73,19 +85,7 @@ export function buildStoreOperationalAudit(matrixRows, orderRows = [], reservati
       store.locallyDisabledProducts++;
       continue;
     }
-
-    const available = Math.max(0, n(row.on_hand) - n(row.reserved_qty));
-    if (!tracked || available > 0) {
-      if (store.active) store.customerVisibleProducts++;
-    }
-    if (tracked) {
-      const threshold = Math.max(0, n(row.low_stock_threshold));
-      const item = { product: String(row.product_name || row.product_id),
-        onHand: n(row.on_hand), reserved: n(row.reserved_qty), available,
-        lowStockThreshold: threshold, storePrice: effectivePrice };
-      if (available <= 0) store.outOfStock.push(item);
-      else if (threshold > 0 && available <= threshold) store.lowStock.push(item);
-    }
+    if (store.active && (!tracked || available > 0)) store.customerVisibleProducts++;
   }
 
   const storeReports = [...stores.values()].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
@@ -99,7 +99,7 @@ export function buildStoreOperationalAudit(matrixRows, orderRows = [], reservati
     store.catalogueComplete = store.missingCatalogueRows === 0;
   }
 
-  const unavailableOrders = (orderRows || []).filter(row => !yes(row.assigned_store_active)).map(row => ({
+  const unavailableOrders = (orderRows || []).map(row => ({
     orderId: String(row.order_id), status: String(row.delivery_status || ''),
     storeId: row.assigned_store_id ?? null, storeName: row.assigned_store_name ?? null,
     reason: !present(row.assigned_store_id) ? 'unassigned' :
@@ -135,9 +135,8 @@ export function buildStoreOperationalAudit(matrixRows, orderRows = [], reservati
   if (summary.missingInventoryRows) criticalIssues.push(summary.missingInventoryRows + ' missing store inventory rows');
   if (summary.invalidStoreConfigurations) criticalIssues.push(summary.invalidStoreConfigurations + ' active stores have invalid location/radius configuration');
   if (summary.invalidPriceRows) criticalIssues.push(summary.invalidPriceRows + ' invalid central/store prices');
-  if (unavailableOrders.some(order => order.reason !== 'unassigned')) {
-    criticalIssues.push('active orders are assigned to a missing or inactive store');
-  }
+  if (summary.activeOrdersOnUnavailableStores) criticalIssues.push(summary.activeOrdersOnUnavailableStores + ' active orders have no active assigned store');
+  if (summary.reservationMismatches) criticalIssues.push(summary.reservationMismatches + ' active-order stock reservation inconsistencies');
 
   return {
     generatedAt: new Date().toISOString(), summary, stores: storeReports,
