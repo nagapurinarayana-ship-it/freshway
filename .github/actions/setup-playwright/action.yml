@@ -18,17 +18,15 @@ runs:
     - name: Install Chromium system dependencies
       shell: bash
       working-directory: e2e
-      timeout-minutes: 8
-      run: npx playwright install-deps chromium
+      run: timeout 8m npx playwright install-deps chromium
 
     - name: Install Chromium browser binaries on cache miss
       if: steps.playwright-cache.outputs.cache-hit != 'true'
       shell: bash
       working-directory: e2e
-      timeout-minutes: 10
       env:
         PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: '120000'
-      run: npx playwright install chromium
+      run: timeout 10m npx playwright install chromium
 
     - name: Save Playwright Chromium cache
       if: steps.playwright-cache.outputs.cache-hit != 'true'
