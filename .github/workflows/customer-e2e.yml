@@ -25,6 +25,7 @@ on:
       - 'e2e/**'
       - 'worker/**'
       - '.github/workflows/customer-e2e.yml'
+      - '.github/actions/setup-playwright/**'
   push:
     branches:
       - main
@@ -54,7 +55,24 @@ on:
 
 # Deterministic browser regression gate.
 jobs:
+  playwright-browser-cache:
+    name: Prepare shared Playwright Chromium cache
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Prepare cached Playwright browser
+        uses: ./.github/actions/setup-playwright
+
   browser-e2e:
+    needs: playwright-browser-cache
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -69,11 +87,8 @@ jobs:
         with:
           node-version: 24
 
-      - name: Install E2E dependencies
-        run: npm install
-
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Prepare cached Playwright browser
+        uses: ./.github/actions/setup-playwright
 
       - name: Run customer browser E2E
         run: npm test
@@ -88,6 +103,7 @@ jobs:
           retention-days: 7
 
   isolated-store-fallback:
+    needs: playwright-browser-cache
     name: Isolated D1 store fallback Playwright
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -132,13 +148,8 @@ jobs:
           echo "::error::Isolated Worker did not become ready."
           exit 1
 
-      - name: Install Playwright dependencies
-        working-directory: e2e
-        run: npm install
-
-      - name: Install Chromium
-        working-directory: e2e
-        run: npx playwright install --with-deps chromium
+      - name: Prepare cached Playwright browser
+        uses: ./.github/actions/setup-playwright
 
       - name: Run isolated store fallback Playwright tests
         working-directory: e2e
@@ -166,6 +177,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
   isolated-real-d1-store-checkout:
+    needs: playwright-browser-cache
     name: Isolated real D1 customer store catalogue Playwright
     runs-on: ubuntu-latest
     timeout-minutes: 25
