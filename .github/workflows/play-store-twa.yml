@@ -3,7 +3,19 @@ name: FreshWay Play Store TWA checks
 on:
   push:
     branches:
+      - main
       - feature/play-store-readiness-20261023
+    paths:
+      - 'android-twa/**'
+      - 'manifest.webmanifest'
+      - 'icons/**'
+      - 'index.html'
+      - 'privacy.html'
+      - 'delete-account.html'
+      - '.github/workflows/play-store-twa.yml'
+  pull_request:
+    branches:
+      - main
     paths:
       - 'android-twa/**'
       - 'manifest.webmanifest'
@@ -23,10 +35,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Check out isolated branch
+      - name: Check out the commit under test
         uses: actions/checkout@v7
         with:
-          ref: feature/play-store-readiness-20261023
+          ref: ${{ github.sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
