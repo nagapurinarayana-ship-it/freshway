@@ -241,6 +241,18 @@ async function run() {
   assert.ok(root.innerHTML.includes('value="319"'), 'retry must successfully reload the selected store');
   assert.ok(root.innerHTML.includes('value="26"'));
 
-  console.log('Owner store workspace: store isolation, inventory-only products, loading and retry states, summaries, accessible filters, combined save, partial-save recovery and refresh OK');
+  // Store One fixture has 7 on-hand, 2 reserved and a threshold of 5:
+  // only 5 units are available, so the Owner UI must flag it as low stock.
+  // The inventory-only fixture has 4 available against a threshold of 2
+  // and must not inflate the low-stock count.
+  await manager.open('store-one');
+  assert.ok(root.innerHTML.includes('<strong data-store-summary-low>1</strong>'),
+    'low-stock summary must count available quantity after reservations, not raw on-hand stock');
+  assert.ok(root.innerHTML.includes('data-stock-state="low"'),
+    'a product at its low-stock threshold must receive the low stock state');
+  assert.ok(root.innerHTML.includes('class="fw-stock-pill fw-stock-low"'),
+    'the Owner inventory card must render the Low stock indicator');
+
+  console.log('Owner store workspace: store isolation, inventory-only products, loading and retry states, low-stock thresholds after reservations, summaries, accessible filters, combined save, partial-save recovery and refresh OK');
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });
