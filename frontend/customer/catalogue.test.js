@@ -43,6 +43,11 @@ assert.doesNotMatch(source,/productOk\)window\.FreshWayCustomerCatalogue\?\.clea
 assert.match(source,/window\.FreshWayCustomerCatalogue\?\.clear/);
 assert.match(source,/role="alert"/);
 assert.match(source,/fwCatalogueRetry/);
+assert.match(source,/errorCode==='AREA_UNAVAILABLE'/,'a real out-of-area Worker response must have a dedicated customer home state');
+assert.match(source,/nearby RTC bus stand/,'out-of-area customers must see the possible nearby handover option');
+assert.match(source,/postal delivery options/,'out-of-area customers must see the possible postal delivery option');
+assert.match(source,/data-fw-delivery-contact/,'out-of-area customers must have a working contact action');
+assert.match(source,/window\.setView\?\.\('contact'\)/,'the home-screen delivery contact action must navigate to Contact Us');
 assert.match(source,/x\.image_url\|\|media\?\.image\('categories'/);
 assert.doesNotMatch(source,/data:'\+x\.image_mime_type/,'the public category list must not inline image payloads');
 assert.doesNotMatch(app,/FALLBACK_PRODUCTS/);

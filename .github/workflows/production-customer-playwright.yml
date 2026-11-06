@@ -66,17 +66,17 @@ jobs:
             if curl --silent --show-error --fail "$BASE_URL/?freshway-deploy-check=$probe" -o "$html_file" \
               && curl --silent --show-error --fail "$BASE_URL/sw.js?freshway-deploy-check=$probe" -o "$sw_file"; then
               if grep -qF 'app.js?v=106' "$html_file" &&
-                grep -qF "frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v2" "$html_file" &&
-                grep -qF "freshway-v126" "$sw_file" &&
+                grep -qF "frontend/customer/catalogue.js?v=20261106-out-of-area-contact-v1" "$html_file" &&
+                grep -qF "freshway-v127" "$sw_file" &&
                 grep -qF '/app.js?v=106' "$sw_file" &&
-                grep -qF "/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v2" "$sw_file" &&
+                grep -qF "/frontend/customer/catalogue.js?v=20261106-out-of-area-contact-v1" "$sw_file" &&
                 curl --silent --show-error --fail "$BASE_URL/app.js?v=106" -o "$app_file" &&
-                curl --silent --show-error --fail "$BASE_URL/frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v2" -o "$catalogue_file" &&
+                curl --silent --show-error --fail "$BASE_URL/frontend/customer/catalogue.js?v=20261106-out-of-area-contact-v1" -o "$catalogue_file" &&
                 grep -qF 'customerCartActions.bind({document,changeQty,toast});' "$app_file" &&
                 ! grep -qF 'customerSearch.bind(' "$app_file" &&
                 ! grep -qF 'searchInput' "$catalogue_file" &&
                 ! grep -qF 'search-wrap' "$catalogue_file"; then
-                echo "Current customer PWA shell is deployed: app.js?v=106 / catalogue v2 / freshway-v126."
+                echo "Current customer PWA shell is deployed: app.js?v=106 / catalogue v3 / freshway-v127."
                 exit 0
               fi
             fi

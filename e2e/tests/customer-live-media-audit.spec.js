@@ -35,12 +35,12 @@ test('LIVE production media audit: real catalogue, category artwork and configur
   ]);
   // The HTML uses a relative script src while the service-worker shell
   // stores absolute paths. Compare each representation using its actual form.
-  const customerCatalogueAsset = 'frontend/customer/catalogue.js?v=store-catalogue-pricing-20261102-v2';
+  const customerCatalogueAsset = 'frontend/customer/catalogue.js?v=20261106-out-of-area-contact-v1';
   const liveVersionGuard = {
     baseUrl: LIVE_BASE_URL,
     appScriptInHtml: liveShell.includes('app.js?v=106'),
     catalogueScriptInHtml: liveShell.includes(customerCatalogueAsset),
-    currentServiceWorkerCache: liveServiceWorker.includes('freshway-v126'),
+    currentServiceWorkerCache: liveServiceWorker.includes('freshway-v127'),
     appScriptInServiceWorker: liveServiceWorker.includes('/app.js?v=106'),
     catalogueScriptInServiceWorker: liveServiceWorker.includes('/' + customerCatalogueAsset)
   };
