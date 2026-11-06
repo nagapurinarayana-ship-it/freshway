@@ -139,6 +139,6 @@ test('cleanup never deletes shared customer, address, product or store master da
   for (const table of ['customers','addresses','products','delivery_stores','delivery_store_inventory']) {
     assert.doesNotMatch(migration, new RegExp('DELETE\\s+FROM\\s+' + table + '\\b','i'));
   }
-  assert.match(migration, /CREATE TEMP TABLE _freshway_legacy_cleanup_verify/);
+  assert.match(migration, /CREATE TABLE _freshway_legacy_cleanup_verify/);
   assert.match(migration, /DROP TABLE _freshway_legacy_unassigned_test_orders/);
 });
