@@ -45,7 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           node --test test/store-operational-audit.test.js
-          for query in scripts/store-operational-matrix.sql scripts/store-operational-orders.sql scripts/store-operational-reservations.sql; do
+          for query in scripts/store-operational-matrix.sql scripts/store-operational-orders.sql scripts/store-operational-reservations.sql scripts/store-operational-history.sql; do
             test -s "$query"
             if grep -Eiq '(^|[^A-Z])(INSERT|UPDATE|DELETE|REPLACE|ALTER|DROP|CREATE)([^A-Z]|$)' "$query"; then
               echo "::error::Write-capable SQL keyword found in $query"
@@ -66,7 +66,9 @@ jobs:
           npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "$(cat scripts/store-operational-matrix.sql)" --json > "$RUNNER_TEMP/freshway-store-matrix.json"
           npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "$(cat scripts/store-operational-orders.sql)" --json > "$RUNNER_TEMP/freshway-active-orders.json"
           npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "$(cat scripts/store-operational-reservations.sql)" --json > "$RUNNER_TEMP/freshway-reservations.json"
+          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "$(cat scripts/store-operational-history.sql)" --json > "$RUNNER_TEMP/freshway-order-history.json"
           node scripts/store-operational-audit.mjs \
             "$RUNNER_TEMP/freshway-store-matrix.json" \
             "$RUNNER_TEMP/freshway-active-orders.json" \
-            "$RUNNER_TEMP/freshway-reservations.json"
+            "$RUNNER_TEMP/freshway-reservations.json" \
+            "$RUNNER_TEMP/freshway-order-history.json"
