@@ -15,6 +15,7 @@ test('account deletion redacts operational records, revokes access and preserves
   const context = await browser.newContext({ serviceWorkers: 'block' });
   let orderId = '';
   let ownerHeaders = null;
+  let startingReserved = null;
   try {
     const phone = '9' + String(Date.now()).slice(-9);
     const passcode = String(100000 + (Date.now() % 900000));
@@ -37,6 +38,12 @@ test('account deletion redacts operational records, revokes access and preserves
     expect(ownerLogin.status()).toBe(200);
     const ownerCookie = cookieFrom(ownerLogin, '__Host-freshway-admin-session');
     ownerHeaders = { Origin: origin, 'X-FreshWay-Admin-Session': ownerCookie };
+    const initialInventory = await context.request.get(
+      workerOrigin + '/api/admin/delivery/stores/store-d1/inventory', { headers: ownerHeaders }
+    );
+    expect(initialInventory.status()).toBe(200);
+    const initialOil = (await initialInventory.json()).inventory.find(item => item.id === 'oil-d1');
+    startingReserved = Number(initialOil?.reserved_qty || 0);
 
     const today = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
@@ -61,6 +68,12 @@ test('account deletion redacts operational records, revokes access and preserves
     const order = await created.json();
     orderId = order.id;
     expect(order.assignedStoreId).toBe('store-d1');
+    const inventoryAfterOrder = await context.request.get(
+      workerOrigin + '/api/admin/delivery/stores/store-d1/inventory', { headers: ownerHeaders }
+    );
+    expect(inventoryAfterOrder.status()).toBe(200);
+    const oilAfterOrder = (await inventoryAfterOrder.json()).inventory.find(item => item.id === 'oil-d1');
+    expect(Number(oilAfterOrder?.reserved_qty)).toBe(startingReserved + 1);
 
     for (const status of ['Confirmed', 'Processing', 'Ready', 'Out for Delivery']) {
       const response = await context.request.patch(workerOrigin + '/api/admin/orders/' + encodeURIComponent(order.id), {
@@ -148,7 +161,7 @@ test('account deletion redacts operational records, revokes access and preserves
       );
       expect(inventory.status()).toBe(200);
       const oil = (await inventory.json()).inventory.find(item => item.id === 'oil-d1');
-      expect(Number(oil?.reserved_qty), 'the isolated test order must release its stock reservation').toBe(0);
+      expect(Number(oil?.reserved_qty), 'the isolated test order must restore the pre-test reservation count').toBe(startingReserved);
     }
     await context.close();
   }
