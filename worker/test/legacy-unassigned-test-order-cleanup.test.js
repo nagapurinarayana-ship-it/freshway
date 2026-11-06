@@ -51,7 +51,7 @@ function makeDatabase({ assignOneTarget = false } = {}) {
   }
 
   db.prepare("INSERT INTO order_address_snapshots (order_id,recipient_name,delivery_phone,house_flat,area,city,pincode) VALUES (?,'Test recipient','911111111111','1','Test area','Test city','500001')").run(expectedIds[0]);
-  db.prepare("INSERT INTO coupon_redemptions (id,coupon_id,customer_id,order_id,code_snapshot,discount_amount) VALUES ('cleanup-redemption','cleanup-coupon','cleanup-customer',?,'CLEANUP',10)").run(expectedIds[0]);
+  db.prepare("INSERT INTO coupon_redemptions (id,coupon_id,customer_id,order_id,code_snapshot,discount_amount,status) VALUES ('cleanup-redemption','cleanup-coupon','cleanup-customer',?,'CLEANUP',10,'released')").run(expectedIds[0]);
   db.prepare("INSERT INTO first_order_coupon_claims (customer_id,order_id,coupon_id) VALUES ('cleanup-customer',?,'cleanup-coupon')").run(expectedIds[0]);
   db.prepare(`INSERT INTO invoices
     (id,order_id,customer_id,invoice_number,document_type,financial_year,issue_date,seller_snapshot,buyer_snapshot,totals_snapshot)
