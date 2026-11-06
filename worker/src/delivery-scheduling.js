@@ -601,8 +601,243 @@ async function inventoryAvailabilityForStore(env, storeId) {
 async function auditOwnerAction(env, order, actorId, action, reason, after) {
   await writeAudit(env, order.id, 'owner', actorId, action, reason, order, after);
 }
+
+async function getUnassignedOrderReconciliation(env) {
+  const today = istNowParts().date;
+  const rows = (await env.DB.prepare(
+    "SELECT o.id,o.delivery_status,o.payment_status,o.delivery_plan,o.scheduled_delivery_date,o.created_at,o.total," +
+    "o.assigned_store_id,ds.name assigned_store_name,COALESCE(s.latitude,a.latitude) latitude," +
+    "COALESCE(s.longitude,a.longitude) longitude " +
+    "FROM orders o LEFT JOIN delivery_stores ds ON ds.id=o.assigned_store_id " +
+    "LEFT JOIN addresses a ON a.id=o.address_id LEFT JOIN order_address_snapshots s ON s.order_id=o.id " +
+    "WHERE o.is_test_order=0 AND o.delivery_status NOT IN ('Delivered','Cancelled') " +
+    "AND (o.assigned_store_id IS NULL OR ds.id IS NULL OR ds.is_active<>1) " +
+    "ORDER BY CASE WHEN o.delivery_status='Out for Delivery' THEN 0 ELSE 1 END," +
+    "o.created_at ASC,o.id"
+  ).all()).results || [];
+  if (!rows.length) return [];
+
+  const orderIds = rows.map(row => String(row.id));
+  const orderSlots = orderIds.map(() => '?').join(',');
+  const itemRows = (await env.DB.prepare(
+    'SELECT oi.order_id,oi.product_id id,oi.name,oi.qty,p.stock_managed ' +
+    'FROM order_items oi JOIN products p ON p.id=oi.product_id ' +
+    'WHERE oi.order_id IN (' + orderSlots + ') ORDER BY oi.order_id,oi.id'
+  ).bind(...orderIds).all()).results || [];
+  const itemsByOrder = new Map(orderIds.map(id => [id, []]));
+  for (const item of itemRows) {
+    itemsByOrder.get(String(item.order_id))?.push({
+      id: String(item.id), name: String(item.name || item.id),
+      qty: Number(item.qty || 0), stock_managed: Number(item.stock_managed || 0)
+    });
+  }
+
+  const stores = (await env.DB.prepare(
+    'SELECT id,name,latitude,longitude,service_radius_km FROM delivery_stores WHERE is_active=1 ORDER BY name,id'
+  ).all()).results || [];
+  const allItems = [...itemsByOrder.values()].flat();
+  const fulfilment = await storeFulfilmentMap(env, stores.map(store => store.id), allItems);
+  const nowMs = Date.now();
+
+  return rows.map(order => {
+    const items = itemsByOrder.get(String(order.id)) || [];
+    const address = { latitude: order.latitude, longitude: order.longitude };
+    const locationAvailable = hasCoordinates(address);
+    const nearby = locationAvailable
+      ? stores.map(store => ({ ...store, distance_km: distanceFor(address, store) }))
+        .filter(store => store.distance_km !== Infinity)
+        .sort((a, b) => a.distance_km - b.distance_km || String(a.name).localeCompare(String(b.name)))
+      : [];
+    const assessments = nearby.map(store => {
+      const storeProducts = fulfilment.get(String(store.id));
+      const blockers = [];
+      for (const item of items) {
+        const product = storeProducts?.get(item.id);
+        if (!product) {
+          blockers.push({ product: item.name, reason: 'missing-store-catalogue' });
+        } else if (Number(product.active) !== 1 || Number(product.category_active) !== 1) {
+          blockers.push({ product: item.name, reason: 'centrally-inactive' });
+        } else if (Number(product.is_available) !== 1) {
+          blockers.push({ product: item.name, reason: 'disabled-at-store' });
+        } else if (Number(product.stock_managed) === 1) {
+          const available = Math.max(0, Number(product.on_hand || 0) - Number(product.reserved_qty || 0));
+          if (available < item.qty) blockers.push({
+            product: item.name, reason: 'insufficient-stock', available, requested: item.qty
+          });
+        }
+      }
+      return {
+        id: String(store.id), name: String(store.name),
+        distanceKm: Math.round(Number(store.distance_km) * 10) / 10,
+        canFulfilWholeBasket: blockers.length === 0,
+        blockers
+      };
+    });
+    const eligibleStores = assessments.filter(store => store.canFulfilWholeBasket);
+    const createdAt = String(order.created_at || '');
+    const createdMs = Date.parse(createdAt);
+    const ageDays = Number.isFinite(createdMs)
+      ? Math.max(0, Math.floor((nowMs - createdMs) / 86400000))
+      : null;
+    const scheduledDateExpired = !!order.scheduled_delivery_date && order.scheduled_delivery_date < today;
+    const status = String(order.delivery_status || '');
+    const payment = String(order.payment_status || '');
+    const urgentDeliveryVerification = status === 'Out for Delivery' && payment === 'Collected';
+    let diagnosis = 'eligible-store-found';
+    if (urgentDeliveryVerification) diagnosis = 'verify-delivery-before-any-assignment';
+    else if (!locationAvailable) diagnosis = 'missing-delivery-location';
+    else if (!items.length) diagnosis = 'missing-order-items';
+    else if (!nearby.length) diagnosis = 'no-active-store-within-radius';
+    else if (!eligibleStores.length) diagnosis = 'no-single-store-can-fulfil-whole-basket';
+    else if (scheduledDateExpired) diagnosis = 'eligible-store-found-date-needs-confirmation';
+
+    return {
+      orderId: String(order.id),
+      deliveryStatus: status,
+      paymentStatus: payment,
+      deliveryPlan: String(order.delivery_plan || ''),
+      scheduledDeliveryDate: order.scheduled_delivery_date || null,
+      scheduledDateExpired,
+      createdAt,
+      ageDays,
+      total: Number(order.total || 0),
+      assignedStoreId: order.assigned_store_id || null,
+      assignedStoreName: order.assigned_store_name || null,
+      locationAvailable,
+      itemCount: items.length,
+      items: items.map(item => ({
+        productId: item.id, name: item.name, quantity: item.qty,
+        stockManaged: item.stock_managed === 1
+      })),
+      nearestStores: assessments,
+      eligibleStores,
+      urgentDeliveryVerification,
+      diagnosis
+    };
+  });
+}
 export async function handleAdminDeliveryRequest(request, env) {
   const url = new URL(request.url), path = url.pathname;
+
+  if (path === '/api/admin/delivery/reconciliation' && request.method === 'GET') {
+    return response({ orders: await getUnassignedOrderReconciliation(env) });
+  }
+
+  const reconcilePrefix = '/api/admin/delivery/orders/';
+  const reconcileSuffix = '/reconcile';
+  if (path.startsWith(reconcilePrefix) && path.endsWith(reconcileSuffix) && request.method === 'PATCH') {
+    let body = {}; try { body = await request.json(); } catch (_) {}
+    const orderId = decodeURIComponent(path.slice(reconcilePrefix.length, -reconcileSuffix.length));
+    const order = await getOrderForAction(env, orderId);
+    if (!order) throw new Error('Order not found.');
+    if (Number(order.is_test_order) === 1) throw new Error('Test orders cannot be reconciled as customer orders.');
+    if (!['new','confirmed'].includes(String(order.delivery_status || '').trim().toLowerCase())) {
+      throw new Error('This order has entered fulfilment. Verify delivery with the customer before changing its store.');
+    }
+    if (order.assigned_store_id) {
+      const currentStore = await env.DB.prepare('SELECT id,is_active FROM delivery_stores WHERE id=?').bind(order.assigned_store_id).first();
+      if (currentStore && Number(currentStore.is_active) === 1) {
+        throw new Error('This order already has an active fulfilment store. Use the normal reassignment workflow instead.');
+      }
+    }
+    if (body.customerConfirmed !== true) {
+      throw new Error('Confirm that the customer has reconfirmed the delivery location and new delivery date.');
+    }
+    const reason = clean(body.confirmationNote).slice(0,500);
+    if (reason.length < 12) throw new Error('Enter a meaningful customer-confirmation note for the audit trail.');
+    const deliveryDate = clean(body.deliveryDate);
+    const now = istNowParts();
+    if (!dateValid(deliveryDate) || deliveryDate < now.date || deliveryDate > addDays(now.date,60)) {
+      throw new Error('Choose a delivery date between today and the next 60 days.');
+    }
+    const storeId = clean(body.storeId);
+    if (!storeId) throw new Error('Choose one of the eligible stores.');
+    const store = await env.DB.prepare(
+      'SELECT id,name,latitude,longitude,service_radius_km,is_active FROM delivery_stores WHERE id=?'
+    ).bind(storeId).first();
+    if (!store || Number(store.is_active) !== 1) throw new Error('Choose an active store.');
+
+    const orderAddress = await env.DB.prepare(
+      'SELECT COALESCE(s.latitude,a.latitude) latitude,COALESCE(s.longitude,a.longitude) longitude ' +
+      'FROM orders o LEFT JOIN addresses a ON a.id=o.address_id ' +
+      'LEFT JOIN order_address_snapshots s ON s.order_id=o.id WHERE o.id=?'
+    ).bind(orderId).first();
+    if (!hasCoordinates(orderAddress || {}) || distanceFor(orderAddress,store) === Infinity) {
+      throw new Error('This store does not cover the customer delivery location. Confirm the location first.');
+    }
+
+    const lines = (await env.DB.prepare(
+      'SELECT oi.product_id id,oi.qty,oi.name,p.stock_managed ' +
+      'FROM order_items oi JOIN products p ON p.id=oi.product_id WHERE oi.order_id=?'
+    ).bind(orderId).all()).results || [];
+    if (!lines.length) throw new Error('This order has no items to reconcile.');
+    const fulfilment = await storeFulfilmentMap(env,[storeId],lines,orderId);
+    if (!storeCanFulfil(storeId,lines,fulfilment)) {
+      throw new Error('This store cannot fulfil the complete basket from its current catalogue and available stock.');
+    }
+    if (!inventoryFits(storeId,lines,await inventoryMap(env,orderId))) {
+      throw new Error('Store stock changed. Refresh the reconciliation queue and try again.');
+    }
+
+    const plan = deliveryDate === now.date ? 'Today' :
+      deliveryDate === addDays(now.date,1) ? 'Tomorrow' : 'Later';
+    const statements = [
+      env.DB.prepare("UPDATE delivery_store_inventory_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(orderId),
+      env.DB.prepare("UPDATE delivery_slot_reservations SET status='released',updated_at=CURRENT_TIMESTAMP WHERE order_id=? AND status IN ('reserved','conflict')").bind(orderId),
+      env.DB.prepare(
+        "UPDATE orders SET assigned_store_id=?,scheduled_delivery_date=?,scheduled_slot_id=NULL," +
+        "scheduled_start_minute=NULL,scheduled_end_minute=NULL,schedule_status='confirmed'," +
+        "delivery_plan=?,updated_at=CURRENT_TIMESTAMP WHERE id=?"
+      ).bind(storeId,deliveryDate,plan,orderId)
+    ];
+    for (const line of lines) {
+      const managed = itemNeedsStock(line);
+      statements.push(env.DB.prepare(
+        'UPDATE order_items SET stock_reserved_qty=? WHERE order_id=? AND product_id=?'
+      ).bind(managed ? Number(line.qty) : 0,orderId,line.id));
+      if (managed) {
+        statements.push(env.DB.prepare(
+          "INSERT INTO delivery_store_inventory_reservations " +
+          "(id,order_id,store_id,product_id,qty,status,owner_override,override_reason) " +
+          "VALUES (?,?,?,?,?,'reserved',0,'')"
+        ).bind(id('stockres'),orderId,storeId,line.id,Number(line.qty)));
+      }
+    }
+    statements.push(env.DB.prepare(
+      "INSERT INTO order_audit_events (id,order_id,actor_type,actor_id,action,reason,before_json,after_json) " +
+      "VALUES (?,?,'owner',?,?,?,?,?)"
+    ).bind(id('audit'),orderId,clean(request.headers.get('X-Freshway-Owner-Id'))||'owner',
+      'unassigned_order_reconciled',reason,enc(order),enc({
+        storeId,storeName:store.name,deliveryDate,deliveryPlan:plan,
+        customerConfirmed:true
+      })));
+    try { await env.DB.batch(statements); }
+    catch (error) {
+      if (/DELIVERY_STORE_INACTIVE/i.test(String(error?.message||''))) {
+        throw new Error('Store availability changed. Refresh the reconciliation queue and try again.');
+      }
+      if (/DELIVERY_STORE_STOCK_LOW/i.test(String(error?.message||''))) {
+        throw new Error('Store stock changed. Refresh the reconciliation queue and try again.');
+      }
+      throw error;
+    }
+    await refreshProductAvailability(env);
+    const updated = await getOrderForAction(env,orderId);
+    await notifyCustomerAndOwner(env,orderId,{
+      customer_id:order.customer_id,delivery_status:order.delivery_status,
+      payment_status:order.payment_status,delivery_plan:order.delivery_plan,
+      is_test_order:order.is_test_order
+    },'unassigned_order_reconciled',
+    'Your delivery has been reconfirmed for '+deliveryDate+' from '+store.name+'.',{
+      customer_id:order.customer_id,delivery_status:updated?.delivery_status,
+      payment_status:updated?.payment_status,delivery_plan:updated?.delivery_plan,
+      is_test_order:order.is_test_order
+    });
+    return response({
+      ok:true,orderId,store:{id:store.id,name:store.name},
+      scheduledDelivery:{date:deliveryDate},reservationsRebuilt:true
+    });
+  }
   if (path === '/api/admin/delivery' && request.method === 'GET') {
     const orders=(await env.DB.prepare("SELECT o.id,o.customer_name,o.customer_phone,o.delivery_status,o.scheduled_delivery_date,o.delivery_plan,o.created_at,o.total,o.assigned_store_id,ds.name assigned_store_name,ds.is_active assigned_store_active FROM orders o LEFT JOIN delivery_stores ds ON ds.id=o.assigned_store_id WHERE o.delivery_status NOT IN ('Delivered','Cancelled') ORDER BY CASE WHEN o.scheduled_delivery_date IS NULL THEN 1 ELSE 0 END,o.scheduled_delivery_date,o.created_at DESC LIMIT 300").all()).results||[];
     const requests=(await env.DB.prepare("SELECT r.id,r.order_id,r.customer_id,r.request_type,r.requested_delivery_date,r.reason,r.status,r.created_at,o.delivery_status,o.total,o.scheduled_delivery_date,o.customer_name,c.phone customer_phone FROM order_action_requests r JOIN orders o ON o.id=r.order_id LEFT JOIN customers c ON c.id=r.customer_id WHERE r.status='pending' ORDER BY r.created_at LIMIT 200").all()).results||[];
