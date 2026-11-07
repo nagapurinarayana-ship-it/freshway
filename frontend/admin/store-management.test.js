@@ -103,6 +103,8 @@ async function run() {
   };
   const calls = [];
   let failNextInventoryPatch = false;
+  let holdCataloguePatch = false;
+  const cataloguePatchGate = deferred();
   let failNextStoreTwoInventoryRead = false;
   let assertControlsDisabledDuringSave = false;
 
@@ -115,6 +117,10 @@ async function run() {
     assert.ok(match, 'unexpected Owner store API request: ' + url);
     const [, storeId, resource] = match;
     if (method === 'PATCH') {
+      if (resource === 'catalogue' && holdCataloguePatch) {
+        holdCataloguePatch = false;
+        await cataloguePatchGate.promise;
+      }
       if (assertControlsDisabledDuringSave) {
         assert.ok(controls.every(control => control.disabled), 'editable product fields must be disabled during save');
       }
@@ -166,6 +172,13 @@ async function run() {
   assert.ok(root.innerHTML.includes('data-store-id="store-two"'));
   assert.doesNotMatch(root.innerHTML, /data-edit-inventory=|data-edit-catalogue=/);
   const click = root.listeners.get('click');
+
+  // If an editing form is missing during a render edge, fail safely rather
+  // than assuming the draft is clean and dropping it.
+  await click({ target: { closest: selector => selector.includes('[data-edit-store]') ? { dataset: { editStore: 'store-one' } } : null } });
+  confirmResult = false;
+  assert.equal(manager.beforeNavigate(), false, 'an active Store form must be treated as dirty when its DOM is unexpectedly unavailable');
+  await manager.load();
 
   await click({ target: { closest: selector => selector.includes('[data-manage-store]') ? { dataset: { manageStore: 'store-two' } } : null } });
   assert.ok(root.innerHTML.includes('<h2>Store Two</h2>'));
@@ -237,6 +250,20 @@ async function run() {
   assert.ok(root.innerHTML.includes('value="319"'));
   assert.ok(root.innerHTML.includes('value="26"'));
   assert.ok(root.innerHTML.includes('value="7"'));
+
+  // Navigation remains blocked while a server save is still pending, even
+  // when its input values currently match the visible draft.
+  priceInput.value = '329';
+  holdCataloguePatch = true;
+  const confirmCountBeforeSave = confirmMessages.length;
+  const saving = click({ target: { closest: selector => selector.includes('[data-save-store-management]') ? saveButton : null } });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(manager.beforeNavigate(), false, 'navigation must not interrupt an in-flight Store save');
+  assert.equal(confirmMessages.length, confirmCountBeforeSave, 'an in-flight save should be blocked without a discard prompt');
+  assert.match(status.textContent, /save is still in progress/i);
+  cataloguePatchGate.resolve();
+  await saving;
+  assert.ok(root.innerHTML.includes('value="329"'));
 
   const allPatches = calls.filter(call => call.method === 'PATCH');
   assert.ok(allPatches.every(call => call.url.includes('/stores/store-two/')), 'every write must stay scoped to Store Two');
