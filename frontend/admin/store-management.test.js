@@ -73,6 +73,8 @@ async function run() {
     querySelector(selector) {
       if (selector === '[data-catalogue-available="oil-d1"]') return availabilityInput;
       if (selector === '[data-catalogue-price="oil-d1"]') return priceInput;
+      if (selector === '[data-inventory-product="oil-d1"]') return stockInput;
+      if (selector === '[data-inventory-product="hidden-oil"]') return hiddenStockInput;
       if (selector === '[data-store-management-status]') return status;
       if (selector === '[data-store-product-search]') return searchInput;
       if (selector === '[data-store-filter-empty]') return filterEmpty;
@@ -101,6 +103,8 @@ async function run() {
   };
   const calls = [];
   let failNextInventoryPatch = false;
+  let holdCataloguePatch = false;
+  const cataloguePatchGate = deferred();
   let failNextStoreTwoInventoryRead = false;
   let assertControlsDisabledDuringSave = false;
 
@@ -113,6 +117,10 @@ async function run() {
     assert.ok(match, 'unexpected Owner store API request: ' + url);
     const [, storeId, resource] = match;
     if (method === 'PATCH') {
+      if (resource === 'catalogue' && holdCataloguePatch) {
+        holdCataloguePatch = false;
+        await cataloguePatchGate.promise;
+      }
       if (assertControlsDisabledDuringSave) {
         assert.ok(controls.every(control => control.disabled), 'editable product fields must be disabled during save');
       }
@@ -145,9 +153,11 @@ async function run() {
     return response(fixtures[storeId][resource]);
   };
 
+  let confirmResult = false;
+  const confirmMessages = [];
   const context = {
     document: { querySelector: selector => selector === '#storeManagement' ? root : null },
-    window: {},
+    window: { confirm: message => { confirmMessages.push(message); return confirmResult; } },
     fetch,
     CSS: { escape: value => String(value) },
     console
@@ -163,6 +173,13 @@ async function run() {
   assert.doesNotMatch(root.innerHTML, /data-edit-inventory=|data-edit-catalogue=/);
   const click = root.listeners.get('click');
 
+  // If an editing form is missing during a render edge, fail safely rather
+  // than assuming the draft is clean and dropping it.
+  await click({ target: { closest: selector => selector.includes('[data-edit-store]') ? { dataset: { editStore: 'store-one' } } : null } });
+  confirmResult = false;
+  assert.equal(manager.beforeNavigate(), false, 'an active Store form must be treated as dirty when its DOM is unexpectedly unavailable');
+  await manager.load();
+
   await click({ target: { closest: selector => selector.includes('[data-manage-store]') ? { dataset: { manageStore: 'store-two' } } : null } });
   assert.ok(root.innerHTML.includes('<h2>Store Two</h2>'));
   assert.ok(!root.innerHTML.includes('data-manage-store='), 'the store list must be hidden while editing');
@@ -170,6 +187,15 @@ async function run() {
   assert.ok(root.innerHTML.includes('fw-managed-inventory-only'), 'hidden central-catalogue stock must remain manageable');
   assert.ok(!root.innerHTML.includes('Reserved: 2 · Available:'), 'stock details must not be duplicated');
   assert.ok(root.innerHTML.includes('aria-pressed="true" data-stock-filter="all"'));
+  assert.equal(manager.historyContext().storeId, 'store-two', 'the active Store context must be available to Owner history restoration');
+  assert.equal(manager.beforeNavigate(), true, 'a clean Store workspace must not require confirmation');
+  priceInput.value = '300';
+  confirmResult = false;
+  assert.equal(manager.beforeNavigate(), false, 'choosing Stay must block navigation when a Store price is dirty');
+  assert.match(confirmMessages.at(-1), /unsaved Store changes/i);
+  confirmResult = true;
+  assert.equal(manager.beforeNavigate(), true, 'choosing Leave must explicitly allow discarding Store edits');
+  priceInput.value = '299';
 
   const oldStoreRequest = manager.open('store-one');
   await Promise.resolve();
@@ -225,9 +251,23 @@ async function run() {
   assert.ok(root.innerHTML.includes('value="26"'));
   assert.ok(root.innerHTML.includes('value="7"'));
 
+  // Navigation remains blocked while a server save is still pending, even
+  // when its input values currently match the visible draft.
+  priceInput.value = '329';
+  holdCataloguePatch = true;
+  const confirmCountBeforeSave = confirmMessages.length;
+  const saving = click({ target: { closest: selector => selector.includes('[data-save-store-management]') ? saveButton : null } });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(manager.beforeNavigate(), false, 'navigation must not interrupt an in-flight Store save');
+  assert.equal(confirmMessages.length, confirmCountBeforeSave, 'an in-flight save should be blocked without a discard prompt');
+  assert.match(status.textContent, /save is still in progress/i);
+  cataloguePatchGate.resolve();
+  await saving;
+  assert.ok(root.innerHTML.includes('value="329"'));
+
   const allPatches = calls.filter(call => call.method === 'PATCH');
   assert.ok(allPatches.every(call => call.url.includes('/stores/store-two/')), 'every write must stay scoped to Store Two');
-  assert.equal(allPatches.length, 6, 'success, partial failure and retry each issue two scoped writes');
+  assert.equal(allPatches.length, 8, 'success, partial failure, retry and in-flight save each issue two scoped writes');
 
   await manager.load();
   assert.ok(root.innerHTML.includes('data-manage-store="store-one"'));
@@ -238,7 +278,7 @@ async function run() {
   assert.ok(root.innerHTML.includes('Prices and inventory could not be loaded for this store.'), 'a failed read must not be presented as an empty catalogue');
   assert.ok(root.innerHTML.includes('data-retry-store-management'), 'a failed store read must have an in-place retry');
   await click({ target: { closest: selector => selector.includes('[data-retry-store-management]') ? {} : null } });
-  assert.ok(root.innerHTML.includes('value="319"'), 'retry must successfully reload the selected store');
+  assert.ok(root.innerHTML.includes('value="329"'), 'retry must successfully reload the latest saved Store price');
   assert.ok(root.innerHTML.includes('value="26"'));
 
   // Store One fixture has 7 on-hand, 2 reserved and a threshold of 5:
@@ -252,6 +292,7 @@ async function run() {
     'a product at its low-stock threshold must receive the low stock state');
   assert.ok(root.innerHTML.includes('class="fw-stock-pill fw-stock-low"'),
     'the Owner inventory card must render the Low stock indicator');
+  assert.equal(manager.historyContext().storeId, 'store-one');
 
   console.log('Owner store workspace: store isolation, inventory-only products, loading and retry states, low-stock thresholds after reservations, summaries, accessible filters, combined save, partial-save recovery and refresh OK');
 }

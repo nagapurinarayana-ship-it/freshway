@@ -92,6 +92,21 @@ test('Owner history restores the exact Store workspace when moving to another sc
     const expectedInventory = await inventory.inputValue();
     await expect.poll(() => page.evaluate(() => history.state?.storeId)).toBe('store-d1');
 
+    // A changed Store value must survive a rejected section-navigation prompt.
+    const dirtyInventory = String(Number(expectedInventory) + 1);
+    await inventory.fill(dirtyInventory);
+    let menuPrompt = '';
+    page.once('dialog', async dialog => {
+      menuPrompt = dialog.message();
+      await dialog.dismiss();
+    });
+    await page.locator('.side nav button[data-screen="orders"]').click();
+    expect(menuPrompt).toMatch(/unsaved Store changes/i);
+    await expect(page.locator('#stores')).toHaveClass(/active/);
+    await expect.poll(() => page.evaluate(() => history.state?.storeId)).toBe('store-d1');
+    await expect(inventory).toHaveValue(dirtyInventory);
+    await inventory.fill(expectedInventory);
+
     // Moving to a different Owner section must create a distinct history entry,
     // not collapse Store management back to the generic Stores list.
     await page.locator('.side nav button[data-screen="orders"]').click();
@@ -119,6 +134,22 @@ test('Owner history restores the exact Store workspace when moving to another sc
     await expect(heading).toHaveText('D1 Store');
     await expect(price).toHaveValue(expectedPrice);
     await expect(inventory).toHaveValue(expectedInventory);
+
+    // Browser Back must also ask before leaving a dirty Store workspace. Staying
+    // must restore the Store ID in history and keep the edited value on screen.
+    const dirtyBeforeBack = String(Number(expectedInventory) + 2);
+    await inventory.fill(dirtyBeforeBack);
+    const backDialogPromise = page.waitForEvent('dialog');
+    const backPromise = page.goBack();
+    const backDialog = await backDialogPromise;
+    expect(backDialog.message()).toMatch(/unsaved Store changes/i);
+    await backDialog.dismiss();
+    await backPromise;
+    await expect(page.locator('#stores')).toHaveClass(/active/);
+    await expect.poll(() => page.evaluate(() => history.state?.storeId)).toBe('store-d1');
+    await expect(heading).toHaveText('D1 Store');
+    await expect(inventory).toHaveValue(dirtyBeforeBack);
+    await inventory.fill(expectedInventory);
 
     // Global Refresh must expose its pending state, restore the button after the
     // selected store's list/detail requests finish, and keep the same workspace.

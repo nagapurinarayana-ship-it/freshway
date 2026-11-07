@@ -75,7 +75,7 @@ function hasUnsavedStoreChanges(){
  if(!storeRoot)return false;
  if(editing!==null){
   const form=storeRoot.querySelector('#fwStoreForm');
-  if(!form)return false;
+  if(!form)return true;
   const values=new FormData(form);
   for(const field of ['name','address','latitude','longitude'])if(String(values.get(field)??'')!==String(editing[field]??''))return true;
   if(Number(values.get('radius'))!==Number(editing.radius))return true;
@@ -98,6 +98,19 @@ function hasUnsavedStoreChanges(){
   if(input&&Number(input.value)!==Number(item.on_hand||0))return true;
  }
  return false;
+}
+function beforeNavigate(){
+ if(storeSaving){
+  note(storeRoot,'A save is still in progress. Wait for it to finish before navigating.','[data-store-management-status]');
+  return false;
+ }
+ if(!hasUnsavedStoreChanges())return true;
+ return typeof window.confirm==='function'
+  ? window.confirm('You have unsaved Store changes. Leave this screen and discard them?')
+  : false;
+}
+function historyContext(){
+ return selectedStoreId?{storeId:String(selectedStoreId),storeView:'management'}:{};
 }
 async function refreshStores(){
  if(!storeRoot||storeBusy||storeSaving)return;
@@ -297,5 +310,5 @@ function renderRequests(){if(!requestRoot)return;const cards=requests.map(r=>'<a
  requestRoot.innerHTML='<div class="fw-admin-section-head"><div><span class="eyebrow">CUSTOMER CARE</span><h2>Customer requests</h2><p>Order-related help requests submitted through FreshWay.</p></div><button class="ghost" type="button" data-refresh-requests>Refresh</button></div><p data-request-status class="muted fw-admin-status" role="status" aria-live="polite">'+requests.length+' pending request'+(requests.length===1?'':'s')+'.</p><div class="fw-request-list">'+(cards||'<section class="panel"><h3>No pending requests</h3><p class="muted">New order-related requests will appear here.</p></section>')+'</div><p class="fw-contact-note"><strong>Note:</strong> This list contains order-related requests only. The customer Contact FreshWay page displays contact details; general messages sent there are not saved to an inbox yet.</p>'}
 async function loadRequests(){if(!requestRoot||requestBusy)return;requestBusy=true;requestRoot.innerHTML='<p class="muted">Loading customer requests…</p>';try{const d=await api('/admin/delivery/requests');requests=Array.isArray(d.requests)?d.requests:[];renderRequests()}catch(e){requestRoot.innerHTML='<section class="panel"><h2>Could not load requests</h2><p class="muted">'+esc(e.message)+'</p><button class="primary" type="button" data-refresh-requests>Try again</button></section>'}finally{requestBusy=false}}
 requestRoot&&requestRoot.addEventListener('click',async e=>{if(e.target.closest('[data-refresh-requests]')){await loadRequests();return}const o=e.target.closest('[data-open-request-order]');if(o){if(window.navigateAdminScreen)window.navigateAdminScreen('orders');const search=document.querySelector('#orderSearch');if(search){search.value=o.dataset.openRequestOrder;search.dispatchEvent(new Event('input',{bubbles:true}))}return}const a=e.target.closest('[data-resolve-request]');if(!a)return;const buttons=a.closest('.fw-request-card')?.querySelectorAll('[data-resolve-request]');buttons?.forEach(b=>b.disabled=true);try{await api('/admin/delivery/requests/'+encodeURIComponent(a.dataset.resolveRequest),{method:'PATCH',body:JSON.stringify({decision:a.dataset.decision})});await loadRequests()}catch(err){note(requestRoot,err.message,'[data-request-status]');buttons?.forEach(b=>b.disabled=false)}});
-window.FreshWayOwnerStoreManagement={load:loadStores,refresh:refreshStores,open:openStoreManagement,close:closeStoreManagement};window.FreshWayOwnerCustomerRequests={load:loadRequests};
+window.FreshWayOwnerStoreManagement={load:loadStores,refresh:refreshStores,open:openStoreManagement,close:closeStoreManagement,beforeNavigate,historyContext};window.FreshWayOwnerCustomerRequests={load:loadRequests};
 })();
