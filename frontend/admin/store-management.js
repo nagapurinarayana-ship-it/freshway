@@ -75,7 +75,7 @@ function hasUnsavedStoreChanges(){
  if(!storeRoot)return false;
  if(editing!==null){
   const form=storeRoot.querySelector('#fwStoreForm');
-  if(!form)return false;
+  if(!form)return true;
   const values=new FormData(form);
   for(const field of ['name','address','latitude','longitude'])if(String(values.get(field)??'')!==String(editing[field]??''))return true;
   if(Number(values.get('radius'))!==Number(editing.radius))return true;
@@ -100,6 +100,10 @@ function hasUnsavedStoreChanges(){
  return false;
 }
 function beforeNavigate(){
+ if(storeSaving){
+  note(storeRoot,'A save is still in progress. Wait for it to finish before navigating.','[data-store-management-status]');
+  return false;
+ }
  if(!hasUnsavedStoreChanges())return true;
  return typeof window.confirm==='function'
   ? window.confirm('You have unsaved Store changes. Leave this screen and discard them?')
