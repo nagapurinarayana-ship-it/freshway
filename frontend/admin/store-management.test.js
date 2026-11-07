@@ -267,7 +267,7 @@ async function run() {
 
   const allPatches = calls.filter(call => call.method === 'PATCH');
   assert.ok(allPatches.every(call => call.url.includes('/stores/store-two/')), 'every write must stay scoped to Store Two');
-  assert.equal(allPatches.length, 6, 'success, partial failure and retry each issue two scoped writes');
+  assert.equal(allPatches.length, 8, 'success, partial failure, retry and in-flight save each issue two scoped writes');
 
   await manager.load();
   assert.ok(root.innerHTML.includes('data-manage-store="store-one"'));
