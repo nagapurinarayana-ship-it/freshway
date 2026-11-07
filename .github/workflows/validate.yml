@@ -123,9 +123,10 @@ jobs:
           const contact = fs.readFileSync('frontend/customer/store-info.js', 'utf8');
           const messages = fs.readFileSync('frontend/customer/messages.js', 'utf8');
           const requiredHtml = [
-            'app.js?v=106',
+            'app.js?v=107',
             'frontend/customer/store-info.js?v=msg1',
-            'frontend/customer/messages.js?v=msg1'
+            'frontend/customer/messages.js?v=msg1',
+            'frontend/customer/navigation.js?v=20261107-history-back-v1'
           ];
           for (const asset of requiredHtml) if (!html.includes(asset)) throw new Error('Customer HTML must use the current message-enabled asset: ' + asset);
           for (const asset of requiredHtml) if (!sw.includes(asset)) throw new Error('Customer service-worker shell must cache the current message-enabled asset: ' + asset);

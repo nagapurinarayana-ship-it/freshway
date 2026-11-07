@@ -201,10 +201,10 @@ test('Owner delivery UI edits dates directly on orders without a separate reques
   assert.ok(ownerHtml.includes('frontend/admin/delivery-management.js?v=20261106-store-reconciliation-v1'));
   assert.ok(ownerHtml.includes('admin.css?v=20261106-store-reconciliation-v1'));
   assert.ok(!ownerHtml.includes('delivery-management.js?v=20261026-date-only-v2'));
-  assert.ok(ownerSw.includes("const CACHE = 'fw-owner-v72';"));
+  assert.ok(ownerSw.includes("const CACHE = 'fw-owner-v73';"));
   assert.ok(ownerSw.includes(deliveryAsset) && ownerSw.includes(cssAsset));
   assert.ok(ownerSmoke.includes(deliveryAsset) && ownerSmoke.includes(cssAsset));
-  assert.ok(ownerSmoke.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v72';"));
+  assert.ok(ownerSmoke.includes("const EXPECTED_OWNER_CACHE = 'fw-owner-v73';"));
 });
 
 test('Owner delivery routes are mounted in the authenticated admin API and keep an audit trail', () => {

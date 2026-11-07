@@ -38,10 +38,12 @@ test('LIVE production media audit: real catalogue, category artwork and configur
   const customerCatalogueAsset = 'frontend/customer/catalogue.js?v=20261106-out-of-area-contact-v1';
   const liveVersionGuard = {
     baseUrl: LIVE_BASE_URL,
-    appScriptInHtml: liveShell.includes('app.js?v=106'),
+    appScriptInHtml: liveShell.includes('app.js?v=107'),
+    navigationScriptInHtml: liveShell.includes('frontend/customer/navigation.js?v=20261107-history-back-v1'),
     catalogueScriptInHtml: liveShell.includes(customerCatalogueAsset),
-    currentServiceWorkerCache: liveServiceWorker.includes('freshway-v128'),
-    appScriptInServiceWorker: liveServiceWorker.includes('/app.js?v=106'),
+    currentServiceWorkerCache: liveServiceWorker.includes('freshway-v129'),
+    appScriptInServiceWorker: liveServiceWorker.includes('/app.js?v=107'),
+    navigationScriptInServiceWorker: liveServiceWorker.includes('/frontend/customer/navigation.js?v=20261107-history-back-v1'),
     catalogueScriptInServiceWorker: liveServiceWorker.includes('/' + customerCatalogueAsset)
   };
   console.log('Live production customer version guard:', JSON.stringify(liveVersionGuard));

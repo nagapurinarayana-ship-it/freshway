@@ -11,6 +11,7 @@ assert.match(source,/history\.pushState/);
 assert.match(source,/history\.back|popstate/);
 assert.match(source,/historyMode:'none'/);
 assert.match(source,/historyMode==='push'/);
+assert.match(source,/if\(currentScreen!==screen\|\|leavingStoreWorkspace\)history\.pushState\(state,'','#'\+screen\);else history\.replaceState\(state,'','#'\+screen\)/,'repeated clicks on an active Owner destination must not add duplicate browser-history entries, while leaving a nested Store workspace remains navigable');
 assert.match(source,/const current=document\.querySelector\('\.screen\.active'\)/,'back navigation must remember the currently visible Owner screen before asking to discard changes');
 assert.match(source,/if\(activeAfter===current&&requested!==current\)\{[\s\S]*history\.pushState\(state,'','#'\+current\)/,'cancelling a back navigation must restore the current screen URL');
 assert.match(source,/classList\.toggle\('owner-authenticated',yes\)/,'navigation must become available only after Owner authentication succeeds');
@@ -24,7 +25,7 @@ const ownerBootstrap=source.slice(source.indexOf('function startOwnerApp()'));
 assert.ok(ownerBootstrap.indexOf("setAdminScreenVisual(location.hash.slice(1)||'overview')") < ownerBootstrap.indexOf('auth(true)'),
   'Owner must select the restored screen before revealing the authenticated app to prevent an Overview flash');
 assert.match(source,/document\.readyState==='loading'\)document\.addEventListener\('DOMContentLoaded',startOwnerApp,\{once:true\}\)/);
-assert.ok(html.indexOf('admin.js?v=20261105-store-refresh-preserve-v1') < html.indexOf('frontend/admin/store-profile.js'),
+assert.ok(html.indexOf('admin.js?v=20261107-history-dedup-v1') < html.indexOf('frontend/admin/store-profile.js'),
   'the regression test should cover the real script-loading order');
 assert.match(html,/id="accountDeletionSummary"/);
 assert.match(html,/class="owner-nav-more"/,'desktop navigation should group occasional tools under More');
@@ -37,7 +38,7 @@ const primaryNav=html.match(/<nav aria-label="Owner navigation">([\s\S]*?)<detai
 assert.doesNotMatch(primaryNav,/data-screen="settings"/,'Settings should not crowd the primary desktop navigation');
 assert.match(html,/mobile-more-label">Reports & settings/,'less-used options should be grouped under a clear heading');
 assert.match(source,/async function refreshOwnerScreen\(\)[\s\S]*?else if\(id==='offers'\)\{[\s\S]*?window\.FreshWayOwnerDeliveryOffers\?\.load\(\)/,'global refresh must reload Delivery & Offers without bypassing unsaved-change protection');
-assert.ok(html.indexOf('frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5') < html.indexOf('admin.js?v=20261105-store-refresh-preserve-v1'), 'Delivery & Offers must load before Owner bootstrap so a direct #offers route can call its loader');
+assert.ok(html.indexOf('frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5') < html.indexOf('admin.js?v=20261107-history-dedup-v1'), 'Delivery & Offers must load before Owner bootstrap so a direct #offers route can call its loader');
 assert.match(html,/data-more-screen="offers">🎟 Delivery & offers/,'mobile More menu must expose Delivery & Offers');
 const lifecycle=fs.readFileSync('owner-lifecycle.js','utf8');
 const freshness=fs.readFileSync('owner-address-final.js','utf8');

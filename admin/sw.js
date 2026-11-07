@@ -1,4 +1,4 @@
-const CACHE = 'fw-owner-v72';
+const CACHE = 'fw-owner-v73';
 const SHELL = [
   '/admin/',
   '/admin/manifest.webmanifest',
@@ -8,7 +8,7 @@ const SHELL = [
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/owner-pwa-install.css?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261106-store-reconciliation-v1',
-  '/admin/admin.js?v=20261105-store-refresh-preserve-v1',
+  '/admin/admin.js?v=20261107-history-dedup-v1',
   '/admin/frontend/admin/invoice-settings.js?v=20261105-auto-non-gst-disclosure-v1',
   '/admin/frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5',
   '/admin/frontend/admin/account-deletions.js?v=20261106-account-deletion-form-v1',
@@ -36,7 +36,7 @@ const REQUIRED_SHELL = [
   '/admin/manifest.webmanifest',
   '/admin/owner-pwa-install.js?v=20261019-install-prompt-v2',
   '/admin/admin.css?v=20261106-store-reconciliation-v1',
-  '/admin/admin.js?v=20261105-store-refresh-preserve-v1',
+  '/admin/admin.js?v=20261107-history-dedup-v1',
   '/admin/frontend/admin/delivery-offers.js?v=20261027-coupon-buttons-v5',
   '/admin/frontend/admin/account-deletions.js?v=20261106-account-deletion-form-v1',
   '/admin/frontend/admin/order-alerts.js?v=20261105-history-empty-actions-v1',

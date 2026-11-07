@@ -29,7 +29,7 @@ assert.match(admin,/refreshOwnerAfterOrderMutation\(\)/);
 assert.doesNotMatch(admin,/localStorage\.setItem\(['"]freshway-admin-session['"]/);
 assert.doesNotMatch(admin,/sessionStorage\.setItem\(['"]freshway-admin-session['"]/);
 assert.match(admin,/AUTH_HINT='freshway-admin-auth'/);
-assert.match(html,/admin\.js\?v=20261105-store-refresh-preserve-v1/);
+assert.match(html,/admin\.js\?v=20261107-history-dedup-v1/);
 assert.match(html,/admin\.css\?v=20261106-store-reconciliation-v1/);
 assert.match(html,/frontend\/admin\/delivery-management\.js\?v=20261106-store-reconciliation-v1/);
 assert.doesNotMatch(html,/admin\.js\?v=20261027-customer-messages-v1/,'Owner HTML must not retain the previous script version after simplification');
@@ -46,7 +46,7 @@ assert.match(sw,/if \(isVersionedCode\)/,'versioned assets must prefer a network
 assert.match(sw,/return cached\|\|Response\.error\(\)/,'a cached asset should only be used when the network fails');
 assert.match(sw,/if \(cached\) \{/);
 assert.doesNotMatch(sw,/cached && !freshCode/);
-assert.match(sw,/cache: 'no-store'/);
+assert.match(sw,/cache:\s*'no-store'/,'document navigation must bypass cached HTML and prefer a current network response');
 assert.doesNotMatch(sw,/\.catch\(\(\) => \{\}\)/);
 
 assert.match(auth,/COOKIE='__Host-freshway-admin-session'/);
@@ -55,7 +55,7 @@ assert.doesNotMatch(auth,/response\(\{ok:true,version:ADMIN_AUTH_VERSION,session
 assert.match(auth,/SameSite=Lax/);
 assert.match(response,/SameSite=Lax/);
 
-assert.match(ownerSw,/const CACHE = 'fw-owner-v72'/);
+assert.match(ownerSw,/const CACHE = 'fw-owner-v73'/);
 assert.match(ownerSw,/delivery-management\.js\?v=20261106-store-reconciliation-v1/);
 assert.match(ownerSw,/admin\.css\?v=20261106-store-reconciliation-v1/);
 assert.match(ownerSw,/if \(cached && isVersionedCode\) return cached/);
