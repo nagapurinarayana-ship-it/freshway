@@ -24,7 +24,36 @@ function closeOwnerOverlayNow(){
 function auth(yes){$('#authState').textContent=yes?'Connected':'Not connected';$('#authState').classList.toggle('connected',yes);$('.app')?.classList.toggle('owner-authenticated',yes);$('#loginView').classList.toggle('hidden',yes);$('#appView').classList.toggle('hidden',!yes)}
 
 function setAdminScreenVisual(id){const valid=['overview','orders','delivery','stores','requests','messages','cash','customers','catalogue','notifications','owner-alert-history','reports','offers','settings'];const screen=valid.includes(id)?id:'overview';$$('.screen').forEach(x=>x.classList.toggle('active',x.id===screen));$$('[data-screen]').forEach(b=>b.classList.toggle('active',b.dataset.screen===screen));return screen}
-function navigateAdminScreen(id,{historyMode='push',deferOrdersLoad=false}={}){if(window.FreshWayOwnerDeliveryOffers?.beforeNavigate&&!window.FreshWayOwnerDeliveryOffers.beforeNavigate())return;const currentScreen=document.querySelector('.screen.active')?.id||location.hash.slice(1)||'overview';const previousState=history.state||{};const screen=setAdminScreenVisual(id);const state={__freshwayOwner:true,screen};if(historyMode==='push'){const leavingStoreWorkspace=screen==='stores'&&currentScreen==='stores'&&!!previousState.storeId;if(currentScreen!==screen||leavingStoreWorkspace)history.pushState(state,'','#'+screen);else history.replaceState(state,'','#'+screen)}else if(historyMode==='replace')history.replaceState(state,'','#'+screen);window.scrollTo({top:0,behavior:'auto'});if(screen==='overview'){Promise.all([loadSummary(),loadBusiness(),loadHome()]).catch(e=>toast(e.message))}if(screen==='orders'&&!deferOrdersLoad)loadOrders(true);if(screen==='customers')loadCustomers(true);if(screen==='delivery'){loadDelivery(true);window.FreshWayOwnerDeliveryManagement?.load()}if(screen==='stores')return window.FreshWayOwnerStoreManagement?.load();if(screen==='requests')window.FreshWayOwnerCustomerRequests?.load();if(screen==='messages')window.FreshWayOwnerCustomerMessages?.load();if(screen==='cash')loadCash();if(screen==='catalogue')renderProducts();if(screen==='notifications'){loadHistory();window.FreshWayOwnerPushManagement?.loadCatalogue()}if(screen==='reports')loadReports();if(screen==='offers')window.FreshWayOwnerDeliveryOffers?.load();if(screen==='settings')loadStoreProfileSettings()}
+function navigateAdminScreen(id,{historyMode='push',deferOrdersLoad=false}={}){
+ const currentScreen=document.querySelector('.screen.active')?.id||location.hash.slice(1)||'overview';
+ const storeManagement=window.FreshWayOwnerStoreManagement;
+ // Store forms, prices and inventory must not be silently discarded by route changes.
+ if(currentScreen==='stores'&&storeManagement?.beforeNavigate&&!storeManagement.beforeNavigate())return false;
+ if(window.FreshWayOwnerDeliveryOffers?.beforeNavigate&&!window.FreshWayOwnerDeliveryOffers.beforeNavigate())return false;
+ const previousState=history.state||{};
+ const screen=setAdminScreenVisual(id);
+ const state={__freshwayOwner:true,screen};
+ if(historyMode==='push'){
+  const leavingStoreWorkspace=screen==='stores'&&currentScreen==='stores'&&!!previousState.storeId;
+  if(currentScreen!==screen||leavingStoreWorkspace)history.pushState(state,'','#'+screen);
+  else history.replaceState(state,'','#'+screen);
+ }else if(historyMode==='replace')history.replaceState(state,'','#'+screen);
+ window.scrollTo({top:0,behavior:'auto'});
+ if(screen==='overview'){Promise.all([loadSummary(),loadBusiness(),loadHome()]).catch(e=>toast(e.message))}
+ if(screen==='orders'&&!deferOrdersLoad)loadOrders(true);
+ if(screen==='customers')loadCustomers(true);
+ if(screen==='delivery'){loadDelivery(true);window.FreshWayOwnerDeliveryManagement?.load()}
+ if(screen==='stores')return storeManagement?.load()??true;
+ if(screen==='requests')window.FreshWayOwnerCustomerRequests?.load();
+ if(screen==='messages')window.FreshWayOwnerCustomerMessages?.load();
+ if(screen==='cash')loadCash();
+ if(screen==='catalogue')renderProducts();
+ if(screen==='notifications'){loadHistory();window.FreshWayOwnerPushManagement?.loadCatalogue()}
+ if(screen==='reports')loadReports();
+ if(screen==='offers')window.FreshWayOwnerDeliveryOffers?.load();
+ if(screen==='settings')loadStoreProfileSettings();
+ return true;
+}
 async function loadStoreProfileSettings(){try{const loads=[];if(window.FreshWayOwnerInvoiceSettings)loads.push(window.FreshWayOwnerInvoiceSettings.load({api}));if(window.FreshWayOwnerStoreProfile)loads.push(window.FreshWayOwnerStoreProfile.load({api}));await Promise.all(loads);}catch(e){toast(e.message)}}
 async function saveStoreProfileSettings(event){event?.preventDefault();const button=$('#storeProfileSaveBtn'),status=$('#storeProfileStatus');if(!window.FreshWayOwnerStoreProfile)return toast('Store profile module is unavailable.');button.disabled=true;if(status)status.textContent='Saving…';try{await window.FreshWayOwnerStoreProfile.save({api});if(status)status.textContent='Saved';toast('Store profile saved');}catch(e){if(status)status.textContent='Save failed';toast(e.message)}finally{button.disabled=false}}
 
@@ -227,12 +256,19 @@ window.addEventListener('popstate',event=>{
   const current=document.querySelector('.screen.active')?.id||location.hash.slice(1)||'overview';
   const requested=s?.__freshwayOwner?(s.screen||location.hash.slice(1)||'overview'):(location.hash.slice(1)||'overview');
   const navigation=navigateAdminScreen(requested,{historyMode:'none'});
+  // A cancelled confirmation happens after the browser has moved to the prior
+  // entry. Restore the visible screen and, for Store management, its exact ID.
+  if(navigation===false){
+    const context=current==='stores'?(window.FreshWayOwnerStoreManagement?.historyContext?.()||{}):{};
+    const state={__freshwayOwner:true,screen:current,...context};
+    history.pushState(state,'','#'+current);
+    return;
+  }
   if(requested==='stores'&&s?.storeId){Promise.resolve(navigation).then(()=>window.FreshWayOwnerStoreManagement?.open(s.storeId)).catch(error=>toast(error?.message||'Could not reopen store products.'));}
   const activeAfter=document.querySelector('.screen.active')?.id||'overview';
-  // Browser back changes the URL before the confirmation guard runs. If the
-  // owner cancels navigation, restore the current screen and matching history URL.
   if(activeAfter===current&&requested!==current){
-    const state={__freshwayOwner:true,screen:current};
+    const context=current==='stores'?(window.FreshWayOwnerStoreManagement?.historyContext?.()||{}):{};
+    const state={__freshwayOwner:true,screen:current,...context};
     history.pushState(state,'','#'+current);
   }
 });
