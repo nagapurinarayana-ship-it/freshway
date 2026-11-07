@@ -73,6 +73,8 @@ async function run() {
     querySelector(selector) {
       if (selector === '[data-catalogue-available="oil-d1"]') return availabilityInput;
       if (selector === '[data-catalogue-price="oil-d1"]') return priceInput;
+      if (selector === '[data-inventory-product="oil-d1"]') return stockInput;
+      if (selector === '[data-inventory-product="hidden-oil"]') return hiddenStockInput;
       if (selector === '[data-store-management-status]') return status;
       if (selector === '[data-store-product-search]') return searchInput;
       if (selector === '[data-store-filter-empty]') return filterEmpty;
@@ -145,9 +147,11 @@ async function run() {
     return response(fixtures[storeId][resource]);
   };
 
+  let confirmResult = false;
+  const confirmMessages = [];
   const context = {
     document: { querySelector: selector => selector === '#storeManagement' ? root : null },
-    window: {},
+    window: { confirm: message => { confirmMessages.push(message); return confirmResult; } },
     fetch,
     CSS: { escape: value => String(value) },
     console
@@ -170,6 +174,15 @@ async function run() {
   assert.ok(root.innerHTML.includes('fw-managed-inventory-only'), 'hidden central-catalogue stock must remain manageable');
   assert.ok(!root.innerHTML.includes('Reserved: 2 · Available:'), 'stock details must not be duplicated');
   assert.ok(root.innerHTML.includes('aria-pressed="true" data-stock-filter="all"'));
+  assert.equal(manager.historyContext().storeId, 'store-two', 'the active Store context must be available to Owner history restoration');
+  assert.equal(manager.beforeNavigate(), true, 'a clean Store workspace must not require confirmation');
+  priceInput.value = '300';
+  confirmResult = false;
+  assert.equal(manager.beforeNavigate(), false, 'choosing Stay must block navigation when a Store price is dirty');
+  assert.match(confirmMessages.at(-1), /unsaved Store changes/i);
+  confirmResult = true;
+  assert.equal(manager.beforeNavigate(), true, 'choosing Leave must explicitly allow discarding Store edits');
+  priceInput.value = '299';
 
   const oldStoreRequest = manager.open('store-one');
   await Promise.resolve();
@@ -252,6 +265,7 @@ async function run() {
     'a product at its low-stock threshold must receive the low stock state');
   assert.ok(root.innerHTML.includes('class="fw-stock-pill fw-stock-low"'),
     'the Owner inventory card must render the Low stock indicator');
+  assert.equal(manager.historyContext().storeId, 'store-one');
 
   console.log('Owner store workspace: store isolation, inventory-only products, loading and retry states, low-stock thresholds after reservations, summaries, accessible filters, combined save, partial-save recovery and refresh OK');
 }
