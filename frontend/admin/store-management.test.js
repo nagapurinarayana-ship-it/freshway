@@ -278,7 +278,7 @@ async function run() {
   assert.ok(root.innerHTML.includes('Prices and inventory could not be loaded for this store.'), 'a failed read must not be presented as an empty catalogue');
   assert.ok(root.innerHTML.includes('data-retry-store-management'), 'a failed store read must have an in-place retry');
   await click({ target: { closest: selector => selector.includes('[data-retry-store-management]') ? {} : null } });
-  assert.ok(root.innerHTML.includes('value="319"'), 'retry must successfully reload the selected store');
+  assert.ok(root.innerHTML.includes('value="329"'), 'retry must successfully reload the latest saved Store price');
   assert.ok(root.innerHTML.includes('value="26"'));
 
   // Store One fixture has 7 on-hand, 2 reserved and a threshold of 5:
