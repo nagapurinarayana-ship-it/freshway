@@ -22,7 +22,7 @@ test.describe('FreshWay public SEO pages', () => {
 
     await expect(page).toHaveTitle('FreshWay | Cold-Pressed Oils & Rice Delivered Locally');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en-IN');
-    await expect(page.locator('h1')).toContainText('Cold-pressed oils & rice');
+    await expect(page.locator('#homeView h1')).toContainText('Cold-pressed oils & rice');
 
     await expect(page.locator('meta[name="description"]')).toHaveAttribute(
       'content',
@@ -68,7 +68,7 @@ test.describe('FreshWay public SEO pages', () => {
   }
 
   test('sitemap lists only the three public canonical pages', async ({ page }) => {
-    const response = await page.request.get('/sitemap.xml');
+    const response = await page.request.get('http://127.0.0.1:4173/sitemap.xml');
     expect(response.status()).toBe(200);
     const xml = await response.text();
     const urls = await page.evaluate(source => {
@@ -88,7 +88,7 @@ test.describe('FreshWay public SEO pages', () => {
   });
 
   test('robots.txt advertises the sitemap and keeps private API/admin paths out of crawl discovery', async ({ page }) => {
-    const response = await page.request.get('/robots.txt');
+    const response = await page.request.get('http://127.0.0.1:4173/robots.txt');
     expect(response.status()).toBe(200);
     const robots = await response.text();
 
