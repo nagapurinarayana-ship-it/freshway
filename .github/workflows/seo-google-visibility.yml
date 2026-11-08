@@ -1,6 +1,20 @@
 name: FreshWay Google SEO visibility audit
 
 on:
+  push:
+    branches:
+      - main
+      - seo/category-landing-pages-20261108
+    paths:
+      - '.github/workflows/seo-google-visibility.yml'
+      - 'e2e/tests/google-search-visibility.spec.js'
+      - 'e2e/package.json'
+      - 'e2e/package-lock.json'
+      - 'index.html'
+      - 'cold-pressed-oils.html'
+      - 'rice.html'
+      - 'robots.txt'
+      - 'sitemap.xml'
   workflow_dispatch:
   schedule:
     # Monday 09:00 Asia/Kolkata (03:30 UTC).
