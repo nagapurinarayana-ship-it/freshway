@@ -24,8 +24,11 @@ assert.doesNotMatch(index, /rel=\"preload\" href=\"\/api\/promotions\" as=\"fetc
 assert.match(source, /data-src=/);
 assert.match(source, /loadSlideImage/);
 assert.doesNotMatch(source, /data:'\+esc\(p\.image_mime_type\)/, 'public carousel markup must not embed promotion Base64 payloads');
-assert.ok(index.includes('frontend/customer/promotions.js?v=20261030-lazy-promo-images-v1'), 'index must reference the full-image-fit customer banner asset');
-assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261030-lazy-promo-images-v1'), 'service worker must cache the full-image-fit customer banner asset');
+assert.ok(index.includes('frontend/customer/promotions.js?v=20261108-seo-hero-copy-v1'), 'index must reference the full-image-fit customer banner asset');
+assert.ok(sw.includes('/frontend/customer/promotions.js?v=20261108-seo-hero-copy-v1'), 'service worker must cache the full-image-fit customer banner asset');
 
 assert.match(sw, /const CACHE = 'freshway-v[0-9]+'/);
 console.log('customer promotion carousel: intrinsic-ratio responsive frame and complete promotional artwork OK');
+
+assert.ok(source.includes('Cold-pressed oils &amp; rice'), 'no-promotion fallback must preserve the current SEO hero heading');
+assert.ok(source.includes('Browse the current oils and rice catalogue'), 'no-promotion fallback must describe the real catalogue');
