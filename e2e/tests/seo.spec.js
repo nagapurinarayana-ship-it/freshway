@@ -45,7 +45,7 @@ test.describe('FreshWay public SEO pages', () => {
   });
 
   for (const category of categoryPages) {
-    test(` ${category.heading} page is independently crawlable and has valid structured data`, async ({ page }) => {
+    test(`${category.heading} page is independently crawlable and has valid structured data`, async ({ page }) => {
       const response = await page.goto(category.path);
       expect(response?.status()).toBe(200);
 
