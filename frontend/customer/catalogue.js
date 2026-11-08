@@ -25,7 +25,7 @@
     if(hero&&hero.parentElement===home&&hero.nextSibling!==c){
       home.insertBefore(c,hero.nextSibling);
     }
-    if(hero){const fruit=$('.hero-fruit');if(fruit)fruit.textContent='🫒🍚';const h=hero.querySelector('h1');if(h)h.innerHTML='Fresh groceries,<br><em>delivered locally.</em>'}
+    if(hero){const fruit=$('.hero-fruit');if(fruit)fruit.textContent='🫒🍚';const h=hero.querySelector('h1');if(h)h.innerHTML='Cold-pressed oils &amp; rice,<br><em>delivered locally.</em>'}
     return c;
   }
   function cartChangesForStore(nextProducts){
