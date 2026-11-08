@@ -13,14 +13,14 @@ const sw=fs.readFileSync('sw.js','utf8');
 const index=fs.readFileSync('index.html','utf8');
 const productionCustomerWorkflow=fs.readFileSync('.github/workflows/production-customer-playwright.yml','utf8');
 const messages=fs.readFileSync('frontend/customer/messages.js','utf8');
-assert.ok(index.includes('styles.css?v=20261030-aa-contrast-v1'),'HTML loads the current mobile viewport stylesheet');
+assert.ok(index.includes('styles.css?v=20261108-seo-category-pages-v1'),'HTML loads the current mobile viewport stylesheet');
 assert.ok(index.includes('frontend/customer/design-system.css?v=ds3'),'customer screens load the shared production design system');
 assert.doesNotMatch(messages,/button\.setAttribute\('aria-label'/,'Messages button must derive its accessible name from its visible heading and status text');
 assert.ok(index.includes('<span aria-hidden="true">✉️</span>')&&index.includes('<b aria-hidden="true">›</b>'),'Messages navigation decorative icon and chevron must be hidden from screen readers');
 assert.ok(index.includes('frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'customer app loads the fixed floating cart behavior');
 assert.ok(sw.includes('/frontend/customer/cart-bar.js?v=20261029-cartbar-v2'),'service worker caches the fixed floating cart behavior');
-assert.ok(sw.includes("const CACHE = 'freshway-v129'"),'service worker refreshes the app shell after the current customer shell asset update');
-assert.ok(productionCustomerWorkflow.includes('grep -qF "freshway-v129" "$sw_file"'),'production customer Playwright deployment gate must wait for the same customer shell cache');
+assert.ok(sw.includes("const CACHE = 'freshway-v130'"),'service worker refreshes the app shell after the current customer shell asset update');
+assert.ok(productionCustomerWorkflow.includes('grep -qF "freshway-v130" "$sw_file"'),'production customer Playwright deployment gate must wait for the same customer shell cache');
 assert.ok(index.includes('frontend/customer/orders.js?v=ba')&&sw.includes('/frontend/customer/orders.js?v=ba'),'Buy Again helper is versioned and included in the customer app shell');
 assert.ok(index.includes('frontend/customer/orders-view.js?v=ba')&&sw.includes('/frontend/customer/orders-view.js?v=ba'),'Buy Again order-card action is loaded from the current app shell');
 assert.ok(index.includes('app.js?v=107')&&sw.includes('/app.js?v=107'),'Buy Again cart action is loaded from the current app shell');
@@ -42,7 +42,7 @@ assert.ok(index.includes('frontend/customer/delivery-booking.css?v=20261106-area
 assert.ok(index.includes('frontend/customer/delivery-booking.js?v=20261106-area1')&&sw.includes('/frontend/customer/delivery-booking.js?v=20261106-area1'),'customer shell and service worker load the current non-deliverable availability UI');
 assert.ok(index.includes('frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2'),'HTML loads the selected-category fold-fit stylesheet');
 assert.ok(categoryFoldStyles.includes('height:100%!important;aspect-ratio:1/1'),'product artwork uses a square contained image box so the complete illustration is visible');
-assert.ok(sw.includes('/styles.css?v=20261030-aa-contrast-v1'),'service worker caches the current mobile viewport stylesheet');
+assert.ok(sw.includes('/styles.css?v=20261108-seo-category-pages-v1'),'service worker caches the current mobile viewport stylesheet');
 assert.ok(sw.includes('/frontend/customer/category-fold-fit.css?v=20261021-full-images-refresh-v2'),'service worker caches the selected-category fold-fit stylesheet');
 const customerCatalogueScript=index.split('<script src="')
   .map(part=>part.split('"')[0])
