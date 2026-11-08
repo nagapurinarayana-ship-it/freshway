@@ -1,10 +1,10 @@
 const FreshWaySeo=(()=>{
   const siteUrl='https://fwcoldpressed.in/';
-  const publicTitle='FreshWay | Fresh Groceries & Everyday Essentials Delivered Locally';
-  const publicDescription='Shop fresh fruits, groceries and everyday essentials from FreshWay. Order online for local delivery with convenient cash payment.';
-  const brandLogo=siteUrl+'freshway-logo-master.webp?v=20261008-master-v1';
+  const publicTitle='FreshWay | Cold-Pressed Oils & Rice Delivered Locally';
+  const publicDescription='Shop cold-pressed oils and rice varieties with FreshWay. Browse the current catalogue, check product sizes and prices, and place a local delivery order with cash payment.';
+  const brandLogo=siteUrl+'freshway-logo-master.webp?v=20261018-wa-brand-preview-v1';
   const publicImage=siteUrl+'freshway-whatsapp-share.png?v=20261018-wa-square-preview-v1';
-  const privateViews=new Set(['cart','checkout','orders','profile','messages']);
+  const privateViews=new Set(['cart','checkout','orders','messages','profile','confirmation']);
 
   const upsert=(selector,attributes)=>{
     let el=document.head.querySelector(selector);
@@ -69,7 +69,7 @@ const FreshWaySeo=(()=>{
     upsert('meta[property="og:type"]',{property:'og:type',content:'website'});
     upsert('meta[property="og:site_name"]',{property:'og:site_name',content:'FreshWay'});
     upsert('meta[property="og:image"]',{property:'og:image',content:publicImage});
-    upsert('meta[property="og:image:alt"]',{property:'og:image:alt',content:'FreshWay — Fresh groceries and everyday essentials delivered locally.'});
+    upsert('meta[property="og:image:alt"]',{property:'og:image:alt',content:'FreshWay — Cold-pressed oils and rice, delivered locally.'});
     upsert('meta[property="og:image:type"]',{property:'og:image:type',content:'image/png'});
     upsert('meta[property="og:image:width"]',{property:'og:image:width',content:'1200'});
     upsert('meta[property="og:image:height"]',{property:'og:image:height',content:'630'});
