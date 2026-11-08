@@ -88,9 +88,11 @@ async function dispatchPush(payload) {
   assert.match(app, /customerOrderData\.load\(\)/);
   assert.match(index, /app\.js\?v=107/);
   assert.ok(index.includes('frontend/customer/navigation.js?v=20261107-history-back-v1'), 'customer HTML must load the deterministic history module');
-  assert.match(sw, /const CACHE = 'freshway-v131';/, 'customer service worker must publish the current history-fix cache version');
+  assert.match(sw, /const CACHE = 'freshway-v132';/, 'customer service worker must publish the current history-fix cache version');
   assert.ok(sw.includes("'/cold-pressed-oils.html'"), 'service worker must precache the cold-pressed oils landing page');
   assert.ok(sw.includes("'/rice.html'"), 'service worker must precache the rice landing page');
+  assert.ok(index.includes('frontend/customer/catalogue.js?v=20261109-seo-hero-copy-v1'), 'customer HTML must load the corrected catalogue hero module');
+  assert.ok(sw.includes('/frontend/customer/catalogue.js?v=20261109-seo-hero-copy-v1'), 'service worker must precache the corrected catalogue hero module');
   assert.ok(sw.includes("'/styles.css?v=20261108-seo-category-pages-v1'"), 'service worker must precache the matching SEO stylesheet version');
   assert.ok(sw.includes('/app.js?v=107'), 'service worker must precache the same cache-busted customer app asset');
   assert.ok(sw.includes('/frontend/customer/navigation.js?v=20261107-history-back-v1'), 'service worker must precache the exact history-fix module loaded by HTML');
