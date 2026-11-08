@@ -6,22 +6,8 @@ const searches = [
   { id: 'brand-rice', query: 'FreshWay rice varieties' }
 ];
 
-function resolveResultUrl(href) {
-  try {
-    const parsed = new URL(href);
-    if (parsed.hostname.endsWith('google.com')) {
-      const target = parsed.searchParams.get('q') || parsed.searchParams.get('url');
-      if (target) return new URL(target).href;
-    }
-    return parsed.href;
-  } catch {
-    return href;
-  }
-}
-
-test.skip(process.env.FRESHWAY_GOOGLE_SEARCH_AUDIT !== '1', 'Run manually with npm run test:seo-google');
-
 test('Google search visibility audit for FreshWay', async ({ page }) => {
+  test.skip(process.env.FRESHWAY_GOOGLE_SEARCH_AUDIT !== '1', 'Run manually with npm run test:seo-google');
   test.setTimeout(120_000);
   const audit = [];
 
