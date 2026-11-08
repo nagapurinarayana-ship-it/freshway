@@ -67,22 +67,22 @@ jobs:
             if curl --silent --show-error --fail "$BASE_URL/?freshway-deploy-check=$probe" -o "$html_file" \
               && curl --silent --show-error --fail "$BASE_URL/sw.js?freshway-deploy-check=$probe" -o "$sw_file"; then
               if grep -qF 'app.js?v=107' "$html_file" &&
-                grep -qF "frontend/customer/catalogue.js?v=20261106-out-of-area-contact-v1" "$html_file" &&
-                grep -qF "freshway-v131" "$sw_file" &&
+                grep -qF "frontend/customer/catalogue.js?v=20261109-seo-hero-copy-v1" "$html_file" &&
+                grep -qF "freshway-v132" "$sw_file" &&
                 grep -qF '/app.js?v=107' "$sw_file" &&
-                grep -qF "/frontend/customer/catalogue.js?v=20261106-out-of-area-contact-v1" "$sw_file" &&
+                grep -qF "/frontend/customer/catalogue.js?v=20261109-seo-hero-copy-v1" "$sw_file" &&
                 grep -qF "frontend/customer/navigation.js?v=20261107-history-back-v1" "$html_file" &&
                 grep -qF "/frontend/customer/navigation.js?v=20261107-history-back-v1" "$sw_file" &&
                 curl --silent --show-error --fail "$BASE_URL/app.js?v=107" -o "$app_file" &&
                 curl --silent --show-error --fail "$BASE_URL/frontend/customer/navigation.js?v=20261107-history-back-v1" -o "$navigation_file" &&
-                curl --silent --show-error --fail "$BASE_URL/frontend/customer/catalogue.js?v=20261106-out-of-area-contact-v1" -o "$catalogue_file" &&
+                curl --silent --show-error --fail "$BASE_URL/frontend/customer/catalogue.js?v=20261109-seo-hero-copy-v1" -o "$catalogue_file" &&
                 grep -qF 'customerCartActions.bind({document,changeQty,toast});' "$app_file" &&
                 grep -qF 'navigation.goBack(backButton.dataset.back' "$app_file" &&
                 grep -qF 'state.previousView===target' "$navigation_file" &&
                 ! grep -qF 'customerSearch.bind(' "$app_file" &&
                 ! grep -qF 'searchInput' "$catalogue_file" &&
                 ! grep -qF 'search-wrap' "$catalogue_file"; then
-                echo "Current customer PWA shell is deployed: app.js?v=107 / navigation history v1 / catalogue v3 / freshway-v131."
+                echo "Current customer PWA shell is deployed: app.js?v=107 / navigation history v1 / catalogue hero v4 / freshway-v132."
                 exit 0
               fi
             fi
