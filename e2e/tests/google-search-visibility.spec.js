@@ -19,6 +19,8 @@ function resolveResultUrl(href) {
   }
 }
 
+test.skip(process.env.FRESHWAY_GOOGLE_SEARCH_AUDIT !== '1', 'Run manually with npm run test:seo-google');
+
 test('Google search visibility audit for FreshWay', async ({ page }) => {
   test.setTimeout(120_000);
   const audit = [];
