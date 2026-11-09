@@ -9,7 +9,7 @@ const searches = [
 
 test('Google search evidence capture for FreshWay (blocked searches are not ranking evidence)', async ({ page }) => {
   test.skip(process.env.FRESHWAY_GOOGLE_SEARCH_AUDIT !== '1', 'Run manually with npm run test:seo-google');
-  test.setTimeout(120_000);
+  test.setTimeout(240_000);
   const audit = [];
 
   for (const search of searches) {
