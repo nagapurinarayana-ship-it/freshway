@@ -78,7 +78,7 @@ test.describe('FreshWay public SEO pages', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'en-IN');
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /index,follow/);
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://fwcoldpressed.in/mancherial.html');
-    await expect(page.getByText('Shutter No-2, Road No-9, Hitech Colony, Mancherial, Telangana 504208')).toBeVisible();
+    await expect(page.locator('p.address')).toHaveText('Shutter No-2, Road No-9, Hitech Colony, Mancherial, Telangana 504208');
     await expect(page.getByRole('link', { name: 'Explore FreshWay cold-pressed oils' })).toHaveAttribute('href', '/cold-pressed-oils.html');
     await expect(page.getByRole('link', { name: 'View FreshWay rice varieties' })).toHaveAttribute('href', '/rice.html');
 
