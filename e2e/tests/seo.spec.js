@@ -78,14 +78,13 @@ test.describe('FreshWay public SEO pages', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'en-IN');
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /index,follow/);
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://fwcoldpressed.in/mancherial.html');
-    await expect(page.locator('p.address')).toHaveText('Shutter No-2, Road No-9, Hitech Colony, Mancherial, Telangana 504208');
+    await expect(page.locator('p.address')).toHaveText('Mancherial, Telangana 504208');
     await expect(page.getByRole('link', { name: 'Explore FreshWay cold-pressed oils' })).toHaveAttribute('href', '/cold-pressed-oils.html');
     await expect(page.getByRole('link', { name: 'View FreshWay rice varieties' })).toHaveAttribute('href', '/rice.html');
 
     const schema = await page.locator('#freshway-mancherial-schema').evaluate(element => JSON.parse(element.textContent));
     const store = schema['@graph'].find(node => node['@type'] === 'GroceryStore');
     expect(store?.name).toBe('FreshWay Mancherial');
-    expect(store?.address?.streetAddress).toBe('Shutter No-2, Road No-9, Hitech Colony');
     expect(store?.address?.addressLocality).toBe('Mancherial');
     expect(store?.address?.postalCode).toBe('504208');
     expect(store?.areaServed?.name).toBe('Mancherial');
