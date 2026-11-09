@@ -225,11 +225,16 @@ jobs:
           grep -qF '<loc>https://fwcoldpressed.in/</loc>' sitemap.xml
           test -s cold-pressed-oils.html
           test -s rice.html
+          test -s mancherial.html
+          grep -qF '<loc>https://fwcoldpressed.in/mancherial.html</loc>' sitemap.xml
           grep -qF '<loc>https://fwcoldpressed.in/cold-pressed-oils.html</loc>' sitemap.xml
           grep -qF '<loc>https://fwcoldpressed.in/rice.html</loc>' sitemap.xml
           grep -qF 'Disallow: /api/' robots.txt
           grep -qF 'href="/cold-pressed-oils.html"' index.html
           grep -qF 'href="/rice.html"' index.html
+          grep -qF 'href="/mancherial.html"' index.html
+          grep -qF 'GroceryStore' mancherial.html
+          grep -qF 'FreshWay in Mancherial' mancherial.html
           grep -qF 'CollectionPage' cold-pressed-oils.html
           grep -qF 'BreadcrumbList' cold-pressed-oils.html
           grep -qF 'CollectionPage' rice.html
