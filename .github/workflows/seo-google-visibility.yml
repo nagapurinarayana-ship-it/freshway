@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - seo/category-landing-pages-20261108
+      - seo/mancherial-local-landing-20261109
     paths:
       - '.github/workflows/seo-google-visibility.yml'
       - 'e2e/tests/google-search-visibility.spec.js'
