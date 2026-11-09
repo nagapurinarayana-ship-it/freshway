@@ -1,0 +1,64 @@
+name: FreshWay Google SEO visibility audit
+
+on:
+  push:
+    branches:
+      - main
+      - seo/category-landing-pages-20261108
+    paths:
+      - '.github/workflows/seo-google-visibility.yml'
+      - 'e2e/tests/google-search-visibility.spec.js'
+      - 'e2e/package.json'
+      - 'e2e/package-lock.json'
+      - 'index.html'
+      - 'cold-pressed-oils.html'
+      - 'rice.html'
+      - 'robots.txt'
+      - 'sitemap.xml'
+  workflow_dispatch:
+  schedule:
+    # Monday 09:00 Asia/Kolkata (03:30 UTC).
+    - cron: '30 3 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freshway-google-seo-visibility
+  cancel-in-progress: true
+
+jobs:
+  google-search-visibility:
+    name: Capture Google search visibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Prepare cached Playwright browser
+        uses: ./.github/actions/setup-playwright
+
+      - name: Run Google search visibility audit
+        working-directory: e2e
+        env:
+          CI: 'true'
+          FRESHWAY_GOOGLE_SEARCH_AUDIT: '1'
+        run: npm run test:seo-google
+
+      - name: Upload Google search evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: freshway-google-search-visibility-${{ github.run_id }}
+          path: |
+            e2e/test-results/
+            e2e/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 30

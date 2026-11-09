@@ -2,7 +2,8 @@
   "name": "freshway-browser-e2e",
   "private": true,
   "scripts": {
-    "test": "playwright test"
+    "test": "playwright test",
+    "test:seo-google": "FRESHWAY_GOOGLE_SEARCH_AUDIT=1 playwright test tests/google-search-visibility.spec.js"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0"

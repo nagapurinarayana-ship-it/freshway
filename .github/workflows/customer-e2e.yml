@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - 'index.html'
+      - 'robots.txt'
+      - 'sitemap.xml'
+      - 'cold-pressed-oils.html'
+      - 'rice.html'
       - 'app.js'
       - 'styles.css'
       - 'address-system.css'
@@ -31,6 +35,10 @@ on:
       - main
     paths:
       - 'index.html'
+      - 'robots.txt'
+      - 'sitemap.xml'
+      - 'cold-pressed-oils.html'
+      - 'rice.html'
       - 'app.js'
       - 'styles.css'
       - 'address-system.css'

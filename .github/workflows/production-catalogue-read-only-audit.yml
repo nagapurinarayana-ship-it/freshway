@@ -1,0 +1,100 @@
+name: FreshWay production catalogue read-only audit
+
+on:
+  push:
+    branches:
+      - seo/category-landing-pages-20261108
+    paths:
+      - '.github/workflows/production-catalogue-read-only-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freshway-production-catalogue-read-only-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Inspect active-store Oils and Rice catalogue (read-only)
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install Worker tooling
+        working-directory: worker
+        run: npm install
+
+      - name: Read active store catalogue from production D1
+        working-directory: worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "::error::Production D1 read credentials are missing. No production data was changed."
+            exit 1
+          fi
+          npx wrangler d1 execute freshway --remote --config wrangler.jsonc --command "WITH reserved AS (SELECT store_id,product_id,SUM(qty) qty FROM delivery_store_inventory_reservations WHERE status IN ('reserved','conflict') GROUP BY store_id,product_id) SELECT s.id store_id,s.name store_name,s.is_active store_active,c.id category_id,c.name category_name,c.slug category_slug,c.active category_active,c.updated_at category_updated_at,COUNT(DISTINCT p.id) total_products,COUNT(DISTINCT CASE WHEN p.active=1 THEN p.id END) active_products,COUNT(DISTINCT CASE WHEN p.active=1 AND c.active=1 AND COALESCE(sc.is_available,0)=1 AND (COALESCE(p.stock_managed,0)<>1 OR COALESCE(i.stock_quantity,0)-COALESCE(r.qty,0)>0) THEN p.id END) visible_products,GROUP_CONCAT(DISTINCT CASE WHEN p.active=1 AND c.active=1 AND COALESCE(sc.is_available,0)=1 AND (COALESCE(p.stock_managed,0)<>1 OR COALESCE(i.stock_quantity,0)-COALESCE(r.qty,0)>0) THEN p.name END) visible_product_names,COUNT(DISTINCT CASE WHEN p.active=1 AND COALESCE(sc.is_available,0)=1 AND (COALESCE(p.stock_managed,0)<>1 OR COALESCE(i.stock_quantity,0)-COALESCE(r.qty,0)>0) THEN p.id END) configured_sellable_products,GROUP_CONCAT(DISTINCT CASE WHEN p.active=1 AND COALESCE(sc.is_available,0)=1 AND (COALESCE(p.stock_managed,0)<>1 OR COALESCE(i.stock_quantity,0)-COALESCE(r.qty,0)>0) THEN p.name END) configured_sellable_product_names,COUNT(DISTINCT CASE WHEN p.active=1 AND sc.product_id IS NULL THEN p.id END) missing_store_catalogue_rows,COUNT(DISTINCT CASE WHEN p.active=1 AND COALESCE(p.stock_managed,0)=1 AND i.store_id IS NULL THEN p.id END) missing_inventory_rows,COUNT(DISTINCT CASE WHEN p.active=1 AND COALESCE(sc.is_available,0)<>1 THEN p.id END) unavailable_at_store,COUNT(DISTINCT CASE WHEN p.active=1 AND c.active=1 AND COALESCE(sc.is_available,0)=1 AND COALESCE(p.stock_managed,0)=1 AND COALESCE(i.stock_quantity,0)-COALESCE(r.qty,0)<=0 THEN p.id END) out_of_stock_products FROM delivery_stores s CROSS JOIN categories c LEFT JOIN products p ON p.category_id=c.id LEFT JOIN delivery_store_catalogue sc ON sc.store_id=s.id AND sc.product_id=p.id LEFT JOIN delivery_store_inventory i ON i.store_id=s.id AND i.product_id=p.id LEFT JOIN reserved r ON r.store_id=s.id AND r.product_id=p.id WHERE s.is_active=1 GROUP BY s.id,s.name,s.is_active,c.id,c.name,c.slug,c.active ORDER BY s.name,c.display_order,c.name" --json > "$RUNNER_TEMP/freshway-production-catalogue.json"
+          node --input-type=module - "$RUNNER_TEMP/freshway-production-catalogue.json" <<'NODE'
+          import fs from 'node:fs';
+          const raw = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const batches = Array.isArray(raw) ? raw : [raw];
+          const rows = batches.flatMap(batch => Array.isArray(batch?.results) ? batch.results : []);
+          if (!rows.length) throw new Error('Read-only D1 audit returned no active-store/category rows.');
+          const stores = [...new Set(rows.map(row => String(row.store_id)))];
+          const summary = rows.map(row => ({
+            store: row.store_name,
+            storeId: row.store_id,
+            category: row.category_name,
+            slug: row.category_slug,
+            categoryActive: Number(row.category_active),
+            categoryUpdatedAt: row.category_updated_at,
+            allProducts: Number(row.total_products || 0),
+            activeProducts: Number(row.active_products || 0),
+            customerVisibleProducts: Number(row.visible_products || 0),
+            configuredSellableProducts: Number(row.configured_sellable_products || 0),
+            configuredSellableProductNames: row.configured_sellable_product_names || '',
+            visibleProductNames: row.visible_product_names || '',
+            missingStoreCatalogueRows: Number(row.missing_store_catalogue_rows || 0),
+            missingInventoryRows: Number(row.missing_inventory_rows || 0),
+            unavailableAtStore: Number(row.unavailable_at_store || 0),
+            outOfStockProducts: Number(row.out_of_stock_products || 0)
+          }));
+          const target = summary.filter(row => /oil|rice/i.test(row.category + ' ' + row.slug));
+          const gaps = summary.filter(row => row.missingStoreCatalogueRows || row.missingInventoryRows);
+          const oilRows = target.filter(row => /oil/i.test(row.category + ' ' + row.slug));
+          const riceRows = target.filter(row => /rice/i.test(row.category + ' ' + row.slug));
+          console.log('FRESHWAY_PRODUCTION_CATALOGUE_READ_ONLY_AUDIT ' + JSON.stringify({
+            activeStoreCount: stores.length,
+            categoryRows: summary.length,
+            oilsAndRice: target,
+            oilCategoryPresent: oilRows.length > 0,
+            riceCategoryPresent: riceRows.length > 0,
+            riceCustomerVisibleAtAnyStore: riceRows.some(row => row.categoryActive === 1 && row.customerVisibleProducts > 0),
+            allCategoriesIncludingInactive: summary,
+            dataIntegrityGaps: gaps
+          }, null, 2));
+          if (!oilRows.length) console.log('::warning::No Oils category row was found in production D1.');
+          if (!riceRows.length) console.log('::warning::No Rice category row was found in production D1; Rice is not yet represented in any store catalogue.');
+          else if (!riceRows.some(row => row.categoryActive === 1 && row.customerVisibleProducts > 0)) console.log('::warning::Rice exists in production D1 but is not customer-visible at any active store.');
+          if (gaps.length) {
+            throw new Error('Missing store catalogue or managed-inventory rows were found; do not infer customer visibility until reconciled.');
+          }
+          NODE
+
+      - name: Confirm this audit did not modify production data
+        if: always()
+        run: echo "This workflow contains only a D1 SELECT query; it does not call customer mutation APIs or run migrations."

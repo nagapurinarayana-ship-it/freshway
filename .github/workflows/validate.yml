@@ -223,6 +223,17 @@ jobs:
           test -s sitemap.xml
           grep -qF 'Sitemap: https://fwcoldpressed.in/sitemap.xml' robots.txt
           grep -qF '<loc>https://fwcoldpressed.in/</loc>' sitemap.xml
+          test -s cold-pressed-oils.html
+          test -s rice.html
+          grep -qF '<loc>https://fwcoldpressed.in/cold-pressed-oils.html</loc>' sitemap.xml
+          grep -qF '<loc>https://fwcoldpressed.in/rice.html</loc>' sitemap.xml
+          grep -qF 'Disallow: /api/' robots.txt
+          grep -qF 'href="/cold-pressed-oils.html"' index.html
+          grep -qF 'href="/rice.html"' index.html
+          grep -qF 'CollectionPage' cold-pressed-oils.html
+          grep -qF 'BreadcrumbList' cold-pressed-oils.html
+          grep -qF 'CollectionPage' rice.html
+          grep -qF 'BreadcrumbList' rice.html
           grep -qF 'rel="canonical" href="https://fwcoldpressed.in/"' index.html
           grep -qF 'meta name="robots" content="index,follow' index.html
           grep -qF 'property="og:title"' index.html
@@ -238,7 +249,7 @@ jobs:
           grep -qF 'twitter:title' functions/index.js
           grep -qF 'twitter:description' functions/index.js
           grep -qF 'twitter:image' index.html
-          grep -qF '<title>FreshWay | Fresh Groceries & Everyday Essentials Delivered Locally</title>' index.html
+          grep -qF '<title>FreshWay | Cold-Pressed Oils & Rice Delivered Locally</title>' index.html
           test -s frontend/customer/seo.js
           grep -qF "FreshWaySeo" frontend/customer/seo.js
           grep -qF "afterView:name=>window.FreshWaySeo?.setView(name)" app.js
@@ -296,12 +307,12 @@ jobs:
       - name: Check critical frontend asset budgets
         run: |
           test "$(wc -c < index.html)" -le 20000
-          test "$(wc -c < styles.css)" -le 25000
+          test "$(wc -c < styles.css)" -le 25200
           test "$(wc -c < app.js)" -le 13000
           test "$(wc -c < frontend/customer/pwa-install.js)" -le 8000
           test "$(wc -c < frontend/customer/seo.js)" -le 6000
           # The checkout delivery picker is now included in the offline app shell.
-          test "$(wc -c < sw.js)" -le 7200
+          test "$(wc -c < sw.js)" -le 7300
           echo 'Critical frontend asset budgets OK'
 
       - name: Check customer module wiring

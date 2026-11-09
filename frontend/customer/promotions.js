@@ -16,7 +16,7 @@ const FreshWayPromotions=(()=>{
       hero.classList.remove('fw-promo-carousel');
       hero.style.removeProperty('aspect-ratio');
       hero.dataset.fwPromoDefault='1';
-      hero.innerHTML='<div><span class="eyebrow light">FRESHWAY</span><h1>Fresh groceries,<br><em>delivered locally.</em></h1><p>Choose what you need. Place your order. We take care of the rest.</p></div><div class="hero-fruit" aria-hidden="true">🫒🍚</div>';
+      hero.innerHTML='<div><span class="eyebrow light">FRESHWAY</span><h1>Cold-pressed oils &amp; rice,<br><em>delivered locally.</em></h1><p>Browse the current oils and rice catalogue, check local availability, and place your order with cash payment.</p></div><div class="hero-fruit" aria-hidden="true">🫒🍚</div>';
     }
   };
   const stop=()=>{if(timer){clearInterval(timer);timer=0}};

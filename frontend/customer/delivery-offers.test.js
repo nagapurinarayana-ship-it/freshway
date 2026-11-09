@@ -15,7 +15,7 @@ assert.ok(deliveryOffersScript,
   'HTML must load the updated delivery-offers module');
 assert.ok(worker.includes('/'+deliveryOffersScript),
   'service worker must cache the exact delivery-offers module URL loaded by HTML');
-assert.match(worker,/const CACHE = 'freshway-v129'/,
+assert.match(worker,/const CACHE = 'freshway-v132'/,
   'the service-worker cache version must match the current customer shell');
 const deliveryBookingScript=index.split('<script src="')
   .map(part=>part.split('"')[0])
@@ -27,7 +27,7 @@ assert.ok(worker.includes('/'+deliveryBookingScript),
 const customerCatalogueScript=index.split('<script src="')
   .map(part=>part.split('"')[0])
   .find(path=>path.startsWith('frontend/customer/catalogue.js?v='));
-assert.equal(customerCatalogueScript,'frontend/customer/catalogue.js?v=20261106-out-of-area-contact-v1',
+assert.equal(customerCatalogueScript,'frontend/customer/catalogue.js?v=20261109-seo-hero-copy-v1',
   'HTML must load the cache-busted out-of-area customer catalogue');
 assert.ok(worker.includes('/'+customerCatalogueScript),
   'service worker must cache the exact out-of-area customer catalogue URL loaded by HTML');

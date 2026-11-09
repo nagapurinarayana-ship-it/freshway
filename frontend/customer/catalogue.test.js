@@ -3,6 +3,8 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 
 const source=fs.readFileSync('frontend/customer/catalogue.js','utf8');
+assert.ok(source.includes("h.innerHTML='Cold-pressed oils &amp; rice,<br><em>delivered locally.</em>'"),'catalogue initialization must preserve the current Oils and Rice homepage hero');
+assert.doesNotMatch(source,/h\.innerHTML='Fresh groceries,/,'catalogue initialization must not replace the SEO hero with obsolete generic copy');
 const app=fs.readFileSync('app.js','utf8');
 const freshness=fs.readFileSync('frontend/customer/state-freshness.js','utf8');
 const ordersData=fs.readFileSync('frontend/customer/orders-data.js','utf8');
