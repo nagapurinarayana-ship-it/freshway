@@ -16,7 +16,7 @@ const categoryPages = [
 ];
 
 test.describe('FreshWay public SEO pages', () => {
-  test('homepage exposes consistent, indexable metadata and links to both category pages', async ({ page }) => {
+  test('homepage exposes consistent, indexable metadata and links to category and local pages', async ({ page }) => {
     const response = await page.goto('/');
     expect(response?.status()).toBe(200);
 
@@ -31,9 +31,7 @@ test.describe('FreshWay public SEO pages', () => {
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /index,follow/);
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://fwcoldpressed.in/');
 
-    const categoryNav = page.getByRole('navigation', { name: 'Browse FreshWay categories' });
-    await expect(categoryNav.getByRole('link', { name: 'Cold-pressed oils' })).toHaveAttribute('href', '/cold-pressed-oils.html');
-    await expect(categoryNav.getByRole('link', { name: 'Rice varieties' })).toHaveAttribute('href', '/rice.html');
+    await expect(page.locator('.seo-category-links')).toHaveCount(0);
 
     const schema = await page.locator('#freshway-seo-schema').evaluate(element => JSON.parse(element.textContent));
     const graph = schema['@graph'];
@@ -67,7 +65,29 @@ test.describe('FreshWay public SEO pages', () => {
     });
   }
 
-  test('sitemap lists only the three public canonical pages', async ({ page }) => {
+
+  test('Mancherial landing page identifies the local store and publishes matching LocalBusiness data', async ({ page }) => {
+    const response = await page.goto('/mancherial.html');
+    expect(response?.status()).toBe(200);
+
+    await expect(page).toHaveTitle('FreshWay Mancherial | Cold-Pressed Oils & Rice');
+    await expect(page.locator('h1')).toHaveText('FreshWay in Mancherial');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en-IN');
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /index,follow/);
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://fwcoldpressed.in/mancherial.html');
+    await expect(page.locator('p.address')).toHaveText('Mancherial, Telangana 504208');
+    await expect(page.getByRole('link', { name: 'Explore FreshWay cold-pressed oils' })).toHaveAttribute('href', '/cold-pressed-oils.html');
+    await expect(page.getByRole('link', { name: 'View FreshWay rice varieties' })).toHaveAttribute('href', '/rice.html');
+
+    const schema = await page.locator('#freshway-mancherial-schema').evaluate(element => JSON.parse(element.textContent));
+    const store = schema['@graph'].find(node => node['@type'] === 'GroceryStore');
+    expect(store?.name).toBe('FreshWay Mancherial');
+    expect(store?.address?.addressLocality).toBe('Mancherial');
+    expect(store?.address?.postalCode).toBe('504208');
+    expect(store?.areaServed?.name).toBe('Mancherial');
+  });
+
+  test('sitemap lists only the four public canonical pages', async ({ page }) => {
     const response = await page.request.get('http://127.0.0.1:4173/sitemap.xml');
     expect(response.status()).toBe(200);
     const xml = await response.text();
@@ -79,6 +99,7 @@ test.describe('FreshWay public SEO pages', () => {
 
     expect(urls).toEqual([
       'https://fwcoldpressed.in/',
+      'https://fwcoldpressed.in/mancherial.html',
       'https://fwcoldpressed.in/cold-pressed-oils.html',
       'https://fwcoldpressed.in/rice.html'
     ]);

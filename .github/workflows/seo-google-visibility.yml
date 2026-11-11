@@ -1,10 +1,11 @@
-name: FreshWay Google SEO visibility audit
+name: FreshWay Google SERP evidence capture (challenge-aware)
 
 on:
   push:
     branches:
       - main
       - seo/category-landing-pages-20261108
+      - seo/mancherial-local-landing-20261109
     paths:
       - '.github/workflows/seo-google-visibility.yml'
       - 'e2e/tests/google-search-visibility.spec.js'
@@ -13,6 +14,7 @@ on:
       - 'index.html'
       - 'cold-pressed-oils.html'
       - 'rice.html'
+      - 'mancherial.html'
       - 'robots.txt'
       - 'sitemap.xml'
   workflow_dispatch:
@@ -29,7 +31,7 @@ concurrency:
 
 jobs:
   google-search-visibility:
-    name: Capture Google search visibility
+    name: Capture Google SERP evidence (not a ranking or indexing verdict)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -45,7 +47,7 @@ jobs:
       - name: Prepare cached Playwright browser
         uses: ./.github/actions/setup-playwright
 
-      - name: Run Google search visibility audit
+      - name: Capture the current Google search response
         working-directory: e2e
         env:
           CI: 'true'

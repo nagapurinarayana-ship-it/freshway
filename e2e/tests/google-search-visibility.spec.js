@@ -2,13 +2,14 @@ import { test, expect } from '@playwright/test';
 
 const searches = [
   { id: 'domain', query: 'site:fwcoldpressed.in' },
-  { id: 'brand-oils', query: 'FreshWay cold-pressed oils' },
-  { id: 'brand-rice', query: 'FreshWay rice varieties' }
+  { id: 'brand-mancherial', query: 'FreshWay Mancherial' },
+  { id: 'oils-mancherial', query: 'FreshWay cold pressed Mancherial' },
+  { id: 'brand-oils-rice', query: 'FreshWay oils and rice' }
 ];
 
-test('Google search visibility audit for FreshWay', async ({ page }) => {
+test('Google search evidence capture for FreshWay (blocked searches are not ranking evidence)', async ({ page }) => {
   test.skip(process.env.FRESHWAY_GOOGLE_SEARCH_AUDIT !== '1', 'Run manually with npm run test:seo-google');
-  test.setTimeout(120_000);
+  test.setTimeout(240_000);
   const audit = [];
 
   for (const search of searches) {
@@ -63,8 +64,8 @@ test('Google search visibility audit for FreshWay', async ({ page }) => {
     contentType: 'application/json'
   });
 
-  // This is an evidence-gathering audit, not a rank gate: an absent result is
-  // recorded honestly and does not make otherwise healthy CI flaky.
+  // This captures live SERP evidence only. A Google challenge/consent page means
+  // visibility is unknown; it must never be reported as a zero-result ranking verdict.
   expect(audit).toHaveLength(searches.length);
   console.log('FreshWay Google visibility audit:', JSON.stringify(audit, null, 2));
 });
