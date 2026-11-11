@@ -31,10 +31,7 @@ test.describe('FreshWay public SEO pages', () => {
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /index,follow/);
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://fwcoldpressed.in/');
 
-    const categoryNav = page.getByRole('navigation', { name: 'Browse FreshWay categories and locations' });
-    await expect(categoryNav.getByRole('link', { name: 'Cold-pressed oils' })).toHaveAttribute('href', '/cold-pressed-oils.html');
-    await expect(categoryNav.getByRole('link', { name: 'Rice varieties' })).toHaveAttribute('href', '/rice.html');
-    await expect(categoryNav.getByRole('link', { name: 'FreshWay Mancherial' })).toHaveAttribute('href', '/mancherial.html');
+    await expect(page.locator('.seo-category-links')).toHaveCount(0);
 
     const schema = await page.locator('#freshway-seo-schema').evaluate(element => JSON.parse(element.textContent));
     const graph = schema['@graph'];
