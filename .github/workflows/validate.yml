@@ -228,8 +228,7 @@ jobs:
           grep -qF '<loc>https://fwcoldpressed.in/cold-pressed-oils.html</loc>' sitemap.xml
           grep -qF '<loc>https://fwcoldpressed.in/rice.html</loc>' sitemap.xml
           grep -qF 'Disallow: /api/' robots.txt
-          grep -qF 'href="/cold-pressed-oils.html"' index.html
-          grep -qF 'href="/rice.html"' index.html
+          ! grep -qF 'seo-category-links' index.html
           grep -qF 'CollectionPage' cold-pressed-oils.html
           grep -qF 'BreadcrumbList' cold-pressed-oils.html
           grep -qF 'CollectionPage' rice.html
